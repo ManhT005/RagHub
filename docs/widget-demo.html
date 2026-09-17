@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Admissions Demo Portal</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f1f7f4; padding: 40px; color: #182c39; max-width: 780px; margin: 0 auto; line-height: 1.6; }
+    h1 { color: #102b32; font-size: 28px; margin-bottom: 8px; }
+    p.sub { color: #5a7378; margin-top: 0; margin-bottom: 24px; }
+    .card { background: white; padding: 28px; border-radius: 12px; border: 1px solid #dbe4e6; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 14px; color: #173d3e; }
+    input, select { padding: 11px 14px; border: 1px solid #ccd7dc; border-radius: 7px; font-size: 14px; width: 100%; box-sizing: border-box; background: #fafbfc; }
+    input:focus, select:focus { border-color: #187b69; outline: none; background: #fff; }
+    button#load { padding: 12px 24px; background: #187b69; color: white; border: none; border-radius: 7px; font-size: 14px; font-weight: bold; cursor: pointer; transition: background .2s; }
+    button#load:hover:not(:disabled) { background: #136153; }
+    button#load:disabled { opacity: 0.6; cursor: not-allowed; }
+    .tip { background: #e8f4f1; border-left: 4px solid #187b69; color: #1c5647; padding: 14px 16px; border-radius: 4px; margin-top: 22px; font-size: 13px; line-height: 1.6; }
+    .error { background: #fbe9e7; border-left: 4px solid #d32f2f; color: #b71c1c; padding: 14px 16px; border-radius: 4px; margin-top: 18px; font-size: 13px; display: none; line-height: 1.5; }
+    .success { background: #e8f5e9; border-left: 4px solid #2e7d32; color: #1b5e20; padding: 14px 16px; border-radius: 4px; margin-top: 18px; font-size: 14px; display: none; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>Demo Portal</h1>
+  <p class="sub">Trang web giả lập bên ngoài để kiểm tra nhúng Widget RagHub qua Web Component.</p>
+
+  <div class="card">
+    <div class="form-group">
+      <label for="server">Địa chỉ nguồn script widget:</label>
+      <select id="server">
+        <option value="http://localhost:4200" selected>http://localhost:4200 (Chế độ chạy dev npm start)</option>
+        <option value="http://localhost:8080">http://localhost:8080 (Chế độ Docker Compose)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="key">Chatbot ID (hoặc dán cả đoạn &lt;script&gt; mã nhúng):</label>
+      <input id="key" placeholder="Ví dụ: d7f03a6a-... hoặc dán toàn bộ mã &lt;script src=...&gt;">
+    </div>
+
+    <button id="load">Mở trợ lý ảo (Load Widget)</button>
+
+    <div id="status-error" class="error"></div>
+    <div id="status-success" class="success"></div>
+
+    <div class="tip">
+      <b>💡 Hướng dẫn kiểm tra & sử dụng:</b>
+      <ol style="margin: 8px 0 0 18px; padding: 0;">
+        <li>Trong Admin Web (<code>http://localhost:4200</code>), đảm bảo Assistant đã được bấm <b>"Publish"</b>.</li>
+        <li>Sau khi bấm <b>"Mở trợ lý ảo"</b>, hãy nhìn vào <b>góc dưới cùng bên phải màn hình</b>.</li>
+        <li>Một nút màu xanh có chữ <b>"Ask RagHub"</b> sẽ xuất hiện. Bấm vào nút đó để mở popup hỏi đáp!</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('load').onclick = () => {
+      let raw = document.getElementById('key').value.trim();
+      const errBox = document.getElementById('status-error');
+      const succBox = document.getElementById('status-success');
+      errBox.style.display = 'none';
+      succBox.style.display = 'none';
+
+      if (!raw) {
+        errBox.textContent = 'Vui lòng nhập Chatbot ID hoặc dán mã nhúng.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      // Hỗ trợ nếu người dùng dán cả thẻ <script ... data-chatbot-key="..." ...>
+      let match = raw.match(/data-chatbot-key=["']([^"']+)["']/);
+      let key = match ? match[1] : raw.replace(/['"<>\/]/g, '').trim();
+
+      const server = document.getElementById('server').value;
+      const scriptUrl = server + '/widget/raghub.js';
+
+      const btn = document.getElementById('load');
+      btn.disabled = true;
+      btn.textContent = 'Đang tải widget...';
+
+      // Xóa widget cũ nếu đã tải trước đó
+      const oldWidget = document.querySelector('raghub-chatbot');
+      if (oldWidget) oldWidget.remove();
+
+      const s = document.createElement('script');
+      s.src = scriptUrl;
+      s.dataset.chatbotKey = key;
+
+      s.onload = () => {
+        btn.textContent = 'Đã kích hoạt widget';
+        succBox.innerHTML = '🎉 <b>Đã nạp widget thành công!</b><br>👉 Hãy nhìn vào <b>góc dưới cùng bên phải màn hình</b> để thấy nút <b>"Ask RagHub"</b>. Bấm nút đó để mở cửa sổ chat!';
+        succBox.style.display = 'block';
+      };
+
+      s.onerror = () => {
+        btn.disabled = false;
+        btn.textContent = 'Thử lại';
+        errBox.innerHTML = `❌ Không thể tải script từ <code>${scriptUrl}</code>.<br>Vui lòng kiểm tra cổng đang chạy (chọn 4200 nếu chạy <code>npm start</code>, hoặc 8080 nếu chạy Docker).`;
+        errBox.style.display = 'block';
+      };
+
+      document.body.append(s);
+    };
+  </script>
+</body>
+</html>

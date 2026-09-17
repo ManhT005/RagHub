@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "projects": {
+    "admin": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "index": "src/index.html",
+            "tsConfig": "tsconfig.json",
+            "styles": [
+              "src/styles.css"
+            ],
+            "outputPath": "dist/admin",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public",
+                "output": "/"
+              }
+            ]
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "buildTarget": "admin:build"
+          }
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": false
+  }
+}

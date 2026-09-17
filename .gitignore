@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+backend/data/
+node_modules/
+dist/
+.angular/
+apps/admin-web/public/widget/
