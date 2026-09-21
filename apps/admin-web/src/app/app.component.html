@@ -1,0 +1,33 @@
+<nz-layout class="app-shell">
+  <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">
+    <a class="brand" routerLink="/" aria-label="RagHub overview">
+      <span class="brand-mark">R</span>
+      <span>
+        <strong>RagHub</strong>
+        <small>Knowledge operations</small>
+      </span>
+    </a>
+
+    <ul nz-menu nzTheme="dark" nzMode="inline" aria-label="Primary navigation">
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+        <a routerLink="/"><nz-icon nzType="dashboard" />Overview</a>
+      </li>
+      <li nz-menu-item nzDisabled><nz-icon nzType="database" />Workspaces</li>
+      <li nz-menu-item nzDisabled><nz-icon nzType="file-text" />Documents</li>
+      <li nz-menu-item nzDisabled><nz-icon nzType="message" />Chatbots</li>
+    </ul>
+  </nz-sider>
+
+  <nz-layout>
+    <nz-header>
+      <div>
+        <span class="eyebrow">ADMIN CONSOLE</span>
+        <strong>Foundation workspace</strong>
+      </div>
+      <span class="phase-badge"><nz-icon nzType="cloud-server" />Phase 1</span>
+    </nz-header>
+    <nz-content>
+      <router-outlet />
+    </nz-content>
+  </nz-layout>
+</nz-layout>

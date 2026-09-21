@@ -1,0 +1,107 @@
+.app-shell {
+  min-height: 100vh;
+}
+
+nz-sider {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background: #0b1736;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  height: 88px;
+  padding: 0 24px;
+  color: #fff;
+}
+
+.brand:hover {
+  color: #fff;
+}
+
+.brand-mark {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #26d9aa, #2878ff);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand strong {
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+.brand small {
+  color: #8fa6d6;
+  font-size: 11px;
+}
+
+.ant-menu-item a,
+.ant-menu-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+nz-header {
+  display: flex;
+  height: 76px;
+  padding: 0 32px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e7eaf0;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+nz-header strong,
+.eyebrow {
+  display: block;
+}
+
+.eyebrow {
+  color: #68738b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.phase-badge {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #cae8df;
+  border-radius: 999px;
+  color: #087f5b;
+  background: #effcf7;
+  font-weight: 600;
+}
+
+nz-content {
+  padding: 32px;
+  background: #f4f6fa;
+}
+
+@media (max-width: 760px) {
+  nz-sider {
+    display: none;
+  }
+
+  nz-header,
+  nz-content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}
