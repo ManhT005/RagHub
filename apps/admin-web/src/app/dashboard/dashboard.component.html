@@ -1,0 +1,28 @@
+<main>
+  <section class="hero">
+    <div>
+      <nz-tag nzColor="green">FOUNDATION READY</nz-tag>
+      <h1>Build trusted answers from your own knowledge.</h1>
+      <p>
+        The phase-one technical slice accepts a PDF, processes it asynchronously and retrieves
+        tenant-scoped passages with source metadata.
+      </p>
+    </div>
+    <div class="flow" aria-label="Document ingestion flow">
+      <span>PDF upload</span><b>→</b><span>Parse & chunk</span><b>→</b><span>Search</span>
+    </div>
+  </section>
+
+  <section class="service-grid" aria-label="Foundation services">
+    @for (service of services; track service.name) {
+      <nz-card>
+        <nz-icon [nzType]="service.icon" />
+        <div>
+          <strong>{{ service.name }}</strong>
+          <p>{{ service.role }}</p>
+        </div>
+        <span class="status-dot" title="Configured"></span>
+      </nz-card>
+    }
+  </section>
+</main>

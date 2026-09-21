@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 .venv/
+.python-version
 
 # Python
 __pycache__/
@@ -10,6 +11,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
 # Node.js and frontend builds
 node_modules/
@@ -27,3 +30,4 @@ Thumbs.db
 # Runtime data and logs
 *.log
 backend/data/
+.celerybeat-schedule
