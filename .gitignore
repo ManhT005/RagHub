@@ -1,0 +1,29 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node.js and frontend builds
+node_modules/
+dist/
+.angular/
+coverage/
+apps/admin-web/public/widget/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime data and logs
+*.log
+backend/data/
