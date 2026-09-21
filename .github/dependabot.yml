@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 5
+    labels: [dependencies, ci]
+
+  - package-ecosystem: pip
+    directory: "/backend"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:15"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 5
+    labels: [dependencies, backend]
+
+  - package-ecosystem: npm
+    directory: "/apps/admin-web"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:30"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 5
+    labels: [dependencies, frontend]
+
+  - package-ecosystem: docker
+    directory: "/backend"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:45"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: "/apps/admin-web"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Ho_Chi_Minh
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]

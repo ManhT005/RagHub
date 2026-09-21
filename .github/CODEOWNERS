@@ -1,0 +1,10 @@
+# Default owner and governance-sensitive files
+* @ManhT005
+/.github/ @ManhT005
+
+# Application areas
+/backend/ @ManhT005
+/apps/admin-web/ @ManhT005
+/apps/chat-widget/ @ManhT005
+/infrastructure/ @ManhT005
+/docs/ @ManhT005
