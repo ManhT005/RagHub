@@ -69,7 +69,7 @@ class IngestionJob(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     document_version_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("document_versions.id", ondelete="CASCADE"), unique=True, index=True
+        ForeignKey("document_versions.id", ondelete="CASCADE"), unique=True
     )
     stage: Mapped[str] = mapped_column(String(32), default=DocumentStatus.QUEUED)
     progress: Mapped[int] = mapped_column(Integer, default=0)

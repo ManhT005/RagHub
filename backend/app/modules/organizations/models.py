@@ -12,7 +12,7 @@ class Organization(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
-    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(100), unique=True)
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

@@ -33,7 +33,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("slug"),
     )
-    op.create_index("ix_organizations_slug", "organizations", ["slug"])
 
     op.create_table(
         "workspaces",
@@ -131,9 +130,6 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("document_version_id"),
-    )
-    op.create_index(
-        "ix_ingestion_jobs_document_version_id", "ingestion_jobs", ["document_version_id"]
     )
 
 
