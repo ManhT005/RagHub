@@ -60,15 +60,11 @@ def _decode(content: bytes) -> str:
 
 
 def parse_txt(content: bytes, source_name: str) -> list[ParsedSection]:
-    paragraphs = re.split(r"\n\s*\n", _decode(content).strip())
-    sections = [
-        ParsedSection(paragraph.strip(), source_name, index)
-        for index, paragraph in enumerate(paragraphs)
-        if paragraph.strip()
-    ]
-    if not sections:
+    text = _decode(content).strip()
+    if not text:
         raise EmptyExtractedTextError("The file contains no text.")
-    return sections
+    # Blank lines are soft chunk boundaries, not separate citation sections.
+    return [ParsedSection(text, source_name, 0)]
 
 
 def parse_markdown(content: bytes, source_name: str) -> list[ParsedSection]:
@@ -76,7 +72,8 @@ def parse_markdown(content: bytes, source_name: str) -> list[ParsedSection]:
     sections: list[ParsedSection] = []
     heading: str | None = None
     lines: list[str] = []
-    fenced = False
+    fence_character: str | None = None
+    fence_length = 0
 
     def append_section() -> None:
         body = "\n".join(lines).strip()
@@ -84,9 +81,23 @@ def parse_markdown(content: bytes, source_name: str) -> list[ParsedSection]:
             sections.append(ParsedSection(body, source_name, len(sections), heading=heading))
 
     for line in text.splitlines():
-        if re.match(r"^\s*(```|~~~)", line):
-            fenced = not fenced
-        match = None if fenced else re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        fence = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if fence_character is not None:
+            lines.append(line)
+            if (
+                fence
+                and fence.group(1)[0] == fence_character
+                and len(fence.group(1)) >= fence_length
+                and not fence.group(2).strip()
+            ):
+                fence_character = None
+            continue
+        if fence:
+            fence_character = fence.group(1)[0]
+            fence_length = len(fence.group(1))
+            lines.append(line)
+            continue
+        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
         if match:
             append_section()
             heading = match.group(1).strip()

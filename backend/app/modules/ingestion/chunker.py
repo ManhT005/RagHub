@@ -62,11 +62,11 @@ def chunk_sections(
             boundaries.append(len(tokens))
         safe_boundaries = _utf8_boundaries(tokens)
         start = 0
-        chunk_index = 0
         while start < len(tokens):
             end = min(start + target_tokens, len(tokens))
             if end < len(tokens):
-                suitable = [b for b in boundaries if start + min_tokens <= b <= end]
+                minimum_end = start + max(min_tokens, overlap_tokens + 1)
+                suitable = [b for b in boundaries if minimum_end <= b <= end]
                 if suitable:
                     end = suitable[-1]
             if len(tokens) - end < min_tokens and end < len(tokens):
@@ -81,6 +81,7 @@ def chunk_sections(
             chunk_tokens = tokens[start:end]
             chunk_text = _ENCODING.decode(chunk_tokens).strip()
             if chunk_text:
+                chunk_index = len(chunks)
                 digest = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
                 section_key = f"{section.section_index}:{section.page_number}:{section.heading}"
                 chunks.append(
@@ -97,7 +98,6 @@ def chunk_sections(
                         content_hash=digest,
                     )
                 )
-                chunk_index += 1
             if end == len(tokens):
                 break
             start = max(start + 1, end - overlap_tokens)
