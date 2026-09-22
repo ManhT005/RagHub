@@ -7,7 +7,7 @@ export interface Workspace { id: string; name: string; slug: string; organizatio
 export interface DocumentItem { id: string; name: string; status: string; created_at: string;
   document_version_id: string | null; job_id: string | null; stage: string | null;
   progress: number | null; attempts: number | null; error_code: string | null;
-  error_message: string | null; }
+  error_message: string | null; retryable: boolean; }
 
 @Injectable({ providedIn: 'root' })
 export class RaghubApiService {
