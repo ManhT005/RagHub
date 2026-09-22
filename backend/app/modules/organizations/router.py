@@ -133,3 +133,30 @@ async def upsert_member(
         membership.role = payload.role
     await session.commit()
     return MembershipResponse(user_id=user.id, email=user.email, role=membership.role)
+
+
+@router.delete("/{organization_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_member(
+    organization_id: UUID,
+    user_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    if context.organization_id != organization_id:
+        raise AppError(
+            "ORGANIZATION_SCOPE_MISMATCH",
+            "Organization scope does not match the path.",
+            status_code=400,
+        )
+    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    membership = await session.get(Membership, (user_id, organization_id))
+    if membership is None:
+        raise AppError("MEMBERSHIP_NOT_FOUND", "Member was not found.", status_code=404)
+    if membership.role == MembershipRole.OWNER:
+        raise AppError(
+            "OWNER_MEMBERSHIP_PROTECTED",
+            "The organization owner cannot be removed.",
+            status_code=409,
+        )
+    session.delete(membership)
+    await session.commit()
