@@ -14,7 +14,11 @@ main {
   border-radius: 24px;
   color: #fff;
   background:
-    radial-gradient(circle at 90% 10%, rgba(38, 217, 170, 0.35), transparent 32%),
+    radial-gradient(
+      circle at 90% 10%,
+      rgba(38, 217, 170, 0.35),
+      transparent 32%
+    ),
     linear-gradient(135deg, #0b1736 0%, #153773 100%);
   box-shadow: 0 24px 60px rgba(11, 23, 54, 0.16);
 }
