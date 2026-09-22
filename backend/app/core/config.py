@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_name: str = "RagHub API"
     app_secret_key: str = "change-me-in-local-env"
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 7
     api_v1_prefix: str = "/api/v1"
     max_upload_size_mb: int = Field(default=25, ge=1, le=500)
 
