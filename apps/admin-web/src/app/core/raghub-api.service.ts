@@ -4,7 +4,10 @@ import { Injectable, inject } from '@angular/core';
 export interface Organization { id: string; name: string; slug: string; role: string; }
 export interface Membership { user_id: string; email: string; role: 'OWNER' | 'ADMIN' | 'EDITOR' | 'VIEWER'; }
 export interface Workspace { id: string; name: string; slug: string; organization_id: string; }
-export interface DocumentItem { id: string; name: string; status: string; created_at: string; }
+export interface DocumentItem { id: string; name: string; status: string; created_at: string;
+  document_version_id: string | null; job_id: string | null; stage: string | null;
+  progress: number | null; attempts: number | null; error_code: string | null;
+  error_message: string | null; }
 
 @Injectable({ providedIn: 'root' })
 export class RaghubApiService {
@@ -41,6 +44,9 @@ export class RaghubApiService {
     const body = new FormData();
     body.append('file', file);
     return this.http.post(`${this.base}/workspaces/${workspaceId}/documents`, body);
+  }
+  retryDocument(workspaceId: string, versionId: string) {
+    return this.http.post(`${this.base}/workspaces/${workspaceId}/document-versions/${versionId}/retry`, {});
   }
   deleteDocument(workspaceId: string, documentId: string) {
     return this.http.delete(`${this.base}/workspaces/${workspaceId}/documents/${documentId}`);

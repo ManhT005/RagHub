@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { timer } from 'rxjs';
 
 import { RaghubApiService, DocumentItem, Workspace } from '../core/raghub-api.service';
 
@@ -18,8 +20,14 @@ export class DocumentsComponent {
   protected workspaceId = '';
   protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly api = inject(RaghubApiService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  constructor() { this.api.workspaces().subscribe({ next: (items) => { this.workspaces.set(items); this.workspaceId = items[0]?.id ?? ''; this.load(); }, error: () => this.error.set('Select an organization and sign in first.') }); }
+  constructor() {
+    this.api.workspaces().subscribe({ next: (items) => { this.workspaces.set(items); this.workspaceId = items[0]?.id ?? ''; this.load(); }, error: () => this.error.set('Select an organization and sign in first.') });
+    timer(3000, 3000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.documents().some((item) => !['READY', 'FAILED'].includes(item.status))) this.load();
+    });
+  }
 
   protected load(): void {
     if (!this.workspaceId) return;
@@ -28,7 +36,14 @@ export class DocumentsComponent {
   protected upload(): void {
     const file = this.fileInput()?.nativeElement.files?.[0];
     if (!file || !this.workspaceId) return;
-    this.api.upload(this.workspaceId, file).subscribe({ next: () => this.load(), error: () => this.error.set('Upload failed. Only PDF is supported.') });
+    this.api.upload(this.workspaceId, file).subscribe({ next: () => { this.error.set(''); this.load(); }, error: (response) => this.error.set(response.error?.error?.code ?? 'Upload failed.') });
+  }
+  protected retry(document: DocumentItem): void {
+    if (!document.document_version_id) return;
+    this.api.retryDocument(this.workspaceId, document.document_version_id).subscribe({
+      next: () => { this.error.set(''); this.load(); },
+      error: (response) => this.error.set(response.error?.error?.code ?? 'Retry failed.'),
+    });
   }
   protected remove(document: DocumentItem): void {
     this.api.deleteDocument(this.workspaceId, document.id).subscribe({ next: () => this.documents.update((items) => items.filter((item) => item.id !== document.id)), error: () => this.error.set('Could not delete document.') });
