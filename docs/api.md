@@ -36,7 +36,9 @@ returns `202 Accepted` with `document_id`, `document_version_id`, `job_id`, and
 metadata; the object key is generated from UUIDs.
 
 `GET /workspaces/{workspace_id}/documents` lists non-deleted documents with
-`status`, `stage`, `progress`, `attempts`, `error_code`, and `error_message`.
+`status`, `stage`, `progress`, `attempts`, `error_code`, `error_message`, and
+`retryable`. Error messages are safe descriptions mapped from error codes;
+provider exceptions appear only in server logs.
 Stages are `QUEUED`, `PARSING`, `CHUNKING`, `EMBEDDING`, `INDEXING`, `READY`, and
 `FAILED`. Transient storage and index errors receive up to three automatic
 retries. Invalid input and unsupported OCR do not retry automatically.
@@ -44,6 +46,12 @@ retries. Invalid input and unsupported OCR do not retry automatically.
 `POST /workspaces/{workspace_id}/document-versions/{version_id}/retry` resets a
 failed version's job and returns the same `202 Accepted` response shape. It
 requires `OWNER`, `ADMIN`, or `EDITOR` and does not create a new version.
+Only `STORAGE_UNAVAILABLE`, `QUEUE_UNAVAILABLE`, `EMBEDDING_UNAVAILABLE`, and
+`INDEX_UNAVAILABLE` can be retried. Invalid PDFs, unsupported OCR and text
+decoding failures require a corrected upload (`409 DOCUMENT_NOT_RETRYABLE`).
+Concurrent retries are serialized with row locks, and ingestion uses a
+PostgreSQL advisory lock held across stage commits. Redelivery of a READY
+version leaves attempts and status unchanged.
 
 `DELETE /workspaces/{workspace_id}/documents/{document_id}` soft-deletes a
 document; it requires `OWNER`, `ADMIN`, or `EDITOR`.
