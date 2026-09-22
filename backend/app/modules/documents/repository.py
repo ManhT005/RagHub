@@ -92,3 +92,29 @@ class DocumentRepository:
                 error_message=message[:2000],
             )
         )
+
+    async def list_documents(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[Document]:
+        rows = await self.session.scalars(
+            select(Document)
+            .where(
+                Document.organization_id == organization_id,
+                Document.workspace_id == workspace_id,
+                Document.deleted_at.is_(None),
+            )
+            .order_by(Document.created_at.desc())
+        )
+        return list(rows)
+
+    async def find_document(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, document_id: uuid.UUID
+    ) -> Document | None:
+        return await self.session.scalar(
+            select(Document).where(
+                Document.id == document_id,
+                Document.organization_id == organization_id,
+                Document.workspace_id == workspace_id,
+                Document.deleted_at.is_(None),
+            )
+        )
