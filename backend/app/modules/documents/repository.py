@@ -1,14 +1,16 @@
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.ingestion_lock import ingestion_lock_key
 from app.modules.documents.models import (
     Document,
     DocumentStatus,
     DocumentVersion,
     IngestionJob,
 )
+from app.modules.ingestion.errors import ingestion_error_message
 from app.modules.workspaces.models import Workspace
 
 
@@ -89,7 +91,7 @@ class DocumentRepository:
             .values(
                 stage=DocumentStatus.FAILED,
                 error_code="QUEUE_UNAVAILABLE",
-                error_message=message[:2000],
+                error_message=ingestion_error_message("QUEUE_UNAVAILABLE"),
             )
         )
 
@@ -125,8 +127,17 @@ class DocumentRepository:
                 Workspace.deleted_at.is_(None),
                 Document.deleted_at.is_(None),
             )
+            .with_for_update(of=(DocumentVersion, IngestionJob))
+            .execution_options(populate_existing=True)
         )
         return row.one_or_none()
+
+    async def try_retry_lock(self, version_id: uuid.UUID) -> bool:
+        return bool(
+            await self.session.scalar(
+                select(func.pg_try_advisory_xact_lock(ingestion_lock_key(version_id)))
+            )
+        )
 
     async def list_document_jobs(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID

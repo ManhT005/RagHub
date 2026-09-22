@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +13,9 @@ from app.core.exceptions import AppError
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.modules.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_TYPES = {
     ".pdf": {"application/pdf", "application/x-pdf"},
@@ -95,6 +99,7 @@ class DocumentService:
 
             ingest_document_version.delay(str(version.id))
         except Exception as exc:
+            logger.exception("Could not enqueue document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
             await self.session.commit()
             raise AppError(
@@ -127,6 +132,16 @@ class DocumentService:
             raise AppError(
                 "INVALID_DOCUMENT_STATUS", "Only failed versions can be retried.", status_code=409
             )
+        if job.error_code not in RETRYABLE_ERROR_CODES:
+            raise AppError(
+                "DOCUMENT_NOT_RETRYABLE",
+                "This failure cannot be retried. Correct the document and upload it again.",
+                status_code=409,
+            )
+        if not await self.repository.try_retry_lock(version.id):
+            raise AppError(
+                "INGESTION_IN_PROGRESS", "Ingestion is still finishing.", status_code=409
+            )
         document.status = version.status = job.stage = "QUEUED"
         job.progress = job.attempts = 0
         job.error_code = job.error_message = job.error_details = None
@@ -136,6 +151,7 @@ class DocumentService:
 
             ingest_document_version.delay(str(version.id))
         except Exception as exc:
+            logger.exception("Could not enqueue retry for document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
             await self.session.commit()
             raise AppError(
@@ -171,7 +187,10 @@ class DocumentService:
                 response.progress = job.progress
                 response.attempts = job.attempts
                 response.error_code = job.error_code
-                response.error_message = job.error_message
+                response.error_message = ingestion_error_message(job.error_code)
+                response.retryable = (
+                    version.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
+                )
             result.append(response)
         return result
 

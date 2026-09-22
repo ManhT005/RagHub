@@ -8,7 +8,7 @@ _ENCODING = ENCODING
 
 
 def embed_chunks(chunks: list[TextChunk]) -> dict[str, list[float]]:
-    """Deterministic local token hashing vectors; replaceable by a model later."""
+    """Development stub: token hashing vectors, pending a semantic retrieval provider."""
     vectors: dict[str, list[float]] = {}
     for chunk in chunks:
         vector = [0.0] * DIMENSIONS
