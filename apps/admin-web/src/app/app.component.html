@@ -12,8 +12,12 @@
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
         <a routerLink="/"><nz-icon nzType="dashboard" />Overview</a>
       </li>
-      <li nz-menu-item nzDisabled><nz-icon nzType="database" />Workspaces</li>
-      <li nz-menu-item nzDisabled><nz-icon nzType="file-text" />Documents</li>
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+        <a routerLink="/workspaces"><nz-icon nzType="database" />Workspaces</a>
+      </li>
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+        <a routerLink="/documents"><nz-icon nzType="file-text" />Documents</a>
+      </li>
       <li nz-menu-item nzDisabled><nz-icon nzType="message" />Chatbots</li>
     </ul>
   </nz-sider>
@@ -24,7 +28,7 @@
         <span class="eyebrow">ADMIN CONSOLE</span>
         <strong>Foundation workspace</strong>
       </div>
-      <span class="phase-badge"><nz-icon nzType="cloud-server" />Phase 1</span>
+      <a class="phase-badge" routerLink="/auth"><nz-icon nzType="cloud-server" />Account</a>
     </nz-header>
     <nz-content>
       <router-outlet />
