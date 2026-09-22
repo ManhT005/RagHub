@@ -14,6 +14,7 @@ class DocumentStatus(StrEnum):
     QUEUED = "QUEUED"
     PARSING = "PARSING"
     CHUNKING = "CHUNKING"
+    EMBEDDING = "EMBEDDING"
     INDEXING = "INDEXING"
     READY = "READY"
     FAILED = "FAILED"

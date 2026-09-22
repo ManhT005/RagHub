@@ -19,6 +19,15 @@ def chunk_index_mapping() -> dict[str, Any]:
                 "document_version_id": {"type": "keyword"},
                 "chunk_id": {"type": "keyword"},
                 "content": {"type": "text"},
+                "content_hash": {"type": "keyword"},
+                "token_count": {"type": "integer"},
+                "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
+                "embedding": {
+                    "type": "dense_vector",
+                    "dims": 384,
+                    "index": True,
+                    "similarity": "cosine",
+                },
                 "source_name": {
                     "type": "keyword",
                     "fields": {"text": {"type": "text"}},
@@ -45,7 +54,17 @@ class ChunkIndexer:
         alias = self.settings.elasticsearch_alias
         if not self.client.indices.exists(index=index):
             self.client.indices.create(index=index, **chunk_index_mapping())
-        if not self.client.indices.exists_alias(name=alias):
+        else:
+            self.client.indices.put_mapping(
+                index=index, properties=chunk_index_mapping()["mappings"]["properties"]
+            )
+        if self.client.indices.exists_alias(name=alias):
+            current = self.client.indices.get_alias(name=alias)
+            if set(current) != {index}:
+                actions = [{"remove": {"index": old, "alias": alias}} for old in current]
+                actions.append({"add": {"index": index, "alias": alias}})
+                self.client.indices.update_aliases(actions=actions)
+        else:
             self.client.indices.put_alias(index=index, name=alias)
 
     def replace_document_version(
@@ -57,6 +76,7 @@ class ChunkIndexer:
         document_version_id: uuid.UUID,
         source_name: str,
         chunks: list[TextChunk],
+        embeddings: dict[str, list[float]],
     ) -> None:
         self.ensure_index()
         index = self.settings.elasticsearch_index
@@ -79,8 +99,12 @@ class ChunkIndexer:
                     "document_version_id": str(document_version_id),
                     "chunk_id": str(chunk.chunk_id),
                     "content": chunk.content,
-                    "source_name": source_name,
+                    "source_name": chunk.source_name,
                     "page_number": chunk.page_number,
+                    "heading": chunk.heading,
+                    "content_hash": chunk.content_hash,
+                    "token_count": chunk.token_count,
+                    "embedding": embeddings[str(chunk.chunk_id)],
                     "chunk_index": chunk.chunk_index,
                     "language": "vi",
                     "created_at": now,
@@ -127,6 +151,7 @@ class ChunkSearch:
                 "content",
                 "source_name",
                 "page_number",
+                "heading",
             ],
         )
         return [

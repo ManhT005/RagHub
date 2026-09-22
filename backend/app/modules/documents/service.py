@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,8 +13,15 @@ from app.core.exceptions import AppError
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.modules.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 
-PDF_MIME_TYPES = {"application/pdf", "application/x-pdf"}
+logger = logging.getLogger(__name__)
+
+SUPPORTED_TYPES = {
+    ".pdf": {"application/pdf", "application/x-pdf"},
+    ".txt": {"text/plain"},
+    ".md": {"text/markdown", "text/plain"},
+}
 
 
 class DocumentService:
@@ -23,7 +31,7 @@ class DocumentService:
         self.repository = DocumentRepository(session)
         self.storage = MinioObjectStorage(self.settings)
 
-    async def upload_pdf(
+    async def upload_document(
         self,
         *,
         organization_id: uuid.UUID,
@@ -37,26 +45,28 @@ class DocumentService:
                 status_code=404,
             )
 
-        filename = Path(upload.filename or "").name
-        if not filename or Path(filename).suffix.lower() != ".pdf":
-            raise AppError("UNSUPPORTED_FILE_TYPE", "Only PDF files are supported.")
-        if upload.content_type not in PDF_MIME_TYPES:
+        filename = Path((upload.filename or "").replace("\\", "/")).name
+        extension = Path(filename).suffix.lower()
+        if not filename or extension not in SUPPORTED_TYPES:
+            raise AppError(
+                "UNSUPPORTED_FILE_TYPE", "Only PDF, TXT and Markdown files are supported."
+            )
+        mime_type = (upload.content_type or "").split(";", 1)[0].strip().lower()
+        if mime_type not in SUPPORTED_TYPES[extension]:
             raise AppError(
                 "INVALID_CONTENT_TYPE",
-                "The upload must use the application/pdf content type.",
+                "The content type does not match the file extension.",
             )
 
         content = await self._read_limited(upload)
-        if not content.startswith(b"%PDF-"):
+        if extension == ".pdf" and not content.startswith(b"%PDF-"):
             raise AppError("INVALID_PDF", "The uploaded file is not a valid PDF.")
 
         checksum = hashlib.sha256(content).hexdigest()
-        storage_key = f"{organization_id}/{workspace_id}/{uuid.uuid4()}.pdf"
+        storage_key = f"{organization_id}/{workspace_id}/{uuid.uuid4()}{extension}"
         try:
             await anyio.to_thread.run_sync(
-                lambda: self.storage.put(
-                    storage_key, content, upload.content_type or "application/pdf"
-                )
+                lambda: self.storage.put(storage_key, content, mime_type)
             )
         except Exception as exc:
             raise AppError(
@@ -72,13 +82,16 @@ class DocumentService:
                 filename=filename,
                 storage_key=storage_key,
                 checksum=checksum,
-                mime_type=upload.content_type or "application/pdf",
+                mime_type=mime_type,
                 size_bytes=len(content),
             )
             await self.session.commit()
         except Exception:
             await self.session.rollback()
-            await anyio.to_thread.run_sync(lambda: self.storage.remove(storage_key))
+            try:
+                await anyio.to_thread.run_sync(lambda: self.storage.remove(storage_key))
+            except Exception:
+                pass
             raise
 
         try:
@@ -86,6 +99,7 @@ class DocumentService:
 
             ingest_document_version.delay(str(version.id))
         except Exception as exc:
+            logger.exception("Could not enqueue document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
             await self.session.commit()
             raise AppError(
@@ -103,6 +117,54 @@ class DocumentService:
             created_at=version.created_at,
         )
 
+    async def retry(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, version_id: uuid.UUID
+    ) -> DocumentAccepted:
+        result = await self.repository.find_version_for_retry(
+            organization_id, workspace_id, version_id
+        )
+        if result is None:
+            raise AppError(
+                "DOCUMENT_VERSION_NOT_FOUND", "Document version was not found.", status_code=404
+            )
+        document, version, job = result
+        if version.status != "FAILED":
+            raise AppError(
+                "INVALID_DOCUMENT_STATUS", "Only failed versions can be retried.", status_code=409
+            )
+        if job.error_code not in RETRYABLE_ERROR_CODES:
+            raise AppError(
+                "DOCUMENT_NOT_RETRYABLE",
+                "This failure cannot be retried. Correct the document and upload it again.",
+                status_code=409,
+            )
+        if not await self.repository.try_retry_lock(version.id):
+            raise AppError(
+                "INGESTION_IN_PROGRESS", "Ingestion is still finishing.", status_code=409
+            )
+        document.status = version.status = job.stage = "QUEUED"
+        job.progress = job.attempts = 0
+        job.error_code = job.error_message = job.error_details = None
+        await self.session.commit()
+        try:
+            from app.workers.tasks import ingest_document_version
+
+            ingest_document_version.delay(str(version.id))
+        except Exception as exc:
+            logger.exception("Could not enqueue retry for document version %s", version.id)
+            await self.repository.mark_queue_failure(version.id, str(exc))
+            await self.session.commit()
+            raise AppError(
+                "QUEUE_UNAVAILABLE", "Could not queue ingestion.", status_code=503
+            ) from exc
+        return DocumentAccepted(
+            document_id=document.id,
+            document_version_id=version.id,
+            job_id=job.id,
+            status=version.status,
+            created_at=version.created_at,
+        )
+
     async def list_documents(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID
     ) -> list[DocumentResponse]:
@@ -112,10 +174,25 @@ class DocumentService:
                 "Workspace was not found in the current organization.",
                 status_code=404,
             )
-        return [
-            DocumentResponse.model_validate(document, from_attributes=True)
-            for document in await self.repository.list_documents(organization_id, workspace_id)
-        ]
+        documents = await self.repository.list_documents(organization_id, workspace_id)
+        jobs = await self.repository.list_document_jobs(organization_id, workspace_id)
+        result = []
+        for document in documents:
+            response = DocumentResponse.model_validate(document, from_attributes=True)
+            if document.id in jobs:
+                version, job = jobs[document.id]
+                response.document_version_id = version.id
+                response.job_id = job.id
+                response.stage = job.stage
+                response.progress = job.progress
+                response.attempts = job.attempts
+                response.error_code = job.error_code
+                response.error_message = ingestion_error_message(job.error_code)
+                response.retryable = (
+                    version.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
+                )
+            result.append(response)
+        return result
 
     async def delete_document(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, document_id: uuid.UUID

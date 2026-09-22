@@ -1,14 +1,32 @@
 <main class="auth-card">
   <p class="eyebrow">RAGHUB ACCOUNT</p>
-  <h1>{{ registerMode ? 'Create an account' : 'Welcome back' }}</h1>
+  <h1>{{ registerMode ? "Create an account" : "Welcome back" }}</h1>
   <p>Sign in to manage knowledge workspaces and documents.</p>
   <form (ngSubmit)="submit()">
-    <label>Email <input [(ngModel)]="email" name="email" type="email" required /></label>
-    <label>Password <input [(ngModel)]="password" name="password" type="password" minlength="8" required /></label>
-    @if (error()) { <p class="error">{{ error() }}</p> }
-    <button type="submit">{{ registerMode ? 'Create account' : 'Sign in' }}</button>
+    <label
+      >Email <input [(ngModel)]="email" name="email" type="email" required
+    /></label>
+    <label
+      >Password
+      <input
+        [(ngModel)]="password"
+        name="password"
+        type="password"
+        minlength="8"
+        required
+    /></label>
+    @if (error()) {
+      <p class="error">{{ error() }}</p>
+    }
+    <button type="submit">
+      {{ registerMode ? "Create account" : "Sign in" }}
+    </button>
   </form>
   <button class="link" type="button" (click)="registerMode = !registerMode">
-    {{ registerMode ? 'Already have an account? Sign in' : 'Need an account? Register' }}
+    {{
+      registerMode
+        ? "Already have an account? Sign in"
+        : "Need an account? Register"
+    }}
   </button>
 </main>

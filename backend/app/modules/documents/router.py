@@ -26,11 +26,26 @@ async def upload_document(
 ) -> DocumentAccepted:
     require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
     service = DocumentService(session)
-    return await service.upload_pdf(
+    return await service.upload_document(
         organization_id=context.organization_id,
         workspace_id=workspace_id,
         upload=file,
     )
+
+
+@router.post(
+    "/{workspace_id}/document-versions/{version_id}/retry",
+    response_model=DocumentAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_document_version(
+    workspace_id: UUID,
+    version_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentAccepted:
+    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    return await DocumentService(session).retry(context.organization_id, workspace_id, version_id)
 
 
 @router.get("/{workspace_id}/documents", response_model=list[DocumentResponse])
