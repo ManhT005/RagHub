@@ -5,6 +5,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timer } from 'rxjs';
 
 import { RaghubApiService, DocumentItem, Workspace } from '../core/raghub-api.service';
+import { ingestionErrorMessage } from './ingestion-errors';
 
 @Component({
   selector: 'raghub-documents',
@@ -14,6 +15,7 @@ import { RaghubApiService, DocumentItem, Workspace } from '../core/raghub-api.se
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DocumentsComponent {
+  protected readonly errorMessage = ingestionErrorMessage;
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly documents = signal<DocumentItem[]>([]);
   protected readonly error = signal('');
@@ -36,13 +38,13 @@ export class DocumentsComponent {
   protected upload(): void {
     const file = this.fileInput()?.nativeElement.files?.[0];
     if (!file || !this.workspaceId) return;
-    this.api.upload(this.workspaceId, file).subscribe({ next: () => { this.error.set(''); this.load(); }, error: (response) => this.error.set(response.error?.error?.code ?? 'Upload failed.') });
+    this.api.upload(this.workspaceId, file).subscribe({ next: () => { this.error.set(''); this.load(); }, error: (response) => this.error.set(ingestionErrorMessage(response.error?.error?.code)) });
   }
   protected retry(document: DocumentItem): void {
-    if (!document.document_version_id) return;
+    if (!document.document_version_id || !document.retryable) return;
     this.api.retryDocument(this.workspaceId, document.document_version_id).subscribe({
       next: () => { this.error.set(''); this.load(); },
-      error: (response) => this.error.set(response.error?.error?.code ?? 'Retry failed.'),
+      error: (response) => this.error.set(ingestionErrorMessage(response.error?.error?.code)),
     });
   }
   protected remove(document: DocumentItem): void {
