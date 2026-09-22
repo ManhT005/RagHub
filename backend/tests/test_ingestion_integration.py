@@ -19,7 +19,7 @@ def test_upload_to_search_and_tenant_scope() -> None:
         auth = client.post(
             "/api/v1/auth/register",
             json={
-            "email": f"ingestion-{unique}@example.com",
+                "email": f"ingestion-{unique}@example.com",
                 "password": "integration-password-123",
             },
         )
@@ -97,9 +97,9 @@ def test_upload_to_search_and_tenant_scope() -> None:
             f"{invalid.json()['document_version_id']}/retry",
             headers=headers,
         )
-        assert retried.status_code == 202, retried.text
-        assert retried.json()["document_version_id"] == invalid.json()["document_version_id"]
-        assert retried.json()["job_id"] == invalid.json()["job_id"]
+        assert retried.status_code == 409, retried.text
+        assert retried.json()["error"]["code"] == "DOCUMENT_NOT_RETRYABLE"
+        assert failed["retryable"] is False
         other_org = client.post(
             "/api/v1/organizations",
             headers=headers,
@@ -114,3 +114,10 @@ def test_upload_to_search_and_tenant_scope() -> None:
         )
         assert foreign.status_code == 404
         assert foreign.json()["error"]["code"] == "WORKSPACE_NOT_FOUND"
+        foreign_retry = client.post(
+            f"/api/v1/workspaces/{workspace_id}/document-versions/"
+            f"{invalid.json()['document_version_id']}/retry",
+            headers=headers,
+        )
+        assert foreign_retry.status_code == 404
+        assert foreign_retry.json()["error"]["code"] == "DOCUMENT_VERSION_NOT_FOUND"

@@ -19,6 +19,7 @@ def service(monkeypatch: pytest.MonkeyPatch) -> DocumentService:
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
     instance = DocumentService(session, Settings(max_upload_size_mb=1))  # type: ignore[arg-type]
     instance.repository.workspace_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    instance.repository.try_retry_lock = AsyncMock(return_value=True)  # type: ignore[method-assign]
     return instance
 
 
@@ -35,12 +36,14 @@ def upload(name: str, mime: str, data: bytes) -> UploadFile:
         ("valid.md", "text/markdown", b"# Hello\nworld"),
     ],
 )
+@pytest.mark.parametrize("prefix", ["../../", "..\\..\\"])
 async def test_upload_accepts_supported_files_and_safe_key(
     service: DocumentService,
     monkeypatch: pytest.MonkeyPatch,
     name: str,
     mime: str,
     data: bytes,
+    prefix: str,
 ) -> None:
     organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
     document_id, version_id, job_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -55,7 +58,7 @@ async def test_upload_accepts_supported_files_and_safe_key(
     response = await service.upload_document(
         organization_id=organization_id,
         workspace_id=workspace_id,
-        upload=upload(f"../../{name}", mime, data),
+        upload=upload(f"{prefix}{name}", mime, data),
     )
     key = service.storage.put.call_args.args[0]
     assert key.startswith(f"{organization_id}/{workspace_id}/")
@@ -141,3 +144,62 @@ async def test_manual_retry_resets_same_job(
     assert job.progress == job.attempts == 0
     assert job.error_code is job.error_message is job.error_details is None
     queued.assert_called_once_with(str(version.id))
+
+
+@pytest.mark.parametrize("extra_byte", [False, True])
+async def test_exact_25_mb_upload_boundary(service: DocumentService, extra_byte: bool) -> None:
+    service.settings = Settings(max_upload_size_mb=25)
+    content = b"a" * (25 * 1024 * 1024 + int(extra_byte))
+    file = upload("boundary.txt", "text/plain", content)
+    if extra_byte:
+        with pytest.raises(AppError) as error:
+            await service._read_limited(file)
+        assert error.value.code == "FILE_TOO_LARGE" and error.value.status_code == 413
+    else:
+        assert await service._read_limited(file) == content
+
+
+@pytest.mark.parametrize("code", ["INVALID_PDF", "FAILED_UNSUPPORTED_OCR", "TEXT_DECODE_FAILED"])
+async def test_manual_retry_rejects_permanent_errors(
+    service: DocumentService, monkeypatch: pytest.MonkeyPatch, code: str
+) -> None:
+    version = SimpleNamespace(id=uuid.uuid4(), status="FAILED")
+    service.repository.find_version_for_retry = AsyncMock(  # type: ignore[method-assign]
+        return_value=(SimpleNamespace(), version, SimpleNamespace(error_code=code))
+    )
+    from app.workers.tasks import ingest_document_version
+
+    queued = Mock()
+    monkeypatch.setattr(ingest_document_version, "delay", queued)
+    with pytest.raises(AppError) as error:
+        await service.retry(uuid.uuid4(), uuid.uuid4(), version.id)
+    assert error.value.code == "DOCUMENT_NOT_RETRYABLE"
+    queued.assert_not_called()
+    service.session.commit.assert_not_awaited()
+
+
+async def test_job_response_sanitizes_existing_provider_errors(service: DocumentService) -> None:
+    document = SimpleNamespace(
+        id=uuid.uuid4(),
+        name="a.txt",
+        status="FAILED",
+        created_at=datetime.now(UTC),
+        updated_at=None,
+    )
+    version = SimpleNamespace(id=uuid.uuid4(), status="FAILED")
+    job = SimpleNamespace(
+        id=uuid.uuid4(),
+        stage="FAILED",
+        progress=85,
+        attempts=4,
+        error_code="INDEX_UNAVAILABLE",
+        error_message="private.internal:9200",
+    )
+    service.repository.list_documents = AsyncMock(return_value=[document])  # type: ignore[method-assign]
+    service.repository.list_document_jobs = AsyncMock(  # type: ignore[method-assign]
+        return_value={document.id: (version, job)}
+    )
+    response = (await service.list_documents(uuid.uuid4(), uuid.uuid4()))[0]
+    assert response.retryable
+    assert "private.internal" not in response.error_message
+    assert "temporarily unavailable" in response.error_message
