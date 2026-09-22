@@ -18,6 +18,8 @@ Bearer <access-token>` header. Organization-scoped routes also require
 - `GET /organizations` lists organizations available to the current user.
 - `GET /organizations/{id}/members` lists members; `PUT` to the same path adds
   or changes a registered user's role. Only `OWNER` and `ADMIN` may do this.
+- `DELETE /organizations/{id}/members/{user_id}` removes a non-owner member;
+  it also requires `OWNER` or `ADMIN`.
 - `GET`/`POST /workspaces` list or create workspaces in the header organization.
 - `GET`/`PATCH`/`DELETE /workspaces/{workspace_id}` read, update, or soft-delete
   a workspace. `VIEWER` is read-only; only `OWNER`/`ADMIN` may delete.
