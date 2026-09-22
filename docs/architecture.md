@@ -1,4 +1,4 @@
-# Phase-one architecture
+# Phase-one and phase-two architecture
 
 RagHub starts as a modular monolith plus a background worker. The API and worker
 share domain models and infrastructure adapters while running as separate
@@ -30,6 +30,17 @@ Browser -> Nginx -> Angular Admin
 
 Phase one intentionally does not create embeddings. Vector search and RRF are
 added in phase three without changing the upload, parser or storage boundaries.
+
+## Identity and tenant boundary
+
+Phase two introduces `users` and `memberships`. Access tokens identify a user;
+the refresh token is stored only as an HTTP-only cookie. An organization-scoped
+request carries `X-Organization-ID`, which is authorized against the user's
+membership before the router calls document, workspace, or search services.
+
+Roles are `OWNER`, `ADMIN`, `EDITOR`, and `VIEWER`. Authorization is enforced
+at the API boundary; repositories still apply organization and workspace filters
+to protect retrieval and document data isolation.
 
 ## Error contract
 

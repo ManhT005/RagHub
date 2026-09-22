@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 import anyio
@@ -10,7 +11,7 @@ from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.modules.documents.repository import DocumentRepository
-from app.modules.documents.schemas import DocumentAccepted
+from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
 
 PDF_MIME_TYPES = {"application/pdf", "application/x-pdf"}
 
@@ -101,6 +102,31 @@ class DocumentService:
             status=version.status,
             created_at=version.created_at,
         )
+
+    async def list_documents(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> list[DocumentResponse]:
+        if not await self.repository.workspace_exists(organization_id, workspace_id):
+            raise AppError(
+                "WORKSPACE_NOT_FOUND",
+                "Workspace was not found in the current organization.",
+                status_code=404,
+            )
+        return [
+            DocumentResponse.model_validate(document, from_attributes=True)
+            for document in await self.repository.list_documents(organization_id, workspace_id)
+        ]
+
+    async def delete_document(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, document_id: uuid.UUID
+    ) -> None:
+        document = await self.repository.find_document(organization_id, workspace_id, document_id)
+        if document is None:
+            raise AppError(
+                "DOCUMENT_NOT_FOUND", "Document was not found in this workspace.", status_code=404
+            )
+        document.deleted_at = datetime.now(UTC)
+        await self.session.commit()
 
     async def _read_limited(self, upload: UploadFile) -> bytes:
         chunks: list[bytes] = []

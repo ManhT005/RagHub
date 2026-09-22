@@ -10,3 +10,11 @@ class DocumentAccepted(BaseModel):
     job_id: UUID
     status: str
     created_at: datetime
+
+
+class DocumentResponse(BaseModel):
+    id: UUID
+    name: str
+    status: str
+    created_at: datetime
+    updated_at: datetime | None = None
