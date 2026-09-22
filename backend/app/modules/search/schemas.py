@@ -9,7 +9,8 @@ class SearchHit(BaseModel):
     chunk_id: UUID
     content: str
     source_name: str
-    page_number: int
+    page_number: int | None
+    heading: str | None = None
     score: float
 
 

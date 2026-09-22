@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-from pathlib import Path
 
 from celery import Task
 from sqlalchemy import select
@@ -12,61 +11,68 @@ from app.core.config import get_settings
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.task_queue.celery_app import celery_app
-from app.modules.documents.models import (
-    Document,
-    DocumentStatus,
-    DocumentVersion,
-    IngestionJob,
+from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
+from app.modules.ingestion.chunker import chunk_sections
+from app.modules.ingestion.embedder import embed_chunks
+from app.modules.ingestion.parser import (
+    EmptyExtractedTextError,
+    InvalidPdfError,
+    TextDecodeError,
+    UnsupportedFileTypeError,
+    UnsupportedOcrError,
+    parse_document,
 )
-from app.modules.ingestion.chunker import chunk_pages
-from app.modules.ingestion.parser import InvalidPdfError, UnsupportedOcrError, parse_pdf
 
-NON_RETRYABLE_ERRORS = (InvalidPdfError, UnsupportedOcrError)
+
+class IngestionError(Exception):
+    def __init__(self, code: str, message: str, *, retryable: bool) -> None:
+        self.code = code
+        self.retryable = retryable
+        super().__init__(message)
 
 
 async def _set_stage(
     session: AsyncSession,
-    *,
     document: Document,
     version: DocumentVersion,
     job: IngestionJob,
     stage: DocumentStatus,
     progress: int,
 ) -> None:
-    document.status = stage
-    version.status = stage
-    job.stage = stage
+    document.status = version.status = job.stage = stage
     job.progress = progress
     await session.commit()
 
 
-async def _mark_failed(
+async def _update_job(
     version_id: uuid.UUID,
     *,
-    code: str,
-    message: str,
+    code: str | None = None,
+    message: str | None = None,
     attempts: int,
+    failed: bool = False,
 ) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
-        async with session_factory() as session:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
             version = await session.get(DocumentVersion, version_id)
             if version is None:
                 return
-            document = await session.get(Document, version.document_id)
             job = await session.scalar(
                 select(IngestionJob).where(IngestionJob.document_version_id == version_id)
             )
-            version.status = DocumentStatus.FAILED
-            if document is not None:
-                document.status = DocumentStatus.FAILED
-            if job is not None:
-                job.stage = DocumentStatus.FAILED
-                job.error_code = code
-                job.error_message = message[:2000]
+            document = await session.get(Document, version.document_id)
+            if job:
                 job.attempts = attempts
+                job.error_code = code
+                job.error_message = message[:2000] if message else None
+                if failed:
+                    job.stage = DocumentStatus.FAILED
+            if failed:
+                version.status = DocumentStatus.FAILED
+                if document:
+                    document.status = DocumentStatus.FAILED
             await session.commit()
     finally:
         await engine.dispose()
@@ -75,71 +81,75 @@ async def _mark_failed(
 async def _process_document_version(version_id: uuid.UUID) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
-        async with session_factory() as session:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
             version = await session.get(DocumentVersion, version_id)
             if version is None:
-                raise InvalidPdfError(f"Document version {version_id} does not exist.")
+                raise IngestionError(
+                    "INGESTION_FAILED", "Document version does not exist.", retryable=False
+                )
             document = await session.get(Document, version.document_id)
             job = await session.scalar(
                 select(IngestionJob).where(IngestionJob.document_version_id == version_id)
             )
             if document is None or job is None:
-                raise InvalidPdfError("Document ingestion metadata is incomplete.")
-
-            await _set_stage(
-                session,
-                document=document,
-                version=version,
-                job=job,
-                stage=DocumentStatus.PARSING,
-                progress=20,
-            )
-            content = MinioObjectStorage(settings).get(version.storage_key)
-            pages = parse_pdf(content)
-
-            await _set_stage(
-                session,
-                document=document,
-                version=version,
-                job=job,
-                stage=DocumentStatus.CHUNKING,
-                progress=50,
-            )
-            chunks = chunk_pages(pages, version.id)
-
-            await _set_stage(
-                session,
-                document=document,
-                version=version,
-                job=job,
-                stage=DocumentStatus.INDEXING,
-                progress=75,
-            )
-            indexer = ChunkIndexer(settings)
-            try:
-                indexer.replace_document_version(
-                    organization_id=version.organization_id,
-                    workspace_id=version.workspace_id,
-                    document_id=document.id,
-                    document_version_id=version.id,
-                    source_name=Path(document.name).name,
-                    chunks=chunks,
+                raise IngestionError(
+                    "INGESTION_FAILED", "Ingestion metadata is incomplete.", retryable=False
                 )
-            finally:
-                indexer.close()
-
-            job.error_code = None
-            job.error_message = None
-            await _set_stage(
-                session,
-                document=document,
-                version=version,
-                job=job,
-                stage=DocumentStatus.READY,
-                progress=100,
-            )
+            if version.status == DocumentStatus.READY:
+                return
+            await _set_stage(session, document, version, job, DocumentStatus.PARSING, 20)
+            try:
+                content = MinioObjectStorage(settings).get(version.storage_key)
+            except Exception as exc:
+                raise IngestionError("STORAGE_UNAVAILABLE", str(exc), retryable=True) from exc
+            try:
+                sections = parse_document(content, document.name)
+            except InvalidPdfError as exc:
+                raise IngestionError("INVALID_PDF", str(exc), retryable=False) from exc
+            except UnsupportedOcrError as exc:
+                raise IngestionError("FAILED_UNSUPPORTED_OCR", str(exc), retryable=False) from exc
+            except TextDecodeError as exc:
+                raise IngestionError("TEXT_DECODE_FAILED", str(exc), retryable=False) from exc
+            except EmptyExtractedTextError as exc:
+                raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
+            except UnsupportedFileTypeError as exc:
+                raise IngestionError("UNSUPPORTED_FILE_TYPE", str(exc), retryable=False) from exc
+            except Exception as exc:
+                raise IngestionError("PARSE_FAILED", str(exc), retryable=False) from exc
+            await _set_stage(session, document, version, job, DocumentStatus.CHUNKING, 45)
+            try:
+                chunks = chunk_sections(sections, version.id)
+                if not chunks:
+                    raise EmptyExtractedTextError("No chunks were extracted.")
+            except EmptyExtractedTextError as exc:
+                raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
+            except Exception as exc:
+                raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
+            await _set_stage(session, document, version, job, DocumentStatus.EMBEDDING, 65)
+            try:
+                embeddings = embed_chunks(chunks)
+            except Exception as exc:
+                raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
+            await _set_stage(session, document, version, job, DocumentStatus.INDEXING, 85)
+            try:
+                indexer = ChunkIndexer(settings)
+                try:
+                    indexer.replace_document_version(
+                        organization_id=version.organization_id,
+                        workspace_id=version.workspace_id,
+                        document_id=document.id,
+                        document_version_id=version.id,
+                        source_name=document.name,
+                        chunks=chunks,
+                        embeddings=embeddings,
+                    )
+                finally:
+                    indexer.close()
+            except Exception as exc:
+                raise IngestionError("INDEX_UNAVAILABLE", str(exc), retryable=True) from exc
+            job.error_code = job.error_message = job.error_details = None
+            await _set_stage(session, document, version, job, DocumentStatus.READY, 100)
     finally:
         await engine.dispose()
 
@@ -147,29 +157,22 @@ async def _process_document_version(version_id: uuid.UUID) -> None:
 @celery_app.task(bind=True, max_retries=3, name="documents.ingest_version")
 def ingest_document_version(self: Task, document_version_id: str) -> None:
     version_id = uuid.UUID(document_version_id)
+    attempt = self.request.retries + 1
+    asyncio.run(_update_job(version_id, attempts=attempt))
     try:
         asyncio.run(_process_document_version(version_id))
-    except NON_RETRYABLE_ERRORS as exc:
+    except IngestionError as exc:
+        if exc.retryable and self.request.retries < self.max_retries:
+            asyncio.run(_update_job(version_id, code=exc.code, message=str(exc), attempts=attempt))
+            raise self.retry(exc=exc, countdown=min(60, 2**attempt)) from exc
         asyncio.run(
-            _mark_failed(
-                version_id,
-                code="FAILED_UNSUPPORTED_OCR"
-                if isinstance(exc, UnsupportedOcrError)
-                else "INVALID_PDF",
-                message=str(exc),
-                attempts=self.request.retries + 1,
-            )
+            _update_job(version_id, code=exc.code, message=str(exc), attempts=attempt, failed=True)
         )
         raise
     except Exception as exc:
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc, countdown=min(60, 2 ** (self.request.retries + 1))) from exc
         asyncio.run(
-            _mark_failed(
-                version_id,
-                code="INGESTION_FAILED",
-                message=str(exc),
-                attempts=self.request.retries + 1,
+            _update_job(
+                version_id, code="INGESTION_FAILED", message=str(exc), attempts=attempt, failed=True
             )
         )
         raise

@@ -18,3 +18,10 @@ class DocumentResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime | None = None
+    document_version_id: UUID | None = None
+    job_id: UUID | None = None
+    stage: str | None = None
+    progress: int | None = None
+    attempts: int | None = None
+    error_code: str | None = None
+    error_message: str | None = None

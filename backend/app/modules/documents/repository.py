@@ -107,6 +107,44 @@ class DocumentRepository:
         )
         return list(rows)
 
+    async def find_version_for_retry(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, version_id: uuid.UUID
+    ) -> tuple[Document, DocumentVersion, IngestionJob] | None:
+        row = await self.session.execute(
+            select(Document, DocumentVersion, IngestionJob)
+            .join(DocumentVersion, DocumentVersion.document_id == Document.id)
+            .join(IngestionJob, IngestionJob.document_version_id == DocumentVersion.id)
+            .join(Workspace, Workspace.id == Document.workspace_id)
+            .where(
+                DocumentVersion.id == version_id,
+                Document.organization_id == organization_id,
+                Document.workspace_id == workspace_id,
+                DocumentVersion.organization_id == organization_id,
+                DocumentVersion.workspace_id == workspace_id,
+                Workspace.organization_id == organization_id,
+                Workspace.deleted_at.is_(None),
+                Document.deleted_at.is_(None),
+            )
+        )
+        return row.one_or_none()
+
+    async def list_document_jobs(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> dict[uuid.UUID, tuple[DocumentVersion, IngestionJob]]:
+        rows = await self.session.execute(
+            select(DocumentVersion, IngestionJob)
+            .join(IngestionJob, IngestionJob.document_version_id == DocumentVersion.id)
+            .where(
+                DocumentVersion.organization_id == organization_id,
+                DocumentVersion.workspace_id == workspace_id,
+            )
+            .order_by(DocumentVersion.created_at.desc())
+        )
+        jobs: dict[uuid.UUID, tuple[DocumentVersion, IngestionJob]] = {}
+        for version, job in rows:
+            jobs.setdefault(version.document_id, (version, job))
+        return jobs
+
     async def find_document(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, document_id: uuid.UUID
     ) -> Document | None:
