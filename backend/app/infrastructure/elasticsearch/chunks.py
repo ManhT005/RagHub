@@ -70,6 +70,16 @@ class ChunkIndexer:
         else:
             self.client.indices.put_alias(index=index, name=alias)
 
+    def delete_document_version(self, document_version_id: uuid.UUID) -> None:
+        """Remove every indexed chunk before a version leaves READY."""
+        self.ensure_index()
+        self.client.delete_by_query(
+            index=self.settings.elasticsearch_index,
+            query={"term": {"document_version_id": str(document_version_id)}},
+            conflicts="proceed",
+            refresh=True,
+        )
+
     def replace_document_version(
         self,
         *,

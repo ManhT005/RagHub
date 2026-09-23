@@ -38,15 +38,80 @@ async def test_terminal_redelivery_does_not_mutate_metrics(
     monkeypatch: pytest.MonkeyPatch, status: str
 ) -> None:
     version = SimpleNamespace(status=status)
+    job = SimpleNamespace(progress=100)
     session = SimpleNamespace(
-        get=AsyncMock(return_value=version), commit=AsyncMock(), scalar=AsyncMock()
+        get=AsyncMock(return_value=version), commit=AsyncMock(), scalar=AsyncMock(return_value=job)
     )
     pipeline = AsyncMock()
     monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
     await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
     session.commit.assert_not_awaited()
-    session.scalar.assert_not_awaited()
+    if status == "READY":
+        session.scalar.assert_awaited_once()
+    else:
+        session.scalar.assert_not_awaited()
     pipeline.assert_not_awaited()
+
+
+async def test_incomplete_ready_redelivery_resumes_indexing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = SimpleNamespace(id=uuid.uuid4(), document_id=uuid.uuid4(), status="READY")
+    document = SimpleNamespace(status="READY", deleted_at=None)
+    job = SimpleNamespace(attempts=0, stage="READY", progress=90)
+    session = SimpleNamespace(
+        get=AsyncMock(side_effect=[version, document]),
+        scalar=AsyncMock(return_value=job),
+        commit=AsyncMock(),
+    )
+    pipeline = AsyncMock()
+    monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
+
+    await tasks._run_attempt(session, version.id, retries=0, max_retries=3)
+
+    assert job.attempts == 1
+    assert document.status == version.status == job.stage == "PARSING"
+    pipeline.assert_awaited_once_with(session, document, version, job)
+
+
+async def test_pipeline_marks_version_ready_before_writing_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = SimpleNamespace(
+        id=uuid.uuid4(), organization_id=uuid.uuid4(), workspace_id=uuid.uuid4(), storage_key="key"
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt", status="PARSING")
+    job = SimpleNamespace(
+        stage="PARSING", progress=20, error_code="old", error_message="old", error_details={}
+    )
+    session = SimpleNamespace(commit=AsyncMock())
+    observed: list[tuple[str, str, str, int]] = []
+
+    class Indexer:
+        def __init__(self, _settings: object) -> None:
+            pass
+
+        def replace_document_version(self, **_kwargs: object) -> None:
+            observed.append((document.status, version.status, job.stage, job.progress))
+
+        def delete_document_version(self, _version_id: uuid.UUID) -> None:
+            raise AssertionError("cleanup is only for failed indexing")
+
+        def close(self) -> None:
+            pass
+
+    storage = SimpleNamespace(get=lambda _key: b"text")
+    monkeypatch.setattr(tasks, "MinioObjectStorage", lambda _settings: storage)
+    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [object()])
+    monkeypatch.setattr(tasks, "embed_chunks", lambda _chunks: {})
+    monkeypatch.setattr(tasks, "ChunkIndexer", Indexer)
+
+    await tasks._run_pipeline(session, document, version, job)
+
+    assert observed == [("INDEXING", "READY", "INDEXING", 90)]
+    assert document.status == version.status == job.stage == "READY"
+    assert job.progress == 100
 
 
 @pytest.mark.parametrize(

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
+from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
@@ -184,6 +185,21 @@ class DocumentService:
             raise AppError(
                 "INGESTION_IN_PROGRESS", "Ingestion is still finishing.", status_code=409
             )
+        try:
+            def remove_existing_chunks() -> None:
+                indexer = ChunkIndexer(self.settings)
+                try:
+                    indexer.delete_document_version(version.id)
+                finally:
+                    indexer.close()
+
+            await anyio.to_thread.run_sync(remove_existing_chunks)
+        except Exception as exc:
+            raise AppError(
+                "INDEX_UNAVAILABLE",
+                "The existing search index could not be cleared.",
+                status_code=503,
+            ) from exc
         document.status = version.status = job.stage = "QUEUED"
         job.progress = job.attempts = 0
         job.error_code = job.error_message = job.error_details = None

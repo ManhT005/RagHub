@@ -62,7 +62,6 @@ async def _record_failure(
             document.status = DocumentStatus.FAILED
     await session.commit()
 
-
 async def _run_pipeline(
     session: AsyncSession, document: Document, version: DocumentVersion, job: IngestionJob
 ) -> None:
@@ -100,22 +99,31 @@ async def _run_pipeline(
     except Exception as exc:
         raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
     await _set_stage(session, document, version, job, DocumentStatus.INDEXING, 85)
+    # Persist the version as READY before exposing its chunks to Elasticsearch.
+    # Keep the document and job in INDEXING until bulk indexing completes, so the
+    # API never reports a searchable document before its chunks are available.
+    version.status = DocumentStatus.READY
+    job.progress = 90
+    await session.commit()
+    indexer = ChunkIndexer(settings)
     try:
-        indexer = ChunkIndexer(settings)
-        try:
-            indexer.replace_document_version(
-                organization_id=version.organization_id,
-                workspace_id=version.workspace_id,
-                document_id=document.id,
-                document_version_id=version.id,
-                source_name=document.name,
-                chunks=chunks,
-                embeddings=embeddings,
-            )
-        finally:
-            indexer.close()
+        indexer.replace_document_version(
+            organization_id=version.organization_id,
+            workspace_id=version.workspace_id,
+            document_id=document.id,
+            document_version_id=version.id,
+            source_name=document.name,
+            chunks=chunks,
+            embeddings=embeddings,
+        )
     except Exception as exc:
+        try:
+            indexer.delete_document_version(version.id)
+        except Exception:
+            logger.exception("Could not clean up failed index for version %s", version.id)
         raise IngestionError("INDEX_UNAVAILABLE", str(exc), retryable=True) from exc
+    finally:
+        indexer.close()
     job.error_code = job.error_message = job.error_details = None
     await _set_stage(session, document, version, job, DocumentStatus.READY, 100)
 
@@ -124,13 +132,16 @@ async def _run_attempt(
     session: AsyncSession, version_id: uuid.UUID, *, retries: int, max_retries: int
 ) -> None:
     version = await session.get(DocumentVersion, version_id)
-    # Terminal redeliveries must not change status, attempts or error information.
-    if version is None or version.status in {DocumentStatus.READY, DocumentStatus.FAILED}:
+    # READY remains resumable until the final Elasticsearch replacement commits.
+    if version is None or version.status == DocumentStatus.FAILED:
         return
-    document = await session.get(Document, version.document_id)
     job = await session.scalar(
         select(IngestionJob).where(IngestionJob.document_version_id == version_id)
     )
+    if version.status == DocumentStatus.READY and job is not None and job.progress >= 100:
+        return
+    # Terminal redeliveries must not change status, attempts or error information.
+    document = await session.get(Document, version.document_id)
     if document is None or document.deleted_at is not None or job is None:
         return
     job.attempts += 1
