@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -6,6 +7,8 @@ from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from app.core.config import Settings, get_settings
 from app.modules.ingestion.chunker import TextChunk
+from app.modules.ingestion.embedder import DIMENSIONS, embed_texts
+from app.modules.search.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
 def chunk_index_mapping() -> dict[str, Any]:
@@ -24,7 +27,7 @@ def chunk_index_mapping() -> dict[str, Any]:
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
                 "embedding": {
                     "type": "dense_vector",
-                    "dims": 384,
+                    "dims": DIMENSIONS,
                     "index": True,
                     "similarity": "cosine",
                 },
@@ -66,6 +69,16 @@ class ChunkIndexer:
                 self.client.indices.update_aliases(actions=actions)
         else:
             self.client.indices.put_alias(index=index, name=alias)
+
+    def delete_document_version(self, document_version_id: uuid.UUID) -> None:
+        """Remove every indexed chunk before a version leaves READY."""
+        self.ensure_index()
+        self.client.delete_by_query(
+            index=self.settings.elasticsearch_index,
+            query={"term": {"document_version_id": str(document_version_id)}},
+            conflicts="proceed",
+            refresh=True,
+        )
 
     def replace_document_version(
         self,
@@ -132,6 +145,15 @@ class ChunkSearch:
         query: str,
         limit: int,
     ) -> list[dict[str, Any]]:
+        lexical, vector = await asyncio.gather(
+            self._search_bm25(organization_id, workspace_id, query),
+            self._search_vector(organization_id, workspace_id, query),
+        )
+        return fuse_rrf([lexical, vector], limit=limit)
+
+    async def _search_bm25(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
+    ) -> list[dict[str, Any]]:
         response = await self.client.search(
             index=self.settings.elasticsearch_alias,
             query={
@@ -143,17 +165,42 @@ class ChunkSearch:
                     ],
                 }
             },
-            size=limit,
-            source=[
-                "document_id",
-                "document_version_id",
-                "chunk_id",
-                "content",
-                "source_name",
-                "page_number",
-                "heading",
-            ],
+            size=RETRIEVAL_CANDIDATES,
+            source=self._source_fields(),
         )
+        return self._hits(response)
+
+    async def _search_vector(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
+    ) -> list[dict[str, Any]]:
+        response = await self.client.search(
+            index=self.settings.elasticsearch_alias,
+            query={
+                "knn": {
+                    "field": "embedding",
+                    "query_vector": embed_texts([query])[0],
+                    "k": RETRIEVAL_CANDIDATES,
+                    "num_candidates": RETRIEVAL_CANDIDATES * 4,
+                    "filter": [
+                        {"term": {"organization_id": str(organization_id)}},
+                        {"term": {"workspace_id": str(workspace_id)}},
+                    ],
+                }
+            },
+            size=RETRIEVAL_CANDIDATES,
+            source=self._source_fields(),
+        )
+        return self._hits(response)
+
+    @staticmethod
+    def _source_fields() -> list[str]:
+        return [
+            "document_id", "document_version_id", "chunk_id", "content", "source_name",
+            "page_number", "heading",
+        ]
+
+    @staticmethod
+    def _hits(response: dict[str, Any]) -> list[dict[str, Any]]:
         return [
             {**hit["_source"], "score": hit.get("_score") or 0.0}
             for hit in response["hits"]["hits"]

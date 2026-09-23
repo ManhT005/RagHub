@@ -48,6 +48,9 @@ export class RaghubApiService {
   retryDocument(workspaceId: string, versionId: string) {
     return this.http.post(`${this.base}/workspaces/${workspaceId}/document-versions/${versionId}/retry`, {});
   }
+  reindexDocument(workspaceId: string, versionId: string) {
+    return this.http.post(`${this.base}/workspaces/${workspaceId}/document-versions/${versionId}/reindex`, {});
+  }
   deleteDocument(workspaceId: string, documentId: string) {
     return this.http.delete(`${this.base}/workspaces/${workspaceId}/documents/${documentId}`);
   }
