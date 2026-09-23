@@ -165,6 +165,48 @@ class DocumentService:
             created_at=version.created_at,
         )
 
+    async def reindex(
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, version_id: uuid.UUID
+    ) -> DocumentAccepted:
+        result = await self.repository.find_version_for_retry(
+            organization_id, workspace_id, version_id
+        )
+        if result is None:
+            raise AppError(
+                "DOCUMENT_VERSION_NOT_FOUND", "Document version was not found.", status_code=404
+            )
+        document, version, job = result
+        if version.status != "READY":
+            raise AppError(
+                "INVALID_DOCUMENT_STATUS", "Only ready versions can be re-indexed.", status_code=409
+            )
+        if not await self.repository.try_retry_lock(version.id):
+            raise AppError(
+                "INGESTION_IN_PROGRESS", "Ingestion is still finishing.", status_code=409
+            )
+        document.status = version.status = job.stage = "QUEUED"
+        job.progress = job.attempts = 0
+        job.error_code = job.error_message = job.error_details = None
+        await self.session.commit()
+        try:
+            from app.workers.tasks import ingest_document_version
+
+            ingest_document_version.delay(str(version.id))
+        except Exception as exc:
+            logger.exception("Could not enqueue re-index for document version %s", version.id)
+            await self.repository.mark_queue_failure(version.id, str(exc))
+            await self.session.commit()
+            raise AppError(
+                "QUEUE_UNAVAILABLE", "Could not queue re-indexing.", status_code=503
+            ) from exc
+        return DocumentAccepted(
+            document_id=document.id,
+            document_version_id=version.id,
+            job_id=job.id,
+            status=version.status,
+            created_at=version.created_at,
+        )
+
     async def list_documents(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID
     ) -> list[DocumentResponse]:

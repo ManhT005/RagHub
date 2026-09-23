@@ -48,6 +48,21 @@ async def retry_document_version(
     return await DocumentService(session).retry(context.organization_id, workspace_id, version_id)
 
 
+@router.post(
+    "/{workspace_id}/document-versions/{version_id}/reindex",
+    response_model=DocumentAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def reindex_document_version(
+    workspace_id: UUID,
+    version_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> DocumentAccepted:
+    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    return await DocumentService(session).reindex(context.organization_id, workspace_id, version_id)
+
+
 @router.get("/{workspace_id}/documents", response_model=list[DocumentResponse])
 async def list_documents(
     workspace_id: UUID,

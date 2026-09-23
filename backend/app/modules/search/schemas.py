@@ -17,3 +17,4 @@ class SearchHit(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     hits: list[SearchHit] = Field(default_factory=list)
+    context: str = ""

@@ -19,6 +19,7 @@ export class DocumentsComponent {
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly documents = signal<DocumentItem[]>([]);
   protected readonly error = signal('');
+  protected readonly reindexingVersionId = signal('');
   protected workspaceId = '';
   protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly api = inject(RaghubApiService);
@@ -45,6 +46,14 @@ export class DocumentsComponent {
     this.api.retryDocument(this.workspaceId, document.document_version_id).subscribe({
       next: () => { this.error.set(''); this.load(); },
       error: (response) => this.error.set(ingestionErrorMessage(response.error?.error?.code)),
+    });
+  }
+  protected reindex(document: DocumentItem): void {
+    if (!document.document_version_id || document.status !== 'READY') return;
+    this.reindexingVersionId.set(document.document_version_id);
+    this.api.reindexDocument(this.workspaceId, document.document_version_id).subscribe({
+      next: () => { this.reindexingVersionId.set(''); this.error.set(''); this.load(); },
+      error: (response) => { this.reindexingVersionId.set(''); this.error.set(ingestionErrorMessage(response.error?.error?.code)); },
     });
   }
   protected remove(document: DocumentItem): void {

@@ -47,6 +47,11 @@
               @if (document.status === "FAILED" && document.retryable) {
                 <button (click)="retry(document)">Retry</button>
               }
+              @if (document.status === "READY" && document.document_version_id) {
+                <button [disabled]="reindexingVersionId() === document.document_version_id" (click)="reindex(document)">
+                  {{ reindexingVersionId() === document.document_version_id ? "Re-indexing…" : "Re-index" }}
+                </button>
+              }
               <button class="danger" (click)="remove(document)">Delete</button>
             </td>
           </tr>

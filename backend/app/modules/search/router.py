@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.auth import OrganizationContext, get_organization_context
 from app.core.exceptions import AppError
 from app.infrastructure.elasticsearch.chunks import ChunkSearch
+from app.modules.search.hybrid import build_context
 from app.modules.search.schemas import SearchResponse
 
 router = APIRouter(prefix="/workspaces", tags=["search"])
@@ -17,7 +18,7 @@ async def search_workspace(
     workspace_id: UUID,
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     q: Annotated[str, Query(min_length=1, max_length=500)],
-    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    limit: Annotated[int, Query(ge=1, le=5)] = 5,
 ) -> SearchResponse:
     search = ChunkSearch()
     try:
@@ -37,4 +38,4 @@ async def search_workspace(
         ) from exc
     finally:
         await search.close()
-    return SearchResponse(query=q, hits=hits)
+    return SearchResponse(query=q, hits=hits, context=build_context(hits))
