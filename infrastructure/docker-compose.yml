@@ -4,6 +4,7 @@ x-backend-environment: &backend-environment
   APP_ENV: ${APP_ENV:-development}
   APP_NAME: ${APP_NAME:-RagHub API}
   APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-local-env}
+  PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:-local-provider-key-change-before-production}
   API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
   MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-25}
   DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://raghub:raghub-local-only@postgres:5432/raghub}
@@ -11,8 +12,6 @@ x-backend-environment: &backend-environment
   CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
   CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
   ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
-  ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-raghub_chunks_v1}
-  ELASTICSEARCH_ALIAS: ${ELASTICSEARCH_ALIAS:-raghub_chunks_current}
   S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:-raghub}
   S3_SECRET_KEY: ${S3_SECRET_KEY:-raghub-local-only}
@@ -22,6 +21,7 @@ x-backend-environment: &backend-environment
   GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
   CHAT_PROVIDER_TIMEOUT_SECONDS: ${CHAT_PROVIDER_TIMEOUT_SECONDS:-45}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
 
 services:
   postgres:
@@ -91,9 +91,19 @@ services:
       retries: 20
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama:0.12.1
+    profiles: ["local-ai"]
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
   api:
     build:
       context: ../backend
+      target: ${BACKEND_IMAGE_TARGET:-runtime}
     environment: *backend-environment
     command:
       - /bin/sh
@@ -126,6 +136,7 @@ services:
   worker:
     build:
       context: ../backend
+      target: ${BACKEND_IMAGE_TARGET:-runtime}
     environment: *backend-environment
     command:
       [
@@ -167,3 +178,4 @@ volumes:
   redis-data:
   elasticsearch-data:
   minio-data:
+  ollama-data:
