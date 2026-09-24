@@ -1,5 +1,10 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.ai_providers.models import (
+    EmbeddingIndexVersion,
+    EmbeddingReindexJob,
+    ProviderConfig,
+)
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 from app.modules.memberships.models import Membership
@@ -20,4 +25,7 @@ __all__ = [
     "Message",
     "MessageCitation",
     "UsageEvent",
+    "ProviderConfig",
+    "EmbeddingIndexVersion",
+    "EmbeddingReindexJob",
 ]
