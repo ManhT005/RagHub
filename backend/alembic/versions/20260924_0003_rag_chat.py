@@ -44,7 +44,9 @@ def upgrade() -> None:
             "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
     )
+    op.create_index("ix_chatbots_organization_id", "chatbots", ["organization_id"])
     op.create_index("ix_chatbots_scope", "chatbots", ["organization_id", "workspace_id"])
+    op.create_index("ix_chatbots_workspace_id", "chatbots", ["workspace_id"])
     op.create_table(
         "conversations",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -60,6 +62,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_conversations_chatbot", "conversations", ["chatbot_id", "created_at"])
+    op.create_index("ix_conversations_chatbot_id", "conversations", ["chatbot_id"])
     op.create_table(
         "messages",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -77,6 +80,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
+    op.create_index("ix_messages_conversation_id", "messages", ["conversation_id"])
     op.create_table(
         "message_citations",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -99,6 +103,7 @@ def upgrade() -> None:
         sa.Column("rank", sa.Integer(), nullable=False),
         sa.Column("score", sa.Float(), nullable=False),
     )
+    op.create_index("ix_message_citations_message_id", "message_citations", ["message_id"])
     op.create_table(
         "usage_events",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -123,14 +128,21 @@ def upgrade() -> None:
             "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
     )
+    op.create_index("ix_usage_events_organization_id", "usage_events", ["organization_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_usage_events_organization_id", table_name="usage_events")
     op.drop_table("usage_events")
+    op.drop_index("ix_message_citations_message_id", table_name="message_citations")
     op.drop_table("message_citations")
+    op.drop_index("ix_messages_conversation_id", table_name="messages")
     op.drop_index("ix_messages_conversation", table_name="messages")
     op.drop_table("messages")
+    op.drop_index("ix_conversations_chatbot_id", table_name="conversations")
     op.drop_index("ix_conversations_chatbot", table_name="conversations")
     op.drop_table("conversations")
+    op.drop_index("ix_chatbots_workspace_id", table_name="chatbots")
     op.drop_index("ix_chatbots_scope", table_name="chatbots")
+    op.drop_index("ix_chatbots_organization_id", table_name="chatbots")
     op.drop_table("chatbots")
