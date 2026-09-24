@@ -67,6 +67,12 @@ stage creates deterministic 384-dimensional token-hash vectors locally. These
 vectors provide a stable index contract; they are lexical features and should
 be replaced by a semantic model before semantic vector search is offered.
 
+## RAG Chat
+
+- `GET`/`POST` `/workspaces/{workspace_id}/chatbots`, `GET`/`PATCH`/`DELETE` `/chatbots/{chatbot_id}` manage organization-scoped chatbots. Writers create or modify them; all organization members can read them.
+- `POST /chatbots/{chatbot_id}/chat` requires a published chatbot and returns `text/event-stream`. Events are `conversation`, `citations`, zero or more `token`, then `done`; failures are `error`. Citations are derived from the request retrieval hits, never from model-generated text.
+- Set `GEMINI_API_KEY` in the server environment. The backend uses Gemini's OpenAI-compatible streaming endpoint; credentials never reach the client.
+
 ## Health
 
 - `GET /health/live` checks the API process.

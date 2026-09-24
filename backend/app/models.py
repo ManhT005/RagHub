@@ -1,5 +1,6 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 from app.modules.memberships.models import Membership
 from app.modules.organizations.models import Organization
@@ -14,4 +15,9 @@ __all__ = [
     "Organization",
     "User",
     "Workspace",
+    "Chatbot",
+    "Conversation",
+    "Message",
+    "MessageCitation",
+    "UsageEvent",
 ]
