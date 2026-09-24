@@ -88,7 +88,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     observed: list[tuple[str, str, str, int]] = []
 
     class Indexer:
-        def __init__(self, _settings: object) -> None:
+        def __init__(self, **_kwargs: object) -> None:
             pass
 
         def replace_document_version(self, **_kwargs: object) -> None:
@@ -103,8 +103,22 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     storage = SimpleNamespace(get=lambda _key: b"text")
     monkeypatch.setattr(tasks, "MinioObjectStorage", lambda _settings: storage)
     monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
-    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [object()])
-    monkeypatch.setattr(tasks, "embed_chunks", lambda _chunks: {})
+    chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
+    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [chunk])
+    provider = SimpleNamespace(embed_documents=AsyncMock(return_value=[[1.0, 0.0]]))
+    resolved = SimpleNamespace(
+        provider=provider,
+        index_version=SimpleNamespace(index_name="workspace-index", dimension=2),
+    )
+
+    class Resolver:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def embedding_for_workspace(self, *_args: object) -> object:
+            return resolved
+
+    monkeypatch.setattr(tasks, "ProviderResolver", Resolver)
     monkeypatch.setattr(tasks, "ChunkIndexer", Indexer)
 
     await tasks._run_pipeline(session, document, version, job)
