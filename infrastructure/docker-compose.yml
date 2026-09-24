@@ -18,6 +18,10 @@ x-backend-environment: &backend-environment
   S3_SECRET_KEY: ${S3_SECRET_KEY:-raghub-local-only}
   S3_BUCKET: ${S3_BUCKET:-raghub-documents}
   S3_SECURE: ${S3_SECURE:-false}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+  CHAT_PROVIDER_TIMEOUT_SECONDS: ${CHAT_PROVIDER_TIMEOUT_SECONDS:-45}
 
 services:
   postgres:
