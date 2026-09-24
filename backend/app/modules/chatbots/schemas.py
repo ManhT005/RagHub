@@ -25,7 +25,7 @@ class ChatbotResponse(BaseModel):
     workspace_id: UUID
     name: str
     system_prompt: str
-    model: str
+    model: str | None
     retrieval_limit: int
     published: bool
     created_at: datetime

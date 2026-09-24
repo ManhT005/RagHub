@@ -21,7 +21,7 @@ class Chatbot(Base):
     )
     name: Mapped[str] = mapped_column(String(200))
     system_prompt: Mapped[str] = mapped_column(Text, default="")
-    model: Mapped[str] = mapped_column(String(200))
+    model: Mapped[str | None] = mapped_column(String(200))
     retrieval_limit: Mapped[int] = mapped_column(Integer, default=5)
     published: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

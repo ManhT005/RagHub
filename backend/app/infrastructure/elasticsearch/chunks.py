@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -7,11 +6,12 @@ from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from app.core.config import Settings, get_settings
 from app.modules.ingestion.chunker import TextChunk
-from app.modules.ingestion.embedder import DIMENSIONS, embed_texts
 from app.modules.search.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
-def chunk_index_mapping() -> dict[str, Any]:
+def chunk_index_mapping(dimension: int) -> dict[str, Any]:
+    if dimension < 1:
+        raise ValueError("Embedding dimension must be positive")
     return {
         "mappings": {
             "dynamic": "strict",
@@ -27,7 +27,7 @@ def chunk_index_mapping() -> dict[str, Any]:
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
                 "embedding": {
                     "type": "dense_vector",
-                    "dims": DIMENSIONS,
+                    "dims": dimension,
                     "index": True,
                     "similarity": "cosine",
                 },
@@ -45,36 +45,32 @@ def chunk_index_mapping() -> dict[str, Any]:
 
 
 class ChunkIndexer:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self, *, index_name: str, dimension: int, settings: Settings | None = None
+    ) -> None:
         self.settings = settings or get_settings()
+        self.index_name = index_name
+        self.dimension = dimension
         self.client = Elasticsearch(self.settings.elasticsearch_url)
 
     def close(self) -> None:
         self.client.close()
 
     def ensure_index(self) -> None:
-        index = self.settings.elasticsearch_index
-        alias = self.settings.elasticsearch_alias
+        index = self.index_name
         if not self.client.indices.exists(index=index):
-            self.client.indices.create(index=index, **chunk_index_mapping())
+            self.client.indices.create(index=index, **chunk_index_mapping(self.dimension))
         else:
+            properties = chunk_index_mapping(self.dimension)["mappings"]["properties"]
             self.client.indices.put_mapping(
-                index=index, properties=chunk_index_mapping()["mappings"]["properties"]
+                index=index, properties=properties
             )
-        if self.client.indices.exists_alias(name=alias):
-            current = self.client.indices.get_alias(name=alias)
-            if set(current) != {index}:
-                actions = [{"remove": {"index": old, "alias": alias}} for old in current]
-                actions.append({"add": {"index": index, "alias": alias}})
-                self.client.indices.update_aliases(actions=actions)
-        else:
-            self.client.indices.put_alias(index=index, name=alias)
 
     def delete_document_version(self, document_version_id: uuid.UUID) -> None:
         """Remove every indexed chunk before a version leaves READY."""
         self.ensure_index()
         self.client.delete_by_query(
-            index=self.settings.elasticsearch_index,
+            index=self.index_name,
             query={"term": {"document_version_id": str(document_version_id)}},
             conflicts="proceed",
             refresh=True,
@@ -92,7 +88,7 @@ class ChunkIndexer:
         embeddings: dict[str, list[float]],
     ) -> None:
         self.ensure_index()
-        index = self.settings.elasticsearch_index
+        index = self.index_name
         self.client.delete_by_query(
             index=index,
             query={"term": {"document_version_id": str(document_version_id)}},
@@ -130,8 +126,9 @@ class ChunkIndexer:
 
 
 class ChunkSearch:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, *, index_name: str, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
+        self.index_name = index_name
         self.client = AsyncElasticsearch(self.settings.elasticsearch_url)
 
     async def close(self) -> None:
@@ -143,11 +140,14 @@ class ChunkSearch:
         organization_id: uuid.UUID,
         workspace_id: uuid.UUID,
         query: str,
+        query_vector: list[float],
         limit: int,
     ) -> list[dict[str, Any]]:
+        import asyncio
+
         lexical, vector = await asyncio.gather(
             self._search_bm25(organization_id, workspace_id, query),
-            self._search_vector(organization_id, workspace_id, query),
+            self._search_vector(organization_id, workspace_id, query_vector),
         )
         return fuse_rrf([lexical, vector], limit=limit)
 
@@ -155,7 +155,7 @@ class ChunkSearch:
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
     ) -> list[dict[str, Any]]:
         response = await self.client.search(
-            index=self.settings.elasticsearch_alias,
+            index=self.index_name,
             query={
                 "bool": {
                     "must": [{"match": {"content": {"query": query}}}],
@@ -171,14 +171,14 @@ class ChunkSearch:
         return self._hits(response)
 
     async def _search_vector(
-        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
+        self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query_vector: list[float]
     ) -> list[dict[str, Any]]:
         response = await self.client.search(
-            index=self.settings.elasticsearch_alias,
+            index=self.index_name,
             query={
                 "knn": {
                     "field": "embedding",
-                    "query_vector": embed_texts([query])[0],
+                    "query_vector": query_vector,
                     "k": RETRIEVAL_CANDIDATES,
                     "num_candidates": RETRIEVAL_CANDIDATES * 4,
                     "filter": [

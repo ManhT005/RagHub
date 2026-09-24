@@ -13,9 +13,9 @@ from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.task_queue.celery_app import celery_app
+from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
 from app.modules.ingestion.chunker import chunk_sections
-from app.modules.ingestion.embedder import embed_chunks
 from app.modules.ingestion.errors import IngestionError, ingestion_error_message
 from app.modules.ingestion.parser import (
     EmptyExtractedTextError,
@@ -95,7 +95,16 @@ async def _run_pipeline(
         raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
     await _set_stage(session, document, version, job, DocumentStatus.EMBEDDING, 65)
     try:
-        embeddings = embed_chunks(chunks)
+        resolved = await ProviderResolver(session).embedding_for_workspace(
+            version.organization_id, version.workspace_id
+        )
+        vectors = await resolved.provider.embed_documents([chunk.content for chunk in chunks])
+        if len(vectors) != len(chunks):
+            raise ValueError("Embedding response count does not match chunks")
+        embeddings = {
+            str(chunk.chunk_id): vector
+            for chunk, vector in zip(chunks, vectors, strict=True)
+        }
     except Exception as exc:
         raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
     await _set_stage(session, document, version, job, DocumentStatus.INDEXING, 85)
@@ -105,7 +114,11 @@ async def _run_pipeline(
     version.status = DocumentStatus.READY
     job.progress = 90
     await session.commit()
-    indexer = ChunkIndexer(settings)
+    indexer = ChunkIndexer(
+        settings=settings,
+        index_name=resolved.index_version.index_name,
+        dimension=resolved.index_version.dimension,
+    )
     try:
         indexer.replace_document_version(
             organization_id=version.organization_id,
