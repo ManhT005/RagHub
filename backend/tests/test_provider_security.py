@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import Settings
 from app.core.logging import SecretRedactionFilter
 from app.modules.ai_providers.router import provider_response
 from app.modules.ai_providers.schemas import ProviderConfigInput
@@ -69,3 +70,22 @@ def test_logging_filter_redacts_authorization_and_api_keys() -> None:
     assert "abc" not in record.getMessage()
     assert "top-secret" not in record.getMessage()
     assert record.getMessage().count("[REDACTED]") == 2
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["", "change-me-provider-key", "local-provider-key-change-before-production"],
+)
+def test_production_rejects_placeholder_provider_master_key(key: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, app_env="production", provider_master_key=key)
+
+
+def test_production_accepts_dedicated_provider_master_key() -> None:
+    settings = Settings(
+        _env_file=None,
+        app_env="production",
+        provider_master_key="a-unique-production-key-with-sufficient-randomness",
+    )
+
+    assert settings.app_env == "production"

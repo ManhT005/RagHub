@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +39,19 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)
     ollama_base_url: str = "http://ollama:11434"
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        insecure_provider_keys = {
+            "",
+            "change-me-provider-key",
+            "local-provider-key-change-before-production",
+            "replace-with-a-dedicated-provider-encryption-key",
+        }
+        if self.app_env.lower() not in {"development", "dev", "local", "test"}:
+            if self.provider_master_key in insecure_provider_keys:
+                raise ValueError("PROVIDER_MASTER_KEY must be set to a dedicated production key")
+        return self
 
     @property
     def max_upload_size_bytes(self) -> int:
