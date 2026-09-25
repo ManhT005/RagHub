@@ -69,3 +69,20 @@ async def test_disabling_bound_provider_is_rejected() -> None:
         await service.update(uuid.uuid4(), uuid.uuid4(), ProviderConfigPatch(enabled=False))
 
     assert caught.value.status_code == 409
+
+
+async def test_clearing_bound_external_provider_secret_is_rejected() -> None:
+    service = object.__new__(ProviderConfigService)
+    service.get = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            enabled=True,
+            provider_type="OPENAI_COMPATIBLE",
+        )
+    )
+    service._is_bound = AsyncMock(return_value=True)  # type: ignore[method-assign]
+
+    with pytest.raises(AppError) as caught:
+        await service.update(uuid.uuid4(), uuid.uuid4(), ProviderConfigPatch(clear_secret=True))
+
+    assert caught.value.status_code == 409
+    assert caught.value.code == "PROVIDER_CREDENTIAL_IN_USE"

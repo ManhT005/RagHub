@@ -16,6 +16,7 @@ from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.enums import (
     IndexVersionStatus,
     ProviderCapability,
+    ProviderType,
     ReindexJobStatus,
 )
 from app.modules.ai_providers.errors import ProviderConfigurationError
@@ -93,6 +94,17 @@ class ProviderConfigService:
             raise AppError(
                 "PROVIDER_IN_USE",
                 "An active workspace provider cannot be disabled.",
+                status_code=409,
+            )
+        if (
+            payload.clear_secret
+            and config.provider_type
+            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
+            and await self._is_bound(organization_id, provider_id)
+        ):
+            raise AppError(
+                "PROVIDER_CREDENTIAL_IN_USE",
+                "Credentials cannot be cleared while the provider is bound.",
                 status_code=409,
             )
         old_fingerprint = embedding_fingerprint(config) if config.dimension else None
