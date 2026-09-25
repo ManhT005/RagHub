@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.ai_providers.enums import ProviderCapability, ProviderType
 
@@ -35,6 +35,22 @@ def _validate_safe_config(config: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
+class ProviderOptions(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    connect_timeout: float | None = Field(default=None, strict=True, gt=0, le=300)
+    read_timeout: float | None = Field(default=None, strict=True, gt=0, le=600)
+    max_attempts: int | None = Field(default=None, strict=True, ge=1, le=5)
+    backoff_seconds: float | None = Field(default=None, strict=True, ge=0, le=60)
+    batch_size: int | None = Field(default=None, strict=True, ge=1, le=1024)
+    max_concurrency: int | None = Field(default=None, strict=True, ge=1, le=64)
+    options: dict[str, Any] | None = None
+
+
+def _validate_provider_options(config: dict[str, Any]) -> dict[str, Any]:
+    return ProviderOptions.model_validate(config).model_dump(exclude_none=True)
+
+
 def _validate_base_url(url: str | None) -> str | None:
     if url is None:
         return None
@@ -60,7 +76,7 @@ class ProviderConfigInput(BaseModel):
     @model_validator(mode="after")
     def validate_capability(self) -> "ProviderConfigInput":
         self.base_url = _validate_base_url(self.base_url)
-        self.config_json = _validate_safe_config(self.config_json)
+        self.config_json = _validate_provider_options(_validate_safe_config(self.config_json))
         supported = {
             ProviderType.OPENAI_COMPATIBLE: {
                 ProviderCapability.EMBEDDING,
@@ -103,7 +119,7 @@ class ProviderConfigPatch(BaseModel):
     def validate_safe_values(self) -> "ProviderConfigPatch":
         self.base_url = _validate_base_url(self.base_url)
         if self.config_json is not None:
-            self.config_json = _validate_safe_config(self.config_json)
+            self.config_json = _validate_provider_options(_validate_safe_config(self.config_json))
         return self
 
 

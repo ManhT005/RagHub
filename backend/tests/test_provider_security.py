@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.core.logging import SecretRedactionFilter
 from app.modules.ai_providers.router import provider_response
-from app.modules.ai_providers.schemas import ProviderConfigInput
+from app.modules.ai_providers.schemas import ProviderConfigInput, ProviderConfigPatch
 
 
 def test_provider_response_never_exposes_ciphertext() -> None:
@@ -89,3 +89,18 @@ def test_production_accepts_dedicated_provider_master_key() -> None:
     )
 
     assert settings.app_env == "production"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"max_attempts": "abc"},
+        {"max_attempts": 6},
+        {"connect_timeout": -1},
+        {"read_timeout": "45"},
+        {"batch_size": 0},
+    ],
+)
+def test_provider_policy_rejects_invalid_types_and_ranges(config: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        ProviderConfigPatch(config_json=config)
