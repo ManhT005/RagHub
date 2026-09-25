@@ -48,8 +48,11 @@ class EmbeddingIndexVersion(Base):
     provider_config_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("provider_configs.id", ondelete="RESTRICT"), index=True
     )
+    provider_type: Mapped[str] = mapped_column(String(64))
+    base_url: Mapped[str | None] = mapped_column(String(1024))
     model: Mapped[str] = mapped_column(String(255))
     dimension: Mapped[int] = mapped_column(Integer)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     embedding_fingerprint: Mapped[str] = mapped_column(String(64), index=True)
     index_name: Mapped[str] = mapped_column(String(255), unique=True)
     status: Mapped[str] = mapped_column(String(32), default=IndexVersionStatus.BUILDING)

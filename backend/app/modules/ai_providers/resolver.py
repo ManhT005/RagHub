@@ -80,8 +80,11 @@ class ProviderResolver:
         _, version, config = row
         self._validate(config, ProviderCapability.EMBEDDING)
         snapshot = copy.copy(config)
+        snapshot.provider_type = version.provider_type
+        snapshot.base_url = version.base_url
         snapshot.model = version.model
         snapshot.dimension = version.dimension
+        snapshot.config_json = version.config_json
         provider = self.registry.create(snapshot, self._secret(config))
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
 
@@ -115,7 +118,10 @@ class ProviderResolver:
         )
         config = self._validate(config, ProviderCapability.EMBEDDING)
         snapshot = copy.copy(config)
+        snapshot.provider_type = version.provider_type
+        snapshot.base_url = version.base_url
         snapshot.model = version.model
         snapshot.dimension = version.dimension
+        snapshot.config_json = version.config_json
         provider = self.registry.create(snapshot, self._secret(config))
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]

@@ -1,4 +1,5 @@
 import hashlib
+import json
 import math
 import time
 import uuid
@@ -35,8 +36,10 @@ def embedding_fingerprint(config: ProviderConfig) -> str:
         (
             str(config.id),
             str(config.provider_type),
+            config.base_url or "",
             config.model,
             str(config.dimension),
+            json.dumps(config.config_json or {}, sort_keys=True, separators=(",", ":")),
         )
     )
     return hashlib.sha256(identity.encode()).hexdigest()
@@ -242,8 +245,11 @@ class ProviderConfigService:
             organization_id=workspace.organization_id,
             workspace_id=workspace.id,
             provider_config_id=config.id,
+            provider_type=config.provider_type,
+            base_url=config.base_url,
             model=config.model,
             dimension=config.dimension,
+            config_json=config.config_json or {},
             embedding_fingerprint=embedding_fingerprint(config),
             index_name=workspace_index_name(workspace.id, version_id),
             status=IndexVersionStatus.BUILDING,
