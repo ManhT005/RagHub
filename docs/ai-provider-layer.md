@@ -42,6 +42,8 @@ transaction. A failure marks the new version FAILED and leaves the old version a
 - `OPENAI_COMPATIBLE`: embedding and streaming chat using `/embeddings` and
   `/chat/completions`.
 - `GOOGLE_GEMINI`: embedding and streaming chat through Gemini's OpenAI-compatible endpoint.
+- `LOCAL_TOKEN_HASH`: dependency-free deterministic embeddings for development and integration
+  tests. These vectors are lexical features and are not suitable for production semantic search.
 - `LOCAL_SENTENCE_TRANSFORMER`: local embedding. Install the `local-ai` optional dependency.
 - `OLLAMA`: local streaming chat through `/api/chat`.
 

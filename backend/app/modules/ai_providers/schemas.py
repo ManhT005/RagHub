@@ -111,6 +111,7 @@ class ProviderConfigInput(BaseModel):
                 ProviderCapability.EMBEDDING,
                 ProviderCapability.CHAT,
             },
+            ProviderType.LOCAL_TOKEN_HASH: {ProviderCapability.EMBEDDING},
             ProviderType.LOCAL_SENTENCE_TRANSFORMER: {ProviderCapability.EMBEDDING},
             ProviderType.OLLAMA: {ProviderCapability.CHAT},
         }
@@ -126,6 +127,7 @@ class ProviderConfigInput(BaseModel):
         if (
             self.provider_type
             in {
+                ProviderType.LOCAL_TOKEN_HASH,
                 ProviderType.LOCAL_SENTENCE_TRANSFORMER,
                 ProviderType.OLLAMA,
             }

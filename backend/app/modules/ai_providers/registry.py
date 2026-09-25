@@ -4,6 +4,7 @@ from app.modules.ai_providers.adapters import (
     GoogleGeminiChatProvider,
     GoogleGeminiEmbeddingProvider,
     LocalSentenceTransformerProvider,
+    LocalTokenHashEmbeddingProvider,
     OllamaChatProvider,
     OpenAICompatibleChatProvider,
     OpenAICompatibleEmbeddingProvider,
@@ -32,6 +33,11 @@ class ProviderRegistry:
             self._gemini_embedding,
         )
         self.register(ProviderType.GOOGLE_GEMINI, ProviderCapability.CHAT, self._gemini_chat)
+        self.register(
+            ProviderType.LOCAL_TOKEN_HASH,
+            ProviderCapability.EMBEDDING,
+            self._local_token_hash,
+        )
         self.register(
             ProviderType.LOCAL_SENTENCE_TRANSFORMER,
             ProviderCapability.EMBEDDING,
@@ -96,6 +102,13 @@ class ProviderRegistry:
             model=config.model,
             secret=secret,
             policy=cls._policy(config),
+        )
+
+    @staticmethod
+    def _local_token_hash(config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
+        return LocalTokenHashEmbeddingProvider(
+            model=config.model,
+            dimension=config.dimension or 0,
         )
 
     @staticmethod
