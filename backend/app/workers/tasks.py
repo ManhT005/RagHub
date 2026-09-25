@@ -13,6 +13,11 @@ from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.task_queue.celery_app import celery_app
+from app.modules.ai_providers.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
 from app.modules.ingestion.chunker import chunk_sections
@@ -105,6 +110,8 @@ async def _run_pipeline(
             str(chunk.chunk_id): vector
             for chunk, vector in zip(chunks, vectors, strict=True)
         }
+    except (ProviderTimeoutError, ProviderUnavailableError, ProviderRateLimitError) as exc:
+        raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
     except Exception as exc:
         raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
     await _set_stage(session, document, version, job, DocumentStatus.INDEXING, 85)
