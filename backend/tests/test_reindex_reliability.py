@@ -10,7 +10,11 @@ from app.modules.ai_providers.enums import ReindexJobStatus
 from app.modules.ai_providers.schemas import ProviderConfigPatch
 from app.modules.ai_providers.service import ProviderConfigService
 from app.workers import reindex_tasks
-from app.workers.reindex_tasks import _has_all_document_versions, _is_current_target
+from app.workers.reindex_tasks import (
+    _has_all_document_versions,
+    _is_current_target,
+    _reset_attempt_progress,
+)
 
 
 def test_only_latest_pending_index_is_allowed_to_activate() -> None:
@@ -103,3 +107,13 @@ def test_reindex_task_retries_transient_failure(monkeypatch: pytest.MonkeyPatch)
         reindex_tasks.reindex_workspace.pop_request()
     retry.assert_called_once()
     assert retry.call_args.kwargs["countdown"] == 2
+
+
+def test_reindex_redelivery_recalculates_progress() -> None:
+    job = SimpleNamespace(total_documents=10, processed_documents=8, failed_documents=2)
+
+    _reset_attempt_progress(job, 6)  # type: ignore[arg-type]
+
+    assert job.total_documents == 6
+    assert job.processed_documents == 0
+    assert job.failed_documents == 0

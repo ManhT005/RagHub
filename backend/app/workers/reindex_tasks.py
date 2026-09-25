@@ -55,6 +55,12 @@ def _is_transient_error(exc: Exception) -> bool:
     return exc.__class__.__module__.split(".")[0] in {"elastic_transport", "urllib3"}
 
 
+def _reset_attempt_progress(job: EmbeddingReindexJob, total_documents: int) -> None:
+    job.total_documents = total_documents
+    job.processed_documents = 0
+    job.failed_documents = 0
+
+
 async def _fail(session: AsyncSession, job_id: uuid.UUID, exc: Exception) -> None:
     await session.rollback()
     job = await session.get(EmbeddingReindexJob, job_id)
@@ -120,7 +126,7 @@ async def _run_reindex(job_id: uuid.UUID, *, fail_transient: bool = False) -> No
                     if document.id not in seen_documents:
                         latest_rows.append((document, document_version))
                         seen_documents.add(document.id)
-                job.total_documents = len(latest_rows)
+                _reset_attempt_progress(job, len(latest_rows))
                 await session.commit()
                 indexer = ChunkIndexer(
                     settings=settings,
