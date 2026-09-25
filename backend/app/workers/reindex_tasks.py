@@ -3,6 +3,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
+from celery import Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -13,6 +14,11 @@ from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.task_queue.celery_app import celery_app
 from app.modules.ai_providers.enums import IndexVersionStatus, ReindexJobStatus
+from app.modules.ai_providers.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
@@ -33,6 +39,22 @@ def _has_all_document_versions(
     return expected.issubset(indexed)
 
 
+def _is_transient_error(exc: Exception) -> bool:
+    if isinstance(
+        exc,
+        ProviderTimeoutError
+        | ProviderUnavailableError
+        | ProviderRateLimitError
+        | ConnectionError
+        | TimeoutError,
+    ):
+        return True
+    status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    if status in {429, 502, 503, 504}:
+        return True
+    return exc.__class__.__module__.split(".")[0] in {"elastic_transport", "urllib3"}
+
+
 async def _fail(session: AsyncSession, job_id: uuid.UUID, exc: Exception) -> None:
     await session.rollback()
     job = await session.get(EmbeddingReindexJob, job_id)
@@ -51,7 +73,7 @@ async def _fail(session: AsyncSession, job_id: uuid.UUID, exc: Exception) -> Non
     logger.exception("Embedding re-index job %s failed", job_id, exc_info=exc)
 
 
-async def _run_reindex(job_id: uuid.UUID) -> None:
+async def _run_reindex(job_id: uuid.UUID, *, fail_transient: bool = False) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     try:
@@ -164,12 +186,26 @@ async def _run_reindex(job_id: uuid.UUID) -> None:
                 job.completed_at = datetime.now(UTC)
                 await session.commit()
             except Exception as exc:
+                if _is_transient_error(exc) and not fail_transient:
+                    await session.rollback()
+                    raise
                 await _fail(session, job_id, exc)
                 raise
     finally:
         await engine.dispose()
 
 
-@celery_app.task(name="providers.reindex_workspace")
-def reindex_workspace(job_id: str) -> None:
-    asyncio.run(_run_reindex(uuid.UUID(job_id)))
+@celery_app.task(bind=True, max_retries=3, name="providers.reindex_workspace")
+def reindex_workspace(self: Task, job_id: str) -> None:
+    try:
+        asyncio.run(
+            _run_reindex(
+                uuid.UUID(job_id), fail_transient=self.request.retries >= self.max_retries
+            )
+        )
+    except Exception as exc:
+        if _is_transient_error(exc) and self.request.retries < self.max_retries:
+            raise self.retry(
+                exc=exc, countdown=min(60, 2 ** (self.request.retries + 1))
+            ) from exc
+        raise

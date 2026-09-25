@@ -1,13 +1,15 @@
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+from celery.exceptions import Retry
 
 from app.core.exceptions import AppError
 from app.modules.ai_providers.enums import ReindexJobStatus
 from app.modules.ai_providers.schemas import ProviderConfigPatch
 from app.modules.ai_providers.service import ProviderConfigService
+from app.workers import reindex_tasks
 from app.workers.reindex_tasks import _has_all_document_versions, _is_current_target
 
 
@@ -86,3 +88,18 @@ async def test_clearing_bound_external_provider_secret_is_rejected() -> None:
 
     assert caught.value.status_code == 409
     assert caught.value.code == "PROVIDER_CREDENTIAL_IN_USE"
+
+
+def test_reindex_task_retries_transient_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    process = AsyncMock(side_effect=ConnectionError("elasticsearch unavailable"))
+    retry = Mock(side_effect=Retry())
+    monkeypatch.setattr(reindex_tasks, "_run_reindex", process)
+    monkeypatch.setattr(reindex_tasks.reindex_workspace, "retry", retry)
+    reindex_tasks.reindex_workspace.push_request(retries=0)
+    try:
+        with pytest.raises(Retry):
+            reindex_tasks.reindex_workspace.run(str(uuid.uuid4()))
+    finally:
+        reindex_tasks.reindex_workspace.pop_request()
+    retry.assert_called_once()
+    assert retry.call_args.kwargs["countdown"] == 2
