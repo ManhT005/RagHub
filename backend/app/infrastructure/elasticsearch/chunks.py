@@ -62,9 +62,7 @@ class ChunkIndexer:
             self.client.indices.create(index=index, **chunk_index_mapping(self.dimension))
         else:
             properties = chunk_index_mapping(self.dimension)["mappings"]["properties"]
-            self.client.indices.put_mapping(
-                index=index, properties=properties
-            )
+            self.client.indices.put_mapping(index=index, properties=properties)
 
     def delete_document_version(self, document_version_id: uuid.UUID) -> None:
         """Remove every indexed chunk before a version leaves READY."""
@@ -123,6 +121,31 @@ class ChunkIndexer:
         ]
         if actions:
             helpers.bulk(self.client, actions, refresh="wait_for")
+
+    def document_version_ids(self, workspace_id: uuid.UUID) -> set[uuid.UUID]:
+        """Return distinct indexed document versions for a workspace."""
+        values: set[uuid.UUID] = set()
+        after: dict[str, Any] | None = None
+        while True:
+            composite: dict[str, Any] = {
+                "size": 1000,
+                "sources": [{"version_id": {"terms": {"field": "document_version_id"}}}],
+            }
+            if after:
+                composite["after"] = after
+            response = self.client.search(
+                index=self.index_name,
+                size=0,
+                query={"term": {"workspace_id": str(workspace_id)}},
+                aggregations={"versions": {"composite": composite}},
+            )
+            aggregation = response["aggregations"]["versions"]
+            values.update(
+                uuid.UUID(bucket["key"]["version_id"]) for bucket in aggregation["buckets"]
+            )
+            after = aggregation.get("after_key")
+            if not after:
+                return values
 
 
 class ChunkSearch:
@@ -195,8 +218,13 @@ class ChunkSearch:
     @staticmethod
     def _source_fields() -> list[str]:
         return [
-            "document_id", "document_version_id", "chunk_id", "content", "source_name",
-            "page_number", "heading",
+            "document_id",
+            "document_version_id",
+            "chunk_id",
+            "content",
+            "source_name",
+            "page_number",
+            "heading",
         ]
 
     @staticmethod

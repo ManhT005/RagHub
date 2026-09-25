@@ -27,6 +27,12 @@ def _is_current_target(workspace: Workspace, version: EmbeddingIndexVersion) -> 
     return workspace.pending_embedding_index_version_id == version.id
 
 
+def _has_all_document_versions(
+    expected: set[uuid.UUID], indexed: set[uuid.UUID]
+) -> bool:
+    return expected.issubset(indexed)
+
+
 async def _fail(session: AsyncSession, job_id: uuid.UUID, exc: Exception) -> None:
     await session.rollback()
     job = await session.get(EmbeddingReindexJob, job_id)
@@ -127,12 +133,11 @@ async def _run_reindex(job_id: uuid.UUID) -> None:
                         await session.commit()
                     job.status = ReindexJobStatus.VALIDATING
                     await session.commit()
-                    expected_documents = len(latest_rows)
-                    indexed_documents = indexer.client.count(
-                        index=version.index_name,
-                        query={"term": {"workspace_id": str(job.workspace_id)}},
-                    )["count"]
-                    if expected_documents and indexed_documents < expected_documents:
+                    expected_versions = {
+                        document_version.id for _, document_version in latest_rows
+                    }
+                    indexed_versions = indexer.document_version_ids(job.workspace_id)
+                    if not _has_all_document_versions(expected_versions, indexed_versions):
                         raise RuntimeError("Re-index validation found missing documents")
                 finally:
                     indexer.close()
