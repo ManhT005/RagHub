@@ -23,6 +23,10 @@ from app.modules.workspaces.models import Workspace
 logger = logging.getLogger(__name__)
 
 
+def _is_current_target(workspace: Workspace, version: EmbeddingIndexVersion) -> bool:
+    return workspace.pending_embedding_index_version_id == version.id
+
+
 async def _fail(session: AsyncSession, job_id: uuid.UUID, exc: Exception) -> None:
     await session.rollback()
     job = await session.get(EmbeddingReindexJob, job_id)
@@ -55,6 +59,11 @@ async def _run_reindex(job_id: uuid.UUID) -> None:
             version = await session.get(EmbeddingIndexVersion, job.target_index_version_id)
             workspace = await session.get(Workspace, job.workspace_id)
             if version is None or workspace is None:
+                return
+            if not _is_current_target(workspace, version):
+                job.status = ReindexJobStatus.SUPERSEDED
+                job.completed_at = datetime.now(UTC)
+                await session.commit()
                 return
             job.status = ReindexJobStatus.RUNNING
             job.started_at = job.started_at or datetime.now(UTC)
@@ -129,6 +138,13 @@ async def _run_reindex(job_id: uuid.UUID) -> None:
                     indexer.close()
                 job.status = ReindexJobStatus.SWITCHING
                 await session.commit()
+                await session.refresh(workspace)
+                if not _is_current_target(workspace, version):
+                    job.status = ReindexJobStatus.SUPERSEDED
+                    job.completed_at = datetime.now(UTC)
+                    version.status = IndexVersionStatus.FAILED
+                    await session.commit()
+                    return
                 old = await session.get(
                     EmbeddingIndexVersion, workspace.active_embedding_index_version_id
                 ) if workspace.active_embedding_index_version_id else None
@@ -138,6 +154,7 @@ async def _run_reindex(job_id: uuid.UUID) -> None:
                 version.activated_at = datetime.now(UTC)
                 workspace.active_embedding_index_version_id = version.id
                 workspace.embedding_provider_id = version.provider_config_id
+                workspace.pending_embedding_index_version_id = None
                 job.status = ReindexJobStatus.COMPLETED
                 job.completed_at = datetime.now(UTC)
                 await session.commit()

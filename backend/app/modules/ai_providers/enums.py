@@ -27,3 +27,4 @@ class ReindexJobStatus(StrEnum):
     SWITCHING = "SWITCHING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    SUPERSEDED = "SUPERSEDED"

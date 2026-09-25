@@ -255,6 +255,20 @@ class ProviderConfigService:
             status=IndexVersionStatus.BUILDING,
         )
         self.session.add(version)
+        if workspace.pending_embedding_index_version_id:
+            previous_job = await self.session.scalar(
+                select(EmbeddingReindexJob).where(
+                    EmbeddingReindexJob.target_index_version_id
+                    == workspace.pending_embedding_index_version_id,
+                    EmbeddingReindexJob.status.not_in(
+                        (ReindexJobStatus.COMPLETED, ReindexJobStatus.FAILED)
+                    ),
+                )
+            )
+            if previous_job:
+                previous_job.status = ReindexJobStatus.SUPERSEDED
+                previous_job.completed_at = datetime.now(UTC)
+        workspace.pending_embedding_index_version_id = version.id
         ready_count = int(
             await self.session.scalar(
                 select(func.count(Document.id)).where(
@@ -280,6 +294,7 @@ class ProviderConfigService:
             version.activated_at = datetime.now(UTC)
             workspace.active_embedding_index_version_id = version.id
             workspace.embedding_provider_id = config.id
+            workspace.pending_embedding_index_version_id = None
             return None
         job = EmbeddingReindexJob(
             organization_id=workspace.organization_id,
