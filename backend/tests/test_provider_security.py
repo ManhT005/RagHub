@@ -104,3 +104,36 @@ def test_production_accepts_dedicated_provider_master_key() -> None:
 def test_provider_policy_rejects_invalid_types_and_ranges(config: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         ProviderConfigPatch(config_json=config)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://127.0.0.1:8080/v1",
+        "http://169.254.169.254/latest/meta-data",
+        "http://10.1.2.3/v1",
+        "http://[::1]:8080/v1",
+        "http://localhost:8080/v1",
+    ],
+)
+def test_external_provider_rejects_private_network_urls(base_url: str) -> None:
+    with pytest.raises(ValidationError):
+        ProviderConfigInput(
+            name="unsafe",
+            provider_type="OPENAI_COMPATIBLE",
+            capability="CHAT",
+            base_url=base_url,
+            model="model",
+        )
+
+
+def test_local_provider_allows_internal_runtime_url() -> None:
+    config = ProviderConfigInput(
+        name="ollama",
+        provider_type="OLLAMA",
+        capability="CHAT",
+        base_url="http://ollama:11434",
+        model="gemma3:1b",
+    )
+
+    assert config.base_url == "http://ollama:11434"

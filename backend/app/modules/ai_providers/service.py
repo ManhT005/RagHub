@@ -27,7 +27,11 @@ from app.modules.ai_providers.models import (
 )
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.repository import ProviderConfigRepository
-from app.modules.ai_providers.schemas import ProviderConfigInput, ProviderConfigPatch
+from app.modules.ai_providers.schemas import (
+    ProviderConfigInput,
+    ProviderConfigPatch,
+    validate_public_provider_url,
+)
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.workspaces.models import Workspace
 
@@ -107,6 +111,12 @@ class ProviderConfigService:
                 "Credentials cannot be cleared while the provider is bound.",
                 status_code=409,
             )
+        if (
+            payload.base_url is not None
+            and config.provider_type
+            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
+        ):
+            validate_public_provider_url(payload.base_url)
         old_fingerprint = embedding_fingerprint(config) if config.dimension else None
         reindex_jobs: list[EmbeddingReindexJob] = []
         values = payload.model_dump(exclude_unset=True, exclude={"secret", "clear_secret"})

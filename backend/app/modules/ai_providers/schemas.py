@@ -1,3 +1,5 @@
+import ipaddress
+import socket
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -62,6 +64,29 @@ def _validate_base_url(url: str | None) -> str | None:
     return url
 
 
+def validate_public_provider_url(url: str | None) -> str | None:
+    url = _validate_base_url(url)
+    if url is None:
+        return None
+    hostname = urlsplit(url).hostname
+    if not hostname:
+        raise ValueError("base_url must contain a hostname")
+    addresses: set[str] = set()
+    try:
+        addresses.add(str(ipaddress.ip_address(hostname)))
+    except ValueError:
+        if hostname.lower() == "localhost" or hostname.lower().endswith(".localhost"):
+            raise ValueError("base_url cannot target a local or private network") from None
+        try:
+            addresses.update(item[4][0] for item in socket.getaddrinfo(hostname, None))
+        except socket.gaierror:
+            # Connectivity testing will report an invalid/unresolvable custom hostname.
+            return url
+    if any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise ValueError("base_url cannot target a local or private network")
+    return url
+
+
 class ProviderConfigInput(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     provider_type: ProviderType
@@ -91,6 +116,11 @@ class ProviderConfigInput(BaseModel):
         }
         if self.capability not in supported[self.provider_type]:
             raise ValueError("The provider type does not support this capability")
+        if self.provider_type in {
+            ProviderType.OPENAI_COMPATIBLE,
+            ProviderType.GOOGLE_GEMINI,
+        }:
+            self.base_url = validate_public_provider_url(self.base_url)
         if self.capability == ProviderCapability.EMBEDDING and self.dimension is None:
             raise ValueError("Embedding providers require dimension")
         if (
