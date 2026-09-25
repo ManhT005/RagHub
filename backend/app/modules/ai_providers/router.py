@@ -137,3 +137,14 @@ async def bind_workspace_providers(
         active_embedding_index_version_id=workspace.active_embedding_index_version_id,
         reindex_job_id=job.id if job else None,
     )
+
+
+@router.post("/embedding-reindex-jobs/{job_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_embedding_reindex(
+    job_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict[str, object]:
+    _manage(context)
+    job = await ProviderConfigService(session).retry_reindex(context.organization_id, job_id)
+    return {"job_id": job.id, "status": job.status}

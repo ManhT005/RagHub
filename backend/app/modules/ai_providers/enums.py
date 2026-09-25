@@ -22,6 +22,7 @@ class IndexVersionStatus(StrEnum):
 
 class ReindexJobStatus(StrEnum):
     QUEUED = "QUEUED"
+    QUEUE_FAILED = "QUEUE_FAILED"
     RUNNING = "RUNNING"
     VALIDATING = "VALIDATING"
     SWITCHING = "SWITCHING"

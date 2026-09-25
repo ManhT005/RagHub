@@ -117,7 +117,7 @@ class ProviderConfigService:
                     reindex_jobs.append(job)
         await self.session.commit()
         for job in reindex_jobs:
-            self._enqueue_reindex(job)
+            await self._enqueue_reindex(job)
         await self.session.refresh(config)
         return config
 
@@ -223,18 +223,41 @@ class ProviderConfigService:
                 workspace.embedding_provider_id = embedding.id
         await self.session.commit()
         if reindex_job:
-            self._enqueue_reindex(reindex_job)
+            await self._enqueue_reindex(reindex_job)
         return workspace, reindex_job
 
-    @staticmethod
-    def _enqueue_reindex(job: EmbeddingReindexJob) -> None:
+    async def _enqueue_reindex(self, job: EmbeddingReindexJob) -> None:
         try:
             from app.workers.reindex_tasks import reindex_workspace
 
             reindex_workspace.delay(str(job.id))
         except Exception:
-            # The durable QUEUED row can be picked up after the broker recovers.
-            pass
+            job.status = ReindexJobStatus.QUEUE_FAILED
+            job.error_code = "REINDEX_QUEUE_UNAVAILABLE"
+            job.error_message = (
+                "The re-index job could not be queued. Retry when the broker recovers."
+            )
+            await self.session.commit()
+
+    async def retry_reindex(self, organization_id: UUID, job_id: UUID) -> EmbeddingReindexJob:
+        job = await self.session.scalar(
+            select(EmbeddingReindexJob).where(
+                EmbeddingReindexJob.id == job_id,
+                EmbeddingReindexJob.organization_id == organization_id,
+            )
+        )
+        if job is None:
+            raise AppError("REINDEX_JOB_NOT_FOUND", "Re-index job was not found.", status_code=404)
+        if job.status not in {ReindexJobStatus.QUEUE_FAILED, ReindexJobStatus.FAILED}:
+            raise AppError(
+                "REINDEX_JOB_NOT_RETRYABLE", "Re-index job is not retryable.", status_code=409
+            )
+        job.status = ReindexJobStatus.QUEUED
+        job.error_code = job.error_message = None
+        job.completed_at = None
+        await self.session.commit()
+        await self._enqueue_reindex(job)
+        return job
 
     async def _stage_embedding_version(
         self, workspace: Workspace, config: ProviderConfig
