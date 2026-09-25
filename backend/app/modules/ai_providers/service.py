@@ -301,6 +301,20 @@ class ProviderConfigService:
         await self._enqueue_reindex(job)
         return job
 
+    async def get_reindex_job(
+        self, organization_id: UUID, workspace_id: UUID, job_id: UUID
+    ) -> EmbeddingReindexJob:
+        job = await self.session.scalar(
+            select(EmbeddingReindexJob).where(
+                EmbeddingReindexJob.id == job_id,
+                EmbeddingReindexJob.organization_id == organization_id,
+                EmbeddingReindexJob.workspace_id == workspace_id,
+            )
+        )
+        if job is None:
+            raise AppError("REINDEX_JOB_NOT_FOUND", "Re-index job was not found.", status_code=404)
+        return job
+
     async def _stage_embedding_version(
         self, workspace: Workspace, config: ProviderConfig
     ) -> EmbeddingReindexJob | None:

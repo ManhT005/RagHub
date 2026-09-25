@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import OrganizationContext, get_organization_context, require_role
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.modules.ai_providers.models import ProviderConfig
+from app.modules.ai_providers.models import EmbeddingReindexJob, ProviderConfig
 from app.modules.ai_providers.schemas import (
+    EmbeddingReindexJobResponse,
     ProviderConfigInput,
     ProviderConfigPatch,
     ProviderConfigResponse,
@@ -37,6 +38,23 @@ def provider_response(config: ProviderConfig) -> ProviderConfigResponse:
         has_secret=bool(config.encrypted_secret),
         created_at=config.created_at,
         updated_at=config.updated_at,
+    )
+
+
+def reindex_job_response(job: EmbeddingReindexJob) -> EmbeddingReindexJobResponse:
+    return EmbeddingReindexJobResponse(
+        id=job.id,
+        workspace_id=job.workspace_id,
+        target_index_version_id=job.target_index_version_id,
+        status=job.status,
+        total_documents=job.total_documents,
+        processed_documents=job.processed_documents,
+        failed_documents=job.failed_documents,
+        error_code=job.error_code,
+        error_message=job.error_message,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
     )
 
 
@@ -148,3 +166,20 @@ async def retry_embedding_reindex(
     _manage(context)
     job = await ProviderConfigService(session).retry_reindex(context.organization_id, job_id)
     return {"job_id": job.id, "status": job.status}
+
+
+@router.get(
+    "/workspaces/{workspace_id}/embedding-reindex-jobs/{job_id}",
+    response_model=EmbeddingReindexJobResponse,
+)
+async def get_embedding_reindex_job(
+    workspace_id: UUID,
+    job_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> EmbeddingReindexJobResponse:
+    _manage(context)
+    job = await ProviderConfigService(session).get_reindex_job(
+        context.organization_id, workspace_id, job_id
+    )
+    return reindex_job_response(job)

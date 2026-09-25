@@ -66,6 +66,18 @@ async def test_bound_provider_detection_checks_workspace_bindings() -> None:
     session.scalar.assert_awaited_once()
 
 
+async def test_reindex_status_lookup_is_tenant_and_workspace_scoped() -> None:
+    expected = SimpleNamespace(id=uuid.uuid4())
+    session = SimpleNamespace(scalar=AsyncMock(return_value=expected))
+    service = object.__new__(ProviderConfigService)
+    service.session = session
+
+    result = await service.get_reindex_job(uuid.uuid4(), uuid.uuid4(), expected.id)
+
+    assert result is expected
+    session.scalar.assert_awaited_once()
+
+
 async def test_disabling_bound_provider_is_rejected() -> None:
     service = object.__new__(ProviderConfigService)
     service.get = AsyncMock(return_value=SimpleNamespace(enabled=True))  # type: ignore[method-assign]

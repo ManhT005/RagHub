@@ -189,3 +189,18 @@ class WorkspaceProviderBindingResponse(BaseModel):
     chat_provider_id: UUID | None
     active_embedding_index_version_id: UUID | None
     reindex_job_id: UUID | None = None
+
+
+class EmbeddingReindexJobResponse(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    target_index_version_id: UUID
+    status: str
+    total_documents: int
+    processed_documents: int
+    failed_documents: int
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None

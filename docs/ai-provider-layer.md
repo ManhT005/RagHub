@@ -24,6 +24,11 @@ responses. Put credentials in the API `secret` field. `config_json` rejects cred
 3. Bind providers with `PATCH /api/v1/workspaces/{workspace_id}/providers`.
 4. Upload and query documents through the existing workspace endpoints.
 
+When an embedding bind returns `reindex_job_id`, monitor it with
+`GET /api/v1/workspaces/{workspace_id}/embedding-reindex-jobs/{job_id}`. The response includes
+the current lifecycle status, document counters, timestamps, and a safe failure code/message.
+Queue failures can be retried with `POST /api/v1/embedding-reindex-jobs/{job_id}/retry`.
+
 OWNER and ADMIN roles may manage providers. Every provider lookup is scoped to the organization
 from `X-Organization-ID`.
 
