@@ -7,19 +7,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.infrastructure.elasticsearch.chunks import ChunkSearch
+from app.modules.ai_providers.contracts import ChatMessage, ChatOptions
+from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
-from app.modules.chatbots.provider import GeminiChatProvider
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.search.hybrid import build_context
+from app.modules.search.service import SearchService
 from app.modules.workspaces.models import Workspace
-
-
-def get_chat_provider() -> GeminiChatProvider:
-    return GeminiChatProvider()
 
 
 class ChatbotService:
@@ -63,7 +59,7 @@ class ChatbotService:
             workspace_id=workspace_id,
             name=payload.name.strip(),
             system_prompt=payload.system_prompt.strip(),
-            model=payload.model or get_settings().gemini_model,
+            model=payload.model,
             retrieval_limit=payload.retrieval_limit,
             published=payload.published,
         )
@@ -169,20 +165,12 @@ class ChatbotService:
                 "No ready documents are available for this chatbot.",
                 status_code=409,
             )
-        search = ChunkSearch()
-        try:
-            hits = await search.search(
-                organization_id=organization_id,
-                workspace_id=chatbot.workspace_id,
-                query=question,
-                limit=chatbot.retrieval_limit,
-            )
-        except Exception as exc:
-            raise AppError(
-                "SEARCH_UNAVAILABLE", "Search is temporarily unavailable.", status_code=503
-            ) from exc
-        finally:
-            await search.close()
+        chat_runtime = await ProviderResolver(self.session).chat_for_workspace(
+            organization_id, chatbot.workspace_id
+        )
+        hits = await SearchService(self.session).retrieve(
+            organization_id, chatbot.workspace_id, question, chatbot.retrieval_limit
+        )
         conversation = await self._conversation(chatbot, conversation_id, external_user_id)
         user_message = Message(
             conversation_id=conversation.id, role="user", content=question, usage_json=None
@@ -202,8 +190,8 @@ class ChatbotService:
                 UsageEvent(
                     organization_id=organization_id,
                     message_id=assistant.id,
-                    provider="gemini",
-                    model=chatbot.model,
+                    provider=chat_runtime.config.provider_type,
+                    model=chatbot.model or chat_runtime.config.model,
                 )
             )
             await self.session.commit()
@@ -239,10 +227,13 @@ class ChatbotService:
         started = time.monotonic()
         answer: list[str] = []
         try:
-            messages = [{"role": "system", "content": f"{chatbot.system_prompt}\n\n{guardrail}"}]
-            messages.extend(await self._history(conversation.id))
-            async for token in get_chat_provider().stream_chat(
-                messages=messages, model=chatbot.model
+            raw_messages = [
+                {"role": "system", "content": f"{chatbot.system_prompt}\n\n{guardrail}"}
+            ]
+            raw_messages.extend(await self._history(conversation.id))
+            messages = [ChatMessage(**message) for message in raw_messages]
+            async for token in chat_runtime.provider.stream_chat(
+                messages, ChatOptions(model=chatbot.model or chat_runtime.config.model)
             ):
                 answer.append(token)
                 yield "token", {"text": token}
@@ -275,8 +266,8 @@ class ChatbotService:
             UsageEvent(
                 organization_id=organization_id,
                 message_id=assistant.id,
-                provider="gemini",
-                model=chatbot.model,
+                provider=chat_runtime.config.provider_type,
+                model=chatbot.model or chat_runtime.config.model,
                 latency_ms=latency_ms,
             )
         )

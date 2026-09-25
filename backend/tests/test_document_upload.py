@@ -146,40 +146,30 @@ async def test_manual_retry_resets_same_job(
     queued.assert_called_once_with(str(version.id))
 
 
-async def test_reindex_removes_chunks_before_version_leaves_ready(
+async def test_reindex_queues_replacement_without_deleting_active_chunks(
     service: DocumentService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
     document = SimpleNamespace(id=uuid.uuid4(), status="READY")
     version = SimpleNamespace(id=uuid.uuid4(), status="READY", created_at=datetime.now(UTC))
     job = SimpleNamespace(
-        id=uuid.uuid4(), stage="READY", progress=100, attempts=1,
-        error_code=None, error_message=None, error_details=None,
+        id=uuid.uuid4(),
+        stage="READY",
+        progress=100,
+        attempts=1,
+        error_code=None,
+        error_message=None,
+        error_details=None,
     )
     service.repository.find_version_for_retry = AsyncMock(  # type: ignore[method-assign]
         return_value=(document, version, job)
     )
-    observed_statuses: list[str] = []
-
-    class Indexer:
-        def __init__(self, _settings: Settings) -> None:
-            pass
-
-        def delete_document_version(self, version_id: uuid.UUID) -> None:
-            assert version_id == version.id
-            observed_statuses.append(version.status)
-
-        def close(self) -> None:
-            pass
-
-    monkeypatch.setattr("app.modules.documents.service.ChunkIndexer", Indexer)
     from app.workers.tasks import ingest_document_version
 
     queued = Mock()
     monkeypatch.setattr(ingest_document_version, "delay", queued)
     response = await service.reindex(organization_id, workspace_id, version.id)
 
-    assert observed_statuses == ["READY"]
     assert response.status == document.status == version.status == job.stage == "QUEUED"
     assert job.progress == job.attempts == 0
     queued.assert_called_once_with(str(version.id))

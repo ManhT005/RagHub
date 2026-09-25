@@ -38,6 +38,25 @@ def test_upload_to_search_and_tenant_scope() -> None:
         )
         assert workspace.status_code == 201, workspace.text
         workspace_id = workspace.json()["id"]
+        provider = client.post(
+            f"/api/v1/organizations/{organization_id}/providers",
+            headers=headers,
+            json={
+                "name": "Integration embedding",
+                "provider_type": "LOCAL_TOKEN_HASH",
+                "capability": "EMBEDDING",
+                "model": "token-hash-v1",
+                "dimension": 384,
+            },
+        )
+        assert provider.status_code == 201, provider.text
+        binding = client.patch(
+            f"/api/v1/workspaces/{workspace_id}/providers",
+            headers=headers,
+            json={"embedding_provider_id": provider.json()["id"]},
+        )
+        assert binding.status_code == 200, binding.text
+        assert binding.json()["active_embedding_index_version_id"]
         pdf = pymupdf.open()
         pdf.new_page().insert_text((72, 72), "Unique PDF ingestion citation")
         pdf_data = pdf.tobytes()

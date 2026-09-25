@@ -2,6 +2,7 @@ alembic==1.16.4
 asyncpg==0.30.0
 argon2-cffi==25.1.0
 celery==5.5.3
+cryptography==46.0.1
 elasticsearch[async]==9.1.0
 email-validator==2.2.0
 fastapi==0.115.12

@@ -5,6 +5,12 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from celery.exceptions import Retry
 
+from app.modules.ai_providers.errors import (
+    ProviderAuthenticationError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from app.workers import tasks
 
 
@@ -88,7 +94,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     observed: list[tuple[str, str, str, int]] = []
 
     class Indexer:
-        def __init__(self, _settings: object) -> None:
+        def __init__(self, **_kwargs: object) -> None:
             pass
 
         def replace_document_version(self, **_kwargs: object) -> None:
@@ -103,8 +109,22 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     storage = SimpleNamespace(get=lambda _key: b"text")
     monkeypatch.setattr(tasks, "MinioObjectStorage", lambda _settings: storage)
     monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
-    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [object()])
-    monkeypatch.setattr(tasks, "embed_chunks", lambda _chunks: {})
+    chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
+    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [chunk])
+    provider = SimpleNamespace(embed_documents=AsyncMock(return_value=[[1.0, 0.0]]))
+    resolved = SimpleNamespace(
+        provider=provider,
+        index_version=SimpleNamespace(index_name="workspace-index", dimension=2),
+    )
+
+    class Resolver:
+        def __init__(self, _session: object) -> None:
+            pass
+
+        async def embedding_for_workspace(self, *_args: object) -> object:
+            return resolved
+
+    monkeypatch.setattr(tasks, "ProviderResolver", Resolver)
     monkeypatch.setattr(tasks, "ChunkIndexer", Indexer)
 
     await tasks._run_pipeline(session, document, version, job)
@@ -137,3 +157,63 @@ async def test_attempt_records_failure_before_leaving_lock(
     assert job.attempts == retries + 1
     assert job.stage == version.status == document.status == "PARSING"
     record.assert_awaited_once_with(session, version.id, error, failed=failed)
+
+
+@pytest.mark.parametrize(
+    "provider_error",
+    [ProviderTimeoutError(), ProviderUnavailableError(), ProviderRateLimitError()],
+)
+async def test_transient_embedding_provider_failure_is_retryable(
+    monkeypatch: pytest.MonkeyPatch, provider_error: Exception
+) -> None:
+    version = SimpleNamespace(
+        id=uuid.uuid4(), organization_id=uuid.uuid4(), workspace_id=uuid.uuid4(), storage_key="key"
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt")
+    job = SimpleNamespace(stage="PARSING", progress=20)
+    session = SimpleNamespace(commit=AsyncMock())
+    monkeypatch.setattr(
+        tasks, "MinioObjectStorage", lambda _settings: SimpleNamespace(get=lambda _key: b"text")
+    )
+    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(
+        tasks,
+        "chunk_sections",
+        lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
+    )
+    resolver = SimpleNamespace(embedding_for_workspace=AsyncMock(side_effect=provider_error))
+    monkeypatch.setattr(tasks, "ProviderResolver", lambda _session: resolver)
+
+    with pytest.raises(tasks.IngestionError) as caught:
+        await tasks._run_pipeline(session, document, version, job)
+
+    assert caught.value.retryable is True
+
+
+async def test_auth_embedding_provider_failure_is_permanent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = SimpleNamespace(
+        id=uuid.uuid4(), organization_id=uuid.uuid4(), workspace_id=uuid.uuid4(), storage_key="key"
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt")
+    job = SimpleNamespace(stage="PARSING", progress=20)
+    session = SimpleNamespace(commit=AsyncMock())
+    monkeypatch.setattr(
+        tasks, "MinioObjectStorage", lambda _settings: SimpleNamespace(get=lambda _key: b"text")
+    )
+    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(
+        tasks,
+        "chunk_sections",
+        lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
+    )
+    resolver = SimpleNamespace(
+        embedding_for_workspace=AsyncMock(side_effect=ProviderAuthenticationError())
+    )
+    monkeypatch.setattr(tasks, "ProviderResolver", lambda _session: resolver)
+
+    with pytest.raises(tasks.IngestionError) as caught:
+        await tasks._run_pipeline(session, document, version, job)
+
+    assert caught.value.retryable is False

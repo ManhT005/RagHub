@@ -1,5 +1,4 @@
 from app.infrastructure.elasticsearch.chunks import chunk_index_mapping
-from app.modules.ingestion.embedder import DIMENSIONS
 from app.modules.ingestion.tokenizer import ENCODING
 from app.modules.search.hybrid import build_context, fuse_rrf
 
@@ -32,6 +31,6 @@ def test_context_keeps_chunk_citation_and_honors_token_budget() -> None:
 
 
 def test_index_mapping_matches_embedding_dimension() -> None:
-    mapping = chunk_index_mapping()
+    mapping = chunk_index_mapping(768)
 
-    assert mapping["mappings"]["properties"]["embedding"]["dims"] == DIMENSIONS
+    assert mapping["mappings"]["properties"]["embedding"]["dims"] == 768
