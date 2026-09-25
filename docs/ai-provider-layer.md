@@ -44,11 +44,14 @@ Start Ollama only for local deployments:
 
 ```bash
 BACKEND_IMAGE_TARGET=local-ai \
-  docker compose -f infrastructure/docker-compose.yml --profile local-ai up -d
+  docker compose -f infrastructure/docker-compose.yml --profile local-ai up -d --wait
 ```
 
 In PowerShell, set `$env:BACKEND_IMAGE_TARGET = "local-ai"` before the compose command. The
-default `runtime` image does not install PyTorch or sentence-transformers.
+default `runtime` image does not install PyTorch or sentence-transformers. The `ollama-init`
+service pulls `${OLLAMA_MODEL:-gemma3:1b}` into the shared Ollama volume on first startup. Create
+the Ollama provider with the same model name. To select another model, set `OLLAMA_MODEL` before
+starting the profile; Compose waits until the one-shot pull finishes.
 
 Provider HTTP calls use bounded retries. Connection failures, 429, and upstream 502/503/504 may
 retry before a chat token is emitted. Streaming is never restarted after the first token.
