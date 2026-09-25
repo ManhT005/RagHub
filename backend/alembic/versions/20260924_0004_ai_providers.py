@@ -36,9 +36,15 @@ def upgrade() -> None:
         sa.Column("encrypted_secret", sa.Text()),
         sa.Column("config_json", sa.JSON(), nullable=False, server_default=sa.text("'{}'::json")),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.CheckConstraint("dimension IS NULL OR dimension > 0", name="ck_provider_dimension_positive"),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.CheckConstraint(
+            "dimension IS NULL OR dimension > 0", name="ck_provider_dimension_positive"
+        ),
     )
     op.create_index("ix_provider_configs_organization_id", "provider_configs", ["organization_id"])
     op.create_index(
@@ -94,7 +100,9 @@ def upgrade() -> None:
         sa.Column("embedding_fingerprint", sa.String(64), nullable=False),
         sa.Column("index_name", sa.String(255), nullable=False, unique=True),
         sa.Column("status", sa.String(32), nullable=False, server_default="BUILDING"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("activated_at", sa.DateTime(timezone=True)),
         sa.CheckConstraint("dimension > 0", name="ck_index_version_dimension_positive"),
     )
@@ -103,7 +111,9 @@ def upgrade() -> None:
         "embedding_index_versions",
         ["organization_id"],
     )
-    op.create_index("ix_embedding_index_versions_workspace_id", "embedding_index_versions", ["workspace_id"])
+    op.create_index(
+        "ix_embedding_index_versions_workspace_id", "embedding_index_versions", ["workspace_id"]
+    )
     op.create_index(
         "ix_embedding_index_versions_provider_config_id",
         "embedding_index_versions",
@@ -162,18 +172,26 @@ def upgrade() -> None:
         sa.Column("failed_documents", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("error_code", sa.String(100)),
         sa.Column("error_message", sa.Text()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
     )
-    op.create_index("ix_embedding_reindex_jobs_organization_id", "embedding_reindex_jobs", ["organization_id"])
-    op.create_index("ix_embedding_reindex_jobs_workspace_id", "embedding_reindex_jobs", ["workspace_id"])
+    op.create_index(
+        "ix_embedding_reindex_jobs_organization_id", "embedding_reindex_jobs", ["organization_id"]
+    )
+    op.create_index(
+        "ix_embedding_reindex_jobs_workspace_id", "embedding_reindex_jobs", ["workspace_id"]
+    )
 
 
 def downgrade() -> None:
     op.drop_table("embedding_reindex_jobs")
     op.drop_index("ix_workspaces_active_embedding_index_version_id", table_name="workspaces")
-    op.drop_constraint("fk_workspaces_active_embedding_index_version", "workspaces", type_="foreignkey")
+    op.drop_constraint(
+        "fk_workspaces_active_embedding_index_version", "workspaces", type_="foreignkey"
+    )
     op.drop_column("workspaces", "active_embedding_index_version_id")
     op.drop_table("embedding_index_versions")
     op.drop_index("ix_workspaces_chat_provider_id", table_name="workspaces")
