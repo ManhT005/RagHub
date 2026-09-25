@@ -31,7 +31,14 @@ from app.modules.workspaces.models import Workspace
 
 
 def embedding_fingerprint(config: ProviderConfig) -> str:
-    identity = f"{config.provider_type}\0{config.model}\0{config.dimension}"
+    identity = "\0".join(
+        (
+            str(config.id),
+            str(config.provider_type),
+            config.model,
+            str(config.dimension),
+        )
+    )
     return hashlib.sha256(identity.encode()).hexdigest()
 
 
@@ -200,7 +207,6 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Selected embedding provider has wrong capability."
                 )
-            workspace.embedding_provider_id = embedding.id
             active = (
                 await self.session.get(
                     EmbeddingIndexVersion, workspace.active_embedding_index_version_id
@@ -210,6 +216,8 @@ class ProviderConfigService:
             )
             if active is None or active.embedding_fingerprint != embedding_fingerprint(embedding):
                 reindex_job = await self._stage_embedding_version(workspace, embedding)
+            else:
+                workspace.embedding_provider_id = embedding.id
         await self.session.commit()
         if reindex_job:
             self._enqueue_reindex(reindex_job)
@@ -265,6 +273,7 @@ class ProviderConfigService:
             version.status = IndexVersionStatus.ACTIVE
             version.activated_at = datetime.now(UTC)
             workspace.active_embedding_index_version_id = version.id
+            workspace.embedding_provider_id = config.id
             return None
         job = EmbeddingReindexJob(
             organization_id=workspace.organization_id,
