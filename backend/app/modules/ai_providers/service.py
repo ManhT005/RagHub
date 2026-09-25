@@ -87,6 +87,14 @@ class ProviderConfigService:
         self, organization_id: UUID, provider_id: UUID, payload: ProviderConfigPatch
     ) -> ProviderConfig:
         config = await self.get(organization_id, provider_id)
+        if payload.enabled is False and config.enabled and await self._is_bound(
+            organization_id, provider_id
+        ):
+            raise AppError(
+                "PROVIDER_IN_USE",
+                "An active workspace provider cannot be disabled.",
+                status_code=409,
+            )
         old_fingerprint = embedding_fingerprint(config) if config.dimension else None
         reindex_jobs: list[EmbeddingReindexJob] = []
         values = payload.model_dump(exclude_unset=True, exclude={"secret", "clear_secret"})
@@ -120,6 +128,18 @@ class ProviderConfigService:
             await self._enqueue_reindex(job)
         await self.session.refresh(config)
         return config
+
+    async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
+        return bool(
+            await self.session.scalar(
+                select(Workspace.id).where(
+                    Workspace.organization_id == organization_id,
+                    Workspace.deleted_at.is_(None),
+                    (Workspace.embedding_provider_id == provider_id)
+                    | (Workspace.chat_provider_id == provider_id),
+                )
+            )
+        )
 
     async def delete(self, organization_id: UUID, provider_id: UUID) -> None:
         config = await self.get(organization_id, provider_id)
