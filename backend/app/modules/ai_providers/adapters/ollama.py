@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions
+from app.modules.ai_providers.contracts import ChatMessage, ChatOptions, ChatStreamDelta, ChatUsage
 from app.modules.ai_providers.errors import (
     ProviderAuthenticationError,
     ProviderInvalidResponseError,
@@ -13,6 +13,7 @@ from app.modules.ai_providers.errors import (
     ProviderUnavailableError,
 )
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from app.modules.ai_providers.usage import estimate_chat_usage
 
 
 class OllamaChatProvider:
@@ -33,7 +34,7 @@ class OllamaChatProvider:
 
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[ChatStreamDelta]:
         provider_options = dict(self.config.get("options", {}))
         for key in ("temperature", "top_p", "stop"):
             value = getattr(options, key)
@@ -55,6 +56,7 @@ class OllamaChatProvider:
         )
         for attempt in range(self.policy.max_attempts):
             emitted = False
+            completion: list[str] = []
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     async with client.stream(
@@ -80,8 +82,21 @@ class OllamaChatProvider:
                                 raise ProviderInvalidResponseError() from exc
                             if token:
                                 emitted = True
-                                yield token
+                                completion.append(token)
+                                yield ChatStreamDelta(text=token)
                             if data.get("done"):
+                                prompt_tokens = data.get("prompt_eval_count")
+                                completion_tokens = data.get("eval_count")
+                                if prompt_tokens is not None and completion_tokens is not None:
+                                    usage = ChatUsage(
+                                        prompt_tokens=int(prompt_tokens),
+                                        completion_tokens=int(completion_tokens),
+                                        total_tokens=int(prompt_tokens) + int(completion_tokens),
+                                        source="provider",
+                                    )
+                                else:
+                                    usage = estimate_chat_usage(messages, "".join(completion))
+                                yield ChatStreamDelta(usage=usage)
                                 return
                 return
             except httpx.TimeoutException as exc:

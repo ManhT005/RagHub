@@ -7,8 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions
+from app.modules.ai_providers.contracts import ChatMessage, ChatOptions, ChatUsage
 from app.modules.ai_providers.resolver import ProviderResolver
+from app.modules.ai_providers.usage import estimate_chat_usage
 from app.modules.chatbots.citations import resolve_citations
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch
@@ -219,26 +220,37 @@ class ChatbotService:
         )
         timing = ChatStreamTiming()
         answer: list[str] = []
+        usage: ChatUsage | None = None
         try:
             raw_messages = [
                 {"role": "system", "content": f"{chatbot.system_prompt}\n\n{guardrail}"}
             ]
             raw_messages.extend(await self._history(conversation.id))
             messages = [ChatMessage(**message) for message in raw_messages]
-            async for token in chat_runtime.provider.stream_chat(
+            async for delta in chat_runtime.provider.stream_chat(
                 messages, ChatOptions(model=chatbot.model or chat_runtime.config.model)
             ):
-                timing.record_token()
-                answer.append(token)
-                yield "token", {"text": token}
+                if delta.text:
+                    timing.record_token()
+                    answer.append(delta.text)
+                    yield "token", {"text": delta.text}
+                if delta.usage:
+                    usage = delta.usage
         except AppError as exc:
             yield "error", {"code": exc.code, "message": exc.message}
             return
+        usage = usage or estimate_chat_usage(messages, "".join(answer))
+        usage_payload = {
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "source": usage.source,
+        }
         assistant = Message(
             conversation_id=conversation.id,
             role="assistant",
             content="".join(answer),
-            usage_json=None,
+            usage_json=usage_payload,
         )
         self.session.add(assistant)
         await self.session.flush()
@@ -262,11 +274,14 @@ class ChatbotService:
                 message_id=assistant.id,
                 provider=chat_runtime.config.provider_type,
                 model=chatbot.model or chat_runtime.config.model,
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
                 first_token_ms=timing.first_token_ms,
                 latency_ms=latency_ms,
             )
         )
         await self.session.commit()
+        yield "usage", usage_payload
         yield "done", {
             "message_id": str(assistant.id),
             "first_token_ms": timing.first_token_ms,

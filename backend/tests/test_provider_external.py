@@ -152,8 +152,9 @@ async def test_stream_does_not_retry_after_first_token(
     tokens: list[str] = []
 
     with pytest.raises(ProviderUnavailableError):
-        async for token in provider.stream_chat([ChatMessage("user", "hello")], ChatOptions()):
-            tokens.append(token)
+        async for delta in provider.stream_chat([ChatMessage("user", "hello")], ChatOptions()):
+            if delta.text:
+                tokens.append(delta.text)
 
     assert tokens == ["first"]
     assert calls == 1

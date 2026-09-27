@@ -19,6 +19,20 @@ class ChatOptions:
 
 
 @dataclass(frozen=True)
+class ChatUsage:
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    source: str
+
+
+@dataclass(frozen=True)
+class ChatStreamDelta:
+    text: str | None = None
+    usage: ChatUsage | None = None
+
+
+@dataclass(frozen=True)
 class EmbeddingMetadata:
     provider_name: str
     model: str
@@ -52,4 +66,4 @@ class ChatProvider(Protocol):
 
     def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
-    ) -> AsyncIterator[str]: ...
+    ) -> AsyncIterator[ChatStreamDelta]: ...

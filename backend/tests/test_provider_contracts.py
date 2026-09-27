@@ -4,6 +4,7 @@ from app.modules.ai_providers.contracts import (
     ChatMessage,
     ChatOptions,
     ChatProvider,
+    ChatStreamDelta,
     EmbeddingMetadata,
     EmbeddingProvider,
 )
@@ -25,8 +26,8 @@ class ChatStub:
 
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
-    ) -> AsyncIterator[str]:
-        yield "OK"
+    ) -> AsyncIterator[ChatStreamDelta]:
+        yield ChatStreamDelta(text="OK")
 
 
 def test_runtime_provider_contracts() -> None:

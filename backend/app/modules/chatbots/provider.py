@@ -27,5 +27,6 @@ class GeminiChatProvider:
             policy=ProviderRequestPolicy(read_timeout=self.settings.chat_provider_timeout_seconds),
         )
         normalized = [ChatMessage(**message) for message in messages]
-        async for token in provider.stream_chat(normalized, ChatOptions(model=model)):
-            yield token
+        async for delta in provider.stream_chat(normalized, ChatOptions(model=model)):
+            if delta.text:
+                yield delta.text
