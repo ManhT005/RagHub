@@ -14,10 +14,11 @@ from app.modules.chatbots.citations import resolve_citations
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch
 from app.modules.chatbots.timing import ChatStreamTiming
-from app.modules.documents.models import Document, DocumentStatus
 from app.modules.search.hybrid import build_context_bundle
 from app.modules.search.service import SearchService
 from app.modules.workspaces.models import Workspace
+
+EMPTY_CONTEXT_ANSWER = "Tôi không tìm thấy thông tin phù hợp trong tài liệu đã cung cấp."
 
 
 class ChatbotService:
@@ -151,25 +152,6 @@ class ChatbotService:
         chatbot = await self.get(organization_id, chatbot_id)
         if not chatbot.published:
             raise AppError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.", status_code=409)
-        ready = await self.session.scalar(
-            select(Document.id)
-            .where(
-                Document.organization_id == organization_id,
-                Document.workspace_id == chatbot.workspace_id,
-                Document.status == DocumentStatus.READY,
-                Document.deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        if ready is None:
-            raise AppError(
-                "CHAT_CONTEXT_UNAVAILABLE",
-                "No ready documents are available for this chatbot.",
-                status_code=409,
-            )
-        chat_runtime = await ProviderResolver(self.session).chat_for_workspace(
-            organization_id, chatbot.workspace_id
-        )
         hits = await SearchService(self.session).retrieve(
             organization_id, chatbot.workspace_id, question, chatbot.retrieval_limit
         )
@@ -183,19 +165,16 @@ class ChatbotService:
             assistant = Message(
                 conversation_id=conversation.id,
                 role="assistant",
-                content="Tôi không tìm thấy thông tin phù hợp trong tài liệu đã cung cấp.",
-                usage_json=None,
+                content=EMPTY_CONTEXT_ANSWER,
+                usage_json={
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "source": "none",
+                },
             )
             self.session.add(assistant)
             await self.session.flush()
-            self.session.add(
-                UsageEvent(
-                    organization_id=organization_id,
-                    message_id=assistant.id,
-                    provider=chat_runtime.config.provider_type,
-                    model=chatbot.model or chat_runtime.config.model,
-                )
-            )
             await self.session.commit()
             yield (
                 "conversation",
@@ -203,8 +182,16 @@ class ChatbotService:
             )
             yield "citations", {"citations": []}
             yield "token", {"text": assistant.content}
-            yield "done", {"message_id": str(assistant.id), "latency_ms": 0}
+            yield "usage", assistant.usage_json
+            yield "done", {
+                "message_id": str(assistant.id),
+                "first_token_ms": None,
+                "latency_ms": 0,
+            }
             return
+        chat_runtime = await ProviderResolver(self.session).chat_for_workspace(
+            organization_id, chatbot.workspace_id
+        )
         context = build_context_bundle(hits)
         hits = context.hits
         citations = resolve_citations(hits)
