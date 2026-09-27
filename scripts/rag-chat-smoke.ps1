@@ -166,7 +166,7 @@ function Read-ChatEvents {
 try {
     Invoke-RestMethod -Method Get -Uri "$($BaseUrl.TrimEnd('/'))/health/ready" | Out-Null
 
-    $email = "rag-smoke-$runId@example.test"
+    $email = "rag-smoke-$runId@example.com"
     $password = "RagHub-$runId!"
     $auth = Invoke-JsonApi -Method Post -Path '/auth/register' -Body @{
         email = $email

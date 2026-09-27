@@ -25,5 +25,12 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM runtime AS local-ai
 
 USER root
-RUN python -m pip install sentence-transformers==5.1.1
+ARG PYTORCH_VERSION=2.8.0
+RUN python -m pip install \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch==${PYTORCH_VERSION}" \
+    && python -m pip install sentence-transformers==5.1.1
+ENV HF_HOME=/app/.cache/huggingface
+RUN mkdir -p "${HF_HOME}" \
+    && chown -R raghub:raghub /app/.cache
 USER raghub
