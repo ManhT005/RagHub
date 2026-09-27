@@ -1,6 +1,6 @@
 from app.infrastructure.elasticsearch.chunks import chunk_index_mapping
 from app.modules.ingestion.tokenizer import ENCODING
-from app.modules.search.hybrid import build_context, fuse_rrf
+from app.modules.search.hybrid import build_context, build_context_bundle, fuse_rrf
 
 
 def hit(chunk_id: str, content: str = "content") -> dict[str, object]:
@@ -26,8 +26,31 @@ def test_rrf_prefers_a_chunk_returned_by_both_retrievers() -> None:
 def test_context_keeps_chunk_citation_and_honors_token_budget() -> None:
     context = build_context([hit("citation-id", "word " * 200)], max_tokens=30)
 
-    assert "chunk_id=citation-id" in context
+    assert "chunk_id: citation-id" in context
     assert len(ENCODING.encode(context)) <= 30
+
+
+def test_context_bundle_contains_only_used_hits() -> None:
+    hits = [hit("first"), hit("second"), hit("unused")]
+    first_two_tokens = len(
+        ENCODING.encode(build_context_bundle(hits[:2], max_tokens=10_000).text)
+    )
+
+    bundle = build_context_bundle(hits, max_tokens=first_two_tokens)
+
+    assert [item["chunk_id"] for item in bundle.hits] == ["first", "second"]
+    assert "[C1]" in bundle.text
+    assert "[C2]" in bundle.text
+    assert "unused" not in bundle.text
+
+
+def test_context_bundle_keeps_chunk_metadata() -> None:
+    original = hit("metadata")
+
+    bundle = build_context_bundle([original])
+
+    assert bundle.hits == [original]
+    assert bundle.hits[0]["document_version_id"] == original["document_version_id"]
 
 
 def test_index_mapping_matches_embedding_dimension() -> None:
