@@ -63,7 +63,7 @@ the one-shot initializer pulls `OLLAMA_MODEL` (`gemma3:1b` by default):
 ```powershell
 $env:BACKEND_IMAGE_TARGET = "local-ai"
 $env:OLLAMA_MODEL = "gemma3:1b"
-docker compose -f infrastructure/docker-compose.yml --profile local-ai up --build -d --wait
+docker compose --env-file .env -f infrastructure/docker-compose.yml --profile local-ai up --build -d --wait
 ```
 
 Configure `LOCAL_SENTENCE_TRANSFORMER` with a Sentence Transformer embedding model, and

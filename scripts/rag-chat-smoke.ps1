@@ -13,13 +13,51 @@ param(
     [ValidateRange(10, 900)]
     [int]$PollTimeoutSeconds = 180,
 
-    [string]$ResultPath
+    [string]$ResultPath,
+
+    [string]$EnvFile = '.env'
 )
 
 $ErrorActionPreference = 'Stop'
 $apiRoot = "$($BaseUrl.TrimEnd('/'))/api/v1"
 $runId = [guid]::NewGuid().ToString('N').Substring(0, 12)
 $temporaryDocument = $null
+
+function Import-DotEnv {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return
+    }
+    foreach ($rawLine in Get-Content -LiteralPath $Path) {
+        $line = $rawLine.Trim()
+        if (-not $line -or $line.StartsWith('#')) {
+            continue
+        }
+        if ($line.StartsWith('export ')) {
+            $line = $line.Substring(7).Trim()
+        }
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $separator).Trim()
+        $value = $line.Substring($separator + 1).Trim()
+        if (
+            $value.Length -ge 2 -and
+            (($value.StartsWith('"') -and $value.EndsWith('"')) -or
+            ($value.StartsWith("'") -and $value.EndsWith("'")))
+        ) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        $existing = [Environment]::GetEnvironmentVariable($name, 'Process')
+        if ([string]::IsNullOrWhiteSpace($existing)) {
+            [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+        }
+    }
+}
+
+Import-DotEnv -Path $EnvFile
 
 function Get-RequiredEnvironmentValue {
     param([Parameter(Mandatory)][string]$Name)
@@ -42,6 +80,33 @@ function Get-EnvironmentValueOrDefault {
         return $Default
     }
     return $value
+}
+
+function Get-ExternalSecret {
+    param([Parameter(Mandatory)][string]$SpecificName)
+
+    $specific = [Environment]::GetEnvironmentVariable($SpecificName)
+    if (-not [string]::IsNullOrWhiteSpace($specific)) {
+        return $specific
+    }
+    return Get-RequiredEnvironmentValue 'GEMINI_API_KEY'
+}
+
+function Get-EnvironmentBooleanOrDefault {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][bool]$Default
+    )
+
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $Default
+    }
+    $parsed = $false
+    if (-not [bool]::TryParse($value, [ref]$parsed)) {
+        throw "Environment variable $Name must be true or false."
+    }
+    return $parsed
 }
 
 function Invoke-JsonApi {
@@ -132,35 +197,117 @@ function Read-ChatEvents {
     $content = [System.Net.Http.StringContent]::new(
         $payload, [System.Text.Encoding]::UTF8, 'application/json'
     )
+    $request = [System.Net.Http.HttpRequestMessage]::new(
+        [System.Net.Http.HttpMethod]::Post,
+        "$apiRoot/chatbots/$ChatbotId/chat"
+    )
+    $request.Content = $content
+    $response = $null
+    $reader = $null
+    $stream = $null
+    $events = [System.Collections.Generic.List[object]]::new()
+    $eventName = $null
+    $firstTokenMs = $null
+    $doneMs = $null
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $response = $client.PostAsync(
-            "$apiRoot/chatbots/$ChatbotId/chat", $content
+        $response = $client.SendAsync(
+            $request,
+            [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead
         ).GetAwaiter().GetResult()
-        $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
         if (-not $response.IsSuccessStatusCode) {
+            $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
             throw "Chat failed with HTTP $([int]$response.StatusCode): $body"
+        }
+        $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $reader = [System.IO.StreamReader]::new($stream)
+        while (-not $reader.EndOfStream) {
+            $line = $reader.ReadLineAsync().GetAwaiter().GetResult()
+            if ($line.StartsWith('event: ')) {
+                $eventName = $line.Substring(7).Trim()
+            }
+            elseif ($line.StartsWith('data: ') -and $eventName) {
+                $elapsedMs = [int64]$stopwatch.ElapsedMilliseconds
+                $events.Add([pscustomobject]@{
+                    name = $eventName
+                    data = $line.Substring(6) | ConvertFrom-Json
+                    received_at_ms = $elapsedMs
+                })
+                if ($eventName -eq 'token' -and $null -eq $firstTokenMs) {
+                    $firstTokenMs = $elapsedMs
+                }
+                if ($eventName -eq 'done') {
+                    $doneMs = $elapsedMs
+                }
+                $eventName = $null
+            }
         }
     }
     finally {
+        $stopwatch.Stop()
+        if ($reader) { $reader.Dispose() }
+        if ($stream) { $stream.Dispose() }
+        if ($response) { $response.Dispose() }
+        $request.Dispose()
         $content.Dispose()
         $client.Dispose()
     }
+    return [pscustomobject]@{
+        events = $events.ToArray()
+        client_first_token_ms = $firstTokenMs
+        client_total_latency_ms = if ($null -ne $doneMs) { $doneMs } else { $stopwatch.ElapsedMilliseconds }
+        token_event_count = @($events | Where-Object { $_.name -eq 'token' }).Count
+    }
+}
 
-    $events = [System.Collections.Generic.List[object]]::new()
-    $eventName = $null
-    foreach ($line in ($body -split "`r?`n")) {
-        if ($line.StartsWith('event: ')) {
-            $eventName = $line.Substring(7).Trim()
-        }
-        elseif ($line.StartsWith('data: ') -and $eventName) {
-            $events.Add([pscustomobject]@{
-                name = $eventName
-                data = $line.Substring(6) | ConvertFrom-Json
-            })
-            $eventName = $null
+if ($Mode -eq 'External') {
+    $embeddingConfiguration = @{
+        name = "External embedding $runId"
+        provider_type = Get-EnvironmentValueOrDefault `
+            'RAGHUB_EXTERNAL_EMBEDDING_PROVIDER_TYPE' 'GOOGLE_GEMINI'
+        capability = 'EMBEDDING'
+        base_url = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_BASE_URL'
+        model = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_MODEL'
+        dimension = [int](Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_DIMENSION')
+        secret = Get-ExternalSecret 'RAGHUB_EXTERNAL_EMBEDDING_API_KEY'
+        config_json = @{}
+    }
+    $chatConfiguration = @{
+        name = "External chat $runId"
+        provider_type = Get-EnvironmentValueOrDefault `
+            'RAGHUB_EXTERNAL_CHAT_PROVIDER_TYPE' 'GOOGLE_GEMINI'
+        capability = 'CHAT'
+        base_url = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_BASE_URL'
+        model = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_MODEL'
+        secret = Get-ExternalSecret 'RAGHUB_EXTERNAL_CHAT_API_KEY'
+        config_json = @{
+            include_stream_usage = Get-EnvironmentBooleanOrDefault `
+                'RAGHUB_EXTERNAL_INCLUDE_STREAM_USAGE' $false
         }
     }
-    return $events
+}
+else {
+    $embeddingConfiguration = @{
+        name = "Local embedding $runId"
+        provider_type = 'LOCAL_SENTENCE_TRANSFORMER'
+        capability = 'EMBEDDING'
+        base_url = $null
+        model = Get-EnvironmentValueOrDefault `
+            'RAGHUB_LOCAL_EMBEDDING_MODEL' `
+            'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+        dimension = [int](Get-EnvironmentValueOrDefault `
+            'RAGHUB_LOCAL_EMBEDDING_DIMENSION' '384')
+        config_json = @{}
+    }
+    $chatConfiguration = @{
+        name = "Local chat $runId"
+        provider_type = 'OLLAMA'
+        capability = 'CHAT'
+        base_url = Get-EnvironmentValueOrDefault `
+            'RAGHUB_OLLAMA_BASE_URL' 'http://ollama:11434'
+        model = Get-EnvironmentValueOrDefault 'OLLAMA_MODEL' 'gemma3:1b'
+        config_json = @{ read_timeout = 180.0 }
+    }
 }
 
 try {
@@ -183,51 +330,6 @@ try {
     $workspace = Invoke-JsonApi -Method Post -Path '/workspaces' -Headers $headers -Body @{
         name = "RAG Smoke $runId"
         slug = "rag-smoke-$runId"
-    }
-
-    if ($Mode -eq 'External') {
-        $embeddingConfiguration = @{
-            name = "External embedding $runId"
-            provider_type = 'OPENAI_COMPATIBLE'
-            capability = 'EMBEDDING'
-            base_url = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_BASE_URL'
-            model = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_MODEL'
-            dimension = [int](Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_DIMENSION')
-            secret = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_API_KEY'
-            config_json = @{}
-        }
-        $chatConfiguration = @{
-            name = "External chat $runId"
-            provider_type = 'OPENAI_COMPATIBLE'
-            capability = 'CHAT'
-            base_url = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_BASE_URL'
-            model = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_MODEL'
-            secret = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_API_KEY'
-            config_json = @{}
-        }
-    }
-    else {
-        $embeddingConfiguration = @{
-            name = "Local embedding $runId"
-            provider_type = 'LOCAL_SENTENCE_TRANSFORMER'
-            capability = 'EMBEDDING'
-            base_url = $null
-            model = Get-EnvironmentValueOrDefault `
-                'RAGHUB_LOCAL_EMBEDDING_MODEL' `
-                'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
-            dimension = [int](Get-EnvironmentValueOrDefault `
-                'RAGHUB_LOCAL_EMBEDDING_DIMENSION' '384')
-            config_json = @{}
-        }
-        $chatConfiguration = @{
-            name = "Local chat $runId"
-            provider_type = 'OLLAMA'
-            capability = 'CHAT'
-            base_url = Get-EnvironmentValueOrDefault `
-                'RAGHUB_OLLAMA_BASE_URL' 'http://ollama:11434'
-            model = Get-EnvironmentValueOrDefault 'OLLAMA_MODEL' 'gemma3:1b'
-            config_json = @{ read_timeout = 180.0 }
-        }
     }
 
     $embeddingProvider = New-Provider -Headers $headers `
@@ -285,7 +387,11 @@ try {
     $search = Invoke-JsonApi -Method Get `
         -Path "/workspaces/$($workspace.id)/search?q=$([uri]::EscapeDataString($Question))" `
         -Headers $headers
-    $events = @(Read-ChatEvents -ChatbotId $chatbot.id -Message $Question -Headers $headers)
+    $streamResult = Read-ChatEvents `
+        -ChatbotId $chatbot.id `
+        -Message $Question `
+        -Headers $headers
+    $events = @($streamResult.events)
     $eventNames = @($events | ForEach-Object { $_.name })
     $errors = @($events | Where-Object { $_.name -eq 'error' })
     if ($errors.Count) {
@@ -299,6 +405,19 @@ try {
     $citationsEvent = $events | Where-Object { $_.name -eq 'citations' } | Select-Object -First 1
     $usageEvent = $events | Where-Object { $_.name -eq 'usage' } | Select-Object -First 1
     $doneEvent = $events | Where-Object { $_.name -eq 'done' } | Select-Object -First 1
+    $firstTokenEvent = $events | Where-Object { $_.name -eq 'token' } | Select-Object -First 1
+    if ($null -eq $streamResult.client_first_token_ms) {
+        throw 'The client did not observe a token event in the live response stream.'
+    }
+    if ($firstTokenEvent.received_at_ms -ge $doneEvent.received_at_ms) {
+        throw 'The first token was not received before the done event; proxy buffering is suspected.'
+    }
+    if (
+        $doneEvent.data.first_token_ms -and
+        $streamResult.client_first_token_ms -lt $doneEvent.data.first_token_ms
+    ) {
+        throw 'Client TTFT cannot be lower than provider-side TTFT.'
+    }
     $citationChunkIds = @($citationsEvent.data.citations | ForEach-Object { [string]$_.chunk_id })
     $retrievedChunkIds = @($search.hits | ForEach-Object { [string]$_.chunk_id })
     if (-not $citationChunkIds.Count) {
@@ -326,8 +445,12 @@ try {
         citation_chunk_ids = $citationChunkIds
         prompt_tokens = $usageEvent.data.prompt_tokens
         completion_tokens = $usageEvent.data.completion_tokens
-        first_token_ms = $doneEvent.data.first_token_ms
-        total_latency_ms = $doneEvent.data.latency_ms
+        provider_first_token_ms = $doneEvent.data.first_token_ms
+        provider_total_latency_ms = $doneEvent.data.latency_ms
+        client_first_token_ms = $streamResult.client_first_token_ms
+        client_total_latency_ms = $streamResult.client_total_latency_ms
+        token_event_count = $streamResult.token_event_count
+        incremental_stream_verified = $true
         result = 'PASS'
     }
     $json = $result | ConvertTo-Json -Depth 10

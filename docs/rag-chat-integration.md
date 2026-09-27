@@ -58,24 +58,22 @@ Integration tests requiring Docker are marked and may be skipped by a unit-test-
 
 ## External smoke test
 
-Set the following host environment variables. Base URLs must be public HTTP(S) endpoints accepted
-by provider URL validation.
+Copy `.env.example` to the ignored `.env` file and fill `GEMINI_API_KEY`. The checked-in defaults
+use Google's OpenAI-compatible endpoint, `gemini-embedding-001`, and
+`gemini-2.5-flash-lite`; provider-specific embedding/chat keys can still override the shared key.
 
 ```powershell
-$env:RAGHUB_EXTERNAL_EMBEDDING_BASE_URL = 'https://provider.example/v1'
-$env:RAGHUB_EXTERNAL_EMBEDDING_MODEL = 'embedding-model'
-$env:RAGHUB_EXTERNAL_EMBEDDING_DIMENSION = '1536'
-$env:RAGHUB_EXTERNAL_EMBEDDING_API_KEY = '<secret>'
-$env:RAGHUB_EXTERNAL_CHAT_BASE_URL = 'https://provider.example/v1'
-$env:RAGHUB_EXTERNAL_CHAT_MODEL = 'chat-model'
-$env:RAGHUB_EXTERNAL_CHAT_API_KEY = '<secret>'
+# .env (ignored by Git)
+GEMINI_API_KEY=<secret>
 
 .\scripts\rag-chat-smoke.ps1 -Mode External `
   -ResultPath .\artifacts\rag-external-result.json
 ```
 
-The script never includes secrets in its result. Use `-DocumentPath` and `-Question` to validate a
-specific real document; otherwise it creates a temporary UTF-8 text fixture.
+The runner loads `.env` by default; use `-EnvFile` for a different local file. It never includes
+secrets in its result and validates required External configuration before creating test data. Use
+`-DocumentPath` and `-Question` to validate a specific real document; otherwise it creates a
+temporary UTF-8 text fixture.
 
 ## Local smoke test
 
@@ -85,7 +83,8 @@ Build the backend with local sentence-transformer dependencies and start Ollama:
 $env:BACKEND_IMAGE_TARGET = 'local-ai'
 $env:OLLAMA_MODEL = 'gemma3:1b'
 
-docker compose -f infrastructure/docker-compose.yml --profile local-ai up --build -d --wait
+docker compose --env-file .env -f infrastructure/docker-compose.yml `
+  --profile local-ai up --build -d --wait
 
 .\scripts\rag-chat-smoke.ps1 -Mode Local `
   -ResultPath .\artifacts\rag-local-result.json
@@ -98,8 +97,11 @@ from the API container; its default is `http://ollama:11434`.
 ## Sprint gate evidence
 
 Each smoke result records the git commit, mode, workspace, provider/model identities, document,
-question, retrieved and cited chunk IDs, token counts, first-token latency, total latency, and
-PASS status. Citation chunk IDs are checked against scoped retrieval results before PASS is emitted.
+question, retrieved and cited chunk IDs, token counts, provider/client first-token latency,
+provider/client total latency, token-event count, and PASS status. The runner reads SSE with
+`ResponseHeadersRead` and only marks `incremental_stream_verified=true` when the first token is
+observed before `done`. Citation chunk IDs are checked against scoped retrieval results before PASS
+is emitted.
 
 The Sprint 5 gate is open only after both result files are produced by real executions:
 
