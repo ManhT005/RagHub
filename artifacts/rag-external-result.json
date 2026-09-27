@@ -1,0 +1,30 @@
+﻿{
+    "execution_date":  "2026-09-27T09:33:20.2475147+00:00",
+    "git_commit":  "b34301f2622b4cef9fc9dd5496b4c7893ad29f51",
+    "mode":  "External",
+    "workspace_id":  "86f31825-556b-4618-a167-94424884e888",
+    "embedding_provider":  "GOOGLE_GEMINI",
+    "embedding_model":  "gemini-embedding-001",
+    "chat_provider":  "GOOGLE_GEMINI",
+    "chat_model":  "gemini-3.5-flash-lite",
+    "document_id":  "f3bca8d5-93a8-4a2f-8348-98d7b64ba927",
+    "question":  "What is the RagHub smoke test launch code?",
+    "retrieved_chunk_ids":  [
+                                "e2a93e55-263c-5ec7-a836-364dc5b26127"
+                            ],
+    "citation_ids":  [
+                         "C1"
+                     ],
+    "citation_chunk_ids":  [
+                               "e2a93e55-263c-5ec7-a836-364dc5b26127"
+                           ],
+    "prompt_tokens":  139,
+    "completion_tokens":  23,
+    "provider_first_token_ms":  1218,
+    "provider_total_latency_ms":  1748,
+    "client_first_token_ms":  2250,
+    "client_total_latency_ms":  2786,
+    "token_event_count":  3,
+    "incremental_stream_verified":  true,
+    "result":  "PASS"
+}

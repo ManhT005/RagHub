@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from app.modules.ingestion.tokenizer import ENCODING
@@ -6,6 +7,12 @@ from app.modules.ingestion.tokenizer import ENCODING
 RETRIEVAL_CANDIDATES = 15
 RRF_K = 60
 MAX_CONTEXT_TOKENS = 6000
+
+
+@dataclass(frozen=True)
+class ContextBundle:
+    text: str
+    hits: list[dict[str, Any]]
 
 
 def fuse_rrf(
@@ -31,25 +38,34 @@ def fuse_rrf(
     return [{**merged[chunk_id], "score": scores[chunk_id]} for chunk_id in ordered_ids[:limit]]
 
 
-def build_context(hits: Iterable[dict[str, Any]], *, max_tokens: int = MAX_CONTEXT_TOKENS) -> str:
-    """Create citation-ready RAG context without exceeding the token budget."""
-    remaining = max_tokens
+def build_context_bundle(
+    hits: Iterable[dict[str, Any]], *, max_tokens: int = MAX_CONTEXT_TOKENS
+) -> ContextBundle:
+    """Build context and retain exactly the chunks represented in its text."""
     parts: list[str] = []
-    for hit in hits:
-        citation = f"[chunk_id={hit['chunk_id']}; source={hit['source_name']}"
+    selected: list[dict[str, Any]] = []
+    for index, hit in enumerate(hits, start=1):
+        citation = f"[C{index}]\nsource: {hit['source_name']}"
         if hit.get("page_number") is not None:
-            citation += f"; page={hit['page_number']}"
+            citation += f"\npage: {hit['page_number']}"
+        citation += f"\nchunk_id: {hit['chunk_id']}"
         if hit.get("heading"):
-            citation += f"; heading={hit['heading']}"
-        citation += "]"
-        candidate = f"{citation}\n{hit['content']}"
-        tokens = ENCODING.encode(candidate)
-        if len(tokens) <= remaining:
+            citation += f"\nheading: {hit['heading']}"
+        candidate = f"{citation}\ncontent:\n{hit['content']}"
+        proposed = "\n\n".join([*parts, candidate])
+        tokens = ENCODING.encode(proposed)
+        if len(tokens) <= max_tokens:
             parts.append(candidate)
-            remaining -= len(tokens)
-        elif remaining:
-            parts.append(ENCODING.decode(tokens[:remaining]))
-            remaining = 0
-        if not remaining:
+            selected.append(hit)
+        elif not parts and max_tokens:
+            parts.append(ENCODING.decode(tokens[:max_tokens]))
+            selected.append(hit)
             break
-    return "\n\n".join(parts)
+        else:
+            break
+    return ContextBundle(text="\n\n".join(parts), hits=selected)
+
+
+def build_context(hits: Iterable[dict[str, Any]], *, max_tokens: int = MAX_CONTEXT_TOKENS) -> str:
+    """Compatibility helper for search clients that only need rendered context."""
+    return build_context_bundle(hits, max_tokens=max_tokens).text

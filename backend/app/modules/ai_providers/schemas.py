@@ -46,6 +46,7 @@ class ProviderOptions(BaseModel):
     backoff_seconds: float | None = Field(default=None, strict=True, ge=0, le=60)
     batch_size: int | None = Field(default=None, strict=True, ge=1, le=1024)
     max_concurrency: int | None = Field(default=None, strict=True, ge=1, le=64)
+    include_stream_usage: bool | None = Field(default=None, strict=True)
     options: dict[str, Any] | None = None
 
 

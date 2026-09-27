@@ -131,6 +131,8 @@ services:
       - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,6 +169,8 @@ services:
         "--loglevel=INFO",
         "--concurrency=1",
       ]
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
     depends_on:
       api:
         condition: service_healthy
@@ -199,3 +203,4 @@ volumes:
   elasticsearch-data:
   minio-data:
   ollama-data:
+  huggingface-cache:

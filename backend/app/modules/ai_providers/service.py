@@ -206,10 +206,10 @@ class ProviderConfigService:
                 )
         else:
             received = False
-            async for token in provider.stream_chat(  # type: ignore[attr-defined]
+            async for delta in provider.stream_chat(  # type: ignore[attr-defined]
                 [ChatMessage("user", "Reply with OK")], ChatOptions(max_tokens=8)
             ):
-                if token:
+                if delta.text:
                     received = True
                     break
             if not received:

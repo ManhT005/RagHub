@@ -8,6 +8,8 @@ import httpx
 from app.modules.ai_providers.contracts import (
     ChatMessage,
     ChatOptions,
+    ChatStreamDelta,
+    ChatUsage,
     EmbeddingMetadata,
 )
 from app.modules.ai_providers.errors import (
@@ -18,6 +20,7 @@ from app.modules.ai_providers.errors import (
     ProviderUnavailableError,
 )
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from app.modules.ai_providers.usage import estimate_chat_usage
 
 
 class _OpenAICompatibleBase:
@@ -117,20 +120,28 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
 
 
 class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
+    def __init__(self, *, include_stream_usage: bool = True, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.include_stream_usage = include_stream_usage
+
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
-    ) -> AsyncIterator[str]:
+    ) -> AsyncIterator[ChatStreamDelta]:
         payload: dict[str, object] = {
             "model": options.model or self.model,
             "messages": [{"role": item.role, "content": item.content} for item in messages],
             "stream": True,
         }
+        if self.include_stream_usage:
+            payload["stream_options"] = {"include_usage": True}
         for key in ("temperature", "max_tokens", "top_p", "stop"):
             value = getattr(options, key)
             if value is not None:
                 payload[key] = value
         for attempt in range(self.policy.max_attempts):
             emitted = False
+            completion: list[str] = []
+            usage_received = False
             try:
                 async with httpx.AsyncClient(timeout=self._timeout()) as client:
                     async with client.stream(
@@ -149,14 +160,41 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                                 continue
                             data = line[5:].strip()
                             if data == "[DONE]":
-                                return
+                                break
                             try:
-                                token = json.loads(data)["choices"][0]["delta"].get("content")
-                            except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                                chunk = json.loads(data)
+                                raw_usage = chunk.get("usage")
+                                if raw_usage:
+                                    usage = ChatUsage(
+                                        prompt_tokens=int(raw_usage["prompt_tokens"]),
+                                        completion_tokens=int(raw_usage["completion_tokens"]),
+                                        total_tokens=int(raw_usage["total_tokens"]),
+                                        source="provider",
+                                    )
+                                    usage_received = True
+                                    yield ChatStreamDelta(usage=usage)
+                                choices = chunk.get("choices") or []
+                                token = choices[0]["delta"].get("content") if choices else None
+                            except (
+                                KeyError,
+                                IndexError,
+                                TypeError,
+                                ValueError,
+                                json.JSONDecodeError,
+                            ):
                                 continue
                             if token:
                                 emitted = True
-                                yield token
+                                completion.append(token)
+                                yield ChatStreamDelta(text=token)
+                        if not emitted:
+                            raise ProviderInvalidResponseError(
+                                "The AI provider returned an empty chat stream."
+                            )
+                        if not usage_received:
+                            yield ChatStreamDelta(
+                                usage=estimate_chat_usage(messages, "".join(completion))
+                            )
                 return
             except (ProviderAuthenticationError, ProviderInvalidResponseError):
                 raise
