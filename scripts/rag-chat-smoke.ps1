@@ -31,6 +31,19 @@ function Get-RequiredEnvironmentValue {
     return $value
 }
 
+function Get-EnvironmentValueOrDefault {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Default
+    )
+
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $Default
+    }
+    return $value
+}
+
 function Invoke-JsonApi {
     param(
         [Parameter(Mandatory)][string]$Method,
@@ -152,9 +165,6 @@ function Read-ChatEvents {
 
 try {
     Invoke-RestMethod -Method Get -Uri "$($BaseUrl.TrimEnd('/'))/health/ready" | Out-Null
-    if ($Mode -ne 'External') {
-        throw 'Local mode will be enabled by the next implementation phase.'
-    }
 
     $email = "rag-smoke-$runId@example.test"
     $password = "RagHub-$runId!"
@@ -175,9 +185,8 @@ try {
         slug = "rag-smoke-$runId"
     }
 
-    $embeddingProvider = New-Provider -Headers $headers `
-        -OrganizationId $organization.id `
-        -Configuration @{
+    if ($Mode -eq 'External') {
+        $embeddingConfiguration = @{
             name = "External embedding $runId"
             provider_type = 'OPENAI_COMPATIBLE'
             capability = 'EMBEDDING'
@@ -187,9 +196,7 @@ try {
             secret = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_EMBEDDING_API_KEY'
             config_json = @{}
         }
-    $chatProvider = New-Provider -Headers $headers `
-        -OrganizationId $organization.id `
-        -Configuration @{
+        $chatConfiguration = @{
             name = "External chat $runId"
             provider_type = 'OPENAI_COMPATIBLE'
             capability = 'CHAT'
@@ -198,6 +205,37 @@ try {
             secret = Get-RequiredEnvironmentValue 'RAGHUB_EXTERNAL_CHAT_API_KEY'
             config_json = @{}
         }
+    }
+    else {
+        $embeddingConfiguration = @{
+            name = "Local embedding $runId"
+            provider_type = 'LOCAL_SENTENCE_TRANSFORMER'
+            capability = 'EMBEDDING'
+            base_url = $null
+            model = Get-EnvironmentValueOrDefault `
+                'RAGHUB_LOCAL_EMBEDDING_MODEL' `
+                'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+            dimension = [int](Get-EnvironmentValueOrDefault `
+                'RAGHUB_LOCAL_EMBEDDING_DIMENSION' '384')
+            config_json = @{}
+        }
+        $chatConfiguration = @{
+            name = "Local chat $runId"
+            provider_type = 'OLLAMA'
+            capability = 'CHAT'
+            base_url = Get-EnvironmentValueOrDefault `
+                'RAGHUB_OLLAMA_BASE_URL' 'http://ollama:11434'
+            model = Get-EnvironmentValueOrDefault 'OLLAMA_MODEL' 'gemma3:1b'
+            config_json = @{ read_timeout = 180.0 }
+        }
+    }
+
+    $embeddingProvider = New-Provider -Headers $headers `
+        -OrganizationId $organization.id `
+        -Configuration $embeddingConfiguration
+    $chatProvider = New-Provider -Headers $headers `
+        -OrganizationId $organization.id `
+        -Configuration $chatConfiguration
 
     Invoke-JsonApi -Method Post -Path "/providers/$($embeddingProvider.id)/test" `
         -Headers $headers | Out-Null
