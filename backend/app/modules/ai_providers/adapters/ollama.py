@@ -85,6 +85,10 @@ class OllamaChatProvider:
                                 completion.append(token)
                                 yield ChatStreamDelta(text=token)
                             if data.get("done"):
+                                if not emitted:
+                                    raise ProviderInvalidResponseError(
+                                        "Ollama returned an empty chat stream."
+                                    )
                                 prompt_tokens = data.get("prompt_eval_count")
                                 completion_tokens = data.get("eval_count")
                                 if prompt_tokens is not None and completion_tokens is not None:

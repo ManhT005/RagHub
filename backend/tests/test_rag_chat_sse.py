@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AppError
+from app.modules.ai_providers.errors import ProviderUnavailableError
 from app.modules.chatbots.provider import GeminiChatProvider
 from app.modules.chatbots.router import chat
 from app.modules.chatbots.schemas import ChatRequest
@@ -66,6 +67,39 @@ async def test_chat_sse_converts_service_error_to_event(monkeypatch: pytest.Monk
     body = "".join([chunk async for chunk in response.body_iterator])
     assert "event: error" in body
     assert "CHAT_PROVIDER_TIMEOUT" in body
+
+
+@pytest.mark.asyncio
+async def test_stream_error_after_token_does_not_emit_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeService:
+        def __init__(self, session: object) -> None:
+            self.session = session
+
+        async def stream(self, *args: object):
+            yield "conversation", {"conversation_id": "conversation"}
+            yield "citations", {"citations": []}
+            yield "token", {"text": "partial"}
+            raise ProviderUnavailableError()
+
+    import app.modules.chatbots.router as chat_router
+
+    monkeypatch.setattr(chat_router, "ChatbotService", FakeService)
+    response = await chat(
+        uuid4(),
+        ChatRequest(message="Xin chĂ o"),
+        SimpleNamespace(organization_id=uuid4()),
+        SimpleNamespace(id=uuid4()),
+        object(),
+    )
+
+    body = "".join([chunk async for chunk in response.body_iterator])
+
+    assert body.count("event: token") == 1
+    assert body.index("event: token") < body.index("event: error")
+    assert "PROVIDER_UNAVAILABLE" in body
+    assert "event: done" not in body
 
 
 @pytest.mark.asyncio

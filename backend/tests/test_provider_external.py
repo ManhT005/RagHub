@@ -158,3 +158,51 @@ async def test_stream_does_not_retry_after_first_token(
 
     assert tokens == ["first"]
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_retries_transient_error_before_first_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    class StreamingResponse:
+        def __init__(self, status_code: int) -> None:
+            self.status_code = status_code
+
+        async def aiter_lines(self):  # type: ignore[no-untyped-def]
+            yield 'data: {"choices":[{"delta":{"content":"recovered"}}]}'
+            yield "data: [DONE]"
+
+    class StreamContext:
+        def __init__(self, response: StreamingResponse) -> None:
+            self.response = response
+
+        async def __aenter__(self) -> StreamingResponse:
+            return self.response
+
+        async def __aexit__(self, *_args: object) -> None:
+            pass
+
+    class StreamingClient(FakeClient):
+        def stream(self, *args: object, **kwargs: object) -> StreamContext:
+            nonlocal calls
+            calls += 1
+            return StreamContext(StreamingResponse(503 if calls == 1 else 200))
+
+    monkeypatch.setattr(httpx, "AsyncClient", StreamingClient)
+    provider = OpenAICompatibleChatProvider(
+        base_url="https://provider.test",
+        model="chat-model",
+        secret=None,
+        policy=ProviderRequestPolicy(max_attempts=2, backoff_seconds=0),
+    )
+
+    tokens = [
+        delta.text
+        async for delta in provider.stream_chat([ChatMessage("user", "hello")], ChatOptions())
+        if delta.text
+    ]
+
+    assert tokens == ["recovered"]
+    assert calls == 2

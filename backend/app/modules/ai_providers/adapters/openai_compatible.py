@@ -182,6 +182,10 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                                 emitted = True
                                 completion.append(token)
                                 yield ChatStreamDelta(text=token)
+                        if not emitted:
+                            raise ProviderInvalidResponseError(
+                                "The AI provider returned an empty chat stream."
+                            )
                         if not usage_received:
                             yield ChatStreamDelta(
                                 usage=estimate_chat_usage(messages, "".join(completion))
