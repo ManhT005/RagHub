@@ -60,7 +60,7 @@ Integration tests requiring Docker are marked and may be skipped by a unit-test-
 
 Copy `.env.example` to the ignored `.env` file and fill `GEMINI_API_KEY`. The checked-in defaults
 use Google's OpenAI-compatible endpoint, `gemini-embedding-001`, and
-`gemini-2.5-flash-lite`; provider-specific embedding/chat keys can still override the shared key.
+`gemini-3.5-flash-lite`; provider-specific embedding/chat keys can still override the shared key.
 
 ```powershell
 # .env (ignored by Git)
