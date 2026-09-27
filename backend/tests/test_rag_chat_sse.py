@@ -20,7 +20,8 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
             yield "conversation", {"conversation_id": "conversation"}
             yield "citations", {"citations": [{"chunk_id": "chunk"}]}
             yield "token", {"text": "Xin chào"}
-            yield "done", {"message_id": "message", "latency_ms": 1}
+            yield "usage", {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3}
+            yield "done", {"message_id": "message", "first_token_ms": 1, "latency_ms": 1}
 
     import app.modules.chatbots.router as chat_router
 
@@ -34,14 +35,11 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
     )
     body = "".join([chunk async for chunk in response.body_iterator])
     assert response.media_type == "text/event-stream"
-    assert [
-        f"event: {event}" in body for event in ("conversation", "citations", "token", "done")
-    ] == [
-        True,
-        True,
-        True,
-        True,
+    positions = [
+        body.index(f"event: {event}")
+        for event in ("conversation", "citations", "token", "usage", "done")
     ]
+    assert positions == sorted(positions)
 
 
 @pytest.mark.asyncio
