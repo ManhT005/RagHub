@@ -133,3 +133,34 @@ async def test_openai_stream_estimates_usage_when_provider_omits_it(
     usage = next(delta.usage for delta in deltas if delta.usage)
     assert usage.total_tokens > 0
     assert usage.source == "estimated"
+
+
+@pytest.mark.asyncio
+async def test_openai_stream_can_omit_unsupported_usage_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response:
+        status_code = 200
+
+        async def aiter_lines(self):  # type: ignore[no-untyped-def]
+            yield 'data: {"choices":[{"delta":{"content":"Hello"}}]}'
+            yield "data: [DONE]"
+
+    Client.response = Response()
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+    provider = OpenAICompatibleChatProvider(
+        base_url="https://provider.test",
+        model="model",
+        secret=None,
+        policy=ProviderRequestPolicy(max_attempts=1),
+        include_stream_usage=False,
+    )
+
+    deltas = [
+        delta
+        async for delta in provider.stream_chat([ChatMessage("user", "Hi")], ChatOptions())
+    ]
+
+    assert "stream_options" not in Client.payload
+    usage = next(delta.usage for delta in deltas if delta.usage)
+    assert usage.source == "estimated"

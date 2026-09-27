@@ -120,6 +120,10 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
 
 
 class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
+    def __init__(self, *, include_stream_usage: bool = True, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.include_stream_usage = include_stream_usage
+
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
     ) -> AsyncIterator[ChatStreamDelta]:
@@ -127,8 +131,9 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
             "model": options.model or self.model,
             "messages": [{"role": item.role, "content": item.content} for item in messages],
             "stream": True,
-            "stream_options": {"include_usage": True},
         }
+        if self.include_stream_usage:
+            payload["stream_options"] = {"include_usage": True}
         for key in ("temperature", "max_tokens", "top_p", "stop"):
             value = getattr(options, key)
             if value is not None:

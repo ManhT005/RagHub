@@ -66,6 +66,10 @@ class ProviderRegistry:
             backoff_seconds=max(0, float(values.get("backoff_seconds", 0.25))),
         )
 
+    @staticmethod
+    def _include_stream_usage(config: ProviderConfig) -> bool:
+        return bool((config.config_json or {}).get("include_stream_usage", True))
+
     @classmethod
     def _openai_embedding(cls, config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
         return OpenAICompatibleEmbeddingProvider(
@@ -83,6 +87,7 @@ class ProviderRegistry:
             model=config.model,
             secret=secret,
             policy=cls._policy(config),
+            include_stream_usage=cls._include_stream_usage(config),
         )
 
     @classmethod
@@ -102,6 +107,7 @@ class ProviderRegistry:
             model=config.model,
             secret=secret,
             policy=cls._policy(config),
+            include_stream_usage=cls._include_stream_usage(config),
         )
 
     @staticmethod
