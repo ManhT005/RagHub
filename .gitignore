@@ -4,6 +4,7 @@
 !.env.example
 .venv/
 .python-version
+.worktrees/
 
 # Python
 __pycache__/
