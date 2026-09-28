@@ -47,7 +47,7 @@ export class ChatbotsComponent {
   protected localChatModel = 'gemma3:4b';
   protected readonly localEmbeddingModel = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2';
   protected geminiApiKey = '';
-  protected geminiChatModel = 'gemini-2.5-flash';
+  protected geminiChatModel = 'gemini-3.5-flash-lite';
   protected botName = 'Trợ lý tài liệu';
   protected botPrompt = 'Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên. Nếu không đủ thông tin, hãy nói rõ điều đó.';
   protected botRetrievalLimit = 5;
@@ -140,7 +140,7 @@ export class ChatbotsComponent {
     forkJoin({
       embedding: this.api.createProvider(this.selectedOrganization, {
         name: 'Embedding Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'EMBEDDING',
-        base_url: baseUrl, model: 'gemini-embedding-001', dimension: 3072, secret: this.geminiApiKey,
+        base_url: baseUrl, model: 'gemini-embedding-2', dimension: 3072, secret: this.geminiApiKey,
       }),
       chat: this.api.createProvider(this.selectedOrganization, {
         name: 'Chat Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'CHAT',

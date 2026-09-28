@@ -21,4 +21,50 @@ describe('ChatbotsComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Tạo không gian làm việc');
     fixture.destroy();
   });
+
+  it('defaults Gemini setup to the configured Flash Lite chat model', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent],
+      providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+        providers: () => of([]), chatbots: () => of([]),
+      } }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const model = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name="geminiChatModel"]');
+    expect(model?.value).toBe('gemini-3.5-flash-lite');
+    fixture.destroy();
+  });
+
+  it('creates the configured Gemini embedding model', async () => {
+    const payloads: Array<{ model: string; capability: string }> = [];
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent],
+      providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+        providers: () => of([]), chatbots: () => of([]),
+        createProvider: (_organizationId: string, payload: { model: string; capability: string }) => {
+          payloads.push(payload);
+          return of({ id: payload.capability === 'EMBEDDING' ? 'embedding-1' : 'chat-1' });
+        },
+        bindWorkspaceProviders: () => of({}),
+      } }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    (fixture.componentInstance as any).geminiApiKey = 'test-key';
+    (fixture.componentInstance as any).configureGemini();
+
+    expect(payloads.find((payload) => payload.capability === 'EMBEDDING')?.model).toBe('gemini-embedding-2');
+    fixture.destroy();
+  });
 });

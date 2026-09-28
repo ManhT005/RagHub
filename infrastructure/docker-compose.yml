@@ -19,7 +19,7 @@ x-backend-environment: &backend-environment
   S3_SECURE: ${S3_SECURE:-false}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
   CHAT_PROVIDER_TIMEOUT_SECONDS: ${CHAT_PROVIDER_TIMEOUT_SECONDS:-45}
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
 
