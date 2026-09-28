@@ -1,53 +1,53 @@
 <main>
   <section class="page-heading">
     <div>
-      <p class="eyebrow">KNOWLEDGE</p>
-      <h1>Workspaces</h1>
+      <p class="eyebrow">TRI THỨC</p>
+      <h1>Không gian làm việc</h1>
     </div>
   </section>
   <p class="error">{{ error() }}</p>
   <section class="panel">
     <label
-      >Organization
+      >Tổ chức
       <select
         [(ngModel)]="selectedOrganization"
         (change)="changeOrganization()"
       >
         @for (organization of organizations(); track organization.id) {
           <option [value]="organization.id">
-            {{ organization.name }} · {{ organization.role }}
+            {{ organization.name }} · {{ roleLabel(organization.role) }}
           </option>
         }
       </select>
     </label>
   </section>
   <section class="panel">
-    <h2>Create organization</h2>
+    <h2>Tạo tổ chức</h2>
     <form (ngSubmit)="createOrganization()">
       <input
         [(ngModel)]="organizationName"
         name="organizationName"
-        placeholder="Organization name"
+        placeholder="Tên tổ chức"
         required
       /><input
         [(ngModel)]="organizationSlug"
         name="organizationSlug"
-        placeholder="organization-slug"
+        placeholder="ma-to-chuc"
         required
         pattern="[a-z0-9-]+"
-      /><button>Create organization</button>
+      /><button>Tạo tổ chức</button>
     </form>
   </section>
   <section class="panel">
-    <h2>Create workspace</h2>
+    <h2>Tạo không gian làm việc</h2>
     <form (ngSubmit)="create()">
-      <input [(ngModel)]="name" name="name" placeholder="Name" required /><input
+      <input [(ngModel)]="name" name="name" placeholder="Tên không gian" required /><input
         [(ngModel)]="slug"
         name="slug"
-        placeholder="slug"
+        placeholder="ma-khong-gian"
         required
         pattern="[a-z0-9-]+"
-      /><button>Create</button>
+      /><button>Tạo không gian</button>
     </form>
   </section>
   <section class="grid">
@@ -57,11 +57,11 @@
         <code>{{ workspace.slug }}</code>
       </article>
     } @empty {
-      <p>No workspace yet.</p>
+      <p>Chưa có không gian làm việc nào.</p>
     }
   </section>
   <section class="panel">
-    <h2>Members</h2>
+    <h2>Thành viên</h2>
     <form (ngSubmit)="saveMember()">
       <input
         [(ngModel)]="memberEmail"
@@ -70,18 +70,18 @@
         placeholder="member@example.com"
         required
       /><select [(ngModel)]="memberRole" name="memberRole">
-        <option value="ADMIN">Admin</option>
-        <option value="EDITOR">Editor</option>
-        <option value="VIEWER">Viewer</option></select
-      ><button>Add member</button>
+        <option value="ADMIN">Quản trị viên</option>
+        <option value="EDITOR">Biên tập viên</option>
+        <option value="VIEWER">Người xem</option></select
+      ><button>Thêm thành viên</button>
     </form>
     <ul class="members">
       @for (member of members(); track member.user_id) {
         <li>
-          <span>{{ member.email }} · {{ member.role }}</span>
+          <span>{{ member.email }} · {{ roleLabel(member.role) }}</span>
           @if (member.role !== "OWNER") {
             <button class="danger" (click)="removeMember(member)">
-              Remove
+              Xóa
             </button>
           }
         </li>

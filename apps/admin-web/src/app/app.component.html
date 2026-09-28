@@ -1,35 +1,35 @@
 <nz-layout class="app-shell">
   <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">
-    <a class="brand" routerLink="/" aria-label="RagHub overview">
+    <a class="brand" routerLink="/" aria-label="Tổng quan RagHub">
       <span class="brand-mark">R</span>
       <span>
         <strong>RagHub</strong>
-        <small>Knowledge operations</small>
+        <small>Quản lý tri thức</small>
       </span>
     </a>
 
-    <ul nz-menu nzTheme="dark" nzMode="inline" aria-label="Primary navigation">
+    <ul nz-menu nzTheme="dark" nzMode="inline" aria-label="Điều hướng chính">
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
-        <a routerLink="/"><nz-icon nzType="dashboard" />Overview</a>
+        <a routerLink="/"><nz-icon nzType="dashboard" />Tổng quan</a>
       </li>
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
-        <a routerLink="/workspaces"><nz-icon nzType="database" />Workspaces</a>
+        <a routerLink="/workspaces"><nz-icon nzType="database" />Không gian làm việc</a>
       </li>
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
-        <a routerLink="/documents"><nz-icon nzType="file-text" />Documents</a>
+        <a routerLink="/documents"><nz-icon nzType="file-text" />Tài liệu</a>
       </li>
-      <li nz-menu-item nzDisabled><nz-icon nzType="message" />Chatbots</li>
+      <li nz-menu-item nzDisabled><nz-icon nzType="message" />Chatbot</li>
     </ul>
   </nz-sider>
 
   <nz-layout>
     <nz-header>
       <div>
-        <span class="eyebrow">ADMIN CONSOLE</span>
-        <strong>Foundation workspace</strong>
+        <span class="eyebrow">TRANG QUẢN TRỊ</span>
+        <strong>Không gian tri thức</strong>
       </div>
       <a class="phase-badge" routerLink="/auth"
-        ><nz-icon nzType="cloud-server" />Account</a
+        ><nz-icon nzType="cloud-server" />Tài khoản</a
       >
     </nz-header>
     <nz-content>

@@ -1,22 +1,22 @@
 const messages: Record<string, string> = {
-  INVALID_PDF: 'This PDF cannot be read. Upload a valid PDF.',
-  FAILED_UNSUPPORTED_OCR: 'This PDF has no selectable text. OCR is not supported.',
-  TEXT_DECODE_FAILED: 'Save the file as UTF-8 and upload it again.',
-  EMPTY_FILE: 'The uploaded file is empty.',
-  EMPTY_EXTRACTED_TEXT: 'The document contains no extractable text.',
-  UNSUPPORTED_FILE_TYPE: 'Upload a PDF, TXT or Markdown file.',
-  INVALID_CONTENT_TYPE: 'The content type does not match the file extension.',
-  FILE_TOO_LARGE: 'The file exceeds the upload size limit.',
-  STORAGE_UNAVAILABLE: 'Document storage is temporarily unavailable. Try again later.',
-  QUEUE_UNAVAILABLE: 'Ingestion could not be queued. Try again later.',
-  EMBEDDING_UNAVAILABLE: 'Embedding is temporarily unavailable. Try again later.',
-  INDEX_UNAVAILABLE: 'Search indexing is temporarily unavailable. Try again later.',
-  DOCUMENT_NOT_RETRYABLE: 'Correct the document and upload it again.',
-  INVALID_DOCUMENT_STATUS: 'Only failed documents can be retried.',
-  INGESTION_IN_PROGRESS: 'Ingestion is still finishing. Refresh and try again.',
-  INSUFFICIENT_PERMISSION: 'Your organization role cannot perform this action.',
+  INVALID_PDF: 'Không thể đọc PDF này. Hãy tải lên một tệp PDF hợp lệ.',
+  FAILED_UNSUPPORTED_OCR: 'PDF không có văn bản để chọn. Hệ thống chưa hỗ trợ OCR.',
+  TEXT_DECODE_FAILED: 'Hãy lưu tệp với mã hóa UTF-8 rồi tải lên lại.',
+  EMPTY_FILE: 'Tệp tải lên trống.',
+  EMPTY_EXTRACTED_TEXT: 'Không trích xuất được văn bản từ tài liệu.',
+  UNSUPPORTED_FILE_TYPE: 'Hãy tải lên tệp PDF, TXT hoặc Markdown.',
+  INVALID_CONTENT_TYPE: 'Loại nội dung không khớp với phần mở rộng của tệp.',
+  FILE_TOO_LARGE: 'Tệp vượt quá giới hạn dung lượng tải lên.',
+  STORAGE_UNAVAILABLE: 'Kho lưu trữ tài liệu tạm thời không khả dụng. Hãy thử lại sau.',
+  QUEUE_UNAVAILABLE: 'Không thể đưa tài liệu vào hàng đợi xử lý. Hãy thử lại sau.',
+  EMBEDDING_UNAVAILABLE: 'Dịch vụ tạo embedding tạm thời không khả dụng. Hãy thử lại sau.',
+  INDEX_UNAVAILABLE: 'Dịch vụ lập chỉ mục tạm thời không khả dụng. Hãy thử lại sau.',
+  DOCUMENT_NOT_RETRYABLE: 'Hãy sửa tài liệu và tải lên lại.',
+  INVALID_DOCUMENT_STATUS: 'Chỉ có thể thử lại tài liệu xử lý thất bại.',
+  INGESTION_IN_PROGRESS: 'Tài liệu vẫn đang được xử lý. Hãy tải lại trang và thử lại.',
+  INSUFFICIENT_PERMISSION: 'Vai trò của bạn trong tổ chức không có quyền thực hiện thao tác này.',
 };
 
 export function ingestionErrorMessage(code: string | null | undefined): string {
-  return (code && messages[code]) || 'Document processing failed. Contact your administrator.';
+  return (code && messages[code]) || 'Xử lý tài liệu thất bại. Hãy liên hệ quản trị viên.';
 }

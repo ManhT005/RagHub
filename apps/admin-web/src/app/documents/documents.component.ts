@@ -16,6 +16,15 @@ import { ingestionErrorMessage } from './ingestion-errors';
 })
 export class DocumentsComponent {
   protected readonly errorMessage = ingestionErrorMessage;
+  protected readonly statusLabel = (status: string): string => ({
+    QUEUED: 'Đang chờ',
+    PARSING: 'Đang đọc tài liệu',
+    CHUNKING: 'Đang chia đoạn',
+    EMBEDDING: 'Đang tạo embedding',
+    INDEXING: 'Đang lập chỉ mục',
+    READY: 'Sẵn sàng',
+    FAILED: 'Thất bại',
+  })[status] ?? status;
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly documents = signal<DocumentItem[]>([]);
   protected readonly error = signal('');
@@ -26,7 +35,7 @@ export class DocumentsComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
-    this.api.workspaces().subscribe({ next: (items) => { this.workspaces.set(items); this.workspaceId = items[0]?.id ?? ''; this.load(); }, error: () => this.error.set('Select an organization and sign in first.') });
+    this.api.workspaces().subscribe({ next: (items) => { this.workspaces.set(items); this.workspaceId = items[0]?.id ?? ''; this.load(); }, error: () => this.error.set('Hãy đăng nhập và chọn tổ chức trước.') });
     timer(3000, 3000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (this.documents().some((item) => !['READY', 'FAILED'].includes(item.status))) this.load();
     });
@@ -34,7 +43,7 @@ export class DocumentsComponent {
 
   protected load(): void {
     if (!this.workspaceId) return;
-    this.api.documents(this.workspaceId).subscribe({ next: (items) => this.documents.set(items), error: () => this.error.set('Could not load documents.') });
+    this.api.documents(this.workspaceId).subscribe({ next: (items) => this.documents.set(items), error: () => this.error.set('Không thể tải danh sách tài liệu.') });
   }
   protected upload(): void {
     const file = this.fileInput()?.nativeElement.files?.[0];
@@ -57,6 +66,6 @@ export class DocumentsComponent {
     });
   }
   protected remove(document: DocumentItem): void {
-    this.api.deleteDocument(this.workspaceId, document.id).subscribe({ next: () => this.documents.update((items) => items.filter((item) => item.id !== document.id)), error: () => this.error.set('Could not delete document.') });
+    this.api.deleteDocument(this.workspaceId, document.id).subscribe({ next: () => this.documents.update((items) => items.filter((item) => item.id !== document.id)), error: () => this.error.set('Không thể xóa tài liệu.') });
   }
 }

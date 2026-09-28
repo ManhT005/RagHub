@@ -6,9 +6,9 @@ import { DocumentsComponent } from './documents/documents.component';
 import { WorkspacesComponent } from './workspaces/workspaces.component';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', component: DashboardComponent, title: 'Overview | RagHub' },
-  { path: 'auth', component: AuthComponent, title: 'Sign in | RagHub' },
-  { path: 'workspaces', component: WorkspacesComponent, title: 'Workspaces | RagHub' },
-  { path: 'documents', component: DocumentsComponent, title: 'Documents | RagHub' },
+  { path: '', pathMatch: 'full', component: DashboardComponent, title: 'Tổng quan | RagHub' },
+  { path: 'auth', component: AuthComponent, title: 'Tài khoản | RagHub' },
+  { path: 'workspaces', component: WorkspacesComponent, title: 'Không gian làm việc | RagHub' },
+  { path: 'documents', component: DocumentsComponent, title: 'Tài liệu | RagHub' },
   { path: '**', redirectTo: '' },
 ];

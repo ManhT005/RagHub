@@ -1,17 +1,22 @@
 <main class="auth-card">
-  <p class="eyebrow">RAGHUB ACCOUNT</p>
-  <h1>{{ registerMode ? "Create an account" : "Welcome back" }}</h1>
-  <p>Sign in to manage knowledge workspaces and documents.</p>
+  <p class="eyebrow">TÀI KHOẢN RAGHUB</p>
+  <h1>{{ registerMode ? "Tạo tài khoản" : "Chào mừng trở lại" }}</h1>
+  <p>
+    {{ registerMode
+      ? "Tạo tài khoản để quản lý không gian làm việc và tài liệu."
+      : "Đăng nhập để quản lý không gian làm việc và tài liệu." }}
+  </p>
   <form (ngSubmit)="submit()">
     <label
-      >Email <input [(ngModel)]="email" name="email" type="email" required
+      >Email <input [(ngModel)]="email" name="email" type="email" autocomplete="email" required
     /></label>
     <label
-      >Password
+      >Mật khẩu
       <input
         [(ngModel)]="password"
         name="password"
         type="password"
+        [attr.autocomplete]="registerMode ? 'new-password' : 'current-password'"
         minlength="8"
         required
     /></label>
@@ -19,14 +24,14 @@
       <p class="error">{{ error() }}</p>
     }
     <button type="submit">
-      {{ registerMode ? "Create account" : "Sign in" }}
+      {{ registerMode ? "Tạo tài khoản" : "Đăng nhập" }}
     </button>
   </form>
-  <button class="link" type="button" (click)="registerMode = !registerMode">
+  <button class="link" type="button" (click)="toggleMode()">
     {{
       registerMode
-        ? "Already have an account? Sign in"
-        : "Need an account? Register"
+        ? "Đã có tài khoản? Đăng nhập"
+        : "Chưa có tài khoản? Đăng ký"
     }}
   </button>
 </main>

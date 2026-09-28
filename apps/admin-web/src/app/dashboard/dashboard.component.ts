@@ -12,9 +12,9 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 })
 export class DashboardComponent {
   protected readonly services = [
-    { name: 'PostgreSQL', role: 'Metadata and workflow state', icon: 'database' },
-    { name: 'Redis', role: 'Celery task broker', icon: 'cloud-server' },
-    { name: 'Elasticsearch', role: 'Scoped BM25 retrieval', icon: 'database' },
-    { name: 'MinIO', role: 'Original PDF storage', icon: 'file-text' },
+    { name: 'PostgreSQL', role: 'Dữ liệu và trạng thái xử lý', icon: 'database' },
+    { name: 'Redis', role: 'Hàng đợi tác vụ Celery', icon: 'cloud-server' },
+    { name: 'Elasticsearch', role: 'Tìm kiếm trong phạm vi tổ chức', icon: 'database' },
+    { name: 'MinIO', role: 'Lưu trữ tài liệu gốc', icon: 'file-text' },
   ];
 }
