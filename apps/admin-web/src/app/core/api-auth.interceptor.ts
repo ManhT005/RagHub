@@ -14,6 +14,9 @@ export const apiAuthInterceptor: HttpInterceptorFn = (request, next) => {
 };
 
 export const session = {
+  get accessToken(): string | null {
+    return sessionStorage.getItem(tokenKey);
+  },
   get organizationId(): string | null {
     return sessionStorage.getItem(organizationKey);
   },
