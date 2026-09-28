@@ -1,20 +1,20 @@
 <main>
   <section class="hero">
     <div>
-      <nz-tag nzColor="green">FOUNDATION READY</nz-tag>
-      <h1>Build trusted answers from your own knowledge.</h1>
+      <nz-tag nzColor="green">RAGHUB</nz-tag>
+      <h1>Xây dựng câu trả lời từ tri thức của bạn.</h1>
       <p>
-        The phase-one technical slice accepts a PDF, processes it asynchronously
-        and retrieves tenant-scoped passages with source metadata.
+        Quản lý tài liệu theo tổ chức, xử lý nội dung và tìm kiếm những đoạn liên quan
+        kèm thông tin nguồn.
       </p>
     </div>
-    <div class="flow" aria-label="Document ingestion flow">
-      <span>PDF upload</span><b>→</b><span>Parse & chunk</span><b>→</b
-      ><span>Search</span>
+    <div class="flow" aria-label="Quy trình xử lý tài liệu">
+      <span>Tải tài liệu lên</span><b>→</b><span>Trích xuất và chia đoạn</span><b>→</b
+      ><span>Tìm kiếm</span>
     </div>
   </section>
 
-  <section class="service-grid" aria-label="Foundation services">
+  <section class="service-grid" aria-label="Các dịch vụ nền tảng">
     @for (service of services; track service.name) {
       <nz-card>
         <nz-icon [nzType]="service.icon" />
@@ -22,7 +22,7 @@
           <strong>{{ service.name }}</strong>
           <p>{{ service.role }}</p>
         </div>
-        <span class="status-dot" title="Configured"></span>
+        <span class="status-dot" title="Đã cấu hình"></span>
       </nz-card>
     }
   </section>

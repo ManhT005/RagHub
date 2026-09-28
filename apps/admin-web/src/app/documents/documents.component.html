@@ -1,14 +1,14 @@
 <main>
   <section class="page-heading">
     <div>
-      <p class="eyebrow">KNOWLEDGE</p>
-      <h1>Documents</h1>
+      <p class="eyebrow">TRI THỨC</p>
+      <h1>Tài liệu</h1>
     </div>
   </section>
   <p class="error">{{ error() }}</p>
   <section class="panel">
     <select [(ngModel)]="workspaceId" (change)="load()">
-      <option value="">Select workspace</option>
+      <option value="">Chọn không gian làm việc</option>
       @for (workspace of workspaces(); track workspace.id) {
         <option [value]="workspace.id">{{ workspace.name }}</option>
       }</select
@@ -16,16 +16,16 @@
       #fileInput
       type="file"
       accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-    /><button (click)="upload()">Upload document</button>
+    /><button (click)="upload()">Tải tài liệu lên</button>
   </section>
   <section class="panel">
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Progress</th>
-          <th>Created</th>
+          <th>Tên</th>
+          <th>Trạng thái</th>
+          <th>Tiến độ</th>
+          <th>Ngày tạo</th>
           <th></th>
         </tr>
       </thead>
@@ -35,7 +35,7 @@
             <td>{{ document.name }}</td>
             <td>
               <span class="status">{{
-                document.stage ?? document.status
+                statusLabel(document.stage ?? document.status)
               }}</span>
               @if (document.error_code) {
                 <p class="error">{{ errorMessage(document.error_code) }}</p>
@@ -45,19 +45,19 @@
             <td>{{ document.created_at | date: "medium" }}</td>
             <td>
               @if (document.status === "FAILED" && document.retryable) {
-                <button (click)="retry(document)">Retry</button>
+                <button (click)="retry(document)">Thử lại</button>
               }
               @if (document.status === "READY" && document.document_version_id) {
                 <button [disabled]="reindexingVersionId() === document.document_version_id" (click)="reindex(document)">
-                  {{ reindexingVersionId() === document.document_version_id ? "Re-indexing…" : "Re-index" }}
+                  {{ reindexingVersionId() === document.document_version_id ? "Đang lập chỉ mục lại…" : "Lập chỉ mục lại" }}
                 </button>
               }
-              <button class="danger" (click)="remove(document)">Delete</button>
+              <button class="danger" (click)="remove(document)">Xóa</button>
             </td>
           </tr>
         } @empty {
           <tr>
-            <td colspan="5">No documents yet.</td>
+            <td colspan="5">Chưa có tài liệu nào.</td>
           </tr>
         }
       </tbody>

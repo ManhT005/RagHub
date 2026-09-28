@@ -12,6 +12,12 @@ import { Membership, Organization, RaghubApiService, Workspace } from '../core/r
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspacesComponent {
+  protected readonly roleLabel = (role: string): string => ({
+    OWNER: 'Chủ sở hữu',
+    ADMIN: 'Quản trị viên',
+    EDITOR: 'Biên tập viên',
+    VIEWER: 'Người xem',
+  })[role] ?? role;
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly members = signal<Membership[]>([]);
@@ -34,14 +40,14 @@ export class WorkspacesComponent {
         if (!this.selectedOrganization && organizations[0]) this.selectedOrganization = organizations[0].id;
         this.changeOrganization();
       },
-      error: () => this.error.set('Sign in first, then select an organization.'),
+      error: () => this.error.set('Hãy đăng nhập, sau đó chọn một tổ chức.'),
     });
   }
 
   protected changeOrganization(): void {
     session.organizationId = this.selectedOrganization || null;
     if (!this.selectedOrganization) return;
-    this.api.workspaces().subscribe({ next: (items) => this.workspaces.set(items), error: () => this.error.set('Could not load workspaces.') });
+    this.api.workspaces().subscribe({ next: (items) => this.workspaces.set(items), error: () => this.error.set('Không thể tải danh sách không gian làm việc.') });
     this.api.members(this.selectedOrganization).subscribe({ next: (items) => this.members.set(items), error: () => this.members.set([]) });
   }
 
@@ -54,7 +60,7 @@ export class WorkspacesComponent {
         this.organizationSlug = '';
         this.changeOrganization();
       },
-      error: () => this.error.set('Could not create organization. The slug may already be in use.'),
+      error: () => this.error.set('Không thể tạo tổ chức. Mã định danh có thể đã được sử dụng.'),
     });
   }
 
@@ -65,7 +71,7 @@ export class WorkspacesComponent {
         this.members.update((items) => [...items.filter((item) => item.user_id !== member.user_id), member]);
         this.memberEmail = '';
       },
-      error: () => this.error.set('Could not add this member. They must register first.'),
+      error: () => this.error.set('Không thể thêm thành viên. Người này cần đăng ký tài khoản trước.'),
     });
   }
 
@@ -73,14 +79,14 @@ export class WorkspacesComponent {
     if (!this.selectedOrganization || member.role === 'OWNER') return;
     this.api.deleteMember(this.selectedOrganization, member.user_id).subscribe({
       next: () => this.members.update((items) => items.filter((item) => item.user_id !== member.user_id)),
-      error: () => this.error.set('Could not remove member.'),
+      error: () => this.error.set('Không thể xóa thành viên.'),
     });
   }
 
   protected create(): void {
     this.api.createWorkspace(this.name, this.slug).subscribe({
       next: (workspace) => { this.workspaces.update((items) => [...items, workspace]); this.name = ''; this.slug = ''; },
-      error: () => this.error.set('Could not create workspace. The slug may already be in use.'),
+      error: () => this.error.set('Không thể tạo không gian làm việc. Mã định danh có thể đã được sử dụng.'),
     });
   }
 }

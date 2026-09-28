@@ -24,9 +24,9 @@ describe('DocumentsComponent ingestion errors', () => {
       const element: HTMLElement = fixture.nativeElement;
       expect(element.textContent).not.toContain('private.internal');
       expect(element.textContent).not.toContain('password=secret');
-      expect(element.textContent).toContain(retryable ? 'temporarily unavailable' : 'Upload a valid PDF');
+      expect(element.textContent).toContain(retryable ? 'tạm thời không khả dụng' : 'PDF hợp lệ');
       const buttons = Array.from(element.querySelectorAll('button'));
-      expect(buttons.some(button => button.textContent?.trim() === 'Retry')).toBe(retryable);
+      expect(buttons.some(button => button.textContent?.trim() === 'Thử lại')).toBe(retryable);
       fixture.destroy();
     });
   }
