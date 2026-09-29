@@ -9,7 +9,7 @@
     </a>
 
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng chính">
-      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected" [routerLinkActiveOptions]="{ exact: true }">
         <a routerLink="/"><nz-icon nzType="dashboard" />Tổng quan</a>
       </li>
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">

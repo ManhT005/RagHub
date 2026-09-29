@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { RouterLinkActive } from '@angular/router';
 
 import { AppComponent } from './app.component';
 import { appConfig } from './app.config';
@@ -40,6 +42,22 @@ describe('AppComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('ul')?.getAttribute('nztheme')).toBe('light');
+  });
+
+  it('matches Overview only on the exact root route', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: appConfig.providers,
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    const overviewItem = fixture.debugElement.queryAll(By.directive(RouterLinkActive)).find((item) =>
+      item.nativeElement.querySelector('a[href="/"]'),
+    );
+    const options = overviewItem?.injector.get(RouterLinkActive).routerLinkActiveOptions;
+    expect(options).toEqual({ exact: true });
   });
 
   it('links navigation to Workspace Console and organization settings', async () => {
