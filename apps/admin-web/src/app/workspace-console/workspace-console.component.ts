@@ -2,11 +2,13 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, i
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { timer } from 'rxjs';
+import { forkJoin, of, timer } from 'rxjs';
 
 import { session } from '../core/api-auth.interceptor';
 import {
   Chatbot,
+  ChatbotInput,
+  ChatStreamEvent,
   DocumentItem,
   Organization,
   ProviderConfig,
@@ -14,6 +16,9 @@ import {
   Workspace,
 } from '../core/raghub-api.service';
 import { ingestionErrorMessage } from '../documents/ingestion-errors';
+
+interface Citation { document_id?: string; document_name?: string; page_number?: number | null; excerpt?: string; rank?: number; }
+interface TranscriptMessage { role: 'user' | 'assistant'; content: string; citations?: Citation[]; }
 
 @Component({
   selector: 'raghub-workspace-console',
@@ -30,6 +35,9 @@ export class WorkspaceConsoleComponent {
   protected readonly documents = signal<DocumentItem[]>([]);
   protected readonly bots = signal<Chatbot[]>([]);
   protected readonly selectedBot = signal<Chatbot | null>(null);
+  protected readonly messages = signal<TranscriptMessage[]>([]);
+  protected readonly isStreaming = signal(false);
+  protected readonly setupOpen = signal(false);
   protected readonly selectedDocumentId = signal('');
   protected readonly reindexingVersionId = signal('');
   protected readonly statusLabel = (status: string): string => ({
@@ -46,9 +54,15 @@ export class WorkspaceConsoleComponent {
   protected readonly error = signal('');
   protected selectedOrganization = session.organizationId ?? '';
   protected selectedWorkspace = '';
+  protected localChatModel = 'gemma3:4b';
+  protected botName = 'Trợ lý tài liệu';
+  protected botPrompt = 'Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên.';
+  protected botRetrievalLimit = 5;
+  protected chatInput = '';
   protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly api = inject(RaghubApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private conversationId: string | null = null;
 
   constructor() {
     this.api.organizations().subscribe({
@@ -85,6 +99,8 @@ export class WorkspaceConsoleComponent {
     this.bots.set([]);
     this.selectedBot.set(null);
     this.selectedDocumentId.set('');
+    this.messages.set([]);
+    this.conversationId = null;
     if (!this.selectedOrganization || !this.selectedWorkspace) return;
     this.api.providers(this.selectedOrganization).subscribe({
       next: (items) => this.providers.set(items),
@@ -94,7 +110,7 @@ export class WorkspaceConsoleComponent {
     this.api.chatbots(this.selectedWorkspace).subscribe({
       next: (items) => {
         this.bots.set(items);
-        this.selectedBot.set(items.find((bot) => bot.published) ?? items[0] ?? null);
+        this.selectBot(items.find((bot) => bot.published) ?? items[0] ?? null);
       },
       error: () => this.error.set('Không thể tải chatbot của workspace.'),
     });
@@ -135,6 +151,84 @@ export class WorkspaceConsoleComponent {
   }
 
   protected selectDocument(documentId: string): void { this.selectedDocumentId.set(documentId); }
+
+  protected toggleSetup(): void { this.setupOpen.update((open) => !open); }
+
+  protected configureLocal(): void {
+    if (!this.selectedOrganization || !this.selectedWorkspace) return;
+    const current = this.providers();
+    const embedding = current.find((provider) => provider.provider_type === 'LOCAL_SENTENCE_TRANSFORMER' && provider.capability === 'EMBEDDING');
+    const chat = current.find((provider) => provider.provider_type === 'OLLAMA' && provider.capability === 'CHAT' && provider.model === this.localChatModel);
+    forkJoin({
+      embedding: embedding ? of(embedding) : this.api.createProvider(this.selectedOrganization, {
+        name: 'Embedding local', provider_type: 'LOCAL_SENTENCE_TRANSFORMER', capability: 'EMBEDDING',
+        model: 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', dimension: 384,
+      }),
+      chat: chat ? of(chat) : this.api.createProvider(this.selectedOrganization, {
+        name: 'Chat Ollama', provider_type: 'OLLAMA', capability: 'CHAT', model: this.localChatModel, base_url: 'http://ollama:11434',
+      }),
+    }).subscribe({
+      next: ({ embedding: embeddingProvider, chat: chatProvider }) => this.api.bindWorkspaceProviders(this.selectedWorkspace, embeddingProvider.id, chatProvider.id).subscribe({
+        next: () => { this.providers.update((items) => [...items.filter((item) => item.id !== embeddingProvider.id && item.id !== chatProvider.id), embeddingProvider, chatProvider]); this.error.set(''); },
+        error: () => this.error.set('Không thể gắn provider vào workspace.'),
+      }),
+      error: () => this.error.set('Không thể cấu hình Ollama. Kiểm tra model và dịch vụ Ollama.'),
+    });
+  }
+
+  protected saveBot(): void {
+    if (!this.selectedWorkspace || !this.botName.trim()) return;
+    const current = this.selectedBot();
+    const payload: ChatbotInput = { name: this.botName.trim(), system_prompt: this.botPrompt.trim(), retrieval_limit: Number(this.botRetrievalLimit), published: current?.published ?? false };
+    const request = current ? this.api.updateChatbot(current.id, payload) : this.api.createChatbot(this.selectedWorkspace, payload);
+    request.subscribe({
+      next: (bot) => { this.bots.update((items) => current ? items.map((item) => item.id === bot.id ? bot : item) : [...items, bot]); this.selectBot(bot); },
+      error: () => this.error.set('Không thể lưu chatbot. Hãy kiểm tra cấu hình AI.'),
+    });
+  }
+
+  protected togglePublish(): void {
+    const bot = this.selectedBot();
+    if (!bot) return;
+    this.api.updateChatbot(bot.id, { published: !bot.published }).subscribe({
+      next: (saved) => { this.bots.update((items) => items.map((item) => item.id === saved.id ? saved : item)); this.selectBot(saved); },
+      error: () => this.error.set('Không thể đổi trạng thái xuất bản chatbot.'),
+    });
+  }
+
+  protected selectBot(bot: Chatbot | null): void {
+    this.selectedBot.set(bot); this.messages.set([]); this.conversationId = null;
+    if (bot) { this.botName = bot.name; this.botPrompt = bot.system_prompt; this.botRetrievalLimit = bot.retrieval_limit; }
+  }
+
+  protected send(): void {
+    const bot = this.selectedBot();
+    const question = this.chatInput.trim();
+    if (!bot || !bot.published || !question || this.isStreaming()) return;
+    this.chatInput = ''; this.isStreaming.set(true);
+    this.messages.set([{ role: 'user', content: question }, { role: 'assistant', content: '' }]);
+    void this.api.streamChat(bot.id, { message: question, conversation_id: this.conversationId }, (event) => this.handleStream(event));
+  }
+
+  protected citationLabel(citation: Citation): string { return `${citation.document_name ?? 'Tài liệu'}${citation.page_number ? ` · trang ${citation.page_number}` : ''}`; }
+  protected selectCitation(citation: Citation): void {
+    const document = citation.document_id
+      ? this.documents().find((item) => item.id === citation.document_id)
+      : this.documents().find((item) => item.name === citation.document_name);
+    if (document) this.selectDocument(document.id);
+  }
+
+  private handleStream(event: ChatStreamEvent): void {
+    if (event.event === 'conversation' && typeof event.data['conversation_id'] === 'string') this.conversationId = event.data['conversation_id'];
+    if (event.event === 'token' && typeof event.data['text'] === 'string') this.updateAssistant((message) => ({ ...message, content: message.content + event.data['text'] }));
+    if (event.event === 'citations' && Array.isArray(event.data['citations'])) this.updateAssistant((message) => ({ ...message, citations: event.data['citations'] as Citation[] }));
+    if (event.event === 'error') this.error.set(typeof event.data['message'] === 'string' ? event.data['message'] : 'Chatbot gặp lỗi khi tạo câu trả lời.');
+    if (event.event === 'done' || event.event === 'error') this.isStreaming.set(false);
+  }
+
+  private updateAssistant(update: (message: TranscriptMessage) => TranscriptMessage): void {
+    this.messages.update((items) => items.map((message, index) => index === items.length - 1 ? update(message) : message));
+  }
 
   private loadDocuments(): void {
     if (!this.selectedWorkspace) return;

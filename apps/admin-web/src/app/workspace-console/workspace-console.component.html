@@ -54,7 +54,25 @@
           } @empty { <p class="empty-list">Tải tài liệu đầu tiên để bắt đầu xây dựng tri thức.</p> }
         </div>
       </article>
-      <article class="assistant-placeholder"><p class="eyebrow">TRỢ LÝ RAG</p><h2>Hỏi tài liệu</h2><p>Thiết lập chatbot để bắt đầu cuộc hội thoại có nguồn trích dẫn.</p></article>
+      <article class="assistant-placeholder">
+        <div class="assistant-heading"><div><p class="eyebrow">TRỢ LÝ RAG</p><h2>Hỏi tài liệu</h2></div><button type="button" class="secondary" (click)="toggleSetup()">{{ setupOpen() ? 'Đóng thiết lập' : 'Thiết lập' }}</button></div>
+        @if (setupOpen()) {
+          <section class="setup-panel">
+            <h3>Kết nối AI</h3><label>Model Ollama<input [(ngModel)]="localChatModel" name="localChatModel" /></label><button type="button" (click)="configureLocal()">Dùng local Ollama</button>
+            <h3>Chatbot</h3><label>Tên chatbot<input [(ngModel)]="botName" name="botName" /></label><label>Hướng dẫn<textarea [(ngModel)]="botPrompt" name="botPrompt" rows="3"></textarea></label><label>Số đoạn truy xuất<input [(ngModel)]="botRetrievalLimit" name="botRetrievalLimit" type="number" min="1" max="10" /></label>
+            <div class="setup-actions"><button type="button" (click)="saveBot()">{{ selectedBot() ? 'Lưu chatbot' : 'Tạo chatbot' }}</button>@if (selectedBot()) { <button type="button" class="secondary" (click)="togglePublish()">{{ selectedBot()?.published ? 'Ngừng xuất bản' : 'Xuất bản chatbot' }}</button> }</div>
+          </section>
+        }
+        @if (!selectedBot()?.published) { <p class="chat-guard">Xuất bản chatbot để mở khung chat. Bạn vẫn có thể tải tài liệu và hoàn tất thiết lập ở đây.</p> }
+        <div class="transcript" aria-live="polite">
+          @for (message of messages(); track $index) {
+            <div class="bubble" [class.user]="message.role === 'user'"><strong>{{ message.role === 'user' ? 'Bạn' : 'RagHub' }}</strong><p>{{ message.content || (isStreaming() ? 'Đang trả lời…' : '') }}</p>
+              @if (message.citations?.length) { <div class="citations">@for (citation of message.citations; track $index) { <button type="button" (click)="selectCitation(citation)">{{ citationLabel(citation) }}<small>{{ citation.excerpt }}</small></button> }</div> }
+            </div>
+          } @empty { <p>Đặt câu hỏi cụ thể sau khi tài liệu sẵn sàng.</p> }
+        </div>
+        <form class="composer" (ngSubmit)="send()"><textarea [(ngModel)]="chatInput" name="chatInput" [disabled]="!selectedBot()?.published || isStreaming()" placeholder="Ví dụ: Tài liệu nói gì về mục tiêu dự án?"></textarea><button [disabled]="!selectedBot()?.published || isStreaming() || !chatInput.trim()">{{ isStreaming() ? 'Đang trả lời' : 'Gửi' }}</button></form>
+      </article>
     </section>
   }
 </main>
