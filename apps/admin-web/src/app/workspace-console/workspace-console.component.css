@@ -1,0 +1,12 @@
+:host { display: block; }
+.workspace-console { max-width: 1240px; margin: 0 auto; }
+.console-header { display: flex; gap: 24px; align-items: end; justify-content: space-between; margin-bottom: 24px; }
+.eyebrow { margin: 0 0 8px; color: var(--rh-cyan); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+h1, h2 { margin: 0; color: var(--rh-text); } h1 { font-size: clamp(30px, 4vw, 44px); letter-spacing: -.04em; } p { color: var(--rh-muted); }
+label { display: grid; gap: 7px; min-width: 260px; color: var(--rh-muted); font-size: 13px; font-weight: 700; }
+select { width: 100%; padding: 10px 12px; border: 1px solid var(--rh-border); border-radius: 9px; color: var(--rh-text); background: var(--rh-surface-raised); font: inherit; }
+.empty-console, .context-card { padding: 28px; border: 1px solid var(--rh-border); border-radius: 18px; background: var(--rh-surface); }
+.empty-console { max-width: 620px; margin: 9vh auto; text-align: center; }.empty-console a { display: inline-block; padding: 11px 16px; border-radius: 9px; color: #fff; background: linear-gradient(135deg, var(--rh-indigo), #3978ff); font-weight: 800; }
+.context-card { display: flex; align-items: end; justify-content: space-between; }.context-card > span { color: var(--rh-muted); }
+.message { padding: 12px 14px; border-radius: 9px; }.error { color: #ff9cab; background: rgba(251, 94, 117, .12); }
+@media (max-width: 720px) { .console-header, .context-card { display: grid; }.console-header label { min-width: 0; } }

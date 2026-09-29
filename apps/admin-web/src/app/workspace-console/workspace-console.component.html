@@ -1,0 +1,35 @@
+<main class="workspace-console">
+  <header class="console-header">
+    <div>
+      <p class="eyebrow">KHÔNG GIAN TRI THỨC</p>
+      <h1>Workspace Console</h1>
+      <p>Quản lý tài liệu và thử câu trả lời RAG trong cùng một nơi.</p>
+    </div>
+    <label>Tổ chức
+      <select [(ngModel)]="selectedOrganization" (change)="changeOrganization()">
+        @for (organization of organizations(); track organization.id) {
+          <option [value]="organization.id">{{ organization.name }}</option>
+        }
+      </select>
+    </label>
+  </header>
+  @if (error()) { <p class="message error">{{ error() }}</p> }
+  @if (!workspaces().length) {
+    <section class="empty-console">
+      <h2>Tạo workspace đầu tiên</h2>
+      <p>Workspace tách tài liệu, cấu hình AI và chatbot của từng nhóm.</p>
+      <a routerLink="/settings">Tạo workspace đầu tiên</a>
+    </section>
+  } @else {
+    <section class="context-card">
+      <label>Workspace đang làm việc
+        <select [(ngModel)]="selectedWorkspace">
+          @for (workspace of workspaces(); track workspace.id) {
+            <option [value]="workspace.id">{{ workspace.name }}</option>
+          }
+        </select>
+      </label>
+      <span>Đang tải thông tin workspace…</span>
+    </section>
+  }
+</main>
