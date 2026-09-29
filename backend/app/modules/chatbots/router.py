@@ -161,6 +161,7 @@ async def list_api_keys(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[ApiKeyResponse]:
+    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
     await ChatbotService(session).get(context.organization_id, chatbot_id)
     rows = await ApiKeyService(session).list(context.organization_id, chatbot_id)
     return [api_key_response(row) for row in rows]
