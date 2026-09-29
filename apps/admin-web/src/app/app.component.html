@@ -1,4 +1,4 @@
-<nz-layout class="app-shell">
+<nz-layout class="app-shell design-system-dark">
   <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">
     <a class="brand" routerLink="/" aria-label="Tổng quan RagHub">
       <span class="brand-mark">R</span>
@@ -20,6 +20,9 @@
       </li>
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
         <a routerLink="/chatbots"><nz-icon nzType="message" />Chatbot</a>
+      </li>
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+        <a routerLink="/settings"><nz-icon nzType="cloud-server" />Cài đặt tổ chức</a>
       </li>
     </ul>
   </nz-sider>

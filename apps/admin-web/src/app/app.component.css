@@ -6,7 +6,8 @@ nz-sider {
   position: sticky;
   top: 0;
   height: 100vh;
-  background: #0b1736;
+  border-right: 1px solid var(--rh-border);
+  background: #081126;
 }
 
 .brand {
@@ -28,7 +29,9 @@ nz-sider {
   height: 40px;
   place-items: center;
   border-radius: 12px;
-  background: linear-gradient(135deg, #26d9aa, #2878ff);
+  border: 1px solid rgba(0, 217, 255, 0.68);
+  background: linear-gradient(135deg, var(--rh-indigo), var(--rh-cyan));
+  box-shadow: 0 0 22px rgba(0, 217, 255, 0.23);
   font-size: 20px;
   font-weight: 800;
 }
@@ -44,7 +47,7 @@ nz-sider {
 }
 
 .brand small {
-  color: #8fa6d6;
+  color: var(--rh-muted);
   font-size: 11px;
 }
 
@@ -55,14 +58,21 @@ nz-sider {
   align-items: center;
 }
 
+/* Routes cũ giữ lại để tương thích link; sidebar ưu tiên Workspace Console. */
+:host ::ng-deep .ant-menu > li:nth-child(3),
+:host ::ng-deep .ant-menu > li:nth-child(4) {
+  display: none;
+}
+
 nz-header {
   display: flex;
   height: 76px;
   padding: 0 32px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e7eaf0;
-  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--rh-border);
+  background: rgba(12, 22, 43, 0.94);
+  color: var(--rh-text);
 }
 
 nz-header strong,
@@ -71,7 +81,7 @@ nz-header strong,
 }
 
 .eyebrow {
-  color: #68738b;
+  color: var(--rh-cyan);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -82,16 +92,31 @@ nz-header strong,
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border: 1px solid #cae8df;
+  border: 1px solid rgba(0, 217, 255, 0.35);
   border-radius: 999px;
-  color: #087f5b;
-  background: #effcf7;
+  color: var(--rh-cyan);
+  background: rgba(0, 217, 255, 0.08);
   font-weight: 600;
 }
 
 nz-content {
   padding: 32px;
-  background: #f4f6fa;
+  background:
+    radial-gradient(circle at 90% -20%, rgba(91, 61, 245, 0.2), transparent 30%),
+    var(--rh-bg);
+}
+
+:host ::ng-deep .ant-menu-dark,
+:host ::ng-deep .ant-menu-dark .ant-menu-sub {
+  background: #081126;
+}
+
+:host ::ng-deep .ant-menu-dark .ant-menu-item-selected {
+  background: linear-gradient(90deg, rgba(91, 61, 245, 0.88), rgba(0, 217, 255, 0.24));
+}
+
+:host ::ng-deep .ant-menu-dark .ant-menu-item:hover {
+  background: rgba(0, 217, 255, 0.08);
 }
 
 @media (max-width: 760px) {
