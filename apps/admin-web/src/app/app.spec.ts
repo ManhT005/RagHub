@@ -44,6 +44,18 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('ul')?.getAttribute('nztheme')).toBe('light');
   });
 
+  it('groups the header label and page title for compact alignment', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: appConfig.providers,
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('nz-header .header-title')).not.toBeNull();
+  });
+
   it('matches Overview only on the exact root route', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],

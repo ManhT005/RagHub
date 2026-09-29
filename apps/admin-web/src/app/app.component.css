@@ -73,11 +73,23 @@ nz-header {
   border-bottom: 1px solid var(--rh-border);
   background: rgba(255, 255, 255, 0.94);
   color: var(--rh-text);
+  line-height: normal;
+}
+
+.header-title {
+  display: grid;
+  gap: 4px;
+  line-height: 1.2;
 }
 
 nz-header strong,
 .eyebrow {
   display: block;
+}
+
+nz-header strong {
+  font-size: 16px;
+  line-height: 1.25;
 }
 
 .eyebrow {
