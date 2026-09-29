@@ -36,5 +36,25 @@
       <button type="button" [class.ready]="hasReadyDocument()">Tài liệu: {{ hasReadyDocument() ? 'Sẵn sàng' : 'Cần tải tài liệu' }}<strong>Tải tài liệu</strong></button>
       <button type="button" [class.ready]="hasPublishedBot()">Chatbot: {{ hasPublishedBot() ? 'Sẵn sàng' : 'Chưa xuất bản' }}<strong>Xuất bản chatbot</strong></button>
     </section>
+    <section class="console-grid">
+      <article class="document-panel">
+        <div class="panel-heading"><div><p class="eyebrow">NGUỒN TRI THỨC</p><h2>Tài liệu</h2></div><span>{{ documents().length }} tệp</span></div>
+        <div class="upload-box"><input #fileInput type="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" /><button type="button" (click)="upload()">Tải tài liệu lên</button></div>
+        <div class="document-list">
+          @for (document of documents(); track document.id) {
+            <article class="document-row" [class.selected]="selectedDocumentId() === document.id" (click)="selectDocument(document.id)">
+              <div><strong>{{ document.name }}</strong><small>{{ statusLabel(document.stage ?? document.status) }} · {{ document.progress ?? 0 }}%</small>
+                @if (document.error_code) { <p class="document-error">{{ ingestionErrorMessage(document.error_code) }}</p> }</div>
+              <div class="document-actions">
+                @if (document.status === 'FAILED' && document.retryable) { <button type="button" (click)="retry(document); $event.stopPropagation()">Thử lại</button> }
+                @if (document.status === 'READY' && document.document_version_id) { <button type="button" (click)="reindex(document); $event.stopPropagation()">{{ reindexingVersionId() === document.document_version_id ? 'Đang lập chỉ mục…' : 'Lập chỉ mục lại' }}</button> }
+                <button class="danger" type="button" (click)="remove(document); $event.stopPropagation()">Xóa</button>
+              </div>
+            </article>
+          } @empty { <p class="empty-list">Tải tài liệu đầu tiên để bắt đầu xây dựng tri thức.</p> }
+        </div>
+      </article>
+      <article class="assistant-placeholder"><p class="eyebrow">TRỢ LÝ RAG</p><h2>Hỏi tài liệu</h2><p>Thiết lập chatbot để bắt đầu cuộc hội thoại có nguồn trích dẫn.</p></article>
+    </section>
   }
 </main>
