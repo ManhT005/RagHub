@@ -1,11 +1,11 @@
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
 
 :root {
-  --rh-bg: #f6f6f3;
+  --rh-bg: #e8e8e3;
   --rh-surface: #ffffff;
-  --rh-surface-raised: #f1f1ee;
-  --rh-surface-soft: #e8e8e5;
-  --rh-border: #d8d8d3;
+  --rh-surface-raised: #edede8;
+  --rh-surface-soft: #e1e1dc;
+  --rh-border: #bdbdb6;
   --rh-text: #111111;
   --rh-muted: #646464;
   --rh-cyan: #111111;

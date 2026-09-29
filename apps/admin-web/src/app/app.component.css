@@ -113,9 +113,7 @@ nz-header strong {
 
 nz-content {
   padding: 32px;
-  background:
-    radial-gradient(circle at 90% -20%, rgba(17, 17, 17, 0.05), transparent 30%),
-    var(--rh-bg);
+  background: var(--rh-bg);
 }
 
 :host ::ng-deep .ant-menu,
