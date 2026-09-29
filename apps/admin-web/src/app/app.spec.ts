@@ -18,6 +18,20 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('RagHub');
   });
 
+  it('uses the supplied RagHub logo in the sidebar brand', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: appConfig.providers,
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    const logo = fixture.nativeElement.querySelector('img.brand-logo') as HTMLImageElement;
+    expect(logo?.getAttribute('src')).toBe('assets/logo.png');
+    expect(logo?.getAttribute('alt')).toBe('RagHub');
+  });
+
   it('marks the application shell with the light monochrome design system', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],

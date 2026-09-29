@@ -15,6 +15,7 @@
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "styles": ["src/styles.css"],
+            "assets": ["src/assets"],
             "outputPath": "dist/admin-web"
           },
           "configurations": {
