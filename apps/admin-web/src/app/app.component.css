@@ -25,19 +25,24 @@ nz-sider {
 
 .brand-mark {
   display: grid;
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
 }
 
 .brand-logo {
-  width: 64px;
-  height: 64px;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 58px;
+  height: 58px;
   max-width: none;
   object-fit: contain;
+  clip-path: inset(0 0 35% 0);
+  transform: translateX(-50%);
 }
 
 .brand strong,
