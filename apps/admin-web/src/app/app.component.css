@@ -146,8 +146,9 @@ nz-content {
 
 :host ::ng-deep .ant-menu .ant-menu-item:hover,
 :host ::ng-deep .ant-menu .ant-menu-item:hover a {
-  color: #fff;
-  background: #111;
+  color: #fff !important;
+  background: #000 !important;
+  opacity: 1;
 }
 
 @media (max-width: 760px) {
