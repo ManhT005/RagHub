@@ -58,8 +58,9 @@
         <div class="assistant-heading"><div><p class="eyebrow">TRỢ LÝ RAG</p><h2>Hỏi tài liệu</h2></div><button type="button" class="secondary" (click)="toggleSetup()">{{ setupOpen() ? 'Đóng thiết lập' : 'Thiết lập' }}</button></div>
         @if (setupOpen()) {
           <section class="setup-panel">
-            <h3>Kết nối AI</h3><label>Model Ollama<input [(ngModel)]="localChatModel" name="localChatModel" /></label><button type="button" (click)="configureLocal()">Dùng local Ollama</button>
-            <h3>Chatbot</h3><label>Tên chatbot<input [(ngModel)]="botName" name="botName" /></label><label>Hướng dẫn<textarea [(ngModel)]="botPrompt" name="botPrompt" rows="3"></textarea></label><label>Số đoạn truy xuất<input [(ngModel)]="botRetrievalLimit" name="botRetrievalLimit" type="number" min="1" max="10" /></label>
+            <h3>Kết nối AI</h3><label>Model Ollama<input [(ngModel)]="localChatModel" [ngModelOptions]="{standalone: true}" name="localChatModel" /></label><button type="button" (click)="configureLocal()">Dùng local Ollama</button>
+            <details class="gemini-setup"><summary>Dùng Gemini thay thế</summary><div><label>Gemini API key<input [(ngModel)]="geminiApiKey" [ngModelOptions]="{standalone: true}" name="geminiApiKey" type="password" autocomplete="off" /></label><label>Model chat Gemini<input [(ngModel)]="geminiChatModel" [ngModelOptions]="{standalone: true}" name="geminiChatModel" /></label><button type="button" (click)="configureGemini()">Lưu Gemini</button></div></details>
+            <h3>Chatbot</h3><label>Tên chatbot<input [(ngModel)]="botName" [ngModelOptions]="{standalone: true}" name="botName" /></label><label>Hướng dẫn<textarea [(ngModel)]="botPrompt" [ngModelOptions]="{standalone: true}" name="botPrompt" rows="3"></textarea></label><label>Số đoạn truy xuất<input [(ngModel)]="botRetrievalLimit" [ngModelOptions]="{standalone: true}" name="botRetrievalLimit" type="number" min="1" max="10" /></label>
             <div class="setup-actions"><button type="button" (click)="saveBot()">{{ selectedBot() ? 'Lưu chatbot' : 'Tạo chatbot' }}</button>@if (selectedBot()) { <button type="button" class="secondary" (click)="togglePublish()">{{ selectedBot()?.published ? 'Ngừng xuất bản' : 'Xuất bản chatbot' }}</button> }</div>
           </section>
         }

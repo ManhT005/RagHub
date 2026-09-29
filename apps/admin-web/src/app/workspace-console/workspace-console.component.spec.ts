@@ -138,4 +138,27 @@ describe('WorkspaceConsoleComponent', () => {
     component.selectCitation({ document_name: 'handbook.pdf' });
     expect(component.selectedDocumentId()).toBe('doc-1');
   });
+
+  it('offers Gemini setup with the configured Flash Lite chat model', async () => {
+    await TestBed.configureTestingModule({
+      imports: [WorkspaceConsoleComponent],
+      providers: [
+        provideRouter([]),
+        { provide: RaghubApiService, useValue: {
+          organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+          workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+          providers: () => of([]), documents: () => of([]), chatbots: () => of([]),
+        } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(WorkspaceConsoleComponent);
+    fixture.detectChanges();
+    (fixture.componentInstance as any).setupOpen.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const model = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name="geminiChatModel"]');
+    expect(model?.value).toBe('gemini-3.5-flash-lite');
+  });
 });

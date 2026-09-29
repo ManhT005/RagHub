@@ -55,6 +55,8 @@ export class WorkspaceConsoleComponent {
   protected selectedOrganization = session.organizationId ?? '';
   protected selectedWorkspace = '';
   protected localChatModel = 'gemma3:4b';
+  protected geminiApiKey = '';
+  protected geminiChatModel = 'gemini-3.5-flash-lite';
   protected botName = 'Trợ lý tài liệu';
   protected botPrompt = 'Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên.';
   protected botRetrievalLimit = 5;
@@ -173,6 +175,34 @@ export class WorkspaceConsoleComponent {
         error: () => this.error.set('Không thể gắn provider vào workspace.'),
       }),
       error: () => this.error.set('Không thể cấu hình Ollama. Kiểm tra model và dịch vụ Ollama.'),
+    });
+  }
+
+  protected configureGemini(): void {
+    if (!this.selectedOrganization || !this.selectedWorkspace || !this.geminiApiKey.trim()) {
+      this.error.set('Nhập Gemini API key trước khi lưu cấu hình Gemini.');
+      return;
+    }
+    const baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+    forkJoin({
+      embedding: this.api.createProvider(this.selectedOrganization, {
+        name: 'Embedding Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'EMBEDDING',
+        base_url: baseUrl, model: 'gemini-embedding-2', dimension: 3072, secret: this.geminiApiKey,
+      }),
+      chat: this.api.createProvider(this.selectedOrganization, {
+        name: 'Chat Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'CHAT',
+        base_url: baseUrl, model: this.geminiChatModel, secret: this.geminiApiKey,
+      }),
+    }).subscribe({
+      next: ({ embedding, chat }) => this.api.bindWorkspaceProviders(this.selectedWorkspace, embedding.id, chat.id).subscribe({
+        next: () => {
+          this.geminiApiKey = '';
+          this.providers.update((items) => [...items.filter((item) => item.id !== embedding.id && item.id !== chat.id), embedding, chat]);
+          this.error.set('');
+        },
+        error: () => this.error.set('Không thể gắn Gemini vào workspace.'),
+      }),
+      error: () => this.error.set('Không thể lưu Gemini. Kiểm tra API key và model rồi thử lại.'),
     });
   }
 
