@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)
     ollama_base_url: str = "http://ollama:11434"
 

@@ -20,7 +20,7 @@
 | Mode | External |
 | Workspace | `86f31825-556b-4618-a167-94424884e888` |
 | Embedding Provider | `GOOGLE_GEMINI` |
-| Embedding Model | `gemini-embedding-001` |
+| Embedding Model | `gemini-embedding-2` |
 | Chat Provider | `GOOGLE_GEMINI` |
 | Chat Model | `gemini-3.5-flash-lite` |
 | Document | `f3bca8d5-93a8-4a2f-8348-98d7b64ba927` |
@@ -42,7 +42,7 @@
 The smoke runner used `ResponseHeadersRead` and parsed each SSE line as it arrived through Nginx.
 It verified that the first of 3 token events arrived before `done`, and that every citation chunk
 ID was present in the scoped retrieval result before emitting PASS. The run used Google's
-OpenAI-compatible endpoint with `gemini-embedding-001` (3072 dimensions) and `gemini-3.5-flash-lite`.
+OpenAI-compatible endpoint with `gemini-embedding-2` (3072 dimensions) and `gemini-3.5-flash-lite`.
 No external secret was logged or committed.
 
 ## RAG-E2E-02 Local evidence

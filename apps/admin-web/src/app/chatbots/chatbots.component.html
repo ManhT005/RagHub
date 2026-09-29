@@ -1,0 +1,100 @@
+<main>
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">RAG CHAT</p>
+      <h1>Chatbot tài liệu</h1>
+      <p class="lede">Cấu hình AI, xuất bản trợ lý và kiểm tra câu trả lời dựa trên tài liệu của workspace.</p>
+    </div>
+    <span class="flow-state" [class.ready]="selectedBot()?.published">{{ selectedBot()?.published ? 'Sẵn sàng chat' : 'Chưa xuất bản' }}</span>
+  </section>
+
+  @if (error()) { <p class="message error">{{ error() }}</p> }
+  @if (notice()) { <p class="message notice">{{ notice() }}</p> }
+
+  <section class="workspace-bar panel">
+    <label>Tổ chức
+      <select [(ngModel)]="selectedOrganization" (change)="changeOrganization()">
+        @for (organization of organizations(); track organization.id) { <option [value]="organization.id">{{ organization.name }}</option> }
+      </select>
+    </label>
+    <label>Không gian làm việc
+      <select [(ngModel)]="selectedWorkspace" (change)="changeWorkspace()" [disabled]="!workspaces().length">
+        <option value="">Chọn workspace</option>
+        @for (workspace of workspaces(); track workspace.id) { <option [value]="workspace.id">{{ workspace.name }}</option> }
+      </select>
+    </label>
+    <a routerLink="/workspaces">Tạo không gian làm việc</a>
+  </section>
+
+  @if (!selectedWorkspace) {
+    <section class="empty-state panel">
+      <h2>Bắt đầu bằng một workspace</h2>
+      <p>Workspace giúp tách tài liệu, provider và chatbot của từng nhóm.</p>
+      <a routerLink="/workspaces">Tạo không gian làm việc</a>
+    </section>
+  } @else {
+    <section class="workflow-grid">
+      <article class="panel setup-panel">
+        <div class="section-title"><span>1</span><div><h2>Kết nối AI</h2><p>Chọn local để dùng Ollama ngay trên máy, hoặc Gemini khi có API key.</p></div></div>
+        <div class="quick-actions">
+          <label>Model Ollama
+            <input [(ngModel)]="localChatModel" name="localChatModel" placeholder="gemma3:4b" />
+          </label>
+          <button (click)="configureLocal()">Dùng local Ollama</button>
+        </div>
+        <details>
+          <summary>Dùng Gemini thay thế</summary>
+          <div class="gemini-form">
+            <input [(ngModel)]="geminiApiKey" name="geminiApiKey" type="password" autocomplete="off" placeholder="Gemini API key" />
+            <input [(ngModel)]="geminiChatModel" name="geminiChatModel" placeholder="Model chat Gemini" />
+            <button (click)="configureGemini()">Lưu Gemini</button>
+          </div>
+        </details>
+        <div class="provider-list">
+          @for (provider of providers(); track provider.id) {
+            <div class="provider-row">
+              <div><strong>{{ provider.name }}</strong><small>{{ provider.provider_type }} · {{ provider.model }}</small></div>
+              <button class="text-button" (click)="testProvider(provider)">Kiểm tra</button>
+            </div>
+          } @empty { <p class="hint">Chưa có provider. Bấm “Dùng local Ollama” để tạo cấu hình mặc định.</p> }
+        </div>
+        @if (providers().length) {
+          <div class="binding-form">
+            <select [(ngModel)]="selectedEmbeddingProvider" name="embeddingProvider"><option value="">Embedding provider</option>@for (provider of providers(); track provider.id) { @if (provider.capability === 'EMBEDDING') { <option [value]="provider.id">{{ provider.name }}</option> } }</select>
+            <select [(ngModel)]="selectedChatProvider" name="chatProvider"><option value="">Chat provider</option>@for (provider of providers(); track provider.id) { @if (provider.capability === 'CHAT') { <option [value]="provider.id">{{ provider.name }}</option> } }</select>
+            <button (click)="bindProviders()">Gắn vào workspace</button>
+          </div>
+        }
+      </article>
+
+      <article class="panel setup-panel">
+        <div class="section-title"><span>2</span><div><h2>Tạo chatbot</h2><p>Chỉ chatbot đã xuất bản mới trả lời được.</p></div></div>
+        <label>Chatbot hiện tại
+          <select [ngModel]="selectedBot()?.id ?? ''" (ngModelChange)="selectBot($any($event) ? (bots().find(bot => bot.id === $event) ?? null) : null)" name="selectedBot">
+            <option value="">Tạo chatbot mới</option>@for (bot of bots(); track bot.id) { <option [value]="bot.id">{{ bot.name }} · {{ bot.published ? 'Đã xuất bản' : 'Nháp' }}</option> }
+          </select>
+        </label>
+        <label>Tên<input [(ngModel)]="botName" name="botName" /></label>
+        <label>Hướng dẫn cho chatbot<textarea [(ngModel)]="botPrompt" name="botPrompt" rows="4"></textarea></label>
+        <label>Số đoạn tài liệu dùng để trả lời<input [(ngModel)]="botRetrievalLimit" name="botRetrievalLimit" type="number" min="1" max="10" /></label>
+        <div class="button-row">
+          <button (click)="saveBot()">{{ selectedBot() ? 'Lưu thay đổi' : 'Tạo chatbot' }}</button>
+          @if (selectedBot()) { <button class="secondary" (click)="togglePublish()">{{ selectedBot()?.published ? 'Ngừng xuất bản' : 'Xuất bản' }}</button> }
+        </div>
+      </article>
+
+      <article class="panel chat-panel">
+        <div class="section-title"><span>3</span><div><h2>Thử hỏi tài liệu</h2><p>Luồng phản hồi hiển thị trực tiếp và kèm nguồn trích dẫn.</p></div></div>
+        @if (!selectedBot()?.published) { <div class="chat-guard">Xuất bản chatbot ở bước 2 để mở khung chat.</div> }
+        <div class="transcript" aria-live="polite">
+          @for (message of messages(); track $index) {
+            <div class="bubble" [class.user]="message.role === 'user'" [class.assistant]="message.role === 'assistant'"><strong>{{ message.role === 'user' ? 'Bạn' : 'RagHub' }}</strong><p>{{ message.content || (isStreaming() ? 'Đang trả lời…' : '') }}</p>
+              @if (message.citations?.length) { <ul class="citations">@for (citation of message.citations; track $index) { <li><strong>{{ citation.rank ?? $index + 1 }}.</strong> {{ citationLabel(citation) }}<small>{{ citation.excerpt }}</small></li> }</ul> }
+            </div>
+          } @empty { <p class="hint">Tải một tài liệu ở trạng thái READY, rồi đặt câu hỏi cụ thể để kiểm tra RAG.</p> }
+        </div>
+        <form class="composer" (ngSubmit)="send()"><textarea [(ngModel)]="chatInput" name="chatInput" [disabled]="!selectedBot()?.published || isStreaming()" placeholder="Ví dụ: Tài liệu nói gì về mục tiêu dự án?"></textarea><button [disabled]="!selectedBot()?.published || isStreaming() || !chatInput.trim()">{{ isStreaming() ? 'Đang trả lời' : 'Gửi' }}</button></form>
+      </article>
+    </section>
+  }
+</main>
