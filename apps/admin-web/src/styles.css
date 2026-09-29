@@ -1,5 +1,20 @@
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
 
+:root {
+  --rh-bg: #060b1c;
+  --rh-surface: #101a31;
+  --rh-surface-raised: #14213a;
+  --rh-surface-soft: #192744;
+  --rh-border: #263757;
+  --rh-text: #edf5ff;
+  --rh-muted: #91a6c7;
+  --rh-cyan: #00d9ff;
+  --rh-indigo: #5b3df5;
+  --rh-success: #00d69c;
+  --rh-danger: #fb5e75;
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -8,11 +23,87 @@ html,
 body {
   min-height: 100%;
   margin: 0;
-  color: #14213d;
-  background: #f4f6fa;
+  color: var(--rh-text);
+  background: var(--rh-bg);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 a {
   text-decoration: none;
+}
+
+.ant-layout,
+.ant-layout-content,
+.ant-card,
+.ant-select-dropdown,
+.ant-modal-content {
+  color: var(--rh-text);
+  background: var(--rh-bg);
+}
+
+.ant-card,
+.ant-modal-content {
+  border: 1px solid var(--rh-border);
+  border-radius: 16px;
+  background: var(--rh-surface);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+}
+
+.ant-card-head {
+  color: var(--rh-text);
+  border-bottom-color: var(--rh-border);
+}
+
+.ant-card-head-title,
+.ant-typography,
+.ant-form-item-label > label,
+.ant-empty-description {
+  color: var(--rh-text) !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select:not(.ant-select-customize-input) .ant-select-selector,
+.ant-input-number,
+.ant-picker,
+.ant-select-dropdown {
+  color: var(--rh-text) !important;
+  border-color: var(--rh-border) !important;
+  background: var(--rh-surface-raised) !important;
+}
+
+.ant-select-arrow,
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: var(--rh-muted) !important;
+}
+
+.ant-select-item,
+.ant-dropdown-menu-item {
+  color: var(--rh-text);
+}
+
+.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.ant-dropdown-menu-item:hover {
+  color: var(--rh-text);
+  background: rgba(91, 61, 245, 0.25);
+}
+
+.ant-btn-primary {
+  border-color: var(--rh-indigo);
+  background: var(--rh-indigo);
+}
+
+.ant-table,
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td {
+  color: var(--rh-text);
+  border-bottom-color: var(--rh-border);
+  background: var(--rh-surface);
+}
+
+.ant-table-thead > tr > th {
+  color: var(--rh-muted);
+  background: var(--rh-surface-raised);
 }
