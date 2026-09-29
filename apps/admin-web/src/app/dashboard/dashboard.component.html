@@ -1,29 +1,19 @@
-<main>
-  <section class="hero">
+<main class="overview">
+  <section class="overview-hero">
     <div>
-      <nz-tag nzColor="green">RAGHUB</nz-tag>
-      <h1>Xây dựng câu trả lời từ tri thức của bạn.</h1>
-      <p>
-        Quản lý tài liệu theo tổ chức, xử lý nội dung và tìm kiếm những đoạn liên quan
-        kèm thông tin nguồn.
-      </p>
+      <p class="eyebrow">RAGHUB</p>
+      <h1>Đi từ tài liệu đến câu trả lời, trong một workspace.</h1>
+      <p class="lede">Tải tài liệu, theo dõi lập chỉ mục, chọn AI và kiểm tra câu trả lời có nguồn trích dẫn trong cùng một màn hình.</p>
+      <a routerLink="/workspaces">Mở Workspace Console</a>
     </div>
-    <div class="flow" aria-label="Quy trình xử lý tài liệu">
-      <span>Tải tài liệu lên</span><b>→</b><span>Trích xuất và chia đoạn</span><b>→</b
-      ><span>Tìm kiếm</span>
-    </div>
+    <ol class="workflow" aria-label="Quy trình sử dụng RagHub">
+      <li><span>1</span><div><strong>Chọn workspace</strong><small>Tách riêng tri thức theo từng nhóm.</small></div></li>
+      <li><span>2</span><div><strong>Tải tài liệu</strong><small>Đợi tài liệu đạt trạng thái Sẵn sàng.</small></div></li>
+      <li><span>3</span><div><strong>Hỏi trợ lý RAG</strong><small>Xem câu trả lời và nguồn trích dẫn.</small></div></li>
+    </ol>
   </section>
-
-  <section class="service-grid" aria-label="Các dịch vụ nền tảng">
-    @for (service of services; track service.name) {
-      <nz-card>
-        <nz-icon [nzType]="service.icon" />
-        <div>
-          <strong>{{ service.name }}</strong>
-          <p>{{ service.role }}</p>
-        </div>
-        <span class="status-dot" title="Đã cấu hình"></span>
-      </nz-card>
-    }
+  <section class="quick-start" aria-label="Bắt đầu nhanh">
+    <div><p class="eyebrow">BẮT ĐẦU</p><h2>Bạn chưa cần nhớ quy trình.</h2><p>Workspace Console sẽ chỉ ra chính xác bước còn thiếu trước khi bạn có thể chat.</p></div>
+    <a routerLink="/workspaces">Vào workspace</a>
   </section>
 </main>
