@@ -35,6 +35,7 @@ Write-Host "Starting SSE stream..."
 $body = @{
     message = "Summarize the available knowledge."
     conversation_id = $conversation.conversation_id
+    conversation_token = $conversation.conversation_token
 } | ConvertTo-Json
 
 Invoke-WebRequest `

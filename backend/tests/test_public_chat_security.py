@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -9,9 +10,15 @@ from app.core.exceptions import AppError
 from app.modules.public_chat.api_keys import generate_api_key, hash_api_key
 from app.modules.public_chat.client_ip import resolve_client_ip
 from app.modules.public_chat.concurrency import ConcurrencyLimiter
+from app.modules.public_chat.conversation_tokens import (
+    conversation_token_matches,
+    generate_conversation_token,
+    hash_conversation_token,
+)
 from app.modules.public_chat.origin import normalize_origin
 from app.modules.public_chat.rate_limit import FixedWindowRateLimiter, rate_limit_key
 from app.modules.public_chat.schemas import PublicChatRequest
+from app.modules.public_chat.service import PublicChatAccessService
 
 
 @pytest.mark.parametrize(
@@ -45,10 +52,21 @@ def test_invalid_origins_are_rejected(value: str) -> None:
 
 
 def test_public_chat_payload_forbids_tenant_scope() -> None:
+    conversation = {
+        "conversation_id": str(uuid4()),
+        "conversation_token": generate_conversation_token(),
+    }
     with pytest.raises(ValidationError):
-        PublicChatRequest(message="hello", organization_id=str(uuid4()))
+        PublicChatRequest(message="hello", organization_id=str(uuid4()), **conversation)
     with pytest.raises(ValidationError):
-        PublicChatRequest(message="hello", workspace_id=str(uuid4()))
+        PublicChatRequest(message="hello", workspace_id=str(uuid4()), **conversation)
+
+
+def test_public_chat_requires_conversation_capability() -> None:
+    with pytest.raises(ValidationError):
+        PublicChatRequest(message="hello", conversation_id=uuid4())
+    with pytest.raises(ValidationError):
+        PublicChatRequest(message="hello", conversation_token=generate_conversation_token())
 
 
 def test_api_keys_are_random_and_hashed_with_pepper() -> None:
@@ -59,6 +77,35 @@ def test_api_keys_are_random_and_hashed_with_pepper() -> None:
     assert first != second
     assert hash_api_key(first, "pepper") != first
     assert hash_api_key(first, "pepper") != hash_api_key(first, "other-pepper")
+
+
+def test_public_conversation_tokens_are_random_and_hashed() -> None:
+    first = generate_conversation_token()
+    second = generate_conversation_token()
+    digest = hash_conversation_token(first, "pepper")
+    assert first.startswith("rhct_")
+    assert first != second
+    assert first != digest
+    assert conversation_token_matches(first, digest, "pepper")
+    assert not conversation_token_matches(second, digest, "pepper")
+
+
+async def test_public_conversation_rejects_wrong_capability_token() -> None:
+    raw_token = generate_conversation_token()
+    conversation = SimpleNamespace(
+        public_access_token_hash=hash_conversation_token(raw_token, "pepper")
+    )
+
+    class Session:
+        async def scalar(self, _statement: object) -> object:
+            return conversation
+
+    settings = Settings(_env_file=None, app_env="test", public_api_key_pepper="pepper")
+    service = PublicChatAccessService(Session(), settings)
+    assert await service.verify_conversation(uuid4(), uuid4(), raw_token) is conversation
+    with pytest.raises(AppError) as caught:
+        await service.verify_conversation(uuid4(), uuid4(), generate_conversation_token())
+    assert caught.value.code == "CONVERSATION_NOT_FOUND"
 
 
 def test_rate_limit_keys_are_scoped_and_do_not_contain_raw_ip() -> None:

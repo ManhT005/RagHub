@@ -17,6 +17,10 @@ from app.modules.chatbots.models import Conversation
 from app.modules.chatbots.service import ChatbotService
 from app.modules.public_chat.client_ip import resolve_client_ip
 from app.modules.public_chat.concurrency import ConcurrencyLimiter
+from app.modules.public_chat.conversation_tokens import (
+    generate_conversation_token,
+    hash_conversation_token,
+)
 from app.modules.public_chat.rate_limit import FixedWindowRateLimiter
 from app.modules.public_chat.schemas import (
     PublicChatRequest,
@@ -107,12 +111,21 @@ async def create_public_conversation(
     except AppError as exc:
         _attach_cors_to_error(exc, cors)
         raise
-    conversation = Conversation(chatbot_id=context.chatbot_id, external_user_id=None)
+    conversation_token = generate_conversation_token()
+    conversation = Conversation(
+        chatbot_id=context.chatbot_id,
+        external_user_id=None,
+        public_access_token_hash=hash_conversation_token(
+            conversation_token, settings.public_api_key_pepper
+        ),
+    )
     session.add(conversation)
     await session.commit()
     await session.refresh(conversation)
     response.headers.update(cors)
-    return PublicConversationResponse(conversation_id=conversation.id)
+    return PublicConversationResponse(
+        conversation_id=conversation.id, conversation_token=conversation_token
+    )
 
 
 @router.post("/{public_key}/chat")
@@ -135,6 +148,15 @@ async def public_chat(
             resolve_client_ip(request, settings),
             settings.public_chat_rate_limit_requests,
             settings.public_chat_rate_limit_window_seconds,
+        )
+    except AppError as exc:
+        _attach_cors_to_error(exc, cors)
+        raise
+    try:
+        await PublicChatAccessService(session, settings).verify_conversation(
+            context.chatbot_id,
+            payload.conversation_id,
+            payload.conversation_token,
         )
     except AppError as exc:
         _attach_cors_to_error(exc, cors)

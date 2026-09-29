@@ -50,6 +50,7 @@ class Conversation(Base):
         ForeignKey("chatbots.id", ondelete="CASCADE"), index=True
     )
     external_user_id: Mapped[str | None] = mapped_column(String(255))
+    public_access_token_hash: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

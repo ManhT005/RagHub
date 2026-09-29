@@ -84,12 +84,16 @@ create response; only its HMAC-SHA256 digest is stored.
 Public clients use:
 
 - `GET /public/chatbots/{public_key}/config`
-- `POST /public/chatbots/{public_key}/conversations` with `{}`
-- `POST /public/chatbots/{public_key}/chat` with `message` and optional `conversation_id`
+- `POST /public/chatbots/{public_key}/conversations` with `{}`; the one-time response contains a
+  `conversation_id` and `conversation_token`
+- `POST /public/chatbots/{public_key}/chat` with `message`, `conversation_id`, and
+  `conversation_token`
 
 Browser calls must send an exact allowed `Origin`. Server-to-server calls omit `Origin` and send
 `X-RagHub-API-Key`. If `Origin` is present it is always checked and an API key cannot bypass a
 blocked origin. Public payloads reject unknown fields, including tenant/workspace identifiers.
+Conversation tokens are stored only as HMAC digests and are required whenever a public
+conversation is used.
 Chat is rate-limited by chatbot and client IP and protected by Redis leases at chatbot and
 organization scope. A limit breach returns `429`; unavailable Redis guards return `503`.
 

@@ -4,9 +4,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
-from app.modules.chatbots.models import Chatbot, ChatbotAllowedOrigin
+from app.modules.chatbots.models import Chatbot, ChatbotAllowedOrigin, Conversation
 from app.modules.public_chat.api_keys import ApiKeyService
+from app.modules.public_chat.conversation_tokens import conversation_token_matches
 from app.modules.public_chat.origin import normalize_origin
 
 
@@ -26,8 +28,9 @@ class PublicAccessContext:
 
 
 class PublicChatAccessService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
         self.session = session
+        self.settings = settings or get_settings()
 
     async def resolve(self, public_key: str) -> Chatbot:
         chatbot = await self.session.scalar(
@@ -74,6 +77,31 @@ class PublicChatAccessService:
             chatbot.id, chatbot.organization_id, raw_api_key
         )
         return PublicAccessContext(chatbot, "api_key", None)
+
+    async def verify_conversation(
+        self, chatbot_id: UUID, conversation_id: UUID, raw_token: str
+    ) -> Conversation:
+        conversation = await self.session.scalar(
+            select(Conversation).where(
+                Conversation.id == conversation_id,
+                Conversation.chatbot_id == chatbot_id,
+            )
+        )
+        if (
+            conversation is None
+            or conversation.public_access_token_hash is None
+            or not conversation_token_matches(
+                raw_token,
+                conversation.public_access_token_hash,
+                self.settings.public_api_key_pepper,
+            )
+        ):
+            raise AppError(
+                "CONVERSATION_NOT_FOUND",
+                "Conversation was not found for this chatbot.",
+                status_code=404,
+            )
+        return conversation
 
 
 def cors_headers(context: PublicAccessContext) -> dict[str, str]:

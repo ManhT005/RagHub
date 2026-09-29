@@ -8,6 +8,10 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.redis import get_redis
 from app.main import app
+from app.modules.public_chat.conversation_tokens import hash_conversation_token
+
+CONVERSATION_ID = uuid4()
+CONVERSATION_TOKEN = "rhct_abcdefghijklmnopqrstuvwxyz1234567890"
 
 
 class FakeSession:
@@ -21,7 +25,18 @@ class FakeSession:
                 "published": True,
             },
         )()
-        self.results = [self.chatbot, uuid4()]
+        conversation = type(
+            "PublicConversation",
+            (),
+            {
+                "id": CONVERSATION_ID,
+                "chatbot_id": self.chatbot.id,
+                "public_access_token_hash": hash_conversation_token(
+                    CONVERSATION_TOKEN, "change-me-public-api-key-pepper"
+                ),
+            },
+        )()
+        self.results = [self.chatbot, uuid4(), conversation]
 
     async def scalar(self, _statement: object) -> object:
         return self.results.pop(0)
@@ -64,12 +79,20 @@ def assert_cors_error(response, code: str, status_code: int) -> None:
     assert response.headers["vary"] == "Origin"
 
 
+def chat_payload() -> dict[str, str]:
+    return {
+        "message": "hello",
+        "conversation_id": str(CONVERSATION_ID),
+        "conversation_token": CONVERSATION_TOKEN,
+    }
+
+
 def test_rate_limit_error_keeps_retry_after_and_cors(public_client) -> None:
     client, _ = public_client
     response = client.post(
         "/api/v1/public/chatbots/cb_pub_test/chat",
         headers={"Origin": "https://allowed.example"},
-        json={"message": "hello"},
+        json=chat_payload(),
     )
     assert_cors_error(response, "RATE_LIMIT_EXCEEDED", 429)
     assert response.headers["retry-after"] == "23"
@@ -81,7 +104,7 @@ def test_concurrency_error_has_cors(public_client) -> None:
     response = client.post(
         "/api/v1/public/chatbots/cb_pub_test/chat",
         headers={"Origin": "https://allowed.example"},
-        json={"message": "hello"},
+        json=chat_payload(),
     )
     assert_cors_error(response, "CONCURRENT_STREAM_LIMIT_EXCEEDED", 429)
 
@@ -92,6 +115,6 @@ def test_redis_guard_error_has_cors(public_client) -> None:
     response = client.post(
         "/api/v1/public/chatbots/cb_pub_test/chat",
         headers={"Origin": "https://allowed.example"},
-        json={"message": "hello"},
+        json=chat_payload(),
     )
     assert_cors_error(response, "PUBLIC_GUARD_UNAVAILABLE", 503)
