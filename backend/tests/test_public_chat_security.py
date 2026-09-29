@@ -2,10 +2,12 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
+from starlette.requests import Request
 
 from app.core.config import Settings
 from app.core.exceptions import AppError
 from app.modules.public_chat.api_keys import generate_api_key, hash_api_key
+from app.modules.public_chat.client_ip import resolve_client_ip
 from app.modules.public_chat.concurrency import ConcurrencyLimiter
 from app.modules.public_chat.origin import normalize_origin
 from app.modules.public_chat.rate_limit import FixedWindowRateLimiter, rate_limit_key
@@ -66,6 +68,44 @@ def test_rate_limit_keys_are_scoped_and_do_not_contain_raw_ip() -> None:
     assert first != rate_limit_key("public-chat", chatbot_a, "203.0.113.5")
     assert first != rate_limit_key("public-chat", chatbot_b, "203.0.113.4")
     assert "203.0.113.4" not in first
+
+
+def make_request(peer: str, real_ip: str) -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "headers": [(b"x-real-ip", real_ip.encode())],
+            "client": (peer, 12345),
+        }
+    )
+
+
+def test_proxy_header_is_ignored_when_proxy_trust_is_disabled() -> None:
+    settings = Settings(
+        _env_file=None,
+        trust_proxy_headers=False,
+        trusted_proxy_cidrs="172.30.0.10/32",
+    )
+    assert resolve_client_ip(make_request("172.30.0.10", "203.0.113.5"), settings) == (
+        "172.30.0.10"
+    )
+
+
+def test_proxy_header_is_used_only_for_trusted_proxy_peer() -> None:
+    settings = Settings(
+        _env_file=None,
+        trust_proxy_headers=True,
+        trusted_proxy_cidrs="172.30.0.10/32",
+    )
+    assert (
+        resolve_client_ip(make_request("172.30.0.10", "203.0.113.5"), settings)
+        == "203.0.113.5"
+    )
+    assert resolve_client_ip(make_request("172.30.0.11", "203.0.113.6"), settings) == (
+        "172.30.0.11"
+    )
 
 
 class ScriptedRedis:
