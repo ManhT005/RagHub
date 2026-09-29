@@ -32,6 +32,19 @@ describe('AppComponent', () => {
     expect(logo?.getAttribute('alt')).toBe('RagHub');
   });
 
+  it('keeps the application chrome free of redundant knowledge-space labels', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: appConfig.providers,
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.brand small')).toBeNull();
+    expect(fixture.nativeElement.querySelector('nz-header .header-title strong')).toBeNull();
+  });
+
   it('marks the application shell with the light monochrome design system', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],

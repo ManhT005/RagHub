@@ -45,19 +45,13 @@ nz-sider {
   transform: translateX(-50%);
 }
 
-.brand strong,
-.brand small {
+.brand strong {
   display: block;
 }
 
 .brand strong {
   font-size: 18px;
   letter-spacing: 0.02em;
-}
-
-.brand small {
-  color: var(--rh-muted);
-  font-size: 11px;
 }
 
 .ant-menu-item a,
@@ -87,18 +81,11 @@ nz-header {
 
 .header-title {
   display: grid;
-  gap: 4px;
   line-height: 1.2;
 }
 
-nz-header strong,
 .eyebrow {
   display: block;
-}
-
-nz-header strong {
-  font-size: 16px;
-  line-height: 1.25;
 }
 
 .eyebrow {
