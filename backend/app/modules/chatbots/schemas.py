@@ -28,6 +28,7 @@ class ChatbotResponse(BaseModel):
     model: str | None
     retrieval_limit: int
     published: bool
+    public_key: str | None
     created_at: datetime
     updated_at: datetime | None
 

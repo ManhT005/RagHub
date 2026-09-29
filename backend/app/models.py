@@ -5,7 +5,15 @@ from app.modules.ai_providers.models import (
     EmbeddingReindexJob,
     ProviderConfig,
 )
-from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
+from app.modules.chatbots.models import (
+    Chatbot,
+    ChatbotAllowedOrigin,
+    ChatbotApiKey,
+    Conversation,
+    Message,
+    MessageCitation,
+    UsageEvent,
+)
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 from app.modules.memberships.models import Membership
 from app.modules.organizations.models import Organization
@@ -21,6 +29,8 @@ __all__ = [
     "User",
     "Workspace",
     "Chatbot",
+    "ChatbotAllowedOrigin",
+    "ChatbotApiKey",
     "Conversation",
     "Message",
     "MessageCitation",

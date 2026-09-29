@@ -86,6 +86,7 @@ def test_production_accepts_dedicated_provider_master_key() -> None:
         _env_file=None,
         app_env="production",
         provider_master_key="a-unique-production-key-with-sufficient-randomness",
+        public_api_key_pepper="a-separate-public-api-key-pepper-with-sufficient-randomness",
     )
 
     assert settings.app_env == "production"

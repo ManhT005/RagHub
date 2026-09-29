@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)
     ollama_base_url: str = "http://ollama:11434"
 
+    public_api_key_pepper: str = "change-me-public-api-key-pepper"
+    public_chat_rate_limit_requests: int = Field(default=30, ge=1)
+    public_chat_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    public_conversation_rate_limit_requests: int = Field(default=10, ge=1)
+    public_conversation_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    public_chat_max_concurrent_per_chatbot: int = Field(default=4, ge=1)
+    public_chat_max_concurrent_per_org: int = Field(default=10, ge=1)
+    public_chat_concurrency_lease_seconds: int = Field(default=180, ge=30)
+    trust_proxy_headers: bool = False
+    trusted_proxy_cidrs: str = ""
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         insecure_provider_keys = {
@@ -51,6 +62,8 @@ class Settings(BaseSettings):
         if self.app_env.lower() not in {"development", "dev", "local", "test"}:
             if self.provider_master_key in insecure_provider_keys:
                 raise ValueError("PROVIDER_MASTER_KEY must be set to a dedicated production key")
+            if self.public_api_key_pepper in {"", "change-me-public-api-key-pepper"}:
+                raise ValueError("PUBLIC_API_KEY_PEPPER must be set to a dedicated production key")
         return self
 
     @property

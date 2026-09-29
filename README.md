@@ -57,7 +57,7 @@ Tài liệu thiết kế phiên bản 1.0 đặt mốc MVP ngày **08/10/2026**.
 | Parser DOCX, XLSX, PPTX | Chưa có; ingestion đang hỗ trợ PDF, TXT và Markdown |
 | Giao diện cấu hình AI provider và chatbot | API đã có; giao diện quản trị chưa có |
 | Chat Widget dạng Web Component, script nhúng và website mẫu | Chưa có trong `apps/` |
-| Allowed Origins, API key cho tích hợp, rate limit và giới hạn chat đồng thời | Chưa có luồng public widget/API tương ứng |
+| Public chatbot API | Allowed Origins cho widget, API key S2S, rate limit và giới hạn chat đồng thời |
 | Quy trình triển khai SaaS và on-premise hoàn chỉnh | Docker Compose đã có cho phát triển và demo; chưa có quy trình production |
 
 Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tuyên bố MVP đã hoàn thành. [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) mô tả chi tiết kiến trúc, backlog, tiêu chí nghiệm thu và kịch bản demo dự kiến.
@@ -144,7 +144,9 @@ docker compose -f infrastructure/docker-compose.yml down
 2. Tạo tổ chức và không gian làm việc. `slug` dùng chữ thường, số và dấu `-`.
 3. Dùng API để tạo embedding provider và chat provider, kiểm tra kết nối, rồi gắn chúng vào không gian làm việc. Xem [quy trình cấu hình AI](docs/ai-provider-layer.md).
 4. Tải tài liệu lên và đợi trạng thái **Sẵn sàng** trước khi tìm kiếm hoặc dùng chatbot.
-5. Tạo, xuất bản chatbot và gọi API chat để nhận các sự kiện SSE cùng trích dẫn nguồn.
+5. Tạo, xuất bản chatbot và gọi API chat để nhận các sự kiện SSE cùng trích dẫn nguồn. Chatbot
+   xuất bản có `public_key`; cấu hình Allowed Origins hoặc API key trước khi dùng các endpoint
+   `/api/v1/public/chatbots/{public_key}/...`.
 
 Endpoint được bảo vệ cần header `Authorization: Bearer <access_token>`. Endpoint theo tổ chức cần thêm `X-Organization-ID`. Gửi khóa AI trong trường `secret` của API provider; không đặt credential trong `config_json`.
 

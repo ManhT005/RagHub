@@ -1,0 +1,1 @@
+"""Public chatbot access boundary."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -65,6 +66,7 @@ class ChatbotService:
             model=payload.model,
             retrieval_limit=payload.retrieval_limit,
             published=payload.published,
+            public_key=self.generate_public_key() if payload.published else None,
         )
         self.session.add(chatbot)
         await self.session.commit()
@@ -91,9 +93,15 @@ class ChatbotService:
         chatbot = await self.get(organization_id, chatbot_id)
         for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(chatbot, field, value.strip() if isinstance(value, str) else value)
+        if chatbot.published and chatbot.public_key is None:
+            chatbot.public_key = self.generate_public_key()
         await self.session.commit()
         await self.session.refresh(chatbot)
         return chatbot
+
+    @staticmethod
+    def generate_public_key() -> str:
+        return "cb_pub_" + secrets.token_urlsafe(24)
 
     async def delete(self, organization_id: UUID, chatbot_id: UUID) -> None:
         await self.session.delete(await self.get(organization_id, chatbot_id))

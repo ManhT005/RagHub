@@ -42,6 +42,21 @@ Roles are `OWNER`, `ADMIN`, `EDITOR`, and `VIEWER`. Authorization is enforced
 at the API boundary; repositories still apply organization and workspace filters
 to protect retrieval and document data isolation.
 
+## Public chat boundary
+
+The public chatbot router is an access gateway around the existing RAG chat service. A
+`public_key` resolves one published chatbot, and the backend derives its organization and
+workspace; public request bodies cannot supply either value. Browser traffic is checked against
+the chatbot's canonical origin allowlist, while traffic without an `Origin` requires a
+chatbot-scoped API key stored as an HMAC digest.
+
+Before an SSE response starts, Redis atomically applies a fixed-window chatbot/IP rate limit and
+acquires a sorted-set lease at chatbot and organization scope. The stream generator releases both
+lease memberships in `finally`; scores and key TTLs provide crash recovery. Redis guard failures
+fail closed. The gateway then delegates retrieval, citations, persistence, provider streaming and
+usage accounting to `ChatbotService.stream`, preserving the existing tenant filters and SSE
+contract.
+
 ## Error contract
 
 Application and validation errors use one envelope:

@@ -73,6 +73,34 @@ be replaced by a semantic model before semantic vector search is offered.
 - `POST /chatbots/{chatbot_id}/chat` requires a published chatbot and returns `text/event-stream`. Events are `conversation`, `citations`, zero or more `token`, then `done`; failures are `error`. Citations are derived from the request retrieval hits, never from model-generated text.
 - Set `GEMINI_API_KEY` in the server environment. The backend uses Gemini's OpenAI-compatible streaming endpoint; credentials never reach the client.
 
+## Public chatbot access
+
+Publishing a chatbot creates a stable, non-secret `public_key`. Administrators configure browser
+origins with `GET`/`PUT /chatbots/{chatbot_id}/allowed-origins` and manage server-to-server keys
+with `GET`/`POST /chatbots/{chatbot_id}/api-keys` plus
+`POST /chatbots/{chatbot_id}/api-keys/{key_id}/revoke`. The raw API key is returned only by the
+create response; only its HMAC-SHA256 digest is stored.
+
+Public clients use:
+
+- `GET /public/chatbots/{public_key}/config`
+- `POST /public/chatbots/{public_key}/conversations` with `{}`
+- `POST /public/chatbots/{public_key}/chat` with `message` and optional `conversation_id`
+
+Browser calls must send an exact allowed `Origin`. Server-to-server calls omit `Origin` and send
+`X-RagHub-API-Key`. If `Origin` is present it is always checked and an API key cannot bypass a
+blocked origin. Public payloads reject unknown fields, including tenant/workspace identifiers.
+Chat is rate-limited by chatbot and client IP and protected by Redis leases at chatbot and
+organization scope. A limit breach returns `429`; unavailable Redis guards return `503`.
+
+Public chat uses the same SSE order as authenticated chat: `conversation`, `citations`, `token`,
+`usage`, `done`, or `error` without a subsequent `done`. Allowed browser responses reflect the
+exact origin and include `Vary: Origin`.
+
+Run `scripts/public-chat-smoke.ps1 -PublicKey <key> -Origin https://allowed.example` for widget
+mode, or replace `-Origin` with `-ApiKey <raw-key>` for server-to-server mode. Never place an API
+key in browser JavaScript.
+
 ## Health
 
 - `GET /health/live` checks the API process.

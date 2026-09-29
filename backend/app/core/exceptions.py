@@ -16,11 +16,13 @@ class AppError(Exception):
         *,
         status_code: int = 400,
         details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.code = code
         self.message = message
         self.status_code = status_code
         self.details = details or {}
+        self.headers = headers or {}
         super().__init__(message)
 
 
@@ -35,6 +37,7 @@ def _error_response(
     code: str,
     message: str,
     details: dict[str, Any] | list[Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
@@ -46,6 +49,7 @@ def _error_response(
                 "details": details or {},
             }
         },
+        headers=headers,
     )
 
 
@@ -58,6 +62,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             code=exc.code,
             message=exc.message,
             details=exc.details,
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
