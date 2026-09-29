@@ -109,7 +109,7 @@ a {
 }
 
 /* Legacy feature views share this neutral treatment while their components migrate. */
-.design-system-light button:not(.secondary):not(.text-button):not(.danger),
+.design-system-light button:not(.secondary):not(.text-button):not(.danger):not(.link),
 .design-system-light .empty-console a,
 .design-system-light .empty-state a,
 .design-system-light .overview a,
