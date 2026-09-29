@@ -134,9 +134,10 @@ async def test_concurrency_limit_reports_scope_and_release_is_idempotent() -> No
         await ConcurrencyLimiter(limited).acquire(uuid4(), uuid4(), 2, 10, 180)
     assert caught.value.details == {"scope": "organization"}
 
-    available = ScriptedRedis(0, 1, 1)
+    available = ScriptedRedis(0, 1, 1, 1)
     limiter = ConcurrencyLimiter(available)
     lease = await limiter.acquire(uuid4(), uuid4(), 2, 10, 180)
+    assert await limiter.renew(lease, 180)
     await limiter.release(lease)
     await limiter.release(lease)
-    assert len(available.calls) == 3
+    assert len(available.calls) == 4

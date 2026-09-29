@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from uuid import uuid4
@@ -34,9 +35,12 @@ async def test_real_redis_rate_limit_and_concurrency_lease() -> None:
             await limiter.consume("integration", chatbot_id, ip, limit=1, window_seconds=2)
 
         concurrency = ConcurrencyLimiter(redis)
-        lease = await concurrency.acquire(chatbot_id, organization_id, 1, 1, 30)
+        lease = await concurrency.acquire(chatbot_id, organization_id, 1, 1, 1)
+        await asyncio.sleep(0.7)
+        assert await concurrency.renew(lease, 1)
+        await asyncio.sleep(0.7)
         with pytest.raises(AppError) as caught:
-            await concurrency.acquire(chatbot_id, organization_id, 1, 1, 30)
+            await concurrency.acquire(chatbot_id, organization_id, 1, 1, 1)
         assert caught.value.details == {"scope": "chatbot"}
         await concurrency.release(lease)
         replacement = await concurrency.acquire(chatbot_id, organization_id, 1, 1, 30)

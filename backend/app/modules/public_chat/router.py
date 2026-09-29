@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from contextlib import suppress
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
@@ -134,6 +135,29 @@ async def public_chat(
     )
 
     async def events():
+        stop_heartbeat = asyncio.Event()
+        stream_task = asyncio.current_task()
+
+        async def heartbeat() -> None:
+            interval = max(1.0, settings.public_chat_concurrency_lease_seconds / 3)
+            while not stop_heartbeat.is_set():
+                try:
+                    await asyncio.wait_for(stop_heartbeat.wait(), timeout=interval)
+                    return
+                except TimeoutError:
+                    try:
+                        renewed = await limiter.renew(
+                            lease, settings.public_chat_concurrency_lease_seconds
+                        )
+                        if not renewed:
+                            raise RuntimeError("Public chat concurrency lease no longer exists")
+                    except Exception:
+                        logger.exception("Failed to renew public chat concurrency lease")
+                        if stream_task is not None:
+                            stream_task.cancel()
+                        return
+
+        heartbeat_task = asyncio.create_task(heartbeat())
         try:
             try:
                 async for event, data in ChatbotService(session).stream(
@@ -152,6 +176,10 @@ async def public_chat(
                 error = {"code": "INTERNAL_ERROR", "message": "The chat stream failed."}
                 yield f"event: error\ndata: {json.dumps(error)}\n\n"
         finally:
+            stop_heartbeat.set()
+            heartbeat_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat_task
             await asyncio.shield(limiter.release(lease))
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}

@@ -30,6 +30,21 @@ redis.call('ZREM', KEYS[2], ARGV[1])
 return 1
 """
 
+RENEW_SCRIPT = """
+local chatbot_score = redis.call('ZSCORE', KEYS[1], ARGV[1])
+local organization_score = redis.call('ZSCORE', KEYS[2], ARGV[1])
+if not chatbot_score or not organization_score then
+    redis.call('ZREM', KEYS[1], ARGV[1])
+    redis.call('ZREM', KEYS[2], ARGV[1])
+    return 0
+end
+redis.call('ZADD', KEYS[1], tonumber(ARGV[2]), ARGV[1])
+redis.call('ZADD', KEYS[2], tonumber(ARGV[2]), ARGV[1])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+return 1
+"""
+
 
 @dataclass(frozen=True)
 class ConcurrencyLease:
@@ -97,3 +112,23 @@ class ConcurrencyLimiter:
             )
         except Exception:
             logger.exception("Failed to release public chat concurrency lease")
+
+    async def renew(self, lease: ConcurrencyLease, lease_seconds: int) -> bool:
+        expires_ms = int(time.time() * 1000) + lease_seconds * 1000
+        try:
+            result = await self.redis.eval(
+                RENEW_SCRIPT,
+                2,
+                lease.chatbot_key,
+                lease.organization_key,
+                lease.lease_id,
+                expires_ms,
+                lease_seconds + 30,
+            )
+        except Exception as exc:
+            raise AppError(
+                "PUBLIC_GUARD_UNAVAILABLE",
+                "Public access guards are temporarily unavailable.",
+                status_code=503,
+            ) from exc
+        return bool(result)
