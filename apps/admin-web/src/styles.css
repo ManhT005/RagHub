@@ -1,18 +1,18 @@
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
 
 :root {
-  --rh-bg: #060b1c;
-  --rh-surface: #101a31;
-  --rh-surface-raised: #14213a;
-  --rh-surface-soft: #192744;
-  --rh-border: #263757;
-  --rh-text: #edf5ff;
-  --rh-muted: #91a6c7;
-  --rh-cyan: #00d9ff;
-  --rh-indigo: #5b3df5;
-  --rh-success: #00d69c;
-  --rh-danger: #fb5e75;
-  color-scheme: dark;
+  --rh-bg: #f6f6f3;
+  --rh-surface: #ffffff;
+  --rh-surface-raised: #f1f1ee;
+  --rh-surface-soft: #e8e8e5;
+  --rh-border: #d8d8d3;
+  --rh-text: #111111;
+  --rh-muted: #646464;
+  --rh-cyan: #111111;
+  --rh-indigo: #111111;
+  --rh-success: #166534;
+  --rh-danger: #b42318;
+  color-scheme: light;
 }
 
 * {
@@ -46,7 +46,7 @@ a {
   border: 1px solid var(--rh-border);
   border-radius: 16px;
   background: var(--rh-surface);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
 }
 
 .ant-card-head {
@@ -87,7 +87,7 @@ a {
 .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
 .ant-dropdown-menu-item:hover {
   color: var(--rh-text);
-  background: rgba(91, 61, 245, 0.25);
+  background: #e8e8e5;
 }
 
 .ant-btn-primary {
@@ -106,4 +106,54 @@ a {
 .ant-table-thead > tr > th {
   color: var(--rh-muted);
   background: var(--rh-surface-raised);
+}
+
+/* Legacy feature views share this neutral treatment while their components migrate. */
+.design-system-light button:not(.secondary):not(.text-button):not(.danger),
+.design-system-light .empty-console a,
+.design-system-light .empty-state a,
+.design-system-light .overview a,
+.design-system-light .section-title > span,
+.design-system-light .bubble.user {
+  background: #111 !important;
+}
+
+.design-system-light .secondary {
+  color: #111 !important;
+  background: #e8e8e5 !important;
+}
+
+.design-system-light .text-button {
+  color: #111 !important;
+  background: transparent !important;
+}
+
+.design-system-light .danger {
+  background: var(--rh-danger) !important;
+}
+
+.design-system-light .upload-box {
+  border-color: var(--rh-border) !important;
+  background: var(--rh-surface-raised) !important;
+}
+
+.design-system-light .document-row.selected {
+  border-color: #111 !important;
+  box-shadow: 0 0 0 1px rgba(17, 17, 17, 0.18) !important;
+}
+
+.design-system-light .chat-guard {
+  color: #333 !important;
+  background: #e8e8e5 !important;
+}
+
+.design-system-light .error,
+.design-system-light .document-error {
+  color: var(--rh-danger) !important;
+}
+
+.design-system-light .citations li,
+.design-system-light .citations button {
+  color: var(--rh-text) !important;
+  background: var(--rh-surface) !important;
 }

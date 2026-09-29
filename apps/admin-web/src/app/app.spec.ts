@@ -16,7 +16,7 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('RagHub');
   });
 
-  it('marks the application shell with the dark design system', async () => {
+  it('marks the application shell with the light monochrome design system', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
       providers: appConfig.providers,
@@ -25,9 +25,9 @@ describe('AppComponent', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.app-shell')?.classList).toContain(
-      'design-system-dark',
-    );
+    const shell = fixture.nativeElement.querySelector('.app-shell') as HTMLElement;
+    expect(shell.classList.contains('design-system-light')).toBe(true);
+    expect(shell.classList.contains('design-system-dark')).toBe(false);
   });
 
   it('links navigation to Workspace Console and organization settings', async () => {

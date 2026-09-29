@@ -7,7 +7,7 @@ nz-sider {
   top: 0;
   height: 100vh;
   border-right: 1px solid var(--rh-border);
-  background: #081126;
+  background: #fff;
 }
 
 .brand {
@@ -16,11 +16,11 @@ nz-sider {
   align-items: center;
   height: 88px;
   padding: 0 24px;
-  color: #fff;
+  color: var(--rh-text);
 }
 
 .brand:hover {
-  color: #fff;
+  color: var(--rh-text);
 }
 
 .brand-mark {
@@ -29,9 +29,9 @@ nz-sider {
   height: 40px;
   place-items: center;
   border-radius: 12px;
-  border: 1px solid rgba(0, 217, 255, 0.68);
-  background: linear-gradient(135deg, var(--rh-indigo), var(--rh-cyan));
-  box-shadow: 0 0 22px rgba(0, 217, 255, 0.23);
+  border: 1px solid #111;
+  background: #111;
+  box-shadow: none;
   font-size: 20px;
   font-weight: 800;
 }
@@ -71,7 +71,7 @@ nz-header {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--rh-border);
-  background: rgba(12, 22, 43, 0.94);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--rh-text);
 }
 
@@ -92,31 +92,39 @@ nz-header strong,
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border: 1px solid rgba(0, 217, 255, 0.35);
+  border: 1px solid var(--rh-border);
   border-radius: 999px;
-  color: var(--rh-cyan);
-  background: rgba(0, 217, 255, 0.08);
+  color: var(--rh-text);
+  background: #fff;
   font-weight: 600;
 }
 
 nz-content {
   padding: 32px;
   background:
-    radial-gradient(circle at 90% -20%, rgba(91, 61, 245, 0.2), transparent 30%),
+    radial-gradient(circle at 90% -20%, rgba(17, 17, 17, 0.05), transparent 30%),
     var(--rh-bg);
 }
 
 :host ::ng-deep .ant-menu-dark,
 :host ::ng-deep .ant-menu-dark .ant-menu-sub {
-  background: #081126;
+  background: #fff;
 }
 
-:host ::ng-deep .ant-menu-dark .ant-menu-item-selected {
-  background: linear-gradient(90deg, rgba(91, 61, 245, 0.88), rgba(0, 217, 255, 0.24));
+:host ::ng-deep .ant-menu-dark .ant-menu-item,
+:host ::ng-deep .ant-menu-dark .ant-menu-item a {
+  color: #111;
+}
+
+:host ::ng-deep .ant-menu-dark .ant-menu-item-selected,
+:host ::ng-deep .ant-menu-dark .ant-menu-item-selected a {
+  color: #fff;
+  background: #111;
 }
 
 :host ::ng-deep .ant-menu-dark .ant-menu-item:hover {
-  background: rgba(0, 217, 255, 0.08);
+  color: #111;
+  background: #f1f1ee;
 }
 
 @media (max-width: 760px) {
