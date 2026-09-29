@@ -30,6 +30,10 @@ router = APIRouter(prefix="/public/chatbots", tags=["public-chat"])
 logger = logging.getLogger(__name__)
 
 
+def _attach_cors_to_error(exc: AppError, headers: dict[str, str]) -> None:
+    exc.headers.update(headers)
+
+
 async def _access(
     public_key: str,
     session: AsyncSession,
@@ -91,18 +95,23 @@ async def create_public_conversation(
 ) -> PublicConversationResponse:
     del payload
     context = await _access(public_key, session, origin, api_key)
-    await FixedWindowRateLimiter(redis).consume(
-        "public-conversation",
-        context.chatbot_id,
-        resolve_client_ip(request, settings),
-        settings.public_conversation_rate_limit_requests,
-        settings.public_conversation_rate_limit_window_seconds,
-    )
+    cors = cors_headers(context)
+    try:
+        await FixedWindowRateLimiter(redis).consume(
+            "public-conversation",
+            context.chatbot_id,
+            resolve_client_ip(request, settings),
+            settings.public_conversation_rate_limit_requests,
+            settings.public_conversation_rate_limit_window_seconds,
+        )
+    except AppError as exc:
+        _attach_cors_to_error(exc, cors)
+        raise
     conversation = Conversation(chatbot_id=context.chatbot_id, external_user_id=None)
     session.add(conversation)
     await session.commit()
     await session.refresh(conversation)
-    response.headers.update(cors_headers(context))
+    response.headers.update(cors)
     return PublicConversationResponse(conversation_id=conversation.id)
 
 
@@ -118,21 +127,30 @@ async def public_chat(
     api_key: Annotated[str | None, Header(alias="X-RagHub-API-Key")] = None,
 ) -> StreamingResponse:
     context = await _access(public_key, session, origin, api_key)
-    await FixedWindowRateLimiter(redis).consume(
-        "public-chat",
-        context.chatbot_id,
-        resolve_client_ip(request, settings),
-        settings.public_chat_rate_limit_requests,
-        settings.public_chat_rate_limit_window_seconds,
-    )
+    cors = cors_headers(context)
+    try:
+        await FixedWindowRateLimiter(redis).consume(
+            "public-chat",
+            context.chatbot_id,
+            resolve_client_ip(request, settings),
+            settings.public_chat_rate_limit_requests,
+            settings.public_chat_rate_limit_window_seconds,
+        )
+    except AppError as exc:
+        _attach_cors_to_error(exc, cors)
+        raise
     limiter = ConcurrencyLimiter(redis)
-    lease = await limiter.acquire(
-        context.chatbot_id,
-        context.organization_id,
-        settings.public_chat_max_concurrent_per_chatbot,
-        settings.public_chat_max_concurrent_per_org,
-        settings.public_chat_concurrency_lease_seconds,
-    )
+    try:
+        lease = await limiter.acquire(
+            context.chatbot_id,
+            context.organization_id,
+            settings.public_chat_max_concurrent_per_chatbot,
+            settings.public_chat_max_concurrent_per_org,
+            settings.public_chat_concurrency_lease_seconds,
+        )
+    except AppError as exc:
+        _attach_cors_to_error(exc, cors)
+        raise
 
     async def events():
         stop_heartbeat = asyncio.Event()
@@ -183,5 +201,5 @@ async def public_chat(
             await asyncio.shield(limiter.release(lease))
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    headers.update(cors_headers(context))
+    headers.update(cors)
     return StreamingResponse(events(), media_type="text/event-stream", headers=headers)
