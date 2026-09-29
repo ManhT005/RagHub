@@ -1,9 +1,16 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { session } from '../core/api-auth.interceptor';
-import { Organization, RaghubApiService, Workspace } from '../core/raghub-api.service';
+import {
+  Chatbot,
+  DocumentItem,
+  Organization,
+  ProviderConfig,
+  RaghubApiService,
+  Workspace,
+} from '../core/raghub-api.service';
 
 @Component({
   selector: 'raghub-workspace-console',
@@ -15,6 +22,17 @@ import { Organization, RaghubApiService, Workspace } from '../core/raghub-api.se
 export class WorkspaceConsoleComponent {
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
+  protected readonly providers = signal<ProviderConfig[]>([]);
+  protected readonly documents = signal<DocumentItem[]>([]);
+  protected readonly bots = signal<Chatbot[]>([]);
+  protected readonly selectedBot = signal<Chatbot | null>(null);
+  protected readonly hasReadyDocument = computed(() =>
+    this.documents().some((item) => item.status === 'READY'),
+  );
+  protected readonly hasChatProvider = computed(() =>
+    this.providers().some((item) => item.capability === 'CHAT' && item.enabled),
+  );
+  protected readonly hasPublishedBot = computed(() => Boolean(this.selectedBot()?.published));
   protected readonly error = signal('');
   protected selectedOrganization = session.organizationId ?? '';
   protected selectedWorkspace = '';
@@ -40,8 +58,32 @@ export class WorkspaceConsoleComponent {
       next: (items) => {
         this.workspaces.set(items);
         this.selectedWorkspace = items[0]?.id ?? '';
+        this.changeWorkspace();
       },
       error: () => this.error.set('Không thể tải danh sách không gian làm việc.'),
+    });
+  }
+
+  protected changeWorkspace(): void {
+    this.providers.set([]);
+    this.documents.set([]);
+    this.bots.set([]);
+    this.selectedBot.set(null);
+    if (!this.selectedOrganization || !this.selectedWorkspace) return;
+    this.api.providers(this.selectedOrganization).subscribe({
+      next: (items) => this.providers.set(items),
+      error: () => this.error.set('Không thể tải cấu hình AI của tổ chức.'),
+    });
+    this.api.documents(this.selectedWorkspace).subscribe({
+      next: (items) => this.documents.set(items),
+      error: () => this.error.set('Không thể tải tài liệu của workspace.'),
+    });
+    this.api.chatbots(this.selectedWorkspace).subscribe({
+      next: (items) => {
+        this.bots.set(items);
+        this.selectedBot.set(items.find((bot) => bot.published) ?? items[0] ?? null);
+      },
+      error: () => this.error.set('Không thể tải chatbot của workspace.'),
     });
   }
 }

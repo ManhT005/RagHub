@@ -23,13 +23,18 @@
   } @else {
     <section class="context-card">
       <label>Workspace đang làm việc
-        <select [(ngModel)]="selectedWorkspace">
+        <select [(ngModel)]="selectedWorkspace" (change)="changeWorkspace()">
           @for (workspace of workspaces(); track workspace.id) {
             <option [value]="workspace.id">{{ workspace.name }}</option>
           }
         </select>
       </label>
-      <span>Đang tải thông tin workspace…</span>
+      <span>{{ hasPublishedBot() && hasReadyDocument() ? 'Sẵn sàng chat' : 'Cần hoàn tất thiết lập' }}</span>
+    </section>
+    <section class="readiness" aria-label="Các bước sẵn sàng cho RAG chat">
+      <button type="button" [class.ready]="hasChatProvider()">AI provider: {{ hasChatProvider() ? 'Sẵn sàng' : 'Cần thiết lập' }}<strong>Thiết lập AI</strong></button>
+      <button type="button" [class.ready]="hasReadyDocument()">Tài liệu: {{ hasReadyDocument() ? 'Sẵn sàng' : 'Cần tải tài liệu' }}<strong>Tải tài liệu</strong></button>
+      <button type="button" [class.ready]="hasPublishedBot()">Chatbot: {{ hasPublishedBot() ? 'Sẵn sàng' : 'Chưa xuất bản' }}<strong>Xuất bản chatbot</strong></button>
     </section>
   }
 </main>
