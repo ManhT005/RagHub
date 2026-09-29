@@ -30,6 +30,18 @@ describe('AppComponent', () => {
     expect(shell.classList.contains('design-system-dark')).toBe(false);
   });
 
+  it('uses the light menu theme for the white sidebar', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+      providers: appConfig.providers,
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('ul')?.getAttribute('nztheme')).toBe('light');
+  });
+
   it('links navigation to Workspace Console and organization settings', async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
