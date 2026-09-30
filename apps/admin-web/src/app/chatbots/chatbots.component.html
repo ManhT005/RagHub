@@ -80,6 +80,7 @@
         <div class="button-row">
           <button (click)="saveBot()">{{ selectedBot() ? 'Lưu thay đổi' : 'Tạo chatbot' }}</button>
           @if (selectedBot()) { <button class="secondary" (click)="togglePublish()">{{ selectedBot()?.published ? 'Ngừng xuất bản' : 'Xuất bản' }}</button> }
+          @if (selectedBot()) { <a class="settings-link" [routerLink]="['/app/chatbots', selectedBot()!.id, 'settings']">Cài đặt chatbot</a> }
         </div>
       </article>
 

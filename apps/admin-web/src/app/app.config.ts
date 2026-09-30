@@ -11,6 +11,8 @@ import {
   DatabaseOutline,
   FileTextOutline,
   MessageOutline,
+  BellOutline,
+  SettingOutline,
 } from '@ant-design/icons-angular/icons';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 
@@ -31,6 +33,8 @@ export const appConfig: ApplicationConfig = {
       DatabaseOutline,
       FileTextOutline,
       MessageOutline,
+      BellOutline,
+      SettingOutline,
       CloudServerOutline,
     ]),
   ],

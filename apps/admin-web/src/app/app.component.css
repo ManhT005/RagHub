@@ -6,7 +6,8 @@ nz-sider {
   position: sticky;
   top: 0;
   height: 100vh;
-  background: #0b1736;
+  border-right: 1px solid var(--rh-border);
+  background: #fff;
 }
 
 .brand {
@@ -15,37 +16,42 @@ nz-sider {
   align-items: center;
   height: 88px;
   padding: 0 24px;
-  color: #fff;
+  color: var(--rh-text);
 }
 
 .brand:hover {
-  color: #fff;
+  color: var(--rh-text);
 }
 
 .brand-mark {
   display: grid;
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #26d9aa, #2878ff);
-  font-size: 20px;
-  font-weight: 800;
+  overflow: visible;
+  background: #fff;
 }
 
-.brand strong,
-.brand small {
+.brand-logo {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 58px;
+  height: 58px;
+  max-width: none;
+  object-fit: contain;
+  clip-path: inset(0 0 35% 0);
+  transform: translateX(-50%);
+}
+
+.brand strong {
   display: block;
 }
 
 .brand strong {
   font-size: 18px;
   letter-spacing: 0.02em;
-}
-
-.brand small {
-  color: #8fa6d6;
-  font-size: 11px;
 }
 
 .ant-menu-item a,
@@ -55,23 +61,35 @@ nz-sider {
   align-items: center;
 }
 
+/* Routes cũ giữ lại để tương thích link; sidebar ưu tiên Workspace Console. */
+:host ::ng-deep .ant-menu > li:nth-child(3),
+:host ::ng-deep .ant-menu > li:nth-child(4) {
+  display: none;
+}
+
 nz-header {
   display: flex;
   height: 76px;
   padding: 0 32px;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e7eaf0;
-  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--rh-border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--rh-text);
+  line-height: normal;
 }
 
-nz-header strong,
+.header-title {
+  display: grid;
+  line-height: 1.2;
+}
+
 .eyebrow {
   display: block;
 }
 
 .eyebrow {
-  color: #68738b;
+  color: var(--rh-cyan);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -82,16 +100,51 @@ nz-header strong,
   gap: 8px;
   align-items: center;
   padding: 8px 12px;
-  border: 1px solid #cae8df;
+  border: 1px solid var(--rh-border);
   border-radius: 999px;
-  color: #087f5b;
-  background: #effcf7;
+  color: var(--rh-text);
+  background: #fff;
   font-weight: 600;
 }
 
 nz-content {
   padding: 32px;
-  background: #f4f6fa;
+  background: var(--rh-bg);
+}
+
+:host ::ng-deep .ant-menu,
+:host ::ng-deep .ant-menu .ant-menu-sub {
+  width: 100%;
+  background: #fff;
+}
+
+:host ::ng-deep .ant-menu-inline .ant-menu-item {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  border-radius: 0;
+}
+
+:host ::ng-deep .ant-menu-inline .ant-menu-item::after {
+  border-right: 0;
+}
+
+:host ::ng-deep .ant-menu .ant-menu-item,
+:host ::ng-deep .ant-menu .ant-menu-item a {
+  color: #111;
+}
+
+:host ::ng-deep .ant-menu .ant-menu-item-selected,
+:host ::ng-deep .ant-menu .ant-menu-item-selected a {
+  color: #fff;
+  background: #111;
+}
+
+:host ::ng-deep .ant-menu .ant-menu-item:hover,
+:host ::ng-deep .ant-menu .ant-menu-item:hover a {
+  color: #fff !important;
+  background: #000 !important;
+  opacity: 1;
 }
 
 @media (max-width: 760px) {

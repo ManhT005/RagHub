@@ -1,0 +1,12 @@
+:host{display:block;min-height:100vh;padding:12px;background:#f1f8ff;color:#0e2b61}
+.public-page{max-width:1500px;margin:auto;padding:0 5.5%;border:1px solid #e0edfd;border-radius:12px;background:linear-gradient(130deg,#fff,#f3f9ff);min-height:calc(100vh - 24px)}
+header{padding:60px 0 40px;max-width:820px}h1{font-size:clamp(32px,3.5vw,48px);line-height:1.2;letter-spacing:-1px;font-weight:750;color:#0a2050;margin:0 0 22px}
+p{font-size:16px;line-height:1.8;color:#52698b;max-width:72ch;margin:0 0 16px}h2{font-size:21px;color:#0e2b61;margin:0 0 14px}h3{font-size:18px;color:#0e2b61}
+.feature-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}.feature-grid article,.contact{padding:30px;background:#fff;border:1px solid #e3edf9;border-radius:14px}
+.icon{display:grid;place-items:center;width:44px;height:44px;border-radius:10px;color:#0866ff;background:#e8f3ff;font-size:26px;margin-bottom:20px}.red{color:#ff4155;background:#fff0f1}.violet{color:#684eff;background:#efebff}
+.development,.deployment{margin-top:36px;padding:28px 32px;background:#eef6ff;border-radius:14px;border:1px solid #dceaff}.actions{display:flex;gap:14px;flex-wrap:wrap;padding:32px 0 48px}.actions a{height:auto;padding:10px 22px}
+.solutions{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}.solutions article{border-top:3px solid #0866ff;padding-top:24px}.deployment-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px}.note{font-size:13px;color:#7185a2;margin-top:18px}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;padding-bottom:60px}.team{padding:24px 0}dl{margin:28px 0}dt{font-size:13px;color:#7185a2}dd{font-size:18px;margin:4px 0 20px;overflow-wrap:anywhere}a:focus-visible{outline:2px solid #0866ff;outline-offset:4px}
+footer{display:flex;justify-content:space-between;gap:16px;border-top:1px solid #e3edf9;padding:24px 0;color:#7185a2;font-size:13px}
+@media(max-width:800px){header{padding-top:36px}.solutions{grid-template-columns:1fr;gap:20px}.contact-grid{gap:24px}}
+@media(max-width:640px){:host{padding:8px}.public-page{padding:0 20px}.feature-grid,.deployment-grid,.contact-grid{grid-template-columns:1fr}.feature-grid article,.contact,.development,.deployment{padding:22px}p{font-size:14px}h2{font-size:19px}.contact-grid{padding-bottom:24px}footer{flex-direction:column}.actions{padding-bottom:28px}}

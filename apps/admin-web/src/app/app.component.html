@@ -1,15 +1,15 @@
-<nz-layout class="app-shell">
+<router-outlet />
+<!--
   <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">
     <a class="brand" routerLink="/" aria-label="Tổng quan RagHub">
-      <span class="brand-mark">R</span>
+      <span class="brand-mark"><img class="brand-logo" src="assets/logo.png" alt="RagHub" /></span>
       <span>
         <strong>RagHub</strong>
-        <small>Quản lý tri thức</small>
       </span>
     </a>
 
-    <ul nz-menu nzTheme="dark" nzMode="inline" aria-label="Điều hướng chính">
-      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+    <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng chính">
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected" [routerLinkActiveOptions]="{ exact: true }">
         <a routerLink="/"><nz-icon nzType="dashboard" />Tổng quan</a>
       </li>
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
@@ -21,14 +21,16 @@
       <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
         <a routerLink="/chatbots"><nz-icon nzType="message" />Chatbot</a>
       </li>
+      <li nz-menu-item nzMatchRouter routerLinkActive="ant-menu-item-selected">
+        <a routerLink="/settings"><nz-icon nzType="cloud-server" />Cài đặt tổ chức</a>
+      </li>
     </ul>
   </nz-sider>
 
   <nz-layout>
     <nz-header>
-      <div>
+      <div class="header-title">
         <span class="eyebrow">TRANG QUẢN TRỊ</span>
-        <strong>Không gian tri thức</strong>
       </div>
       <a class="phase-badge" routerLink="/auth"
         ><nz-icon nzType="cloud-server" />Tài khoản</a
@@ -39,3 +41,4 @@
     </nz-content>
   </nz-layout>
 </nz-layout>
+-->
