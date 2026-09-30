@@ -1,21 +1,21 @@
 import { Routes } from '@angular/router';
-
-import { DashboardComponent } from './dashboard/dashboard.component';
 import { AuthComponent } from './auth/auth.component';
-import { DocumentsComponent } from './documents/documents.component';
-import { WorkspacesComponent } from './workspaces/workspaces.component';
 import { ChatbotsComponent } from './chatbots/chatbots.component';
+import { DashboardComponent } from './dashboard/dashboard.component';
+import { DocumentsComponent } from './documents/documents.component';
 import { WorkspaceConsoleComponent } from './workspace-console/workspace-console.component';
+import { WorkspacesComponent } from './workspaces/workspaces.component';
+import { AdminLayoutComponent } from './layouts/admin-layout.component';
+import { LandingComponent } from './landing/landing.component';
 
 export const routes: Routes = [
-  { path: 'workspaces', component: WorkspaceConsoleComponent, title: 'Workspace Console | RagHub' },
-  { path: 'settings', component: WorkspacesComponent, title: 'Organization settings | RagHub' },
-  { path: 'documents', redirectTo: 'workspaces', pathMatch: 'full' },
-  { path: 'chatbots', redirectTo: 'workspaces', pathMatch: 'full' },
-  { path: '', pathMatch: 'full', component: DashboardComponent, title: 'Tổng quan | RagHub' },
+  { path: '', pathMatch: 'full', component: LandingComponent, title: 'RagHub' },
   { path: 'auth', component: AuthComponent, title: 'Tài khoản | RagHub' },
-  { path: 'workspaces', component: WorkspacesComponent, title: 'Không gian làm việc | RagHub' },
-  { path: 'documents', component: DocumentsComponent, title: 'Tài liệu | RagHub' },
-  { path: 'chatbots', component: ChatbotsComponent, title: 'Chatbot | RagHub' },
-  { path: '**', redirectTo: '' },
+  { path: 'app', component: AdminLayoutComponent, children: [
+    { path: 'overview', component: DashboardComponent }, { path: 'workspaces', component: WorkspacesComponent },
+    { path: 'workspace-console', component: WorkspaceConsoleComponent }, { path: 'documents', component: DocumentsComponent },
+    { path: 'chatbots', component: ChatbotsComponent }, { path: '', pathMatch: 'full', redirectTo: 'overview' },
+  ]},
+  { path: 'workspaces', pathMatch: 'full', redirectTo: 'app/workspaces' }, { path: 'documents', pathMatch: 'full', redirectTo: 'app/documents' },
+  { path: 'chatbots', pathMatch: 'full', redirectTo: 'app/chatbots' }, { path: 'settings', pathMatch: 'full', redirectTo: 'app/workspaces' }, { path: '**', redirectTo: '' },
 ];
