@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 import { session } from '../core/api-auth.interceptor';
 import { Membership, Organization, RaghubApiService, Workspace } from '../core/raghub-api.service';
 
 @Component({
   selector: 'raghub-workspaces',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './workspaces.component.html',
   styleUrl: './workspaces.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
