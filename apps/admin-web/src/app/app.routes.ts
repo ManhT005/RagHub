@@ -7,6 +7,7 @@ import { WorkspaceConsoleComponent } from './workspace-console/workspace-console
 import { WorkspacesComponent } from './workspaces/workspaces.component';
 import { AdminLayoutComponent } from './layouts/admin-layout.component';
 import { LandingComponent } from './landing/landing.component';
+import { ChatbotSettingsComponent } from './chatbots/chatbot-settings.component';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', component: LandingComponent, title: 'RagHub' },
@@ -14,7 +15,7 @@ export const routes: Routes = [
   { path: 'app', component: AdminLayoutComponent, children: [
     { path: 'overview', component: DashboardComponent }, { path: 'workspaces', component: WorkspacesComponent },
     { path: 'workspace-console', component: WorkspaceConsoleComponent }, { path: 'documents', component: DocumentsComponent },
-    { path: 'chatbots', component: ChatbotsComponent }, { path: '', pathMatch: 'full', redirectTo: 'overview' },
+    { path: 'chatbots/:id/settings', component: ChatbotSettingsComponent }, { path: 'chatbots', component: ChatbotsComponent }, { path: '', pathMatch: 'full', redirectTo: 'overview' },
   ]},
   { path: 'workspaces', pathMatch: 'full', redirectTo: 'app/workspaces' }, { path: 'documents', pathMatch: 'full', redirectTo: 'app/documents' },
   { path: 'chatbots', pathMatch: 'full', redirectTo: 'app/chatbots' }, { path: 'settings', pathMatch: 'full', redirectTo: 'app/workspaces' }, { path: '**', redirectTo: '' },
