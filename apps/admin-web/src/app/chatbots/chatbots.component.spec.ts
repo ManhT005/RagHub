@@ -67,4 +67,17 @@ describe('ChatbotsComponent', () => {
     expect(payloads.find((payload) => payload.capability === 'EMBEDDING')?.model).toBe('gemini-embedding-2');
     fixture.destroy();
   });
+
+  it('links a selected chatbot to its settings page', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent], providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+        providers: () => of([]), chatbots: () => of([{ id: 'bot-1', workspace_id: 'workspace-1', name: 'Bot', system_prompt: '', model: null, retrieval_limit: 5, published: true, created_at: '', updated_at: null }]),
+      }}],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('a[href="/app/chatbots/bot-1/settings"]')).not.toBeNull();
+  });
 });
