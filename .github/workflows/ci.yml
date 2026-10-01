@@ -5,6 +5,7 @@ on:
     branches: [develop, main]
   push:
     branches: [develop, main]
+    tags: ["v*.*.*"]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +16,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  docker-images:
+    name: Docker images
+    needs: [backend, frontend, widget, ingestion-integration, compose, migration]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-images.yml
+    with:
+      publish: ${{ github.event_name == 'push' }}
+
   widget:
     name: Widget checks
     runs-on: ubuntu-latest
@@ -163,14 +174,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
       - name: Validate Docker Compose configuration
         shell: bash
-        run: |
-          if [[ -f infrastructure/docker-compose.yml ]]; then
-            docker compose -f infrastructure/docker-compose.yml config --quiet
-          else
-            echo "Docker Compose has not been initialized yet; check is bootstrap-safe."
-          fi
+        run: python scripts/check-compose.py
+
+      - name: Lint GitHub Actions workflows
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7 -shellcheck= -pyflakes=
 
   migration:
     name: Database migration
