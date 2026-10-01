@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)
     public_chat_requests_per_ip: int = Field(default=20, ge=1)
     public_chat_requests_per_chatbot: int = Field(default=120, ge=1)
+    public_chat_concurrent_per_chatbot: int = Field(default=4, ge=1)
+    public_chat_concurrent_global: int = Field(default=32, ge=1)
+    public_chat_stream_timeout_seconds: float = Field(default=90, ge=1, le=600)
     ollama_base_url: str = "http://ollama:11434"
 
     frontend_url: str = "http://localhost:8080"

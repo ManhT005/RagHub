@@ -93,13 +93,15 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
             raise AppError("TEST_ERROR", "Try again", status_code=503)
 
     monkeypatch.setattr(router, "ChatbotService", FakeService)
+    limits = AsyncMock()
+    limits.settings = SimpleNamespace(public_chat_stream_timeout_seconds=90)
     response = await router.public_chat(
         "rgh_test",
         ChatRequest(message="Hello"),
         Request({"type": "http", "client": ("127.0.0.1", 1234)}),
         "http://localhost:8081",
         object(),
-        AsyncMock(),
+        limits,
     )
     frames = [frame async for frame in response.body_iterator]
     assert len(frames) == 2

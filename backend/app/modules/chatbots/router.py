@@ -1,7 +1,10 @@
+import asyncio
 import json
+import logging
 from typing import Annotated
 from uuid import UUID
 
+import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +31,26 @@ from app.modules.memberships.models import MembershipRole
 from app.modules.users.models import User
 
 router = APIRouter(tags=["chatbots"])
+logger = logging.getLogger(__name__)
+
+
+class PublicStreamingResponse(StreamingResponse):
+    def __init__(self, *args, limits, chatbot_id, slot, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.limits = limits
+        self.chatbot_id = chatbot_id
+        self.slot = slot
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # Starlette cancels the stream task on disconnect. Cleanup must survive it.
+            with anyio.CancelScope(shield=True):
+                try:
+                    await self.limits.release(self.chatbot_id, self.slot)
+                except Exception:
+                    logger.warning("Public slot release failed chatbot_id=%s", self.chatbot_id)
 
 
 def response(chatbot: object) -> ChatbotResponse:
@@ -190,23 +213,29 @@ async def public_chat(
     chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
     request.state.public_origin = origin
     await limits.check_rate(str(chatbot.id), request.client.host if request.client else "unknown")
+    slot = await limits.acquire(str(chatbot.id))
 
     async def events():
         try:
-            async for event, data in ChatbotService(session).stream(
-                chatbot.organization_id,
-                chatbot.id,
-                payload.message,
-                payload.conversation_id,
-                payload.external_user_id,
-            ):
-                yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            async with asyncio.timeout(limits.settings.public_chat_stream_timeout_seconds):
+                async for event, data in ChatbotService(session).stream(
+                    chatbot.organization_id,
+                    chatbot.id,
+                    payload.message,
+                    payload.conversation_id,
+                    payload.external_user_id,
+                ):
+                    yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        except TimeoutError:
+            error = {"code": "PUBLIC_CHAT_TIMEOUT", "message": "Chat timed out."}
+            yield f"event: error\ndata: {json.dumps(error)}\n\n"
         except AppError as exc:
             error = {"code": exc.code, "message": exc.message}
             yield f"event: error\ndata: {json.dumps(error)}\n\n"
 
-    return StreamingResponse(
+    return PublicStreamingResponse(
         events(),
+        limits=limits, chatbot_id=str(chatbot.id), slot=slot,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

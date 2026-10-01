@@ -15,6 +15,59 @@ from app.modules.chatbots.public_limits import PublicChatLimits, get_public_limi
 
 
 @pytest.mark.asyncio
+async def test_concurrent_admission_and_unique_release():
+    redis = AsyncMock()
+    redis.eval.return_value = 1
+    limits = PublicChatLimits(redis, Settings())
+    token = await limits.acquire("bot")
+    assert redis.eval.call_args.args[2:7] == (
+        "public:active:global", "public:active:bot:bot", 32, 4, 100,
+    )
+    await limits.release("bot", token)
+    assert redis.eval.call_args.args[-1] == token
+    redis.eval.return_value = 0
+    with pytest.raises(AppError) as error:
+        await limits.acquire("bot")
+    assert error.value.status_code == 429
+    assert error.value.code == "PUBLIC_CHAT_CONCURRENCY_LIMITED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["done", "provider_error", "timeout", "disconnect"])
+async def test_stream_releases_slot_on_every_exit(outcome):
+    import asyncio
+
+    from app.modules.chatbots.router import PublicStreamingResponse
+
+    limits = AsyncMock()
+    entered = asyncio.Event()
+
+    async def body():
+        entered.set()
+        if outcome == "provider_error":
+            raise RuntimeError("provider failed")
+        if outcome == "timeout":
+            async with asyncio.timeout(0.01):
+                await asyncio.sleep(10)
+        if outcome == "disconnect":
+            await asyncio.sleep(10)
+        yield "event: done\ndata: {}\n\n"
+
+    async def receive():
+        await entered.wait()
+        if outcome != "disconnect":
+            await asyncio.sleep(10)
+        return {"type": "http.disconnect"}
+
+    response = PublicStreamingResponse(body(), limits=limits, chatbot_id="bot", slot="slot")
+    try:
+        await response({"type": "http", "asgi": {"spec_version": "2.0"}}, receive, AsyncMock())
+    except Exception:
+        assert outcome in {"provider_error", "timeout"}
+    limits.release.assert_awaited_once_with("bot", "slot")
+
+
+@pytest.mark.asyncio
 async def test_rate_keys_are_shared_and_do_not_contain_raw_ip():
     redis = AsyncMock()
     redis.eval.return_value = 0
@@ -60,6 +113,7 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
     app.include_router(router.router)
     app.dependency_overrides[get_session] = lambda: None
     limits = AsyncMock()
+    limits.settings = Settings()
     app.dependency_overrides[get_public_limits] = lambda: limits
     app.dependency_overrides[router.get_organization_context] = lambda: bot
     app.dependency_overrides[router.get_current_user] = lambda: bot
@@ -72,6 +126,7 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
         )
         assert result.status_code == 200
         assert "event: done" in result.text
+        assert limits.release.await_count == 1
         limits.check_rate.side_effect = AppError(
             "PUBLIC_CHAT_RATE_LIMITED", "Too many requests.", status_code=429,
             details={"retry_after_seconds": 12},
