@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from app.core.config import get_settings
 from app.modules.ai_providers.adapters import (
     GoogleGeminiChatProvider,
     GoogleGeminiEmbeddingProvider,
@@ -70,6 +71,10 @@ class ProviderRegistry:
     def _include_stream_usage(config: ProviderConfig) -> bool:
         return bool((config.config_json or {}).get("include_stream_usage", True))
 
+    @staticmethod
+    def _gemini_secret(secret: str | None) -> str | None:
+        return secret or get_settings().gemini_api_key or None
+
     @classmethod
     def _openai_embedding(cls, config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
         return OpenAICompatibleEmbeddingProvider(
@@ -96,7 +101,7 @@ class ProviderRegistry:
             base_url=config.base_url or "https://generativelanguage.googleapis.com/v1beta/openai",
             model=config.model,
             dimension=config.dimension or 0,
-            secret=secret,
+            secret=cls._gemini_secret(secret),
             policy=cls._policy(config),
         )
 
@@ -105,7 +110,7 @@ class ProviderRegistry:
         return GoogleGeminiChatProvider(
             base_url=config.base_url or "https://generativelanguage.googleapis.com/v1beta/openai",
             model=config.model,
-            secret=secret,
+            secret=cls._gemini_secret(secret),
             policy=cls._policy(config),
             include_stream_usage=cls._include_stream_usage(config),
         )

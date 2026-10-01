@@ -5,15 +5,21 @@
       <h1>Workspace Console</h1>
       <p>Quản lý tài liệu và thử câu trả lời RAG trong cùng một nơi.</p>
     </div>
-    <label>Tổ chức
-      <select [(ngModel)]="selectedOrganization" (change)="changeOrganization()">
+    <label
+      >Tổ chức
+      <select
+        [(ngModel)]="selectedOrganization"
+        (change)="changeOrganization()"
+      >
         @for (organization of organizations(); track organization.id) {
           <option [value]="organization.id">{{ organization.name }}</option>
         }
       </select>
     </label>
   </header>
-  @if (error()) { <p class="message error">{{ error() }}</p> }
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
   @if (!workspaces().length) {
     <section class="empty-console">
       <h2>Tạo workspace đầu tiên</h2>
@@ -22,58 +28,274 @@
     </section>
   } @else {
     <section class="context-card">
-      <label>Workspace đang làm việc
+      <label
+        >Workspace đang làm việc
         <select [(ngModel)]="selectedWorkspace" (change)="changeWorkspace()">
           @for (workspace of workspaces(); track workspace.id) {
             <option [value]="workspace.id">{{ workspace.name }}</option>
           }
         </select>
       </label>
-      <span>{{ hasPublishedBot() && hasReadyDocument() ? 'Sẵn sàng chat' : 'Cần hoàn tất thiết lập' }}</span>
+      <span>{{
+        hasPublishedBot() && hasReadyDocument()
+          ? "Sẵn sàng chat"
+          : "Cần hoàn tất thiết lập"
+      }}</span>
     </section>
     <section class="readiness" aria-label="Các bước sẵn sàng cho RAG chat">
-      <button type="button" [class.ready]="hasChatProvider()">AI provider: {{ hasChatProvider() ? 'Sẵn sàng' : 'Cần thiết lập' }}<strong>Thiết lập AI</strong></button>
-      <button type="button" [class.ready]="hasReadyDocument()">Tài liệu: {{ hasReadyDocument() ? 'Sẵn sàng' : 'Cần tải tài liệu' }}<strong>Tải tài liệu</strong></button>
-      <button type="button" [class.ready]="hasPublishedBot()">Chatbot: {{ hasPublishedBot() ? 'Sẵn sàng' : 'Chưa xuất bản' }}<strong>Xuất bản chatbot</strong></button>
+      <button type="button" [class.ready]="hasChatProvider()">
+        AI provider: {{ hasChatProvider() ? "Sẵn sàng" : "Cần thiết lập"
+        }}<strong>Thiết lập AI</strong>
+      </button>
+      <button type="button" [class.ready]="hasReadyDocument()">
+        Tài liệu: {{ hasReadyDocument() ? "Sẵn sàng" : "Cần tải tài liệu"
+        }}<strong>Tải tài liệu</strong>
+      </button>
+      <button type="button" [class.ready]="hasPublishedBot()">
+        Chatbot: {{ hasPublishedBot() ? "Sẵn sàng" : "Chưa xuất bản"
+        }}<strong>Xuất bản chatbot</strong>
+      </button>
     </section>
     <section class="console-grid">
       <article class="document-panel">
-        <div class="panel-heading"><div><p class="eyebrow">NGUỒN TRI THỨC</p><h2>Tài liệu</h2></div><span>{{ documents().length }} tệp</span></div>
-        <div class="upload-box"><input #fileInput type="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" /><button type="button" (click)="upload()">Tải tài liệu lên</button></div>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NGUỒN TRI THỨC</p>
+            <h2>Tài liệu</h2>
+          </div>
+          <span>{{ documents().length }} tệp</span>
+        </div>
+        <div class="upload-box">
+          <input
+            #fileInput
+            type="file"
+            accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+          /><button type="button" (click)="upload()">Tải tài liệu lên</button>
+        </div>
         <div class="document-list">
           @for (document of documents(); track document.id) {
-            <article class="document-row" [class.selected]="selectedDocumentId() === document.id" (click)="selectDocument(document.id)">
-              <div><strong>{{ document.name }}</strong><small>{{ statusLabel(document.stage ?? document.status) }} · {{ document.progress ?? 0 }}%</small>
-                @if (document.error_code) { <p class="document-error">{{ ingestionErrorMessage(document.error_code) }}</p> }</div>
+            <article
+              class="document-row"
+              [class.selected]="selectedDocumentId() === document.id"
+              (click)="selectDocument(document.id)"
+            >
+              <div>
+                <strong>{{ document.name }}</strong
+                ><small
+                  >{{ statusLabel(document.stage ?? document.status) }} ·
+                  {{ document.progress ?? 0 }}%</small
+                >
+                @if (document.error_code) {
+                  <p class="document-error">
+                    {{ ingestionErrorMessage(document.error_code) }}
+                  </p>
+                }
+              </div>
               <div class="document-actions">
-                @if (document.status === 'FAILED' && document.retryable) { <button type="button" (click)="retry(document); $event.stopPropagation()">Thử lại</button> }
-                @if (document.status === 'READY' && document.document_version_id) { <button type="button" (click)="reindex(document); $event.stopPropagation()">{{ reindexingVersionId() === document.document_version_id ? 'Đang lập chỉ mục…' : 'Lập chỉ mục lại' }}</button> }
-                <button class="danger" type="button" (click)="remove(document); $event.stopPropagation()">Xóa</button>
+                @if (document.status === "FAILED" && document.retryable) {
+                  <button
+                    type="button"
+                    (click)="retry(document); $event.stopPropagation()"
+                  >
+                    Thử lại
+                  </button>
+                }
+                @if (
+                  document.status === "READY" && document.document_version_id
+                ) {
+                  <button
+                    type="button"
+                    (click)="reindex(document); $event.stopPropagation()"
+                  >
+                    {{
+                      reindexingVersionId() === document.document_version_id
+                        ? "Đang lập chỉ mục…"
+                        : "Lập chỉ mục lại"
+                    }}
+                  </button>
+                }
+                <button
+                  class="danger"
+                  type="button"
+                  (click)="remove(document); $event.stopPropagation()"
+                >
+                  Xóa
+                </button>
               </div>
             </article>
-          } @empty { <p class="empty-list">Tải tài liệu đầu tiên để bắt đầu xây dựng tri thức.</p> }
+          } @empty {
+            <p class="empty-list">
+              Tải tài liệu đầu tiên để bắt đầu xây dựng tri thức.
+            </p>
+          }
         </div>
       </article>
       <article class="assistant-placeholder">
-        <div class="assistant-heading"><div><p class="eyebrow">TRỢ LÝ RAG</p><h2>Hỏi tài liệu</h2></div><button type="button" class="secondary" (click)="toggleSetup()">{{ setupOpen() ? 'Đóng thiết lập' : 'Thiết lập' }}</button></div>
+        <div class="assistant-heading">
+          <div>
+            <p class="eyebrow">TRỢ LÝ RAG</p>
+            <h2>Hỏi tài liệu</h2>
+          </div>
+          <button type="button" class="secondary" (click)="toggleSetup()">
+            {{ setupOpen() ? "Đóng thiết lập" : "Thiết lập" }}
+          </button>
+        </div>
         @if (setupOpen()) {
           <section class="setup-panel">
-            <h3>Kết nối AI</h3><label>Model Ollama<input [(ngModel)]="localChatModel" [ngModelOptions]="{standalone: true}" name="localChatModel" /></label><button type="button" (click)="configureLocal()">Dùng local Ollama</button>
-            <details class="gemini-setup"><summary>Dùng Gemini thay thế</summary><div><label>Gemini API key<input [(ngModel)]="geminiApiKey" [ngModelOptions]="{standalone: true}" name="geminiApiKey" type="password" autocomplete="off" /></label><label>Model chat Gemini<input [(ngModel)]="geminiChatModel" [ngModelOptions]="{standalone: true}" name="geminiChatModel" /></label><button type="button" (click)="configureGemini()">Lưu Gemini</button></div></details>
-            <h3>Chatbot</h3><label>Tên chatbot<input [(ngModel)]="botName" [ngModelOptions]="{standalone: true}" name="botName" /></label><label>Hướng dẫn<textarea [(ngModel)]="botPrompt" [ngModelOptions]="{standalone: true}" name="botPrompt" rows="3"></textarea></label><label>Số đoạn truy xuất<input [(ngModel)]="botRetrievalLimit" [ngModelOptions]="{standalone: true}" name="botRetrievalLimit" type="number" min="1" max="10" /></label>
-            <div class="setup-actions"><button type="button" (click)="saveBot()">{{ selectedBot() ? 'Lưu chatbot' : 'Tạo chatbot' }}</button>@if (selectedBot()) { <button type="button" class="secondary" (click)="togglePublish()">{{ selectedBot()?.published ? 'Ngừng xuất bản' : 'Xuất bản chatbot' }}</button> }</div>
+            <h3>Kết nối AI</h3>
+            <label
+              >Model Ollama<input
+                [(ngModel)]="localChatModel"
+                [ngModelOptions]="{ standalone: true }"
+                name="localChatModel" /></label
+            ><button type="button" (click)="configureLocal()">
+              Dùng local Ollama
+            </button>
+            <details class="gemini-setup">
+              <summary>Dùng Gemini thay thế</summary>
+              <div>
+                <label
+                  >Gemini API key<input
+                    [(ngModel)]="geminiApiKey"
+                    [ngModelOptions]="{ standalone: true }"
+                    name="geminiApiKey"
+                    type="password"
+                    autocomplete="off" /></label
+                ><label
+                  >Model chat Gemini<input
+                    [(ngModel)]="geminiChatModel"
+                    [ngModelOptions]="{ standalone: true }"
+                    name="geminiChatModel" /></label
+                ><button type="button" (click)="configureGemini()">
+                  Lưu Gemini
+                </button>
+              </div>
+            </details>
+            <h3>Chatbot</h3>
+            <label
+              >Tên chatbot<input
+                [(ngModel)]="botName"
+                [ngModelOptions]="{ standalone: true }"
+                name="botName" /></label
+            ><label
+              >Hướng dẫn<textarea
+                [(ngModel)]="botPrompt"
+                [ngModelOptions]="{ standalone: true }"
+                name="botPrompt"
+                rows="3"
+              ></textarea></label
+            ><label
+              >Số đoạn truy xuất<input
+                [(ngModel)]="botRetrievalLimit"
+                [ngModelOptions]="{ standalone: true }"
+                name="botRetrievalLimit"
+                type="number"
+                min="1"
+                max="10"
+            /></label>
+            <div class="setup-actions">
+              <button type="button" (click)="saveBot()">
+                {{ selectedBot() ? "Lưu chatbot" : "Tạo chatbot" }}
+              </button>
+              @if (selectedBot()) {
+                <button
+                  type="button"
+                  class="secondary"
+                  (click)="togglePublish()"
+                >
+                  {{
+                    selectedBot()?.published
+                      ? "Ngừng xuất bản"
+                      : "Xuất bản chatbot"
+                  }}
+                </button>
+              }
+            </div>
           </section>
         }
-        @if (!selectedBot()?.published) { <p class="chat-guard">Xuất bản chatbot để mở khung chat. Bạn vẫn có thể tải tài liệu và hoàn tất thiết lập ở đây.</p> }
+        @if (!selectedBot()?.published) {
+          <p class="chat-guard">
+            Xuất bản chatbot để mở khung chat. Bạn vẫn có thể tải tài liệu và
+            hoàn tất thiết lập ở đây.
+          </p>
+        }
         <div class="transcript" aria-live="polite">
           @for (message of messages(); track $index) {
-            <div class="bubble" [class.user]="message.role === 'user'"><strong>{{ message.role === 'user' ? 'Bạn' : 'RagHub' }}</strong><p>{{ message.content || (isStreaming() ? 'Đang trả lời…' : '') }}</p>
-              @if (message.citations?.length) { <div class="citations">@for (citation of message.citations; track $index) { <button type="button" (click)="selectCitation(citation)">{{ citationLabel(citation) }}<small>{{ citation.excerpt }}</small></button> }</div> }
+            <div class="bubble" [class.user]="message.role === 'user'">
+              <strong>{{ message.role === "user" ? "Bạn" : "RagHub" }}</strong>
+              <p>
+                {{ message.content || (isStreaming() ? "Đang trả lời…" : "") }}
+              </p>
+              @if (message.citations?.length) {
+                <div class="citations">
+                  @for (citation of message.citations; track $index) {
+                    <button type="button" (click)="selectCitation(citation)">
+                      {{ citationLabel(citation)
+                      }}<small>{{ citation.excerpt }}</small>
+                    </button>
+                  }
+                </div>
+              }
             </div>
-          } @empty { <p>Đặt câu hỏi cụ thể sau khi tài liệu sẵn sàng.</p> }
+          } @empty {
+            <p>Đặt câu hỏi cụ thể sau khi tài liệu sẵn sàng.</p>
+          }
         </div>
-        <form class="composer" (ngSubmit)="send()"><textarea [(ngModel)]="chatInput" name="chatInput" [disabled]="!selectedBot()?.published || isStreaming()" placeholder="Ví dụ: Tài liệu nói gì về mục tiêu dự án?"></textarea><button [disabled]="!selectedBot()?.published || isStreaming() || !chatInput.trim()">{{ isStreaming() ? 'Đang trả lời' : 'Gửi' }}</button></form>
+        <form class="composer" (ngSubmit)="send()">
+          <textarea
+            [(ngModel)]="chatInput"
+            name="chatInput"
+            [disabled]="!selectedBot()?.published || isStreaming()"
+            placeholder="Ví dụ: Tài liệu nói gì về mục tiêu dự án?"
+          ></textarea
+          ><button
+            [disabled]="
+              !selectedBot()?.published || isStreaming() || !chatInput.trim()
+            "
+          >
+            {{ isStreaming() ? "Đang trả lời" : "Gửi" }}
+          </button>
+        </form>
       </article>
+    </section>
+    <section class="bot-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">CHATBOT ĐÃ CẤU HÌNH</p>
+          <h2>Chatbot ({{ bots().length }})</h2>
+        </div>
+        <a routerLink="/app/chatbots">Quản lý chatbot</a>
+      </div>
+      <div class="bot-list">
+        @for (bot of bots(); track bot.id) {
+          <article class="bot-row">
+            <div>
+              <strong>{{ bot.name }}</strong
+              ><small
+                >{{ bot.published ? "Đã xuất bản" : "Nháp" }} ·
+                {{ bot.retrieval_limit }} đoạn truy xuất</small
+              >
+            </div>
+            <div class="bot-actions">
+              <a [routerLink]="['/app/chatbots', bot.id, 'settings']">Cài đặt</a
+              ><button
+                type="button"
+                class="secondary"
+                (click)="toggleBotPublish(bot)"
+              >
+                {{ bot.published ? "Ngừng xuất bản" : "Xuất bản" }}</button
+              ><button type="button" class="danger" (click)="removeBot(bot)">
+                Xóa
+              </button>
+            </div>
+          </article>
+        } @empty {
+          <p class="empty-list">
+            Chưa có chatbot nào cho workspace này. Tạo và xuất bản chatbot ở
+            trang Chatbot.
+          </p>
+        }
+      </div>
     </section>
   }
 </main>

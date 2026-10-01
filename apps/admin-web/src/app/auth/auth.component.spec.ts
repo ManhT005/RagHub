@@ -1,11 +1,11 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
+import { of } from "rxjs";
 
-import { AuthComponent } from './auth.component';
-import { RaghubApiService } from '../core/raghub-api.service';
+import { AuthComponent } from "./auth.component";
+import { RaghubApiService } from "../core/raghub-api.service";
 
-describe('AuthComponent', () => {
+describe("AuthComponent", () => {
   let fixture: ComponentFixture<AuthComponent>;
   let component: AuthComponent;
   let api: {
@@ -15,8 +15,8 @@ describe('AuthComponent', () => {
 
   beforeEach(async () => {
     api = {
-      login: vi.fn(() => of({ access_token: 'login-token' })),
-      forgotPassword: vi.fn(() => of({ message: 'sent' })),
+      login: vi.fn(() => of({ access_token: "login-token" })),
+      forgotPassword: vi.fn(() => of({ message: "sent" })),
     };
     await TestBed.configureTestingModule({
       imports: [AuthComponent],
@@ -30,12 +30,11 @@ describe('AuthComponent', () => {
     fixture.detectChanges();
   });
 
-  it('shows only internal login and password recovery options', () => {
+  it("shows only internal login and password recovery options", () => {
     const text = fixture.nativeElement.textContent;
 
-    expect(text).not.toContain('Đăng ký');
-    expect(fixture.nativeElement.querySelector('#google-signin')).toBeNull();
-    expect(text).toContain('Quên mật khẩu');
+    expect(text).not.toContain("Đăng ký");
+    expect(fixture.nativeElement.querySelector("#google-signin")).toBeNull();
+    expect(text).toContain("Quên mật khẩu");
   });
-
 });

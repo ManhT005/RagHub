@@ -1,23 +1,124 @@
 <main class="overview-page">
-  <header class="page-heading"><div><p class="kicker">Tổng quan hệ thống</p><h1>Chào mừng trở lại</h1><p>Theo dõi workspace, tài liệu và chatbot trong cùng một nơi.</p></div><a routerLink="/app/workspaces">Tạo workspace</a></header>
+  <header class="page-heading">
+    <div>
+      <p class="kicker">Tổng quan hệ thống</p>
+      <h1>Chào mừng trở lại</h1>
+      <p>Theo dõi workspace, tài liệu và chatbot trong cùng một nơi.</p>
+    </div>
+    <a routerLink="/app/workspaces">Tạo workspace</a>
+  </header>
+
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+
   <section class="stat-grid" aria-label="Thống kê nhanh">
-    <article><span class="stat-icon blue"><nz-icon nzType="database" /></span><div><small>Workspace</small><b>3</b><p>Không gian tri thức</p></div></article>
-    <article><span class="stat-icon red"><nz-icon nzType="file-text" /></span><div><small>Tài liệu</small><b>12</b><p>Đã thêm vào hệ thống</p></div></article>
-    <article><span class="stat-icon violet"><nz-icon nzType="message" /></span><div><small>Chatbot</small><b>2</b><p>Đang hoạt động</p></div></article>
-    <article><span class="stat-icon green"><nz-icon nzType="cloud-server" /></span><div><small>Lượt truy vấn</small><b>1.248</b><p>Tổng lượt hỏi đáp</p></div></article>
-  </section>
-  <section class="overview-columns">
-    <article class="activity-card"><div class="card-heading"><div><h2>Hoạt động gần đây</h2><p>Cập nhật mới nhất trong workspace</p></div><a routerLink="/app/documents">Xem tài liệu</a></div>
-      <div class="activity"><i class="red"><nz-icon nzType="file-text" /></i><p><b>Tài liệu hướng dẫn.pdf đã được thêm</b><small>Workspace Công nghệ thông tin · 2 giờ trước</small></p></div>
-      <div class="activity"><i class="violet"><nz-icon nzType="message" /></i><p><b>Chatbot Hỗ trợ sinh viên đã được tạo</b><small>3 giờ trước</small></p></div>
-      <div class="activity"><i class="green"><nz-icon nzType="cloud-server" /></i><p><b>Đã hoàn thành xử lý 5 tài liệu</b><small>5 giờ trước</small></p></div>
-      <div class="activity"><i class="blue"><nz-icon nzType="message" /></i><p><b>Có 12 truy vấn mới từ chatbot</b><small>6 giờ trước</small></p></div>
+    <article>
+      <span class="stat-icon blue"><nz-icon nzType="database" /></span>
+      <div>
+        <small>Workspace</small>
+        <b>{{ loading() ? "…" : workspaceCount() }}</b>
+        <p>Không gian tri thức</p>
+      </div>
     </article>
-    <aside class="quick-card"><div class="card-heading"><div><h2>Thao tác nhanh</h2><p>Bắt đầu công việc tiếp theo</p></div></div>
-      <a routerLink="/app/workspaces"><i class="blue"><nz-icon nzType="database" /></i><span><b>Tạo workspace mới</b><small>Tổ chức một miền tri thức riêng</small></span><em>›</em></a>
-      <a routerLink="/app/documents"><i class="red"><nz-icon nzType="file-text" /></i><span><b>Tải tài liệu lên</b><small>PDF, TXT và Markdown</small></span><em>›</em></a>
-      <a routerLink="/app/chatbots"><i class="violet"><nz-icon nzType="message" /></i><span><b>Tạo chatbot</b><small>Cấu hình và xuất bản trợ lý</small></span><em>›</em></a>
-      <a routerLink="/app/chatbots"><i class="green"><nz-icon nzType="cloud-server" /></i><span><b>Nhúng chatbot</b><small>Đưa trợ lý lên website của bạn</small></span><em>›</em></a>
+    <article>
+      <span class="stat-icon red"><nz-icon nzType="file-text" /></span>
+      <div>
+        <small>Tài liệu</small>
+        <b>{{ loading() ? "…" : documentCount() }}</b>
+        <p>Đã thêm vào hệ thống</p>
+      </div>
+    </article>
+    <article>
+      <span class="stat-icon violet"><nz-icon nzType="message" /></span>
+      <div>
+        <small>Chatbot</small>
+        <b>{{ loading() ? "…" : chatbotCount() }}</b>
+        <p>{{ publishedCount() }} đang hoạt động</p>
+      </div>
+    </article>
+    <article>
+      <span class="stat-icon green"><nz-icon nzType="cloud-server" /></span>
+      <div>
+        <small>Lượt truy vấn</small>
+        <b>—</b>
+        <p>Chưa có API thống kê</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="overview-columns">
+    <article class="activity-card">
+      <div class="card-heading">
+        <div>
+          <h2>Hoạt động gần đây</h2>
+          <p>Cập nhật mới nhất trong workspace</p>
+        </div>
+        <a routerLink="/app/documents">Xem tài liệu</a>
+      </div>
+
+      @if (loading()) {
+        <p class="hint">Đang tải hoạt động…</p>
+      } @else {
+        @for (act of recent(); track act.title + act.createdAt) {
+          <div class="activity">
+            <i [class]="act.kind === 'document' ? 'red' : 'violet'">
+              <nz-icon
+                [nzType]="act.kind === 'document' ? 'file-text' : 'message'"
+              />
+            </i>
+            <p>
+              <b>{{ act.title }}</b>
+              <small>{{ act.subtitle }} · {{ act.createdAt }}</small>
+            </p>
+          </div>
+        } @empty {
+          <p class="hint">
+            Chưa có hoạt động nào. Hãy tạo workspace và tải tài liệu đầu tiên.
+          </p>
+        }
+      }
+    </article>
+
+    <aside class="quick-card">
+      <div class="card-heading">
+        <div>
+          <h2>Thao tác nhanh</h2>
+          <p>Bắt đầu công việc tiếp theo</p>
+        </div>
+      </div>
+      <a routerLink="/app/workspaces">
+        <i class="blue"><nz-icon nzType="database" /></i>
+        <span>
+          <b>Tạo workspace mới</b>
+          <small>Tổ chức một miền tri thức riêng</small>
+        </span>
+        <em>›</em>
+      </a>
+      <a routerLink="/app/documents">
+        <i class="red"><nz-icon nzType="file-text" /></i>
+        <span>
+          <b>Tải tài liệu lên</b>
+          <small>PDF, TXT và Markdown</small>
+        </span>
+        <em>›</em>
+      </a>
+      <a routerLink="/app/chatbots">
+        <i class="violet"><nz-icon nzType="message" /></i>
+        <span>
+          <b>Tạo chatbot</b>
+          <small>Cấu hình và xuất bản trợ lý</small>
+        </span>
+        <em>›</em>
+      </a>
+      <a routerLink="/app/chatbots">
+        <i class="green"><nz-icon nzType="cloud-server" /></i>
+        <span>
+          <b>Nhúng chatbot</b>
+          <small>Đưa trợ lý lên website của bạn</small>
+        </span>
+        <em>›</em>
+      </a>
     </aside>
   </section>
 </main>

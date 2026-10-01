@@ -24,6 +24,13 @@ class Chatbot(Base):
     model: Mapped[str | None] = mapped_column(String(200))
     retrieval_limit: Mapped[int] = mapped_column(Integer, default=5)
     published: Mapped[bool] = mapped_column(default=False)
+    embed_key_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    allowed_origins: Mapped[list[str]] = mapped_column(JSON, default=list)
+    embed_primary_color: Mapped[str] = mapped_column(String(16), default="#1463ff")
+    embed_title: Mapped[str] = mapped_column(String(120), default="RagHub Assistant")
+    embed_greeting: Mapped[str] = mapped_column(
+        Text, default="Xin chao! Toi co the giup gi cho ban?"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
