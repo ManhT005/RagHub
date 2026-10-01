@@ -52,13 +52,20 @@ def _error_response(
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        return _error_response(
+        response = _error_response(
             request,
             status_code=exc.status_code,
             code=exc.code,
             message=exc.message,
             details=exc.details,
         )
+        origin = getattr(request.state, "public_origin", None)
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+        if "retry_after_seconds" in exc.details:
+            response.headers["Retry-After"] = str(exc.details["retry_after_seconds"])
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(

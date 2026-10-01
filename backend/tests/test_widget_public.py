@@ -73,6 +73,9 @@ def test_public_cors_echoes_the_verified_origin() -> None:
 @pytest.mark.asyncio
 async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.MonkeyPatch) -> None:
     import json
+    from unittest.mock import AsyncMock
+
+    from starlette.requests import Request
 
     import app.modules.chatbots.router as router
     from app.core.exceptions import AppError
@@ -93,8 +96,10 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
     response = await router.public_chat(
         "rgh_test",
         ChatRequest(message="Hello"),
+        Request({"type": "http", "client": ("127.0.0.1", 1234)}),
         "http://localhost:8081",
         object(),
+        AsyncMock(),
     )
     frames = [frame async for frame in response.body_iterator]
     assert len(frames) == 2

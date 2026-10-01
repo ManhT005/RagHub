@@ -2,7 +2,7 @@ import json
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Response, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
+from app.modules.chatbots.public_limits import PublicChatLimits, get_public_limits
 from app.modules.chatbots.schemas import (
     ChatbotInput,
     ChatbotPatch,
@@ -181,10 +182,14 @@ async def public_chat_options(
 async def public_chat(
     embed_key: str,
     payload: ChatRequest,
+    request: Request,
     origin: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
+    limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
     chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
+    request.state.public_origin = origin
+    await limits.check_rate(str(chatbot.id), request.client.host if request.client else "unknown")
 
     async def events():
         try:
