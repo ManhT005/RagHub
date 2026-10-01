@@ -1,4 +1,5 @@
 from functools import lru_cache
+from ipaddress import ip_network
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,6 +40,12 @@ class Settings(BaseSettings):
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_model: str = "gemini-3.5-flash-lite"
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)
+    public_chat_requests_per_ip: int = Field(default=20, ge=1)
+    public_chat_requests_per_chatbot: int = Field(default=120, ge=1)
+    public_chat_concurrent_per_chatbot: int = Field(default=4, ge=1)
+    public_chat_concurrent_global: int = Field(default=32, ge=1)
+    public_chat_stream_timeout_seconds: float = Field(default=90, ge=1, le=600)
+    public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
 
     frontend_url: str = "http://localhost:8080"
@@ -51,6 +58,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
+        for cidr in self.public_chat_trusted_proxy_cidrs.split(","):
+            if cidr.strip():
+                ip_network(cidr.strip())
         insecure_provider_keys = {
             "",
             "change-me-provider-key",

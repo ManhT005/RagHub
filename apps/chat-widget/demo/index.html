@@ -44,7 +44,10 @@
     <script>
       const keyInput = document.querySelector("#key"),
         status = document.querySelector("#status");
-      keyInput.value = new URLSearchParams(location.search).get("key") || "";
+      const params = new URLSearchParams(location.search);
+      keyInput.value = params.get("key") || "";
+      const apiBase = params.get("api") ||
+        (location.pathname.startsWith("/demo/") ? location.origin : "http://localhost:8080");
       document.querySelector("#load").onclick = () => {
         const key = keyInput.value.trim();
         if (!key.startsWith("rgh_")) {
@@ -55,11 +58,12 @@
         document.querySelector("#raghub-loader")?.remove();
         const script = document.createElement("script");
         script.id = "raghub-loader";
-        script.src = "http://localhost:8080/widget/raghub.js?v=" + Date.now();
+        script.src = new URL("/widget/raghub.js?v=" + Date.now(), apiBase).href;
         script.dataset.chatbotKey = key;
         script.async = true;
         document.body.append(script);
-        history.replaceState({}, "", `?key=${encodeURIComponent(key)}`);
+        params.set("key", key);
+        history.replaceState({}, "", `?${params}`);
         status.textContent = "Đã nhúng chatbot. Xem nút ở góc phải dưới.";
       };
     </script>

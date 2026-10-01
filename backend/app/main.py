@@ -5,6 +5,8 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIdMiddleware
+from app.core.public_observability import PublicChatObservability
+from app.core.redis import redis_lifespan
 from app.modules.ai_providers.router import router as ai_providers_router
 from app.modules.auth.router import router as auth_router
 from app.modules.chatbots.router import router as chatbots_router
@@ -18,12 +20,14 @@ configure_logging()
 settings = get_settings()
 
 app = FastAPI(
+    lifespan=redis_lifespan,
     title=settings.app_name,
     version="0.1.0",
     docs_url=f"{settings.api_v1_prefix}/docs",
     openapi_url=f"{settings.api_v1_prefix}/openapi.json",
     redoc_url=None,
 )
+app.add_middleware(PublicChatObservability)
 app.add_middleware(RequestIdMiddleware)
 register_exception_handlers(app)
 app.include_router(health_router)

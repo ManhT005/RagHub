@@ -24,6 +24,8 @@ Target the `develop` branch and enable:
   - `Frontend checks`
   - `Docker Compose validation`
   - `Database migration`
+  - `Widget checks`
+  - `Ingestion integration`
 - Require branches to be up to date before merging (strict status checks).
 - Block force pushes and branch deletion.
 - Enable "Do not allow bypassing" unless an emergency maintainer process is documented.
@@ -39,7 +41,7 @@ Target the `main` branch and enable:
 - Require **2 approvals** when at least two independent reviewers are available.
 - Dismiss stale approvals and require Code Owner review.
 - Require all conversations to be resolved.
-- Require the same four CI checks listed for `develop`.
+- Require the same CI checks listed for `develop`.
 - Also require `Pull request policy`; this workflow rejects any PR into `main`
   whose source is not the repository's `develop` branch.
 - Require branches to be up to date before merging.

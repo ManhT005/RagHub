@@ -9,7 +9,7 @@ RagHub là sản phẩm của **nhóm DoubleT** tham gia **Software Product Chal
 ![Angular 21](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-> **Trạng thái hiện tại:** giao diện quản trị hỗ trợ tài khoản, tổ chức, thành viên, không gian làm việc và tài liệu. Tìm kiếm, cấu hình AI provider và chatbot đã có qua API; các màn hình quản trị tương ứng chưa hoàn thiện.
+> **Trạng thái hiện tại:** giao diện quản trị hỗ trợ tài khoản, tổ chức, thành viên, workspace, tài liệu, cấu hình AI và chatbot. Widget Web Component đã có script nhúng, origin allowlist, rotate key, rate limit và giới hạn stream đồng thời.
 
 ## Bài toán và định hướng
 
@@ -24,6 +24,7 @@ Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) v�
 - [Mục tiêu MVP còn lại](#mục-tiêu-mvp-còn-lại)
 - [Công nghệ và kiến trúc](#công-nghệ-và-kiến-trúc)
 - [Khởi chạy với Docker](#khởi-chạy-với-docker)
+- [Docker image trên GitHub](#docker-image-trên-github)
 - [Thiết lập để sử dụng](#thiết-lập-để-sử-dụng)
 - [AI cục bộ](#ai-cục-bộ)
 - [Phát triển và kiểm tra](#phát-triển-và-kiểm-tra)
@@ -39,10 +40,11 @@ Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) v�
 | Không gian làm việc | Tạo, xem, cập nhật và xóa mềm trong phạm vi tổ chức | Một phần: tạo và xem |
 | Tài liệu | Upload PDF/TXT/Markdown, xử lý bất đồng bộ, theo dõi tiến độ, retry và lập chỉ mục lại | Có |
 | Tìm kiếm | BM25 kết hợp vector, lọc theo tổ chức và không gian làm việc | API |
-| AI provider | Cấu hình theo tổ chức, kiểm tra kết nối, mã hóa credential và đổi embedding index an toàn | API |
-| Chatbot và RAG chat | Quản lý chatbot, chat SSE, trả lời kèm trích dẫn và thông tin sử dụng | API |
+| AI provider | Cấu hình theo tổ chức, kiểm tra kết nối, mã hóa credential và đổi embedding index an toàn | Có, trong luồng chatbot |
+| Chatbot và RAG chat | Quản lý chatbot, chat SSE, trả lời kèm trích dẫn và thông tin sử dụng | Có |
+| Widget nhúng | Web Component, publish, embed key dạng hash, origin allowlist, rotate key, rate limit và giới hạn concurrent | Có, màn hình Nhúng chatbot và website demo |
 
-API công bố tại [`/api/v1/docs`](http://localhost:8080/api/v1/docs) khi hệ thống chạy. Mục Chatbot trong thanh điều hướng web hiện bị vô hiệu hóa.
+API công bố tại [`/api/v1/docs`](http://localhost:8080/api/v1/docs) khi hệ thống chạy. Website demo widget tại [`/demo/`](http://localhost:8080/demo/).
 
 ### Giới hạn định dạng hiện tại
 
@@ -55,10 +57,10 @@ Tài liệu thiết kế phiên bản 1.0 đặt mốc MVP ngày **08/10/2026**.
 | Hạng mục theo kế hoạch | Trạng thái hiện tại |
 | --- | --- |
 | Parser DOCX, XLSX, PPTX | Chưa có; ingestion đang hỗ trợ PDF, TXT và Markdown |
-| Giao diện cấu hình AI provider và chatbot | API đã có; giao diện quản trị chưa có |
-| Chat Widget dạng Web Component, script nhúng và website mẫu | Chưa có trong `apps/` |
-| Allowed Origins, API key cho tích hợp, rate limit và giới hạn chat đồng thời | Chưa có luồng public widget/API tương ứng |
-| Quy trình triển khai SaaS và on-premise hoàn chỉnh | Docker Compose đã có cho phát triển và demo; chưa có quy trình production |
+| Giao diện cấu hình AI provider và chatbot | Đã có luồng cấu hình và chat trong Admin |
+| Chat Widget dạng Web Component, script nhúng và website mẫu | Đã có trong `apps/chat-widget/` |
+| Bảo vệ public widget | Đã có embed key, allowed origins, rate limit Redis và giới hạn concurrent; embed key chỉ dùng cho public widget |
+| Quy trình triển khai SaaS và on-premise hoàn chỉnh | Đã có Compose local/GHCR, publish image theo phiên bản và hướng dẫn cập nhật/rollback; TLS, domain, backup và vận hành theo môi trường triển khai |
 
 Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tuyên bố MVP đã hoàn thành. [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) mô tả chi tiết kiến trúc, backlog, tiêu chí nghiệm thu và kịch bản demo dự kiến.
 
@@ -120,7 +122,7 @@ docker compose -f infrastructure/docker-compose.yml up --build -d --wait
 docker compose -f infrastructure/docker-compose.yml ps
 ```
 
-Compose tự chạy migration Alembic trước khi API nhận yêu cầu. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
+Service `migrate` chạy Alembic trước khi API khởi động. Local ports mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
 
 | Địa chỉ | Dịch vụ |
 | --- | --- |
@@ -138,17 +140,43 @@ docker compose -f infrastructure/docker-compose.yml down
 
 `down` dừng container và giữ lại các volume dữ liệu.
 
+## Docker image trên GitHub
+
+Dự án có Compose riêng cho local và chạy image từ GHCR, dùng chung [cấu hình dịch vụ](infrastructure/docker-compose.base.yml). Sau khi CI pass, push vào `develop`/`main` hoặc tag release từ `main` sẽ build/publish backend (runtime/local-ai), Admin web, widget, demo và gateway. Pull request chỉ build để kiểm tra. API, worker và migration dùng cùng backend image.
+
+Copy [`.env.ghcr.example`](.env.ghcr.example) thành `.env.ghcr`, điền secrets/SMTP/domain và tag đã publish, rồi chạy:
+
+```powershell
+docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml pull
+docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml up -d --wait --pull never
+```
+
+Bản GHCR không build source, chỉ mở cổng gateway, lưu dữ liệu trong volume riêng và đóng gói sẵn Nginx config. Xem [hướng dẫn GHCR](docs/docker-ghcr.md) để đăng nhập package private, dùng AI local, nâng cấp, rollback và backup.
+
 ## Thiết lập để sử dụng
 
 1. Mở giao diện quản trị, tạo tài khoản bằng email hợp lệ và mật khẩu từ 8 ký tự.
 2. Tạo tổ chức và không gian làm việc. `slug` dùng chữ thường, số và dấu `-`.
-3. Dùng API để tạo embedding provider và chat provider, kiểm tra kết nối, rồi gắn chúng vào không gian làm việc. Xem [quy trình cấu hình AI](docs/ai-provider-layer.md).
+3. Trong mục Chatbot, cấu hình embedding provider và chat provider, kiểm tra kết nối, rồi gắn chúng vào workspace. API cũng hỗ trợ luồng này; xem [quy trình cấu hình AI](docs/ai-provider-layer.md).
 4. Tải tài liệu lên và đợi trạng thái **Sẵn sàng** trước khi tìm kiếm hoặc dùng chatbot.
 5. Tạo, xuất bản chatbot và gọi API chat để nhận các sự kiện SSE cùng trích dẫn nguồn.
 
 Endpoint được bảo vệ cần header `Authorization: Bearer <access_token>`. Endpoint theo tổ chức cần thêm `X-Organization-ID`. Gửi khóa AI trong trường `secret` của API provider; không đặt credential trong `config_json`.
 
 RagHub hỗ trợ `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI`, `LOCAL_SENTENCE_TRANSFORMER` và `LOCAL_TOKEN_HASH` cho embedding, cùng `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI` và `OLLAMA` cho chat. `LOCAL_TOKEN_HASH` chỉ phục vụ phát triển và kiểm tra tích hợp, không cung cấp tìm kiếm ngữ nghĩa chất lượng sản xuất.
+
+### Nhúng chatbot vào website
+
+Mở **Nhúng chatbot**, thêm origin chính xác của website (scheme, hostname và port), đặt màu, tiêu đề và lời chào rồi **Xuất bản chatbot**. Copy mã nhúng ngay sau lần publish đầu hoặc sau khi tạo key mới. Script cần URL tuyệt đối trỏ tới RagHub:
+
+```html
+<script src="https://raghub.example.com/widget/raghub.js"
+        data-chatbot-key="rgh_REPLACE_WITH_YOUR_KEY" async></script>
+```
+
+Embed key xuất hiện công khai trên website; database chỉ lưu hash. Allowed origins chặn website ngoài danh sách trong trình duyệt, nhưng không thay thế xác thực người dùng vì client ngoài trình duyệt có thể giả Origin. Rotate vô hiệu hóa key cũ ngay; thay script trên mọi website sau rotate. Endpoint lấy lại embed code chỉ trả `REDACTED`; cần giữ mã được cấp hoặc rotate.
+
+Public chat mặc định giới hạn **20 request/phút/IP**, **120 request/phút/chatbot**, **4 stream/chatbot**, **32 stream toàn hệ thống** và timeout **90 giây**. Giới hạn chia sẻ qua Redis, trả `429` với `Retry-After`; Redis lỗi trả `503`. Admin chat không dùng các giới hạn public. Xem [hướng dẫn widget](docs/widget-integration.md) để cấu hình và chạy smoke test.
 
 ## AI cục bộ
 
@@ -191,10 +219,13 @@ npm run build
 
 `npm start` dùng `proxy.json` để chuyển yêu cầu API đến backend. Các bài kiểm thử backend được đánh dấu `integration` cần hạ tầng Docker. Để kiểm tra luồng chat RAG với provider thật hoặc cục bộ, xem [hướng dẫn smoke test](docs/rag-chat-integration.md) và script [`rag-chat-smoke.ps1`](scripts/rag-chat-smoke.ps1).
 
+CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile TypeScript 5.9.3. Job integration chạy smoke HTTP qua Nginx tới SSE và test atomic rate/concurrent trên Redis thật. Smoke widget sử dụng workspace trống và embedding local, không gọi AI trả phí; kiểm tra câu trả lời có citation từ tài liệu dùng smoke RAG riêng.
+
 ## Cấu trúc dự án
 
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
+apps/chat-widget/     Widget Web Component và website demo
 backend/app/          API, nghiệp vụ, adapter hạ tầng và worker
 backend/alembic/      Migration cơ sở dữ liệu
 backend/tests/        Kiểm thử backend

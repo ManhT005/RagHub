@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.ghcr.example
 .venv/
 .python-version
 .worktrees/

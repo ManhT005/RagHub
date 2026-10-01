@@ -6,7 +6,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29.1-alpine3.22
+FROM nginx:1.29.1-alpine3.22 AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/admin-web/browser /usr/share/nginx/html
 

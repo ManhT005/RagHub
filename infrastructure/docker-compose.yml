@@ -1,229 +1,105 @@
 name: raghub
-
-x-backend-environment: &backend-environment
-  APP_ENV: ${APP_ENV:-development}
-  APP_NAME: ${APP_NAME:-RagHub API}
-  APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-local-env}
-  PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:-local-provider-key-change-before-production}
-  API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
-  MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-25}
-  DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://raghub:raghub-local-only@postgres:5432/raghub}
-  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
-  ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
-  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-raghub}
-  S3_SECRET_KEY: ${S3_SECRET_KEY:-raghub-local-only}
-  S3_BUCKET: ${S3_BUCKET:-raghub-documents}
-  S3_SECURE: ${S3_SECURE:-false}
-  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
-  CHAT_PROVIDER_TIMEOUT_SECONDS: ${CHAT_PROVIDER_TIMEOUT_SECONDS:-45}
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
-  SMTP_HOST: ${SMTP_HOST:-}
-  SMTP_PORT: ${SMTP_PORT:-587}
-  SMTP_USERNAME: ${SMTP_USERNAME:-}
-  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
-
 services:
   postgres:
-    image: postgres:17.6-alpine3.22
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-raghub}
-      POSTGRES_USER: ${POSTGRES_USER:-raghub}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raghub-local-only}
+    extends:
+      file: docker-compose.base.yml
+      service: postgres
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432
   redis:
-    image: redis:8.2.1-alpine3.22
-    command: ["redis-server", "--appendonly", "yes"]
+    extends:
+      file: docker-compose.base.yml
+      service: redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      xpack.license.self_generated.type: basic
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    extends:
+      file: docker-compose.base.yml
+      service: elasticsearch
     ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9200/_cluster/health >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-    restart: unless-stopped
-
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200
   minio:
-    image: cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1
-    # Keep existing volumes created by the former root-based MinIO image writable.
-    user: "0"
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-raghub}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-raghub-local-only}
+    extends:
+      file: docker-compose.base.yml
+      service: minio
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
-    volumes:
-      - minio-data:/data
-    healthcheck:
-      test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_PORT:-9000}:9000
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001
   ollama:
-    image: ollama/ollama:0.12.1
-    profiles: ["local-ai"]
+    extends:
+      file: docker-compose.base.yml
+      service: ollama
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434
   ollama-init:
-    image: ollama/ollama:0.12.1
-    profiles: ["local-ai"]
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    command: ["pull", "${OLLAMA_MODEL:-gemma3:1b}"]
-    volumes:
-      - ollama-data:/root/.ollama
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: "no"
-
+    extends:
+      file: docker-compose.base.yml
+      service: ollama-init
   api:
-    build:
-      context: ../backend
-      target: ${BACKEND_IMAGE_TARGET:-runtime}
-    environment: *backend-environment
-    command:
-      - /bin/sh
-      - -c
-      - alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+    extends:
+      file: docker-compose.base.yml
+      service: api
     ports:
-      - "${API_PORT:-8000}:8000"
-    volumes:
-      - huggingface-cache:/app/.cache/huggingface
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-    restart: unless-stopped
-
-  worker:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
     build:
       context: ../backend
       target: ${BACKEND_IMAGE_TARGET:-runtime}
-    environment: *backend-environment
-    command:
-      [
-        "celery",
-        "-A",
-        "app.infrastructure.task_queue.celery_app:celery_app",
-        "worker",
-        "--loglevel=INFO",
-        "--concurrency=1",
-      ]
-    volumes:
-      - huggingface-cache:/app/.cache/huggingface
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
+  worker:
+    extends:
+      file: docker-compose.base.yml
+      service: worker
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: never
   admin-web:
+    extends:
+      file: docker-compose.base.yml
+      service: admin-web
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/admin-web:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
     build:
       context: ../apps/admin-web
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
   chat-widget:
+    extends:
+      file: docker-compose.base.yml
+      service: chat-widget
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/chat-widget:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
     build:
       context: ../apps/chat-widget
-    restart: unless-stopped
-
   widget-demo:
+    extends:
+      file: docker-compose.base.yml
+      service: widget-demo
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${WIDGET_DEMO_PORT:-8081}:80
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/widget-demo:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
     build:
       context: ../apps/chat-widget/demo
-    ports:
-      - "${WIDGET_DEMO_PORT:-8081}:80"
-    restart: unless-stopped
-
   nginx:
-    image: nginx:1.29.1-alpine3.22
+    extends:
+      file: docker-compose.base.yml
+      service: nginx
     ports:
-      - "${HTTP_PORT:-8080}:80"
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/gateway:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ./nginx
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      admin-web:
-        condition: service_started
-      chat-widget:
-        condition: service_started
-      widget-demo:
-        condition: service_started
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
+  migrate:
+    extends:
+      file: docker-compose.base.yml
+      service: migrate
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: never
 volumes:
-  postgres-data:
-  redis-data:
-  elasticsearch-data:
-  minio-data:
-  ollama-data:
-  huggingface-cache:
+  postgres-data: {}
+  redis-data: {}
+  elasticsearch-data: {}
+  minio-data: {}
+  ollama-data: {}
+  huggingface-cache: {}

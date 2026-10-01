@@ -54,3 +54,27 @@ updates:
       timezone: Asia/Ho_Chi_Minh
     open-pull-requests-limit: 3
     labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: "/apps/chat-widget"
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: "/apps/chat-widget/demo"
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: "/infrastructure/nginx"
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels: [dependencies, docker]
