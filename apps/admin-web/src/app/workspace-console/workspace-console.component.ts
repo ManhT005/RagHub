@@ -54,7 +54,7 @@ export class WorkspaceConsoleComponent {
   protected readonly error = signal('');
   protected selectedOrganization = session.organizationId ?? '';
   protected selectedWorkspace = '';
-  protected localChatModel = 'gemma3:4b';
+  protected localChatModel = 'gemma3:1b';
   protected geminiApiKey = '';
   protected geminiChatModel = 'gemini-3.5-flash-lite';
   protected botName = 'Trợ lý tài liệu';

@@ -32,12 +32,15 @@ export interface Chatbot {
   id: string; workspace_id: string; name: string; system_prompt: string;
   model: string | null; retrieval_limit: number; published: boolean;
   created_at: string; updated_at: string | null;
+  allowed_origins: string[]; embed_primary_color: string; embed_title: string; embed_greeting: string;
 }
 export interface ChatbotInput {
   name: string; system_prompt: string; model?: string | null;
   retrieval_limit: number; published: boolean;
 }
 export interface ChatRequest { message: string; conversation_id?: string | null; external_user_id?: string | null; }
+export interface EmbedPublishInput { allowed_origins: string[]; primary_color: string; title: string; greeting: string; }
+export interface EmbedCode { code: string; key?: string | null; }
 export type ChatStreamEventName = 'conversation' | 'citations' | 'token' | 'usage' | 'done' | 'error';
 export interface ChatStreamEvent { event: ChatStreamEventName; data: Record<string, unknown>; }
 export interface AuthToken { access_token: string; token_type?: string; }
@@ -157,6 +160,10 @@ export class RaghubApiService {
   deleteChatbot(chatbotId: string) {
     return this.http.delete(`${this.base}/chatbots/${chatbotId}`);
   }
+  chatbot(chatbotId: string) { return this.http.get<Chatbot>(`${this.base}/chatbots/${chatbotId}`); }
+  publishEmbed(chatbotId: string, payload: EmbedPublishInput) { return this.http.post<EmbedCode>(`${this.base}/chatbots/${chatbotId}/publish`, payload); }
+  embedCode(chatbotId: string) { return this.http.get<EmbedCode>(`${this.base}/chatbots/${chatbotId}/embed-code`); }
+  rotateEmbedKey(chatbotId: string) { return this.http.post<EmbedCode>(`${this.base}/chatbots/${chatbotId}/embed-key/rotate`, {}); }
 
   async streamChat(chatbotId: string, payload: ChatRequest, onEvent: (event: ChatStreamEvent) => void): Promise<void> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'text/event-stream' };

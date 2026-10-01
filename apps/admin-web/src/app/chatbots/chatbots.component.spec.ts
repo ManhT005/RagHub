@@ -1,12 +1,74 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChatbotsComponent } from './chatbots.component';
 import { RaghubApiService } from '../core/raghub-api.service';
 
 describe('ChatbotsComponent', () => {
+  async function wizard(testProvider: ReturnType<typeof vi.fn>, bindWorkspaceProviders = vi.fn(() => of({})), updateChatbot = vi.fn(() => of({ id: 'bot-1', published: true }))) {
+    const base = { organization_id: 'org-1', enabled: true, name: 'Local', provider_type: 'OLLAMA', model: 'gemma3:1b' };
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent], providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge' }]),
+        providers: () => of([{ ...base, id: 'embedding-1', capability: 'EMBEDDING' }, { ...base, id: 'chat-1', capability: 'CHAT' }]),
+        chatbots: () => of([{ id: 'bot-1', name: 'Bot', system_prompt: '', retrieval_limit: 5, published: true }]),
+        testProvider, bindWorkspaceProviders, updateChatbot,
+      }}],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('keeps later stages hidden when either AI connection fails', async () => {
+    const bind = vi.fn(() => of({}));
+    const fixture = await wizard(vi.fn((id: string) => id === 'chat-1' ? throwError(() => new Error('offline')) : of({ status: 'OK' })), bind);
+    const component = fixture.componentInstance as any;
+    component.continueConnection();
+    fixture.detectChanges();
+    expect(component.currentStep()).toBe(1);
+    expect(bind).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelectorAll('.workflow-grid > article:not([hidden])')).toHaveLength(1);
+    fixture.destroy();
+  });
+
+  it('advances only after both checks and workspace binding complete', async () => {
+    const pending = new Subject<any>();
+    const bind = vi.fn(() => pending);
+    const fixture = await wizard(vi.fn(() => of({ status: 'OK' })), bind as any);
+    const component = fixture.componentInstance as any;
+    component.continueConnection();
+    expect(component.currentStep()).toBe(1);
+    expect(component.connectionBusy()).toBe(true);
+    pending.next({}); pending.complete();
+    fixture.detectChanges();
+    expect(component.currentStep()).toBe(2);
+    expect(bind).toHaveBeenCalledWith('workspace-1', 'embedding-1', 'chat-1');
+    expect(fixture.nativeElement.querySelectorAll('.workflow-grid > article:not([hidden])')).toHaveLength(1);
+    fixture.destroy();
+  });
+
+  it('keeps chat locked on publication failure and opens it after success', async () => {
+    const update = vi.fn().mockReturnValueOnce(throwError(() => new Error('save failed'))).mockReturnValueOnce(of({ id: 'bot-1', published: true }));
+    const fixture = await wizard(vi.fn(() => of({ status: 'OK' })), undefined, update);
+    const component = fixture.componentInstance as any;
+    component.continueBot();
+    expect(update).not.toHaveBeenCalled();
+    component.continueConnection();
+    component.continueBot();
+    expect(component.currentStep()).toBe(2);
+    component.continueBot();
+    fixture.detectChanges();
+    expect(component.currentStep()).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.workflow-grid > article:not([hidden])')).toHaveLength(1);
+    component.changeWorkspace();
+    expect(component.currentStep()).toBe(1);
+    fixture.destroy();
+  });
+
   it('tells the user to create a workspace before configuring a chatbot', async () => {
     await TestBed.configureTestingModule({
       imports: [ChatbotsComponent],
@@ -36,10 +98,31 @@ describe('ChatbotsComponent', () => {
     const fixture = TestBed.createComponent(ChatbotsComponent);
     fixture.detectChanges();
     await fixture.whenStable();
+    (fixture.componentInstance as any).showGeminiForm = true;
     fixture.detectChanges();
 
-    const model = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name="geminiChatModel"]');
-    expect(model?.value).toBe('gemini-3.5-flash-lite');
+    expect((fixture.componentInstance as any).geminiChatModel).toBe('gemini-3.5-flash-lite');
+    fixture.destroy();
+  });
+
+  it('shows backend providers in separate embedding and chat selectors', async () => {
+    const local = { organization_id: 'org-1', enabled: true, base_url: null, dimension: null, config_json: {}, has_secret: false, created_at: '', updated_at: null };
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent], providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+        providers: () => of([
+          { ...local, id: 'embed-1', name: 'Embedding local', provider_type: 'LOCAL_SENTENCE_TRANSFORMER', capability: 'EMBEDDING', model: 'multilingual-mini', dimension: 384 },
+          { ...local, id: 'chat-1', name: 'Chat Ollama', provider_type: 'OLLAMA', capability: 'CHAT', model: 'gemma3:1b' },
+        ]), chatbots: () => of([]),
+      }}],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect((fixture.nativeElement.querySelector('select[name="embeddingProvider"]') as HTMLSelectElement | null)?.value).toBe('embed-1');
+    expect((fixture.nativeElement.querySelector('select[name="chatProvider"]') as HTMLSelectElement | null)?.value).toBe('chat-1');
+    expect(fixture.nativeElement.textContent).toContain('multilingual-mini');
+    expect(fixture.nativeElement.textContent).toContain('gemma3:1b');
     fixture.destroy();
   });
 
@@ -99,7 +182,7 @@ describe('ChatbotsComponent', () => {
     const fixture = TestBed.createComponent(ChatbotsComponent);
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelectorAll('.provider-row')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('select[name="chatProvider"] option')).toHaveLength(2);
     fixture.destroy();
   });
 
@@ -122,7 +205,7 @@ describe('ChatbotsComponent', () => {
     const fixture = TestBed.createComponent(ChatbotsComponent);
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelectorAll('.provider-row')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('select[name="embeddingProvider"] option')).toHaveLength(2);
     fixture.destroy();
   });
 
