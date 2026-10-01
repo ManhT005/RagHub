@@ -1,1 +1,62 @@
-<main class="workspace-page"><header><div><h1>Workspace</h1><p>Quản lý các domain/workspace tri thức của bạn.</p></div><button (click)="create()">＋ Tạo workspace</button></header><section class="search"><span>⌕</span><input placeholder="Tìm kiếm workspace..."/></section><section class="workspace-list">@for (workspace of workspaces(); track workspace.id) { <article><span class="workspace-icon">♙</span><div><h2>{{ workspace.name }}</h2><p><b>Domain</b> · 5 tài liệu · 1 chatbot · Cập nhật 2 giờ trước</p></div><button class="more">⋮</button><a [routerLink]="['/app/workspace-console']">›</a></article> } @empty { <section class="empty"><h2>Chưa có workspace</h2><p>Tạo workspace đầu tiên để tổ chức tài liệu và chatbot.</p><button (click)="create()">Tạo workspace</button></section> }</section></main>
+<main class="workspace-page">
+  <header>
+    <div>
+      <h1>Workspace</h1>
+      <p>Quản lý các domain/workspace tri thức của bạn.</p>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+
+  <section class="create-form">
+    <label>
+      Tên workspace
+      <input
+        [(ngModel)]="name"
+        name="name"
+        placeholder="Ví dụ: Tư vấn tuyển sinh"
+      />
+    </label>
+    <label>
+      Mã định danh (slug)
+      <input [(ngModel)]="slug" name="slug" placeholder="tu-van-tuyen-sinh" />
+    </label>
+    <button (click)="create()">Tạo</button>
+  </section>
+
+  <section class="search">
+    <span>⌕</span>
+    <input
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+      name="search"
+      placeholder="Tìm kiếm workspace..."
+    />
+  </section>
+
+  <section class="workspace-list">
+    @for (workspace of filteredWorkspaces(); track workspace.id) {
+      <article>
+        <span class="workspace-icon">♙</span>
+        <div>
+          <h2>{{ workspace.name }}</h2>
+          <p>
+            <b>Domain</b>
+            ·
+            {{ docCounts()[workspace.id] ?? 0 }} tài liệu ·
+            {{ botCounts()[workspace.id] ?? 0 }} chatbot
+          </p>
+        </div>
+        <button class="more">⋮</button>
+        <a [routerLink]="['/app/workspace-console']">›</a>
+      </article>
+    } @empty {
+      <section class="empty">
+        <h2>Chưa có workspace</h2>
+        <p>Tạo workspace đầu tiên để tổ chức tài liệu và chatbot.</p>
+      </section>
+    }
+  </section>
+</main>
