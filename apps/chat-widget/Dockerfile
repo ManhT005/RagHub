@@ -1,4 +1,4 @@
-FROM node:24.12.0-alpine3.22 AS build
+FROM node:26.3.0-alpine3.22 AS build
 WORKDIR /app
 RUN npm install --global typescript@5.9.3
 COPY tsconfig.json ./
