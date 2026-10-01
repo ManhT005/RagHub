@@ -20,21 +20,24 @@ async def test_atomic_rate_and_slot_leases():
         pytest.skip("Set RAGHUB_TEST_REDIS_URL to run real Redis admission tests.")
     namespace = "test:" + uuid4().hex + ":"
     async with Redis.from_url(url) as redis:
+
         class NamespacedRedis:
             async def eval(self, script, count, *args):
                 keys = [namespace + key for key in args[:count]]
                 return await redis.eval(script, count, *keys, *args[count:])
 
         settings = Settings(
-            _env_file=None, public_chat_requests_per_ip=3,
-            public_chat_requests_per_chatbot=5, public_chat_concurrent_global=3,
+            _env_file=None,
+            public_chat_requests_per_ip=3,
+            public_chat_requests_per_chatbot=5,
+            public_chat_concurrent_global=3,
             public_chat_concurrent_per_chatbot=2,
         )
         limits = PublicChatLimits(NamespacedRedis(), settings)
         try:
-            results = await asyncio.gather(*(
-                limits.check_rate("bot", "ip") for _ in range(20)
-            ), return_exceptions=True)
+            results = await asyncio.gather(
+                *(limits.check_rate("bot", "ip") for _ in range(20)), return_exceptions=True
+            )
             assert sum(result is None for result in results) == 3
             rejected = [result for result in results if isinstance(result, AppError)]
             assert len(rejected) == 17 and all(result.status_code == 429 for result in rejected)
@@ -42,9 +45,9 @@ async def test_atomic_rate_and_slot_leases():
             await limits.check_rate("bot", "third-ip")
             with pytest.raises(AppError):
                 await limits.check_rate("bot", "fourth-ip")
-            results = await asyncio.gather(*(
-                limits.acquire("bot") for _ in range(20)
-            ), return_exceptions=True)
+            results = await asyncio.gather(
+                *(limits.acquire("bot") for _ in range(20)), return_exceptions=True
+            )
             tokens = [result for result in results if isinstance(result, str)]
             assert len(tokens) == 2
             other_token = await limits.acquire("other-bot")

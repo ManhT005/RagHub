@@ -18,10 +18,23 @@ Key công khai và Origin có thể bị giả bởi client ngoài trình duyệ
 | `PUBLIC_CHAT_CONCURRENT_PER_CHATBOT` | 4 | Stream đang chạy/chatbot |
 | `PUBLIC_CHAT_CONCURRENT_GLOBAL` | 32 | Stream đang chạy/toàn bộ API worker |
 | `PUBLIC_CHAT_STREAM_TIMEOUT_SECONDS` | 90 | Deadline public stream |
+| `PUBLIC_CHAT_TRUSTED_PROXY_CIDRS` | Rỗng trong backend; `172.16.0.0/12` trong Compose | CIDR proxy được phép cung cấp `X-Real-IP`, phân cách bằng dấu phẩy |
 
 Redis Lua thực hiện admission atomic. Cửa sổ rate bắt đầu từ request đầu tiên, không phải phút trên đồng hồ. Request đã được xác thực key/origin mới tính rate; admission concurrent bị từ chối vẫn tính rate. Quá giới hạn trả HTTP `429`, mã `PUBLIC_CHAT_RATE_LIMITED` hoặc `PUBLIC_CHAT_CONCURRENCY_LIMITED`, `Retry-After` và `error.details.retry_after_seconds`. Redis mất kết nối trả `503 PUBLIC_CHAT_UNAVAILABLE`; không mở giới hạn dự phòng. Admin chat dùng đường riêng.
 
 Slot có token riêng, release khi response kết thúc, provider lỗi, timeout hoặc disconnect. Release lặp lại không ảnh hưởng slot khác. Lease hết hạn sau deadline + 10 giây nếu worker chết; Redis dùng thời gian server. Rate và slot dùng chatbot ID/IP hash, không lưu embed key raw.
+
+## Gateway và quan sát vận hành
+
+Nginx giới hạn body public ở 16 KiB; schema giới hạn message ở 4.000 ký tự. SSE tắt buffering/cache; script dùng `no-store`. Timeout bao phủ cả thời gian gửi response tới client chậm. API được truy cập trực tiếp vẫn có giới hạn schema, nhưng production nên chỉ mở API qua gateway.
+
+Nginx ghi đè `X-Real-IP` và `X-Forwarded-For`. Backend chỉ dùng `X-Real-IP` khi địa chỉ peer thuộc `PUBLIC_CHAT_TRUSTED_PROXY_CIDRS`; request trực tiếp không thể tự đặt IP để tránh rate limit. CIDR mẫu trong Compose phục vụ mạng Docker local; production phải đặt CIDR thực của proxy, tránh tin toàn bộ mạng dùng chung. Khi không cấu hình trust, request qua proxy chia sẻ hạn mức theo IP proxy.
+
+Log public chứa request ID, chatbot ID nếu đã xác thực, status, mã lỗi và latency; không chứa URL/key/message/IP khách. Filter backend redacts `rgh_...`, kể cả access log Uvicorn. Nginx access log che key và bỏ query string; error log riêng của public route được tắt vì Nginx ghi nguyên URI trong lỗi upstream. Dùng log API có request ID để điều tra.
+
+Redis hash `public:metrics` giữ tổng request, `status:403`, `status:429`, các `code:*` và `latency_ms_sum`. Latency là toàn bộ thời gian response, bao gồm stream; chia tổng cho số request để tính trung bình. Gauge stream active dùng `ZCOUNT public:active:global <unix-time-hiện-tại> +inf` (hoặc key `public:active:bot:<chatbot-id>`). Chỉ đếm lease chưa hết hạn. Metrics lỗi không chặn response; admission Redis lỗi vẫn trả `503`. Không công khai Redis hay endpoint metrics cho website.
+
+Trước production, kiểm tra trên domain HTTPS thực: CSP cho phép `script-src` tới RagHub và `connect-src` tới API; allowlist khớp scheme/port; preflight, lỗi `429` và SSE đọc được trong browser; proxy/CDN giữ `no-store`, không buffer SSE và không log embed key. Domain thật không được giả định đã nghiệm thu bằng smoke local.
 
 ## Kiểm tra
 

@@ -1,13 +1,14 @@
 """Shared, atomic public-chat admission controls. Raw embed keys never enter Redis."""
 
 import hashlib
-from collections.abc import AsyncIterator
+from ipaddress import ip_address, ip_network
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
+from starlette.requests import Request
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
@@ -44,10 +45,29 @@ return 1
 """
 
 
+def client_ip(request: Request, settings: Settings) -> str:
+    peer = request.client.host if request.client else "unknown"
+    try:
+        address = ip_address(peer)
+        trusted = any(
+            address in ip_network(cidr.strip())
+            for cidr in settings.public_chat_trusted_proxy_cidrs.split(",")
+            if cidr.strip()
+        )
+        if trusted:
+            return str(ip_address(request.headers.get("x-real-ip", peer)))
+    except ValueError:
+        pass
+    return peer
+
+
 class PublicChatLimits:
     def __init__(self, redis: Redis, settings: Settings) -> None:
         self.redis = redis
         self.settings = settings
+
+    async def close(self) -> None:
+        await self.redis.aclose()
 
     def slot_keys(self, chatbot_id: str) -> tuple[str, str]:
         return "public:active:global", f"public:active:bot:{chatbot_id}"
@@ -56,20 +76,26 @@ class PublicChatLimits:
         token = uuid4().hex
         try:
             acquired = await self.redis.eval(
-                ACQUIRE_SCRIPT, 2, *self.slot_keys(chatbot_id),
+                ACQUIRE_SCRIPT,
+                2,
+                *self.slot_keys(chatbot_id),
                 self.settings.public_chat_concurrent_global,
                 self.settings.public_chat_concurrent_per_chatbot,
-                self.settings.public_chat_stream_timeout_seconds + 10, token,
+                self.settings.public_chat_stream_timeout_seconds + 10,
+                token,
             )
         except RedisError as exc:
             raise AppError(
-                "PUBLIC_CHAT_UNAVAILABLE", "Public chat admission is unavailable.",
+                "PUBLIC_CHAT_UNAVAILABLE",
+                "Public chat admission is unavailable.",
                 status_code=503,
             ) from exc
         if not acquired:
             raise AppError(
-                "PUBLIC_CHAT_CONCURRENCY_LIMITED", "Public chat is busy. Try again shortly.",
-                status_code=429, details={"retry_after_seconds": 5},
+                "PUBLIC_CHAT_CONCURRENCY_LIMITED",
+                "Public chat is busy. Try again shortly.",
+                status_code=429,
+                details={"retry_after_seconds": 5},
             )
         return token
 
@@ -79,28 +105,38 @@ class PublicChatLimits:
     async def check_rate(self, chatbot_id: str, ip: str) -> None:
         ip_hash = hashlib.sha256(ip.encode()).hexdigest()
         try:
-            retry = int(await self.redis.eval(
-                RATE_SCRIPT, 2, f"public:rate:ip:{ip_hash}",
-                f"public:rate:bot:{chatbot_id}",
-                self.settings.public_chat_requests_per_ip,
-                self.settings.public_chat_requests_per_chatbot,
-            ))
+            retry = int(
+                await self.redis.eval(
+                    RATE_SCRIPT,
+                    2,
+                    f"public:rate:ip:{ip_hash}",
+                    f"public:rate:bot:{chatbot_id}",
+                    self.settings.public_chat_requests_per_ip,
+                    self.settings.public_chat_requests_per_chatbot,
+                )
+            )
         except RedisError as exc:
             raise AppError(
-                "PUBLIC_CHAT_UNAVAILABLE", "Public chat admission is unavailable.",
+                "PUBLIC_CHAT_UNAVAILABLE",
+                "Public chat admission is unavailable.",
                 status_code=503,
             ) from exc
         if retry:
             raise AppError(
-                "PUBLIC_CHAT_RATE_LIMITED", "Too many public chat requests.",
-                status_code=429, details={"retry_after_seconds": retry},
+                "PUBLIC_CHAT_RATE_LIMITED",
+                "Too many public chat requests.",
+                status_code=429,
+                details={"retry_after_seconds": retry},
             )
 
 
 async def get_public_limits(
     settings: Annotated[Settings, Depends(get_settings)],
-) -> AsyncIterator[PublicChatLimits]:
-    async with Redis.from_url(
-        settings.redis_url, socket_connect_timeout=2, socket_timeout=2,
-    ) as redis:
-        yield PublicChatLimits(redis, settings)
+) -> PublicChatLimits:
+    # The response owns cleanup. FastAPI 0.115 closes yield dependencies before SSE starts.
+    redis = Redis.from_url(
+        settings.redis_url,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+    return PublicChatLimits(redis, settings)

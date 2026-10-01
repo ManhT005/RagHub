@@ -21,7 +21,11 @@ async def test_concurrent_admission_and_unique_release():
     limits = PublicChatLimits(redis, Settings())
     token = await limits.acquire("bot")
     assert redis.eval.call_args.args[2:7] == (
-        "public:active:global", "public:active:bot:bot", 32, 4, 100,
+        "public:active:global",
+        "public:active:bot:bot",
+        32,
+        4,
+        100,
     )
     await limits.release("bot", token)
     assert redis.eval.call_args.args[-1] == token
@@ -41,6 +45,7 @@ async def test_stream_releases_slot_on_every_exit(outcome):
 
     limits = AsyncMock()
     entered = asyncio.Event()
+    limits.settings = Settings()
 
     async def body():
         entered.set()
@@ -65,6 +70,7 @@ async def test_stream_releases_slot_on_every_exit(outcome):
     except Exception:
         assert outcome in {"provider_error", "timeout"}
     limits.release.assert_awaited_once_with("bot", "slot")
+    limits.close.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -118,21 +124,28 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
     app.dependency_overrides[router.get_organization_context] = lambda: bot
     app.dependency_overrides[router.get_current_user] = lambda: bot
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test",
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
     ) as client:
         headers = {"Origin": "https://example.com"}
         result = await client.post(
-            "/public/chatbots/rgh_test/chat", json={"message": "Hi"}, headers=headers,
+            "/public/chatbots/rgh_test/chat",
+            json={"message": "Hi"},
+            headers=headers,
         )
         assert result.status_code == 200
         assert "event: done" in result.text
         assert limits.release.await_count == 1
         limits.check_rate.side_effect = AppError(
-            "PUBLIC_CHAT_RATE_LIMITED", "Too many requests.", status_code=429,
+            "PUBLIC_CHAT_RATE_LIMITED",
+            "Too many requests.",
+            status_code=429,
             details={"retry_after_seconds": 12},
         )
         result = await client.post(
-            "/public/chatbots/rgh_test/chat", json={"message": "Hi"}, headers=headers,
+            "/public/chatbots/rgh_test/chat",
+            json={"message": "Hi"},
+            headers=headers,
         )
         assert result.status_code == 429
         assert result.headers["retry-after"] == "12"

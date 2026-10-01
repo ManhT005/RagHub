@@ -5,6 +5,7 @@ import re
 
 class SecretRedactionFilter(logging.Filter):
     _patterns = (
+        re.compile(r"\brgh_[A-Za-z0-9_-]+"),
         re.compile(
             r"(?i)(authorization\s*[:=]\s*)(?:Bearer\s+)?[A-Za-z0-9._~+/=-]+"
         ),
@@ -34,3 +35,4 @@ def configure_logging() -> None:
     redaction = SecretRedactionFilter()
     for handler in logging.getLogger().handlers:
         handler.addFilter(redaction)
+    logging.getLogger("uvicorn.access").addFilter(redaction)

@@ -94,7 +94,9 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(router, "ChatbotService", FakeService)
     limits = AsyncMock()
-    limits.settings = SimpleNamespace(public_chat_stream_timeout_seconds=90)
+    from app.core.config import Settings
+
+    limits.settings = Settings()
     response = await router.public_chat(
         "rgh_test",
         ChatRequest(message="Hello"),
