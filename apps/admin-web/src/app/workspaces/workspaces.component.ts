@@ -72,7 +72,7 @@ export class WorkspacesComponent {
         this.members.update((items) => [...items.filter((item) => item.user_id !== member.user_id), member]);
         this.memberEmail = '';
       },
-      error: () => this.error.set('Không thể thêm thành viên. Người này cần đăng ký tài khoản trước.'),
+      error: () => this.error.set('Không thể thêm thành viên. Tài khoản người này chưa tồn tại.'),
     });
   }
 

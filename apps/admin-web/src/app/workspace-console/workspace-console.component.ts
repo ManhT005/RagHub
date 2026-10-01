@@ -184,12 +184,17 @@ export class WorkspaceConsoleComponent {
       return;
     }
     const baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+    const current = this.providers();
+    const existingEmbedding = current.find((provider) =>
+      provider.provider_type === 'GOOGLE_GEMINI' && provider.capability === 'EMBEDDING' && provider.model === 'gemini-embedding-2');
+    const existingChat = current.find((provider) =>
+      provider.provider_type === 'GOOGLE_GEMINI' && provider.capability === 'CHAT' && provider.model === this.geminiChatModel);
     forkJoin({
-      embedding: this.api.createProvider(this.selectedOrganization, {
+      embedding: existingEmbedding ? this.api.updateProvider(existingEmbedding.id, { secret: this.geminiApiKey }) : this.api.createProvider(this.selectedOrganization, {
         name: 'Embedding Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'EMBEDDING',
         base_url: baseUrl, model: 'gemini-embedding-2', dimension: 3072, secret: this.geminiApiKey,
       }),
-      chat: this.api.createProvider(this.selectedOrganization, {
+      chat: existingChat ? this.api.updateProvider(existingChat.id, { secret: this.geminiApiKey }) : this.api.createProvider(this.selectedOrganization, {
         name: 'Chat Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'CHAT',
         base_url: baseUrl, model: this.geminiChatModel, secret: this.geminiApiKey,
       }),

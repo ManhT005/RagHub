@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
+import { vi } from 'vitest';
 
 import { RaghubApiService } from '../core/raghub-api.service';
 import { WorkspaceConsoleComponent } from './workspace-console.component';
@@ -160,5 +161,27 @@ describe('WorkspaceConsoleComponent', () => {
 
     const model = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name="geminiChatModel"]');
     expect(model?.value).toBe('gemini-3.5-flash-lite');
+  });
+
+  it('reuses the existing Gemini providers instead of creating duplicates', async () => {
+    const createProvider = vi.fn();
+    const embedding = { id: 'embedding-1', provider_type: 'GOOGLE_GEMINI', capability: 'EMBEDDING', model: 'gemini-embedding-2' };
+    const chat = { id: 'chat-1', provider_type: 'GOOGLE_GEMINI', capability: 'CHAT', model: 'gemini-3.5-flash-lite' };
+    await TestBed.configureTestingModule({
+      imports: [WorkspaceConsoleComponent], providers: [provideRouter([]), { provide: RaghubApiService, useValue: {
+        organizations: () => of([{ id: 'org-1', name: 'Demo', slug: 'demo', role: 'OWNER' }]),
+        workspaces: () => of([{ id: 'workspace-1', name: 'Knowledge', slug: 'knowledge', organization_id: 'org-1' }]),
+        providers: () => of([embedding, chat]), documents: () => of([]), chatbots: () => of([]),
+        createProvider, updateProvider: (id: string) => of({ id }), bindWorkspaceProviders: () => of({}),
+      } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(WorkspaceConsoleComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+
+    (fixture.componentInstance as any).geminiApiKey = 'test-key';
+    (fixture.componentInstance as any).configureGemini();
+
+    expect(createProvider).not.toHaveBeenCalled();
+    fixture.destroy();
   });
 });

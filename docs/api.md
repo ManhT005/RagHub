@@ -6,11 +6,21 @@ Bearer <access-token>` header. Organization-scoped routes also require
 
 ## Authentication
 
-- `POST /auth/register` and `POST /auth/login` accept `email` and `password`,
-  return an access token, and set the HTTP-only `refresh_token` cookie.
-- `POST /auth/refresh` rotates the access token from that cookie.
-- `POST /auth/logout` clears the cookie.
+- `POST /auth/login` authenticates an existing local identity. Public
+  registration and third-party login are disabled; accounts must be provisioned
+  administratively.
+- `POST /auth/password/forgot` always returns the same `202` response and emails
+  a one-time reset link when the account exists. `POST /auth/password/reset`
+  consumes that link; `POST /auth/password/change` requires authentication and
+  the current password.
+- `POST /auth/refresh` rotates an opaque refresh token stored only as a hash in
+  `user_sessions`. Reuse of a revoked refresh token revokes all user sessions.
+- `POST /auth/logout` revokes the current session and clears the cookie.
 - `GET /auth/me` returns the current authenticated user.
+
+SMTP uses `smtp.gmail.com:587` with STARTTLS. `SMTP_PASSWORD` must be a Google
+App Password. In development, missing SMTP configuration uses a log sender; in
+non-development environments all SMTP settings are required at startup.
 
 ## Organizations and workspaces
 

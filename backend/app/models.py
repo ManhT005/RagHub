@@ -5,6 +5,7 @@ from app.modules.ai_providers.models import (
     EmbeddingReindexJob,
     ProviderConfig,
 )
+from app.modules.auth.models import PasswordResetToken, UserIdentity, UserSession
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 from app.modules.memberships.models import Membership
@@ -28,4 +29,7 @@ __all__ = [
     "ProviderConfig",
     "EmbeddingIndexVersion",
     "EmbeddingReindexJob",
+    "UserIdentity",
+    "PasswordResetToken",
+    "UserSession",
 ]

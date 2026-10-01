@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
@@ -33,6 +33,15 @@ export class ChatbotsComponent {
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly providers = signal<ProviderConfig[]>([]);
+  protected readonly uniqueProviders = computed(() => {
+    const seen = new Set<string>();
+    return this.providers().filter((provider) => provider.enabled).filter((provider) => {
+      const identity = `${provider.provider_type}:${provider.capability}:${provider.model}`;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  });
   protected readonly bots = signal<Chatbot[]>([]);
   protected readonly selectedBot = signal<Chatbot | null>(null);
   protected readonly messages = signal<TranscriptMessage[]>([]);
@@ -90,7 +99,10 @@ export class ChatbotsComponent {
     this.conversationId = null;
     if (!this.selectedWorkspace || !this.selectedOrganization) return;
     this.api.providers(this.selectedOrganization).subscribe({
-      next: (items) => this.providers.set(items),
+      next: (items) => {
+        this.providers.set(items);
+        this.autoSelectProviders();
+      },
       error: () => this.setError('Không thể tải danh sách nhà cung cấp AI.'),
     });
     this.api.chatbots(this.selectedWorkspace).subscribe({
@@ -106,7 +118,7 @@ export class ChatbotsComponent {
   protected configureLocal(): void {
     if (!this.selectedOrganization || !this.selectedWorkspace) return;
     this.clearMessages();
-    const current = this.providers();
+    const current = this.uniqueProviders();
     const embedding = current.find((provider) =>
       provider.provider_type === 'LOCAL_SENTENCE_TRANSFORMER' && provider.capability === 'EMBEDDING' && provider.model === this.localEmbeddingModel);
     const chat = current.find((provider) =>
@@ -137,12 +149,19 @@ export class ChatbotsComponent {
     }
     this.clearMessages();
     const baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+    const current = this.uniqueProviders();
+    // Tái dùng provider cùng model để tránh tạo trùng mỗi lần bấm Lưu (lỗi 3 dòng Chat Gemini giống hệt nhau).
+    const embeddingModel = 'gemini-embedding-2';
+    const existingEmbedding = current.find((provider) =>
+      provider.provider_type === 'GOOGLE_GEMINI' && provider.capability === 'EMBEDDING' && provider.model === embeddingModel);
+    const existingChat = current.find((provider) =>
+      provider.provider_type === 'GOOGLE_GEMINI' && provider.capability === 'CHAT' && provider.model === this.geminiChatModel);
     forkJoin({
-      embedding: this.api.createProvider(this.selectedOrganization, {
+      embedding: existingEmbedding ? this.api.updateProvider(existingEmbedding.id, { secret: this.geminiApiKey }) : this.api.createProvider(this.selectedOrganization, {
         name: 'Embedding Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'EMBEDDING',
-        base_url: baseUrl, model: 'gemini-embedding-2', dimension: 3072, secret: this.geminiApiKey,
+        base_url: baseUrl, model: embeddingModel, dimension: 3072, secret: this.geminiApiKey,
       }),
-      chat: this.api.createProvider(this.selectedOrganization, {
+      chat: existingChat ? this.api.updateProvider(existingChat.id, { secret: this.geminiApiKey }) : this.api.createProvider(this.selectedOrganization, {
         name: 'Chat Gemini', provider_type: 'GOOGLE_GEMINI', capability: 'CHAT',
         base_url: baseUrl, model: this.geminiChatModel, secret: this.geminiApiKey,
       }),
@@ -270,7 +289,35 @@ export class ChatbotsComponent {
 
   private reloadProviders(): void {
     if (!this.selectedOrganization) return;
-    this.api.providers(this.selectedOrganization).subscribe({ next: (items) => this.providers.set(items) });
+    this.api.providers(this.selectedOrganization).subscribe({
+      next: (items) => {
+        this.providers.set(items);
+        this.autoSelectProviders();
+      },
+    });
+  }
+
+  private autoSelectProviders(): void {
+    const items = this.uniqueProviders();
+    const embeddings = items.filter((provider) => provider.capability === 'EMBEDDING');
+    const chats = items.filter((provider) => provider.capability === 'CHAT');
+    if (!embeddings.some((provider) => provider.id === this.selectedEmbeddingProvider)) {
+      this.selectedEmbeddingProvider = embeddings[0]?.id ?? '';
+    }
+    if (!chats.some((provider) => provider.id === this.selectedChatProvider)) {
+      this.selectedChatProvider = chats[0]?.id ?? '';
+    }
+  }
+
+  protected isActiveProvider(providerId: string): boolean {
+    return providerId === this.selectedEmbeddingProvider || providerId === this.selectedChatProvider;
+  }
+
+  protected selectedProvider(capability: 'EMBEDDING' | 'CHAT'): ProviderConfig | undefined {
+    const providerId = capability === 'EMBEDDING'
+      ? this.selectedEmbeddingProvider
+      : this.selectedChatProvider;
+    return this.providers().find((provider) => provider.id === providerId);
   }
 
   private resetWorkspaceState(): void {

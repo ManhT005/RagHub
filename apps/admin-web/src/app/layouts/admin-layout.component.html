@@ -1,1 +1,27 @@
-<nz-layout class="admin-shell"><nz-sider nzTheme="light" nzWidth="144"><a class="brand" routerLink="/app/overview"><img src="assets/logo.png" alt="RagHub"/><strong>RAGHub</strong></a><ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng chính"><li nz-menu-item><a routerLink="/app/overview" routerLinkActive="ant-menu-item-selected"><nz-icon nzType="dashboard"/>Tổng quan</a></li><li nz-menu-item><a routerLink="/app/workspaces" routerLinkActive="ant-menu-item-selected"><nz-icon nzType="database"/>Workspace</a></li><li nz-menu-item><a routerLink="/app/documents" routerLinkActive="ant-menu-item-selected"><nz-icon nzType="file-text"/>Tài liệu</a></li><li nz-menu-item><a routerLink="/app/chatbots" routerLinkActive="ant-menu-item-selected"><nz-icon nzType="message"/>Chatbot</a></li><li nz-menu-item><a routerLink="/app/chatbots/demo/settings"><nz-icon nzType="setting"/>Cài đặt</a></li></ul><footer><span class="user-dot">T</span><div><b>Tú Đông Vân</b><small>Admin</small></div></footer></nz-sider><nz-layout><nz-header><span></span><nz-icon nzType="bell"/><a routerLink="/auth" class="profile"><span class="user-dot">T</span><span><b>Tú Đông Vân</b><small>Admin</small></span></a></nz-header><nz-content><router-outlet/></nz-content></nz-layout></nz-layout>
+<nz-layout class="admin-shell">
+  <nz-sider nzTheme="light" nzWidth="232">
+    <a class="brand" routerLink="/app/overview" aria-label="Trang quản trị RAGHub">
+      <span class="brand-mark"><img src="assets/logo.png" alt="" /></span>
+      <span><strong>RAGHub</strong><small>Knowledge workspace</small></span>
+    </a>
+    <p class="nav-label">Không gian quản trị</p>
+    <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng quản trị">
+      <li nz-menu-item><a routerLink="/app/overview" routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan</span></a></li>
+      <li nz-menu-item><a routerLink="/app/workspaces" routerLinkActive="active"><nz-icon nzType="database" /><span>Workspace</span></a></li>
+      <li nz-menu-item><a routerLink="/app/documents" routerLinkActive="active"><nz-icon nzType="file-text" /><span>Tài liệu</span></a></li>
+      <li nz-menu-item><a routerLink="/app/chatbots" routerLinkActive="active"><nz-icon nzType="message" /><span>Chatbot</span></a></li>
+      <li nz-menu-item><a routerLink="/app/security" routerLinkActive="active"><nz-icon nzType="setting" /><span>Bảo mật</span></a></li>
+    </ul>
+    <footer><span class="user-dot">T</span><div><b>Tài khoản</b><small>Quản trị viên</small></div><a routerLink="/app/profile" aria-label="Mở thông tin tài khoản">›</a></footer>
+  </nz-sider>
+  <nz-layout class="admin-main">
+    <nz-header>
+      <div class="header-context"><b>Trung tâm quản trị</b><small>Quản lý tri thức và chatbot của bạn</small></div>
+      <div class="header-actions">
+        <button class="icon-button" type="button" aria-label="Thông báo"><nz-icon nzType="bell" /></button>
+        <a routerLink="/app/profile" class="profile"><span class="user-dot">T</span><span><b>Tài khoản</b><small>Bảo mật & phiên đăng nhập</small></span></a>
+      </div>
+    </nz-header>
+    <nz-content><div class="content-frame"><router-outlet /></div></nz-content>
+  </nz-layout>
+</nz-layout>

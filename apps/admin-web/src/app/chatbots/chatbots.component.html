@@ -50,20 +50,40 @@
             <button (click)="configureGemini()">Lưu Gemini</button>
           </div>
         </details>
-        <div class="provider-list">
-          @for (provider of providers(); track provider.id) {
-            <div class="provider-row">
-              <div><strong>{{ provider.name }}</strong><small>{{ provider.provider_type }} · {{ provider.model }}</small></div>
+        <section class="connection-summary" aria-label="Cấu hình AI được chọn">
+          <div><strong>Cấu hình AI cho workspace</strong><p>Hai provider dưới đây sẽ được dùng để xử lý tài liệu và trả lời.</p></div>
+          <div class="connection-summary-row">
+            <span>Embedding</span>
+            @if (selectedProvider('EMBEDDING'); as provider) {
+              <strong [title]="provider.provider_type + ' · ' + provider.model">{{ provider.name }} <small>{{ provider.model }}</small></strong>
+              <button type="button" class="text-button" (click)="testProvider(provider)">Kiểm tra</button>
+            } @else { <em>Chưa chọn</em> }
+          </div>
+          <div class="connection-summary-row">
+            <span>Chat</span>
+            @if (selectedProvider('CHAT'); as provider) {
+              <strong [title]="provider.provider_type + ' · ' + provider.model">{{ provider.name }} <small>{{ provider.model }}</small></strong>
+              <button type="button" class="text-button" (click)="testProvider(provider)">Kiểm tra</button>
+            } @else { <em>Chưa chọn</em> }
+          </div>
+        </section>
+        <div class="provider-list" role="list" aria-label="Danh sách provider">
+          @for (provider of uniqueProviders(); track provider.id) {
+            <div class="provider-row" role="listitem" [class.active]="isActiveProvider(provider.id)" [title]="provider.provider_type + ' · ' + provider.model">
+              <div><strong>{{ provider.name }} @if (isActiveProvider(provider.id)) { <span class="active-badge">Đang dùng</span> }</strong><small><span class="cap">{{ provider.capability }}</span> {{ provider.provider_type }} · {{ provider.model }}</small></div>
               <button class="text-button" (click)="testProvider(provider)">Kiểm tra</button>
             </div>
           } @empty { <p class="hint">Chưa có provider. Bấm “Dùng local Ollama” để tạo cấu hình mặc định.</p> }
         </div>
         @if (providers().length) {
-          <div class="binding-form">
-            <select [(ngModel)]="selectedEmbeddingProvider" name="embeddingProvider"><option value="">Embedding provider</option>@for (provider of providers(); track provider.id) { @if (provider.capability === 'EMBEDDING') { <option [value]="provider.id">{{ provider.name }}</option> } }</select>
-            <select [(ngModel)]="selectedChatProvider" name="chatProvider"><option value="">Chat provider</option>@for (provider of providers(); track provider.id) { @if (provider.capability === 'CHAT') { <option [value]="provider.id">{{ provider.name }}</option> } }</select>
-            <button (click)="bindProviders()">Gắn vào workspace</button>
-          </div>
+          <details class="manual-binding">
+            <summary>Gắn provider thủ công (nâng cao)</summary>
+            <div class="binding-form">
+              <label>Embedding<select [(ngModel)]="selectedEmbeddingProvider" name="embeddingProvider">@for (provider of uniqueProviders(); track provider.id) { @if (provider.capability === 'EMBEDDING') { <option [value]="provider.id">{{ provider.name }} · {{ provider.model }}</option> } }</select></label>
+              <label>Chat<select [(ngModel)]="selectedChatProvider" name="chatProvider">@for (provider of uniqueProviders(); track provider.id) { @if (provider.capability === 'CHAT') { <option [value]="provider.id">{{ provider.name }} · {{ provider.model }}</option> } }</select></label>
+              <button (click)="bindProviders()">Gắn vào workspace</button>
+            </div>
+          </details>
         }
       </article>
 

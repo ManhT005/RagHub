@@ -26,13 +26,17 @@ async def get_current_user(
     if credentials is None:
         raise AppError("AUTHENTICATION_REQUIRED", "A bearer token is required.", status_code=401)
     try:
-        user_id = decode_token(credentials.credentials, get_settings())
+        claims = decode_token(credentials.credentials, get_settings())
     except ValueError as exc:
         raise AppError(
             "INVALID_TOKEN", "The access token is invalid or expired.", status_code=401
         ) from exc
-    user = await session.get(User, user_id)
-    if user is None or user.status != "ACTIVE":
+    user = await session.get(User, claims.user_id)
+    if (
+        user is None
+        or user.status != "ACTIVE"
+        or user.auth_version != claims.auth_version
+    ):
         raise AppError(
             "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
         )

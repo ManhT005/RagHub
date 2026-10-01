@@ -6,11 +6,21 @@ import { appConfig } from './app.config';
 
 describe('AppComponent', () => {
   it('redirects legacy documents to the app documents route', async () => {
+    sessionStorage.setItem('raghub.access-token', 'test-token');
     await TestBed.configureTestingModule({ providers: appConfig.providers }).compileComponents();
     const router = TestBed.inject(Router);
     const location = TestBed.inject(Location);
     await router.navigateByUrl('/documents');
     expect(location.path()).toBe('/app/documents');
+  });
+
+  it('redirects an unauthenticated profile visit to login', async () => {
+    sessionStorage.removeItem('raghub.access-token');
+    await TestBed.configureTestingModule({ providers: appConfig.providers }).compileComponents();
+    const router = TestBed.inject(Router);
+    const location = TestBed.inject(Location);
+    await router.navigateByUrl('/app/profile');
+    expect(location.path()).toContain('/auth');
   });
 
   it('hosts routed page content', async () => {

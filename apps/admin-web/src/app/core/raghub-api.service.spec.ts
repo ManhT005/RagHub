@@ -61,3 +61,33 @@ describe('SseEventParser', () => {
     ]);
   });
 });
+
+describe('RaghubApiService authentication endpoints', () => {
+  let api: RaghubApiService;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(RaghubApiService);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  it('supports forgot, reset, and change password flows', () => {
+    api.forgotPassword('user@example.com').subscribe();
+    http.expectOne('/api/v1/auth/password/forgot').flush({ message: 'sent' });
+
+    api.resetPassword('reset-token', 'new-password').subscribe();
+    const reset = http.expectOne('/api/v1/auth/password/reset');
+    expect(reset.request.body).toEqual({ token: 'reset-token', new_password: 'new-password' });
+    reset.flush(null);
+
+    api.changePassword('old-password', 'new-password').subscribe();
+    const change = http.expectOne('/api/v1/auth/password/change');
+    expect(change.request.body).toEqual({ current_password: 'old-password', new_password: 'new-password' });
+    change.flush({ access_token: 'new-access' });
+  });
+});
