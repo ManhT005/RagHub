@@ -1,0 +1,10 @@
+# Combine with docker-compose.ghcr.yml; invoke only with `run --rm -T seed-test-admins`.
+services:
+  seed-test-admins:
+    extends:
+      file: docker-compose.ghcr.yml
+      service: migrate
+    image: ${RAGHUB_SEED_IMAGE:?Set RAGHUB_SEED_IMAGE to the published seed backend image}
+    profiles: [tools]
+    command: [python, -m, app.seed_test_admins]
+    stdin_open: true
