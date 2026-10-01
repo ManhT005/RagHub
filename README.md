@@ -24,6 +24,7 @@ Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) v�
 - [Mục tiêu MVP còn lại](#mục-tiêu-mvp-còn-lại)
 - [Công nghệ và kiến trúc](#công-nghệ-và-kiến-trúc)
 - [Khởi chạy với Docker](#khởi-chạy-với-docker)
+- [Docker image trên GitHub](#docker-image-trên-github)
 - [Thiết lập để sử dụng](#thiết-lập-để-sử-dụng)
 - [AI cục bộ](#ai-cục-bộ)
 - [Phát triển và kiểm tra](#phát-triển-và-kiểm-tra)
@@ -59,7 +60,7 @@ Tài liệu thiết kế phiên bản 1.0 đặt mốc MVP ngày **08/10/2026**.
 | Giao diện cấu hình AI provider và chatbot | Đã có luồng cấu hình và chat trong Admin |
 | Chat Widget dạng Web Component, script nhúng và website mẫu | Đã có trong `apps/chat-widget/` |
 | Bảo vệ public widget | Đã có embed key, allowed origins, rate limit Redis và giới hạn concurrent; embed key chỉ dùng cho public widget |
-| Quy trình triển khai SaaS và on-premise hoàn chỉnh | Docker Compose đã có cho phát triển và demo; chưa có quy trình production |
+| Quy trình triển khai SaaS và on-premise hoàn chỉnh | Đã có Compose local/GHCR, publish image theo phiên bản và hướng dẫn cập nhật/rollback; TLS, domain, backup và vận hành theo môi trường triển khai |
 
 Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tuyên bố MVP đã hoàn thành. [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) mô tả chi tiết kiến trúc, backlog, tiêu chí nghiệm thu và kịch bản demo dự kiến.
 
@@ -121,7 +122,7 @@ docker compose -f infrastructure/docker-compose.yml up --build -d --wait
 docker compose -f infrastructure/docker-compose.yml ps
 ```
 
-Compose tự chạy migration Alembic trước khi API nhận yêu cầu. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
+Service `migrate` chạy Alembic trước khi API khởi động. Local ports mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
 
 | Địa chỉ | Dịch vụ |
 | --- | --- |
@@ -138,6 +139,19 @@ docker compose -f infrastructure/docker-compose.yml down
 ```
 
 `down` dừng container và giữ lại các volume dữ liệu.
+
+## Docker image trên GitHub
+
+Dự án có Compose riêng cho local và chạy image từ GHCR, dùng chung [cấu hình dịch vụ](infrastructure/docker-compose.base.yml). Sau khi CI pass, push vào `develop`/`main` hoặc tag release từ `main` sẽ build/publish backend (runtime/local-ai), Admin web, widget, demo và gateway. Pull request chỉ build để kiểm tra. API, worker và migration dùng cùng backend image.
+
+Copy [`.env.ghcr.example`](.env.ghcr.example) thành `.env.ghcr`, điền secrets/SMTP/domain và tag đã publish, rồi chạy:
+
+```powershell
+docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml pull
+docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml up -d --wait --pull never
+```
+
+Bản GHCR không build source, chỉ mở cổng gateway, lưu dữ liệu trong volume riêng và đóng gói sẵn Nginx config. Xem [hướng dẫn GHCR](docs/docker-ghcr.md) để đăng nhập package private, dùng AI local, nâng cấp, rollback và backup.
 
 ## Thiết lập để sử dụng
 
