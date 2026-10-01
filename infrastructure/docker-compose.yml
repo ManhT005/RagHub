@@ -1,0 +1,105 @@
+name: raghub
+services:
+  postgres:
+    extends:
+      file: docker-compose.base.yml
+      service: postgres
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432
+  redis:
+    extends:
+      file: docker-compose.base.yml
+      service: redis
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379
+  elasticsearch:
+    extends:
+      file: docker-compose.base.yml
+      service: elasticsearch
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${ELASTICSEARCH_PORT:-9200}:9200
+  minio:
+    extends:
+      file: docker-compose.base.yml
+      service: minio
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_PORT:-9000}:9000
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001
+  ollama:
+    extends:
+      file: docker-compose.base.yml
+      service: ollama
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434
+  ollama-init:
+    extends:
+      file: docker-compose.base.yml
+      service: ollama-init
+  api:
+    extends:
+      file: docker-compose.base.yml
+      service: api
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ../backend
+      target: ${BACKEND_IMAGE_TARGET:-runtime}
+  worker:
+    extends:
+      file: docker-compose.base.yml
+      service: worker
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: never
+  admin-web:
+    extends:
+      file: docker-compose.base.yml
+      service: admin-web
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/admin-web:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ../apps/admin-web
+  chat-widget:
+    extends:
+      file: docker-compose.base.yml
+      service: chat-widget
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/chat-widget:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ../apps/chat-widget
+  widget-demo:
+    extends:
+      file: docker-compose.base.yml
+      service: widget-demo
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${WIDGET_DEMO_PORT:-8081}:80
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/widget-demo:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ../apps/chat-widget/demo
+  nginx:
+    extends:
+      file: docker-compose.base.yml
+      service: nginx
+    ports:
+      - ${LOCAL_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/gateway:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: build
+    build:
+      context: ./nginx
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  migrate:
+    extends:
+      file: docker-compose.base.yml
+      service: migrate
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: never
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  elasticsearch-data: {}
+  minio-data: {}
+  ollama-data: {}
+  huggingface-cache: {}

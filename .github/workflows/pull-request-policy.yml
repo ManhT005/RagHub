@@ -1,0 +1,36 @@
+name: Pull request policy
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  source-branch:
+    name: Pull request policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce pull request branch flow
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        shell: bash
+        run: |
+          if [[ "$BASE_REF" == "main" ]]; then
+            if [[ "$HEAD_REF" != "develop" || "$HEAD_REPOSITORY" != "$BASE_REPOSITORY" ]]; then
+              echo "Pull requests into main must originate from the develop branch in this repository."
+              exit 1
+            fi
+          fi
+
+          echo "Allowed branch flow: $HEAD_REPOSITORY:$HEAD_REF -> $BASE_REF"

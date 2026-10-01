@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RagHub – Website test widget</title>
+    <style>
+      body {
+        font-family: Georgia, serif;
+        background: #fcf2e8;
+        color: #5d2207;
+        margin: 0;
+        padding: 10vh 12vw;
+      }
+      button {
+        background: #cf3c00 !important;
+        color: #fff !important;
+        border: 8px dotted #792100 !important;
+        padding: 1rem 1.4rem !important;
+      }
+      h1 {
+        font-size: clamp(2rem, 8vw, 6rem) !important;
+        color: #b02d00 !important;
+      }
+      input {
+        width: min(620px, 100%);
+        padding: 1rem;
+        border: 4px solid #792100;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Website test</h1>
+    <p>
+      Trang này chạy ở origin khác để kiểm tra allowlist và CSS isolation của
+      RagHub widget.
+    </p>
+    <label
+      >Embed key <input id="key" placeholder="rgh_..." autocomplete="off"
+    /></label>
+    <p><button id="load">Tải chatbot</button></p>
+    <p id="status"></p>
+    <script>
+      const keyInput = document.querySelector("#key"),
+        status = document.querySelector("#status");
+      const params = new URLSearchParams(location.search);
+      keyInput.value = params.get("key") || "";
+      const apiBase = params.get("api") ||
+        (location.pathname.startsWith("/demo/") ? location.origin : "http://localhost:8080");
+      document.querySelector("#load").onclick = () => {
+        const key = keyInput.value.trim();
+        if (!key.startsWith("rgh_")) {
+          status.textContent = "Dán embed key bắt đầu bằng rgh_.";
+          return;
+        }
+        document.querySelector("raghub-chatbot")?.remove();
+        document.querySelector("#raghub-loader")?.remove();
+        const script = document.createElement("script");
+        script.id = "raghub-loader";
+        script.src = new URL("/widget/raghub.js?v=" + Date.now(), apiBase).href;
+        script.dataset.chatbotKey = key;
+        script.async = true;
+        document.body.append(script);
+        params.set("key", key);
+        history.replaceState({}, "", `?${params}`);
+        status.textContent = "Đã nhúng chatbot. Xem nút ở góc phải dưới.";
+      };
+    </script>
+  </body>
+</html>

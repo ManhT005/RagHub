@@ -1,0 +1,81 @@
+.auth-card {
+  max-width: 440px;
+  margin: 8vh auto;
+  padding: 32px;
+  border: 1px solid var(--rh-border);
+  border-radius: 16px;
+  background: var(--rh-surface);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.18);
+}
+h1 {
+  margin: 6px 0;
+  color: var(--rh-text);
+}
+form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--rh-muted);
+  font-weight: 600;
+}
+input {
+  padding: 10px;
+  border: 1px solid var(--rh-border);
+  border-radius: 8px;
+  color: var(--rh-text);
+  background: var(--rh-surface-raised);
+}
+button {
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--rh-indigo), #3c75ff);
+  font-weight: 700;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.link {
+  padding: 0;
+  color: var(--rh-cyan);
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.error {
+  color: var(--rh-danger);
+}
+.success {
+  color: #1f9d68;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0;
+  color: var(--rh-muted);
+}
+.divider::before,
+.divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--rh-border);
+  content: "";
+}
+#google-signin {
+  min-height: 42px;
+}

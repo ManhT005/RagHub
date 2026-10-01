@@ -1,0 +1,78 @@
+<main class="settings">
+  <header>
+    <a routerLink="/app/chatbots">← Chatbot</a>
+    <h1>Nhúng chatbot</h1>
+    <p>
+      Xuất bản trợ lý, giới hạn website được phép và sao chép một đoạn script.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p>Đang tải...</p>
+  } @else {
+    <section class="grid">
+      <form (ngSubmit)="publish()">
+        <label>
+          Chatbot
+          <input [(ngModel)]="name" name="name" disabled />
+        </label>
+
+        <label>
+          Website được phép
+          <textarea
+            [(ngModel)]="origins"
+            name="origins"
+            rows="3"
+            placeholder="https://example.com"
+          ></textarea>
+          <small>
+            Mỗi dòng một domain. Chỉ các website này mới gọi được widget.
+          </small>
+        </label>
+
+        <div class="theme">
+          <label>
+            Màu chính
+            <input [(ngModel)]="primaryColor" name="color" type="color" />
+          </label>
+          <label>
+            Tiêu đề
+            <input [(ngModel)]="title" name="title" />
+          </label>
+        </div>
+
+        <label>
+          Lời chào
+          <textarea [(ngModel)]="greeting" name="greeting" rows="3"></textarea>
+        </label>
+
+        <button type="submit">
+          {{ published ? "Cập nhật và xuất bản" : "Xuất bản chatbot" }}
+        </button>
+      </form>
+
+      <aside>
+        <h2>Mã nhúng</h2>
+        <p>Dán vào trước thẻ <code>&lt;/body&gt;</code> của website.</p>
+        <pre>{{ code() || "Xuất bản chatbot để nhận mã nhúng." }}</pre>
+        <button type="button" (click)="copy()" [disabled]="!code()">
+          Sao chép mã
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          (click)="rotate()"
+          [disabled]="!published"
+        >
+          Tạo key mới
+        </button>
+        <div class="hint">
+          Khi tạo key mới, mã nhúng cũ sẽ ngừng hoạt động. Hãy thay script trên
+          website của bạn.
+        </div>
+      </aside>
+    </section>
+
+    <p class="notice" aria-live="polite">{{ notice() }}</p>
+  }
+</main>

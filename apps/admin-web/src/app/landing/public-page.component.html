@@ -1,0 +1,157 @@
+<main class="public-page">
+  <raghub-public-nav />
+  @switch (routeData()?.["page"]) {
+    @case ("features") {
+      <header>
+        <h1>Tính năng RAGHub</h1>
+        <p>
+          Từ tài liệu của tổ chức đến câu trả lời có nguồn tham chiếu. Quản lý
+          tri thức và chatbot trong một nền tảng.
+        </p>
+      </header>
+      <section class="feature-grid" aria-label="Tính năng hiện tại">
+        <article>
+          <span class="icon">◇</span>
+          <h2>Workspace tri thức độc lập</h2>
+          <p>
+            Tạo nhiều workspace cho từng lĩnh vực. Quản lý tài liệu và chatbot
+            theo tổ chức, với quyền truy cập của từng thành viên.
+          </p>
+        </article>
+        <article>
+          <span class="icon red">▤</span>
+          <h2>Kho tài liệu đa định dạng</h2>
+          <p>
+            Tải lên PDF, DOCX, XLSX và PPTX. Theo dõi trạng thái xử lý, quản lý
+            phiên bản và tạo lại chỉ mục khi cần.
+          </p>
+        </article>
+        <article>
+          <span class="icon">⌕</span>
+          <h2>Hỏi đáp từ dữ liệu riêng</h2>
+          <p>
+            Hệ thống trích xuất nội dung, chia đoạn, tạo embedding và truy xuất
+            phần tài liệu liên quan để sinh câu trả lời kèm nguồn tham chiếu.
+          </p>
+        </article>
+        <article>
+          <span class="icon violet">⚙</span>
+          <h2>Lựa chọn mô hình AI</h2>
+          <p>
+            Cấu hình nhà cung cấp AI và mô hình cho chatbot. Lựa chọn API bên
+            ngoài hoặc mô hình cục bộ tùy hạ tầng và nhu cầu kiểm soát dữ liệu.
+          </p>
+        </article>
+      </section>
+      <section class="development">
+        <h2>Định hướng phát triển</h2>
+        <p>
+          Theo đề án của DoubleT, RAGHub hướng tới widget nhúng bằng script,
+          Allowed Origins, giới hạn tần suất và số request đồng thời. Những nội
+          dung này là kế hoạch phát triển, chưa phải tính năng được cung cấp đầy
+          đủ trong bản web hiện tại.
+        </p>
+      </section>
+      <div class="actions">
+        <a nz-button nzType="primary" routerLink="/auth"
+          >Tạo workspace của bạn</a
+        ><a nz-button routerLink="/giai-phap">Khám phá giải pháp</a>
+      </div>
+    }
+    @case ("solutions") {
+      <header>
+        <h1>Giải pháp cho nguồn tri thức của bạn</h1>
+        <p>
+          Không phải tự xây dựng toàn bộ hệ thống RAG. Bắt đầu từ tài liệu sẵn
+          có và cấu hình chatbot theo bài toán của tổ chức.
+        </p>
+      </header>
+      <section class="solutions" aria-label="Đối tượng sử dụng">
+        <article>
+          <h2>Trường học và cơ sở đào tạo</h2>
+          <p>
+            Tư vấn tuyển sinh, chương trình đào tạo, học phí và quy chế. Dùng
+            tài liệu của nhà trường làm nguồn trả lời cho sinh viên và người
+            học.
+          </p>
+        </article>
+        <article>
+          <h2>Doanh nghiệp</h2>
+          <p>
+            Tra cứu thông tin sản phẩm, dịch vụ, chính sách và hướng dẫn sử
+            dụng. Hỗ trợ nhân viên tìm câu trả lời từ kho tài liệu chung.
+          </p>
+        </article>
+        <article>
+          <h2>Cơ quan và tổ chức</h2>
+          <p>
+            Xây dựng trợ lý tra cứu quy định, quy trình và tri thức nội bộ. Phân
+            chia workspace theo lĩnh vực để quản lý nguồn dữ liệu rõ ràng.
+          </p>
+        </article>
+      </section>
+      <section class="deployment">
+        <h2>Định hướng triển khai linh hoạt</h2>
+        <div class="deployment-grid">
+          <article>
+            <h3>SaaS</h3>
+            <p>
+              Đề án hướng tới dịch vụ trên hạ tầng tập trung cho nhu cầu triển
+              khai nhanh, tư vấn tuyển sinh, sản phẩm, dịch vụ và FAQ.
+            </p>
+          </article>
+          <article>
+            <h3>On-premise</h3>
+            <p>
+              Triển khai các thành phần bằng Docker trên hạ tầng riêng. Mô hình
+              AI cục bộ cần tài nguyên tính toán phù hợp; lựa chọn AI Provider
+              độc lập với phương thức triển khai.
+            </p>
+          </article>
+        </div>
+        <p class="note">
+          Phương án cụ thể cần được đánh giá theo dữ liệu, hạ tầng và cấu hình
+          của từng tổ chức. Dịch vụ SaaS công khai và widget tích hợp website là
+          định hướng của đề án.
+        </p>
+      </section>
+      <div class="actions">
+        <a nz-button nzType="primary" routerLink="/lien-he"
+          >Trao đổi với DoubleT</a
+        ><a nz-button routerLink="/tinh-nang">Xem tính năng</a>
+      </div>
+    }
+    @case ("contact") {
+      <header>
+        <h1>Liên hệ đội DoubleT</h1>
+        <p>
+          Trao đổi về RAGHub, bài toán tri thức của tổ chức hoặc góp ý cho sản
+          phẩm.
+        </p>
+      </header>
+      <section class="contact-grid" aria-label="Thông tin liên hệ">
+        <article class="contact">
+          <h2>Đội phát triển</h2>
+          <dl>
+            <dt>Họ tên</dt>
+            <dd>Đồng Văn Tú</dd>
+            <dt>Gmail</dt>
+            <dd>
+              <a href="mailto:khactu731@gmail.com">khactu731@gmail.com</a>
+            </dd>
+            <dt>Họ tên</dt>
+            <dd>Nguyễn Mạnh Thi</dd>
+            <dt>Gmail</dt>
+            <dd>
+              <a href="mailto:manhthi205@gmail.com">manhthi205@gmail.com</a>
+            </dd>
+          </dl>
+        </article>
+      </section>
+    }
+  }
+  <footer>
+    <a routerLink="/">RAGHub</a
+    ><span>Nền tảng chatbot trên tri thức riêng · DoubleT</span>
+  </footer>
+</main>

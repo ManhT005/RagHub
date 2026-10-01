@@ -1,0 +1,61 @@
+<main class="auth-card">
+  <p class="eyebrow">TÀI KHOẢN RAGHUB</p>
+  @if (mode === "forgot") {
+    <h1>Quên mật khẩu</h1>
+    <p>Nhập email để nhận liên kết đặt lại mật khẩu qua Gmail.</p>
+    <form (ngSubmit)="requestPasswordReset()">
+      <label
+        >Email
+        <input
+          [(ngModel)]="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+      /></label>
+      @if (message()) {
+        <p class="success">{{ message() }}</p>
+      }
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+      <button type="submit" [disabled]="loading()">Gửi liên kết đặt lại</button>
+    </form>
+    <button class="link" type="button" (click)="setMode('login')">
+      Quay lại đăng nhập
+    </button>
+  } @else {
+    <h1>Chào mừng trở lại</h1>
+    <p>Đăng nhập để quản lý không gian làm việc và tài liệu.</p>
+    <form (ngSubmit)="submitCredentials()">
+      <label
+        >Email
+        <input
+          [(ngModel)]="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+      /></label>
+      <label
+        >Mật khẩu
+        <input
+          [(ngModel)]="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          minlength="8"
+          required
+      /></label>
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+      <button type="submit" [disabled]="loading()">Đăng nhập</button>
+    </form>
+    <div class="actions">
+      <button class="link" type="button" (click)="setMode('forgot')">
+        Quên mật khẩu?
+      </button>
+    </div>
+  }
+</main>
