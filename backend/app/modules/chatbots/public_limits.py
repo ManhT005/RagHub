@@ -12,6 +12,7 @@ from starlette.requests import Request
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
+from app.core.redis import get_redis
 
 RATE_SCRIPT = """
 for i, key in ipairs(KEYS) do
@@ -65,9 +66,6 @@ class PublicChatLimits:
     def __init__(self, redis: Redis, settings: Settings) -> None:
         self.redis = redis
         self.settings = settings
-
-    async def close(self) -> None:
-        await self.redis.aclose()
 
     def slot_keys(self, chatbot_id: str) -> tuple[str, str]:
         return "public:active:global", f"public:active:bot:{chatbot_id}"
@@ -131,12 +129,7 @@ class PublicChatLimits:
 
 
 async def get_public_limits(
+    redis: Annotated[Redis, Depends(get_redis)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> PublicChatLimits:
-    # The response owns cleanup. FastAPI 0.115 closes yield dependencies before SSE starts.
-    redis = Redis.from_url(
-        settings.redis_url,
-        socket_connect_timeout=2,
-        socket_timeout=2,
-    )
     return PublicChatLimits(redis, settings)

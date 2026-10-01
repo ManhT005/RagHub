@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -46,7 +47,7 @@ def test_raw_embed_key_is_redacted_in_access_and_application_logs():
 
 
 @pytest.mark.asyncio
-async def test_public_metrics_record_denials_without_key(monkeypatch, caplog):
+async def test_public_metrics_record_denials_without_key(caplog):
     import app.core.public_observability as module
 
     pipeline = AsyncMock()
@@ -54,9 +55,6 @@ async def test_public_metrics_record_denials_without_key(monkeypatch, caplog):
     redis = AsyncMock()
     redis.pipeline = MagicMock()
     redis.pipeline.return_value.__aenter__.return_value = pipeline
-    factory = MagicMock()
-    factory.from_url.return_value.__aenter__.return_value = redis
-    monkeypatch.setattr(module, "Redis", factory)
 
     async def app(scope, receive, send):
         scope["state"]["public_error_code"] = "EMBED_ORIGIN_NOT_ALLOWED"
@@ -70,6 +68,7 @@ async def test_public_metrics_record_denials_without_key(monkeypatch, caplog):
             "path": "/api/v1/public/chatbots/rgh_secret/config",
             "method": "GET",
             "state": {"request_id": "test-id"},
+            "app": SimpleNamespace(state=SimpleNamespace(redis=redis)),
         },
         AsyncMock(),
         AsyncMock(),
@@ -79,3 +78,4 @@ async def test_public_metrics_record_denials_without_key(monkeypatch, caplog):
     pipeline.execute.assert_awaited_once()
     assert "rgh_secret" not in caplog.text
     assert "request_id=test-id" in caplog.text
+    redis.aclose.assert_not_awaited()

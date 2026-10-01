@@ -4,7 +4,6 @@ import logging
 import time
 
 import anyio
-from redis.asyncio import Redis
 
 from app.core.config import get_settings
 
@@ -47,16 +46,12 @@ class PublicChatObservability:
             )
             with anyio.CancelScope(shield=True):
                 try:
-                    async with Redis.from_url(
-                        get_settings().redis_url,
-                        socket_connect_timeout=1,
-                        socket_timeout=1,
-                    ) as redis:
-                        async with redis.pipeline(transaction=True) as pipeline:
-                            pipeline.hincrby("public:metrics", "requests", 1)
-                            pipeline.hincrby("public:metrics", f"status:{status}", 1)
-                            pipeline.hincrby("public:metrics", f"code:{code}", 1)
-                            pipeline.hincrby("public:metrics", "latency_ms_sum", elapsed)
-                            await pipeline.execute()
+                    redis = scope["app"].state.redis
+                    async with redis.pipeline(transaction=True) as pipeline:
+                        pipeline.hincrby("public:metrics", "requests", 1)
+                        pipeline.hincrby("public:metrics", f"status:{status}", 1)
+                        pipeline.hincrby("public:metrics", f"code:{code}", 1)
+                        pipeline.hincrby("public:metrics", "latency_ms_sum", elapsed)
+                        await pipeline.execute()
                 except Exception:
                     logger.warning("Public metrics unavailable")

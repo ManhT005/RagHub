@@ -60,8 +60,6 @@ class PublicStreamingResponse(StreamingResponse):
             await self.limits.release(self.chatbot_id, self.slot)
         except Exception:
             logger.warning("Public slot release failed chatbot_id=%s", self.chatbot_id)
-        finally:
-            await self.limits.close()
 
 
 def response(chatbot: object) -> ChatbotResponse:
@@ -221,16 +219,11 @@ async def public_chat(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    try:
-        chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
-        request.state.public_origin = origin
-        request.state.public_chatbot_id = str(chatbot.id)
-        await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
-        slot = await limits.acquire(str(chatbot.id))
-    except BaseException:
-        with anyio.CancelScope(shield=True):
-            await limits.close()
-        raise
+    chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
+    request.state.public_origin = origin
+    request.state.public_chatbot_id = str(chatbot.id)
+    await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
+    slot = await limits.acquire(str(chatbot.id))
 
     async def events():
         try:

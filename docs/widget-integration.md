@@ -24,6 +24,8 @@ Redis Lua thực hiện admission atomic. Cửa sổ rate bắt đầu từ requ
 
 Slot có token riêng, release khi response kết thúc, provider lỗi, timeout hoặc disconnect. Release lặp lại không ảnh hưởng slot khác. Lease hết hạn sau deadline + 10 giây nếu worker chết; Redis dùng thời gian server. Rate và slot dùng chatbot ID/IP hash, không lưu embed key raw.
 
+Redis client/connection pool được tạo một lần trong ASGI lifespan của mỗi API worker, dùng chung cho admission, metrics và readiness; chỉ đóng khi application shutdown sau cleanup response. SSE chỉ giữ chatbot ID và lease token, không sở hữu connection hoặc đóng Redis khi kết thúc/bị từ chối. Release lỗi được ghi log và lease vẫn có hạn sử dụng để phục hồi khi Redis mất kết nối hoặc worker chết.
+
 ## Gateway và quan sát vận hành
 
 Nginx giới hạn body public ở 16 KiB; schema giới hạn message ở 4.000 ký tự. SSE tắt buffering/cache; script dùng `no-store`. Timeout bao phủ cả thời gian gửi response tới client chậm. API được truy cập trực tiếp vẫn có giới hạn schema, nhưng production nên chỉ mở API qua gateway.

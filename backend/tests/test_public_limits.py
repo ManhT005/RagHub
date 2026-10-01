@@ -46,6 +46,7 @@ async def test_stream_releases_slot_on_every_exit(outcome):
     limits = AsyncMock()
     entered = asyncio.Event()
     limits.settings = Settings()
+    limits.redis = AsyncMock()
 
     async def body():
         entered.set()
@@ -70,7 +71,7 @@ async def test_stream_releases_slot_on_every_exit(outcome):
     except Exception:
         assert outcome in {"provider_error", "timeout"}
     limits.release.assert_awaited_once_with("bot", "slot")
-    limits.close.assert_awaited_once()
+    limits.redis.aclose.assert_not_awaited()
 
 
 @pytest.mark.asyncio

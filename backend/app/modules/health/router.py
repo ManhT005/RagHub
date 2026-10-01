@@ -1,8 +1,8 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 import httpx
 from elasticsearch import AsyncElasticsearch
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from sqlalchemy import text
@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.database import SessionFactory
 from app.core.exceptions import AppError
+from app.core.redis import get_redis
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -24,7 +25,7 @@ async def liveness() -> HealthResponse:
 
 
 @router.get("/ready", response_model=HealthResponse)
-async def readiness() -> HealthResponse:
+async def readiness(redis: Annotated[Redis, Depends(get_redis)]) -> HealthResponse:
     settings = get_settings()
     failures: dict[str, str] = {}
 
@@ -34,13 +35,10 @@ async def readiness() -> HealthResponse:
     except Exception as exc:  # pragma: no cover - exercised by deployment probes
         failures["postgres"] = type(exc).__name__
 
-    redis = Redis.from_url(settings.redis_url)
     try:
         await redis.ping()
     except Exception as exc:  # pragma: no cover - exercised by deployment probes
         failures["redis"] = type(exc).__name__
-    finally:
-        await redis.aclose()
 
     elasticsearch = AsyncElasticsearch(settings.elasticsearch_url)
     try:
