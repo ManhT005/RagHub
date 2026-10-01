@@ -1,15 +1,15 @@
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
 
 :root {
-  --rh-bg: #f6faff;
+  --rh-bg: #f1f8ff;
   --rh-surface: #ffffff;
-  --rh-surface-raised: #edede8;
-  --rh-surface-soft: #e1e1dc;
-  --rh-border: #bdbdb6;
+  --rh-surface-raised: #f7fbff;
+  --rh-surface-soft: #edf5ff;
+  --rh-border: #d8e7f8;
   --rh-text: #0e2b61;
-  --rh-muted: #646464;
-  --rh-cyan: #111111;
-  --rh-indigo: #1677ff;
+  --rh-muted: #607694;
+  --rh-cyan: #0866ff;
+  --rh-indigo: #0866ff;
   --rh-success: #166534;
   --rh-danger: #b42318;
   color-scheme: light;
@@ -115,16 +115,16 @@ a {
 .design-system-light .overview a,
 .design-system-light .section-title > span,
 .design-system-light .bubble.user {
-  background: #111 !important;
+  background: var(--rh-indigo) !important;
 }
 
 .design-system-light .secondary {
-  color: #111 !important;
-  background: #e8e8e5 !important;
+  color: #075fd8 !important;
+  background: #e8f3ff !important;
 }
 
 .design-system-light .text-button {
-  color: #111 !important;
+  color: var(--rh-indigo) !important;
   background: transparent !important;
 }
 
@@ -138,8 +138,8 @@ a {
 }
 
 .design-system-light .document-row.selected {
-  border-color: #111 !important;
-  box-shadow: 0 0 0 1px rgba(17, 17, 17, 0.18) !important;
+  border-color: var(--rh-indigo) !important;
+  box-shadow: 0 0 0 1px rgba(8, 102, 255, 0.18) !important;
 }
 
 .design-system-light .chat-guard {

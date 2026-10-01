@@ -14,16 +14,17 @@ def test_upload_to_search_and_tenant_scope() -> None:
     base_url = os.getenv("RAGHUB_TEST_BASE_URL")
     if not base_url:
         pytest.skip("Set RAGHUB_TEST_BASE_URL to run the live integration test.")
+    email = os.getenv("RAGHUB_TEST_EMAIL")
+    password = os.getenv("RAGHUB_TEST_PASSWORD")
+    if not email or not password:
+        pytest.skip("Set RAGHUB_TEST_EMAIL and RAGHUB_TEST_PASSWORD for the provisioned test user.")
     unique = uuid.uuid4().hex[:12]
     with httpx.Client(base_url=base_url, timeout=20) as client:
         auth = client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": f"ingestion-{unique}@example.com",
-                "password": "integration-password-123",
-            },
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
         )
-        assert auth.status_code == 201, auth.text
+        assert auth.status_code == 200, auth.text
         headers = {"Authorization": f"Bearer {auth.json()['access_token']}"}
         organization = client.post(
             "/api/v1/organizations",

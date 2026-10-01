@@ -1,1 +1,23 @@
-<main class="overview-page"><header><h1>Tổng quan</h1><p>Chào mừng trở lại! Đây là tổng quan về hệ thống của bạn.</p></header><section class="stat-grid"><article><span class="stat-icon blue">♙</span><div><b>3</b><small>Domain / Workspace</small></div></article><article><span class="stat-icon green">▣</span><div><b>12</b><small>Tài liệu đã thêm</small></div></article><article><span class="stat-icon violet">◉</span><div><b>2</b><small>Chatbot đã tạo</small></div></article><article><span class="stat-icon orange">♧</span><div><b>1.248</b><small>Tổng lượt truy vấn</small></div></article></section><section class="overview-columns"><article class="activity-card"><h2>Hoạt động gần đây</h2><div><i class="red">▣</i><p><b>Tài liệu hướng dẫn.pdf đã được thêm vào workspace Công nghệ thông tin</b><small>2 giờ trước</small></p></div><div><i class="blue">◉</i><p><b>Chatbot Hỗ trợ sinh viên đã được tạo</b><small>3 giờ trước</small></p></div><div><i class="green">▤</i><p><b>Đã hoàn thành xử lý 5 tài liệu</b><small>5 giờ trước</small></p></div><div><i class="blue">◉</i><p><b>Có 12 truy vấn mới từ chatbot Hỗ trợ sinh viên</b><small>6 giờ trước</small></p></div></article><aside class="quick-card"><h2>Sử dụng nhanh</h2><a routerLink="/app/workspaces"><i class="green">▣</i><span><b>Tạo workspace mới</b><small>Quản lý nhiều domain độc lập</small></span></a><a routerLink="/app/documents"><i class="blue">▤</i><span><b>Tải tài liệu lên</b><small>Hỗ trợ nhiều định dạng</small></span></a><a routerLink="/app/chatbots"><i class="violet">◉</i><span><b>Tạo chatbot</b><small>Cấu hình và triển khai AI</small></span></a><a routerLink="/app/chatbots"><i class="orange">♧</i><span><b>Nhúng chatbot</b><small>Lấy mã nhúng cho website</small></span></a></aside></section></main>
+<main class="overview-page">
+  <header class="page-heading"><div><p class="kicker">Tổng quan hệ thống</p><h1>Chào mừng trở lại</h1><p>Theo dõi workspace, tài liệu và chatbot trong cùng một nơi.</p></div><a routerLink="/app/workspaces">Tạo workspace</a></header>
+  <section class="stat-grid" aria-label="Thống kê nhanh">
+    <article><span class="stat-icon blue"><nz-icon nzType="database" /></span><div><small>Workspace</small><b>3</b><p>Không gian tri thức</p></div></article>
+    <article><span class="stat-icon red"><nz-icon nzType="file-text" /></span><div><small>Tài liệu</small><b>12</b><p>Đã thêm vào hệ thống</p></div></article>
+    <article><span class="stat-icon violet"><nz-icon nzType="message" /></span><div><small>Chatbot</small><b>2</b><p>Đang hoạt động</p></div></article>
+    <article><span class="stat-icon green"><nz-icon nzType="cloud-server" /></span><div><small>Lượt truy vấn</small><b>1.248</b><p>Tổng lượt hỏi đáp</p></div></article>
+  </section>
+  <section class="overview-columns">
+    <article class="activity-card"><div class="card-heading"><div><h2>Hoạt động gần đây</h2><p>Cập nhật mới nhất trong workspace</p></div><a routerLink="/app/documents">Xem tài liệu</a></div>
+      <div class="activity"><i class="red"><nz-icon nzType="file-text" /></i><p><b>Tài liệu hướng dẫn.pdf đã được thêm</b><small>Workspace Công nghệ thông tin · 2 giờ trước</small></p></div>
+      <div class="activity"><i class="violet"><nz-icon nzType="message" /></i><p><b>Chatbot Hỗ trợ sinh viên đã được tạo</b><small>3 giờ trước</small></p></div>
+      <div class="activity"><i class="green"><nz-icon nzType="cloud-server" /></i><p><b>Đã hoàn thành xử lý 5 tài liệu</b><small>5 giờ trước</small></p></div>
+      <div class="activity"><i class="blue"><nz-icon nzType="message" /></i><p><b>Có 12 truy vấn mới từ chatbot</b><small>6 giờ trước</small></p></div>
+    </article>
+    <aside class="quick-card"><div class="card-heading"><div><h2>Thao tác nhanh</h2><p>Bắt đầu công việc tiếp theo</p></div></div>
+      <a routerLink="/app/workspaces"><i class="blue"><nz-icon nzType="database" /></i><span><b>Tạo workspace mới</b><small>Tổ chức một miền tri thức riêng</small></span><em>›</em></a>
+      <a routerLink="/app/documents"><i class="red"><nz-icon nzType="file-text" /></i><span><b>Tải tài liệu lên</b><small>PDF, TXT và Markdown</small></span><em>›</em></a>
+      <a routerLink="/app/chatbots"><i class="violet"><nz-icon nzType="message" /></i><span><b>Tạo chatbot</b><small>Cấu hình và xuất bản trợ lý</small></span><em>›</em></a>
+      <a routerLink="/app/chatbots"><i class="green"><nz-icon nzType="cloud-server" /></i><span><b>Nhúng chatbot</b><small>Đưa trợ lý lên website của bạn</small></span><em>›</em></a>
+    </aside>
+  </section>
+</main>

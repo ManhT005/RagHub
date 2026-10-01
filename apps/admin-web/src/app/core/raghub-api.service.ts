@@ -23,6 +23,7 @@ export interface ProviderConfigInput {
   model: string; base_url?: string | null; dimension?: number | null;
   secret?: string; config_json?: Record<string, unknown>; enabled?: boolean;
 }
+export interface ProviderConfigPatch extends Partial<ProviderConfigInput> { clear_secret?: boolean; }
 export interface WorkspaceProviderBinding {
   workspace_id: string; embedding_provider_id: string | null; chat_provider_id: string | null;
   active_embedding_index_version_id: string | null; reindex_job_id: string | null;
@@ -39,6 +40,8 @@ export interface ChatbotInput {
 export interface ChatRequest { message: string; conversation_id?: string | null; external_user_id?: string | null; }
 export type ChatStreamEventName = 'conversation' | 'citations' | 'token' | 'usage' | 'done' | 'error';
 export interface ChatStreamEvent { event: ChatStreamEventName; data: Record<string, unknown>; }
+export interface AuthToken { access_token: string; token_type?: string; }
+export interface CurrentUser { id: string; email: string; email_verified: boolean; }
 
 export class SseEventParser {
   private buffer = '';
@@ -75,10 +78,20 @@ export class RaghubApiService {
   private readonly base = '/api/v1';
 
   login(email: string, password: string) {
-    return this.http.post<{ access_token: string }>(`${this.base}/auth/login`, { email, password });
+    return this.http.post<AuthToken>(`${this.base}/auth/login`, { email, password });
   }
-  register(email: string, password: string) {
-    return this.http.post<{ access_token: string }>(`${this.base}/auth/register`, { email, password });
+  me() { return this.http.get<CurrentUser>(`${this.base}/auth/me`); }
+  forgotPassword(email: string) {
+    return this.http.post<{ message: string }>(`${this.base}/auth/password/forgot`, { email });
+  }
+  resetPassword(token: string, newPassword: string) {
+    return this.http.post<void>(`${this.base}/auth/password/reset`, { token, new_password: newPassword });
+  }
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.http.post<AuthToken>(`${this.base}/auth/password/change`, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
   }
   organizations() { return this.http.get<Organization[]>(`${this.base}/organizations`); }
   createOrganization(name: string, slug: string) {
@@ -119,6 +132,9 @@ export class RaghubApiService {
   }
   createProvider(organizationId: string, payload: ProviderConfigInput) {
     return this.http.post<ProviderConfig>(`${this.base}/organizations/${organizationId}/providers`, payload);
+  }
+  updateProvider(providerId: string, payload: ProviderConfigPatch) {
+    return this.http.patch<ProviderConfig>(`${this.base}/providers/${providerId}`, payload);
   }
   testProvider(providerId: string) {
     return this.http.post(`${this.base}/providers/${providerId}/test`, {});
