@@ -36,7 +36,7 @@ dev = [
   "ruff==0.12.9",
 ]
 local-ai = [
-  "sentence-transformers==5.1.1",
+  "sentence-transformers==6.1.0",
 ]
 
 [tool.setuptools.packages.find]
