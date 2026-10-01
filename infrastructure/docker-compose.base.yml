@@ -1,0 +1,291 @@
+# Shared definitions; run docker-compose.yml (local) or docker-compose.ghcr.yml (registry).
+x-backend-environment: &backend-environment
+  APP_ENV: ${APP_ENV:-development}
+  APP_NAME: ${APP_NAME:-RagHub API}
+  APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-local-env}
+  PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:-local-provider-key-change-before-production}
+  API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+  MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-25}
+  DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-raghub}:${POSTGRES_PASSWORD:-raghub-local-only}@postgres:5432/${POSTGRES_DB:-raghub}}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+  ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-raghub}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-raghub-local-only}
+  S3_BUCKET: ${S3_BUCKET:-raghub-documents}
+  S3_SECURE: ${S3_SECURE:-false}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+  CHAT_PROVIDER_TIMEOUT_SECONDS: ${CHAT_PROVIDER_TIMEOUT_SECONDS:-45}
+  PUBLIC_CHAT_REQUESTS_PER_IP: ${PUBLIC_CHAT_REQUESTS_PER_IP:-20}
+  PUBLIC_CHAT_REQUESTS_PER_CHATBOT: ${PUBLIC_CHAT_REQUESTS_PER_CHATBOT:-120}
+  PUBLIC_CHAT_CONCURRENT_PER_CHATBOT: ${PUBLIC_CHAT_CONCURRENT_PER_CHATBOT:-4}
+  PUBLIC_CHAT_CONCURRENT_GLOBAL: ${PUBLIC_CHAT_CONCURRENT_GLOBAL:-32}
+  PUBLIC_CHAT_STREAM_TIMEOUT_SECONDS: ${PUBLIC_CHAT_STREAM_TIMEOUT_SECONDS:-90}
+  PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+services:
+  postgres:
+    image: postgres:17.6-alpine3.22
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-raghub}
+      POSTGRES_USER: ${POSTGRES_USER:-raghub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raghub-local-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+  redis:
+    image: redis:8.2.1-alpine3.22
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      xpack.license.self_generated.type: basic
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://localhost:9200/_cluster/health >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    logging: *default-logging
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1
+    # Preserve write access to existing volumes created by the former root-based image.
+    user: '0'
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-raghub}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-raghub-local-only}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/9000
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+  ollama:
+    image: ollama/ollama:0.12.1
+    profiles:
+      - local-ai
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test:
+        - CMD
+        - ollama
+        - list
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+  ollama-init:
+    image: ollama/ollama:0.12.1
+    profiles:
+      - local-ai
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command:
+      - pull
+      - ${OLLAMA_MODEL:-gemma3:1b}
+    volumes:
+      - ollama-data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: 'no'
+    logging: *default-logging
+  api:
+    environment: *backend-environment
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)
+      interval: 10s
+      timeout: 8s
+      retries: 20
+    restart: unless-stopped
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:-develop}${BACKEND_IMAGE_SUFFIX:-}
+    logging: *default-logging
+    init: true
+    stop_grace_period: 30s
+  worker:
+    environment: *backend-environment
+    command:
+      - celery
+      - -A
+      - app.infrastructure.task_queue.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --concurrency=1
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:-develop}${BACKEND_IMAGE_SUFFIX:-}
+    logging: *default-logging
+    init: true
+    stop_grace_period: 60s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - celery -A app.infrastructure.task_queue.celery_app:celery_app inspect ping --destination celery@$$HOSTNAME --timeout 5
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+  admin-web:
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/admin-web:${RAGHUB_IMAGE_TAG:-develop}
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  chat-widget:
+    restart: unless-stopped
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/chat-widget:${RAGHUB_IMAGE_TAG:-develop}
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/raghub.js || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  widget-demo:
+    restart: unless-stopped
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/widget-demo:${RAGHUB_IMAGE_TAG:-develop}
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  nginx:
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/gateway:${RAGHUB_IMAGE_TAG:-develop}
+    depends_on:
+      admin-web:
+        condition: service_healthy
+      chat-widget:
+        condition: service_healthy
+      widget-demo:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/health/live || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  migrate:
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:-develop}${BACKEND_IMAGE_SUFFIX:-}
+    environment: *backend-environment
+    command:
+      - alembic
+      - upgrade
+      - head
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    init: true
+    logging: *default-logging
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  elasticsearch-data: {}
+  minio-data: {}
+  ollama-data: {}
+  huggingface-cache: {}
