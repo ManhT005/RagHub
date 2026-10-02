@@ -16,6 +16,9 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
         def __init__(self, session: object) -> None:
             self.session = session
 
+        async def get(self, *args: object):
+            return SimpleNamespace(workspace_id=uuid4())
+
         async def stream(self, *args: object):
             yield "conversation", {"conversation_id": "conversation"}
             yield "citations", {"citations": [{"chunk_id": "chunk"}]}
@@ -29,7 +32,7 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
     response = await chat(
         uuid4(),
         ChatRequest(message="Xin chào"),
-        SimpleNamespace(organization_id=uuid4()),
+        SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
         object(),
     )
@@ -48,6 +51,9 @@ async def test_chat_sse_converts_service_error_to_event(monkeypatch: pytest.Monk
         def __init__(self, session: object) -> None:
             self.session = session
 
+        async def get(self, *args: object):
+            return SimpleNamespace(workspace_id=uuid4())
+
         async def stream(self, *args: object):
             raise AppError("CHAT_PROVIDER_TIMEOUT", "Gemini timed out.", status_code=504)
             yield  # pragma: no cover
@@ -58,7 +64,7 @@ async def test_chat_sse_converts_service_error_to_event(monkeypatch: pytest.Monk
     response = await chat(
         uuid4(),
         ChatRequest(message="Xin chào"),
-        SimpleNamespace(organization_id=uuid4()),
+        SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
         object(),
     )
@@ -75,6 +81,9 @@ async def test_stream_error_after_token_does_not_emit_done(
         def __init__(self, session: object) -> None:
             self.session = session
 
+        async def get(self, *args: object):
+            return SimpleNamespace(workspace_id=uuid4())
+
         async def stream(self, *args: object):
             yield "conversation", {"conversation_id": "conversation"}
             yield "citations", {"citations": []}
@@ -87,7 +96,7 @@ async def test_stream_error_after_token_does_not_emit_done(
     response = await chat(
         uuid4(),
         ChatRequest(message="Xin chĂ o"),
-        SimpleNamespace(organization_id=uuid4()),
+        SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
         object(),
     )

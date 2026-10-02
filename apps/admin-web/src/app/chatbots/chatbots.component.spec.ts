@@ -26,7 +26,7 @@ describe("ChatbotsComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
-            organizations: () => of([{ id: "org-1", name: "Demo" }]),
+            organizations: () => of([{ id: "org-1", name: "Demo", role: "ADMIN" }]),
             workspaces: () => of([{ id: "workspace-1", name: "Knowledge" }]),
             providers: () =>
               of([
@@ -140,7 +140,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () => of([]),
             providers: () => of([]),
           },
@@ -157,6 +157,60 @@ describe("ChatbotsComponent", () => {
     fixture.destroy();
   });
 
+  it("skips AI setup for workspace admins but keeps chatbot creation", async () => {
+    const providers = vi.fn(() => of([]));
+    const chatbots = vi.fn(() => of([]));
+    await TestBed.configureTestingModule({
+      imports: [ChatbotsComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: RaghubApiService,
+          useValue: {
+            organizations: () =>
+              of([
+                {
+                  id: "org-1",
+                  name: "Demo",
+                  slug: "demo",
+                  role: "WORKSPACE_ADMIN",
+                },
+              ]),
+            workspaces: () =>
+              of([
+                {
+                  id: "workspace-1",
+                  name: "Knowledge",
+                  slug: "knowledge",
+                  organization_id: "org-1",
+                },
+              ]),
+            providers,
+            chatbots,
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ChatbotsComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(providers).not.toHaveBeenCalled();
+    expect(element.textContent).not.toContain(
+      "Không thể tải danh sách nhà cung cấp AI.",
+    );
+    expect(element.textContent).not.toContain("Cấu hình AI & Mô hình");
+    expect(element.textContent).toContain("Tạo chatbot");
+    expect(element.textContent).toContain("Thử hỏi tài liệu");
+    expect(
+      (fixture.componentInstance as any).currentStep(),
+    ).toBe(2);
+    fixture.destroy();
+  });
+
   it("defaults Gemini setup to the configured Flash Lite chat model", async () => {
     await TestBed.configureTestingModule({
       imports: [ChatbotsComponent],
@@ -166,7 +220,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -214,7 +268,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -282,7 +336,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -331,7 +385,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -394,7 +448,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -449,7 +503,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -514,7 +568,7 @@ describe("ChatbotsComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {

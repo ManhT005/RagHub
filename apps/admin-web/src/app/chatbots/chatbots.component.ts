@@ -57,7 +57,11 @@ export class ChatbotsComponent {
   });
   protected readonly bots = signal<Chatbot[]>([]);
   protected readonly selectedBot = signal<Chatbot | null>(null);
-  protected readonly messages = signal<TranscriptMessage[]>([]);
+  protected readonly isAdmin = computed(
+    () =>
+      this.organizations().find((item) => item.id === this.selectedOrganization)
+        ?.role === "ADMIN",
+  );  protected readonly messages = signal<TranscriptMessage[]>([]);
   protected readonly error = signal("");
   protected readonly notice = signal("");
   protected readonly isStreaming = signal(false);
@@ -131,8 +135,9 @@ export class ChatbotsComponent {
   }
 
   protected continueBot(): void {
+    if (this.botBusy()) return;
     if (
-      this.botBusy() ||
+      this.isAdmin() &&
       this.verifiedConnection !==
         `${this.selectedWorkspace}:${this.selectedEmbeddingProvider}:${this.selectedChatProvider}`
     )
@@ -297,6 +302,7 @@ export class ChatbotsComponent {
   protected changeWorkspace(): void {
     this.workspaceRevision++;
     this.invalidateConnection();
+    this.currentStep.set(this.isAdmin() ? 1 : 2);
     this.connectionBusy.set(false);
     this.botBusy.set(false);
     this.connectionChecks.set({});
@@ -309,13 +315,15 @@ export class ChatbotsComponent {
     this.messages.set([]);
     this.conversationId = null;
     if (!this.selectedWorkspace || !this.selectedOrganization) return;
-    this.api.providers(this.selectedOrganization).subscribe({
-      next: (items) => {
-        this.providers.set(items);
-        this.autoSelectProviders();
-      },
-      error: () => this.setError("Không thể tải danh sách nhà cung cấp AI."),
-    });
+    if (this.isAdmin()) {
+      this.api.providers(this.selectedOrganization).subscribe({
+        next: (items) => {
+          this.providers.set(items);
+          this.autoSelectProviders();
+        },
+        error: () => this.setError("Không thể tải danh sách nhà cung cấp AI."),
+      });
+    }
     this.api.chatbots(this.selectedWorkspace).subscribe({
       next: (items) => {
         this.bots.set(items);
@@ -647,7 +655,7 @@ export class ChatbotsComponent {
   }
 
   private reloadProviders(): void {
-    if (!this.selectedOrganization) return;
+    if (!this.selectedOrganization || !this.isAdmin()) return;
     this.api.providers(this.selectedOrganization).subscribe({
       next: (items) => {
         this.providers.set(items);

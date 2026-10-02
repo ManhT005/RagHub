@@ -8,7 +8,7 @@ from app.modules.ai_providers.models import (
 from app.modules.auth.models import PasswordResetToken, UserIdentity, UserSession
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
-from app.modules.memberships.models import Membership
+from app.modules.memberships.models import Membership, WorkspaceMembership
 from app.modules.organizations.models import Organization
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
@@ -18,6 +18,7 @@ __all__ = [
     "DocumentVersion",
     "IngestionJob",
     "Membership",
+    "WorkspaceMembership",
     "Organization",
     "User",
     "Workspace",

@@ -1,4 +1,4 @@
-"""Authentication and organization authorization dependencies."""
+"""Authentication and organization/workspace authorization dependencies."""
 
 from dataclasses import dataclass
 from typing import Annotated
@@ -13,8 +13,9 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.core.security import decode_token
-from app.modules.memberships.models import Membership, MembershipRole
+from app.modules.memberships.models import Membership, MembershipRole, WorkspaceMembership
 from app.modules.users.models import User
+from app.modules.workspaces.models import Workspace
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -32,11 +33,7 @@ async def get_current_user(
             "INVALID_TOKEN", "The access token is invalid or expired.", status_code=401
         ) from exc
     user = await session.get(User, claims.user_id)
-    if (
-        user is None
-        or user.status != "ACTIVE"
-        or user.auth_version != claims.auth_version
-    ):
+    if user is None or user.status != "ACTIVE" or user.auth_version != claims.auth_version:
         raise AppError(
             "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
         )
@@ -71,5 +68,32 @@ def require_role(context: OrganizationContext, *roles: MembershipRole) -> None:
         raise AppError(
             "INSUFFICIENT_PERMISSION",
             "Your organization role cannot perform this action.",
+            status_code=403,
+        )
+
+
+async def require_workspace_access(
+    context: OrganizationContext, workspace_id: UUID, session: AsyncSession
+) -> None:
+    if context.membership.role == MembershipRole.ADMIN:
+        return
+    if context.membership.role != MembershipRole.WORKSPACE_ADMIN:
+        raise AppError(
+            "INSUFFICIENT_PERMISSION", "Your role cannot access workspaces.", status_code=403
+        )
+    assignment = await session.scalar(
+        select(WorkspaceMembership)
+        .join(Workspace, Workspace.id == WorkspaceMembership.workspace_id)
+        .where(
+            WorkspaceMembership.user_id == context.membership.user_id,
+            WorkspaceMembership.workspace_id == workspace_id,
+            Workspace.organization_id == context.organization_id,
+            Workspace.deleted_at.is_(None),
+        )
+    )
+    if assignment is None:
+        raise AppError(
+            "WORKSPACE_ACCESS_DENIED",
+            "You are not assigned to this workspace.",
             status_code=403,
         )

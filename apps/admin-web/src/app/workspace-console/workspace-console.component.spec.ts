@@ -15,8 +15,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () => of([]),
           },
         },
@@ -39,8 +40,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -77,8 +79,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -132,8 +135,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -175,6 +179,59 @@ describe("WorkspaceConsoleComponent", () => {
     );
   });
 
+  it("hides chatbot configuration for workspace admins", async () => {
+    await TestBed.configureTestingModule({
+      imports: [WorkspaceConsoleComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: RaghubApiService,
+          useValue: {
+            members: () => of([]),
+            organizations: () =>
+              of([
+                {
+                  id: "org-1",
+                  name: "Demo",
+                  slug: "demo",
+                  role: "WORKSPACE_ADMIN",
+                },
+              ]),
+            workspaces: () =>
+              of([
+                {
+                  id: "workspace-1",
+                  name: "Knowledge",
+                  slug: "knowledge",
+                  organization_id: "org-1",
+                },
+              ]),
+            providers: () => of([]),
+            documents: () => of([]),
+            chatbots: () => of([]),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(WorkspaceConsoleComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const text = element.textContent as string;
+    expect(element.querySelector(".setup-panel")).toBeNull();
+    const buttons = Array.from(element.querySelectorAll("button")).map(
+      (button) => button.textContent?.trim(),
+    );
+    expect(buttons).not.toContain("Thiết lập");
+    expect(element.querySelector(".bot-panel")).not.toBeNull();
+    expect(text).toContain("CHATBOT ĐÃ CẤU HÌNH");
+    expect(text).toContain("Hỏi tài liệu");
+    expect(text).toContain("Tài liệu");
+  });
+
   it("selects a citation by id and falls back to document name", async () => {
     await TestBed.configureTestingModule({
       imports: [WorkspaceConsoleComponent],
@@ -210,8 +267,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -262,8 +320,9 @@ describe("WorkspaceConsoleComponent", () => {
         {
           provide: RaghubApiService,
           useValue: {
+            members: () => of([]),
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {

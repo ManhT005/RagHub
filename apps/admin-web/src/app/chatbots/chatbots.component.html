@@ -21,18 +21,20 @@
   }
 
   <section class="workspace-bar panel">
-    <label
-      >Tổ chức
-      <select
-        [(ngModel)]="selectedOrganization"
-        (change)="changeOrganization()"
-        [disabled]="connectionBusy() || botBusy() || isStreaming()"
-      >
-        @for (organization of organizations(); track organization.id) {
-          <option [value]="organization.id">{{ organization.name }}</option>
-        }
-      </select>
-    </label>
+    @if (organizations().length > 1) {
+      <label
+        >Tổ chức
+        <select
+          [(ngModel)]="selectedOrganization"
+          (change)="changeOrganization()"
+          [disabled]="connectionBusy() || botBusy() || isStreaming()"
+        >
+          @for (organization of organizations(); track organization.id) {
+            <option [value]="organization.id">{{ organization.name }}</option>
+          }
+        </select>
+      </label>
+    }
     <label
       >Không gian làm việc
       <select
@@ -59,16 +61,18 @@
     </section>
   } @else {
     <nav class="wizard-steps" aria-label="Các bước cấu hình">
-      <button
-        type="button"
-        [attr.aria-current]="currentStep() === 1 ? 'step' : null"
-        [class.current]="currentStep() === 1"
-        [disabled]="connectionBusy() || botBusy() || isStreaming()"
-        (click)="goBack(1)"
-      >
-        <span>1</span> Kết nối AI
-      </button>
-      <span class="step-arrow" aria-hidden="true">→</span>
+      @if (isAdmin()) {
+        <button
+          type="button"
+          [attr.aria-current]="currentStep() === 1 ? 'step' : null"
+          [class.current]="currentStep() === 1"
+          [disabled]="connectionBusy() || botBusy() || isStreaming()"
+          (click)="goBack(1)"
+        >
+          <span>1</span> Kết nối AI
+        </button>
+        <span class="step-arrow" aria-hidden="true">→</span>
+      }
       <button
         type="button"
         [attr.aria-current]="currentStep() === 2 ? 'step' : null"
@@ -87,11 +91,12 @@
       >
     </nav>
     <section class="workflow-grid">
-      <article
-        class="panel setup-panel"
-        [hidden]="currentStep() !== 1"
-        [attr.inert]="connectionBusy() ? '' : null"
-      >
+      @if (isAdmin()) {
+        <article
+          class="panel setup-panel"
+          [hidden]="currentStep() !== 1"
+          [attr.inert]="connectionBusy() ? '' : null"
+        >
         <div class="section-title">
           <span>1</span>
           <div>
@@ -286,6 +291,7 @@
           </button>
         </div>
       </article>
+      }
 
       <article
         class="panel setup-panel"
@@ -348,14 +354,16 @@
           }
         </div>
         <div class="wizard-actions">
-          <button
-            type="button"
-            class="secondary"
-            (click)="goBack(1)"
-            [disabled]="botBusy()"
-          >
-            ← Kết nối AI</button
-          ><button
+          @if (isAdmin()) {
+            <button
+              type="button"
+              class="secondary"
+              (click)="goBack(1)"
+              [disabled]="botBusy()"
+            >
+              ← Kết nối AI</button
+            >
+          }<button
             type="button"
             (click)="continueBot()"
             [disabled]="botBusy() || !botName.trim()"

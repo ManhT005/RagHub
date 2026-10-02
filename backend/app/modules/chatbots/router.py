@@ -14,7 +14,7 @@ from app.core.auth import (
     OrganizationContext,
     get_current_user,
     get_organization_context,
-    require_role,
+    require_workspace_access,
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
@@ -28,7 +28,6 @@ from app.modules.chatbots.schemas import (
     EmbedPublishInput,
 )
 from app.modules.chatbots.service import ChatbotService
-from app.modules.memberships.models import MembershipRole
 from app.modules.users.models import User
 
 router = APIRouter(tags=["chatbots"])
@@ -72,6 +71,7 @@ async def list_chatbots(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[ChatbotResponse]:
+    await require_workspace_access(context, workspace_id, session)
     return [
         response(item)
         for item in await ChatbotService(session).list(context.organization_id, workspace_id)
@@ -89,7 +89,7 @@ async def create_chatbot(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_access(context, workspace_id, session)
     return response(
         await ChatbotService(session).create(context.organization_id, workspace_id, payload)
     )
@@ -101,7 +101,9 @@ async def get_chatbot(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
-    return response(await ChatbotService(session).get(context.organization_id, chatbot_id))
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
+    return response(chatbot)
 
 
 @router.patch("/chatbots/{chatbot_id}", response_model=ChatbotResponse)
@@ -111,7 +113,8 @@ async def patch_chatbot(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
     return response(
         await ChatbotService(session).update(context.organization_id, chatbot_id, payload)
     )
@@ -123,7 +126,8 @@ async def delete_chatbot(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
     await ChatbotService(session).delete(context.organization_id, chatbot_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -135,7 +139,8 @@ async def publish_embed(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
     _, key = await ChatbotService(session).publish_embed(
         context.organization_id, chatbot_id, payload
     )
@@ -156,7 +161,8 @@ async def rotate_embed_key(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
     key = await ChatbotService(session).rotate_embed_key(context.organization_id, chatbot_id)
     return EmbedCodeResponse(
         code=f'<script src="/widget/raghub.js" data-chatbot-key="{key}" async></script>', key=key
@@ -170,6 +176,7 @@ async def embed_code(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
     if not chatbot.published or not chatbot.embed_key_hash:
         raise AppError(
             "EMBED_NOT_PUBLISHED",
@@ -272,6 +279,9 @@ async def chat(
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> StreamingResponse:
+    chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
+    await require_workspace_access(context, chatbot.workspace_id, session)
+
     async def events():
         try:
             async for event, data in ChatbotService(session).stream(

@@ -8,10 +8,8 @@ from app.core.database import Base
 
 
 class MembershipRole(StrEnum):
-    OWNER = "OWNER"
     ADMIN = "ADMIN"
-    EDITOR = "EDITOR"
-    VIEWER = "VIEWER"
+    WORKSPACE_ADMIN = "WORKSPACE_ADMIN"
 
 
 class Membership(Base):
@@ -23,4 +21,15 @@ class Membership(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
     )
-    role: Mapped[str] = mapped_column(String(32), default=MembershipRole.OWNER)
+    role: Mapped[str] = mapped_column(String(32), default=MembershipRole.ADMIN)
+
+
+class WorkspaceMembership(Base):
+    __tablename__ = "workspace_memberships"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True
+    )

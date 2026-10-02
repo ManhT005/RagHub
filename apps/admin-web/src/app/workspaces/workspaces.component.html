@@ -1,62 +1,111 @@
-<main class="workspace-page">
-  <header>
+<main class="access-page">
+  <header class="page-heading">
     <div>
-      <h1>Workspace</h1>
-      <p>Quản lý các domain/workspace tri thức của bạn.</p>
+      <span class="eyebrow">Không gian tri thức</span>
+      <h1>Danh sách workspace</h1>
+      <p>Tạo và mở các không gian tri thức trong phạm vi bạn được phân công.</p>
     </div>
+    @if (organizations().length > 1) {
+      <label class="organization-picker">
+        <span>Tổ chức đang quản lý</span>
+        <nz-select
+          [(ngModel)]="selectedOrganization"
+          (ngModelChange)="changeOrganization()"
+          aria-label="Chọn tổ chức"
+        >
+          @for (organization of organizations(); track organization.id) {
+            <nz-option [nzValue]="organization.id" [nzLabel]="organization.name" />
+          }
+        </nz-select>
+      </label>
+    }
   </header>
 
   @if (error()) {
-    <p class="message error">{{ error() }}</p>
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      [nzMessage]="error()"
+      nzCloseable
+      (nzOnClose)="error.set('')"
+    />
   }
 
-  <section class="create-form">
-    <label>
-      Tên workspace
-      <input
-        [(ngModel)]="name"
-        name="name"
-        placeholder="Ví dụ: Tư vấn tuyển sinh"
-      />
-    </label>
-    <label>
-      Mã định danh (slug)
-      <input [(ngModel)]="slug" name="slug" placeholder="tu-van-tuyen-sinh" />
-    </label>
-    <button (click)="create()">Tạo</button>
-  </section>
-
-  <section class="search">
-    <span>⌕</span>
-    <input
-      [ngModel]="search()"
-      (ngModelChange)="search.set($event)"
-      name="search"
-      placeholder="Tìm kiếm workspace..."
-    />
-  </section>
-
-  <section class="workspace-list">
-    @for (workspace of filteredWorkspaces(); track workspace.id) {
-      <article>
-        <span class="workspace-icon">♙</span>
-        <div>
-          <h2>{{ workspace.name }}</h2>
-          <p>
-            <b>Domain</b>
-            ·
-            {{ docCounts()[workspace.id] ?? 0 }} tài liệu ·
-            {{ botCounts()[workspace.id] ?? 0 }} chatbot
-          </p>
+  <nz-spin [nzSpinning]="loading()">
+    <div class="workspace-layout">
+      <section class="workspace-section" aria-labelledby="workspace-title">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">{{ workspaces().length }} workspace</span>
+            <h2 id="workspace-title">Phạm vi dữ liệu</h2>
+          </div>
+          @if (isAdmin()) {
+            <nz-tag nzColor="blue">Toàn quyền</nz-tag>
+          } @else {
+            <nz-tag nzColor="geekblue">Được phân công</nz-tag>
+          }
         </div>
-        <button class="more">⋮</button>
-        <a [routerLink]="['/app/workspace-console']">›</a>
-      </article>
-    } @empty {
-      <section class="empty">
-        <h2>Chưa có workspace</h2>
-        <p>Tạo workspace đầu tiên để tổ chức tài liệu và chatbot.</p>
+
+        @if (isAdmin()) {
+          <div class="create-workspace">
+            <label>
+              <span>Tên workspace</span>
+              <input nz-input [(ngModel)]="name" placeholder="Tư vấn tuyển sinh" />
+            </label>
+            <label>
+              <span>Mã định danh</span>
+              <input nz-input [(ngModel)]="slug" placeholder="tu-van-tuyen-sinh" />
+            </label>
+            <button nz-button nzType="primary" type="button" (click)="create()">
+              Tạo workspace
+            </button>
+          </div>
+        }
+
+        <div class="workspace-search">
+          <nz-input-group nzPrefixIcon="database">
+            <input
+              nz-input
+              [ngModel]="search()"
+              (ngModelChange)="search.set($event)"
+              placeholder="Tìm theo tên hoặc mã định danh"
+              aria-label="Tìm workspace"
+            />
+          </nz-input-group>
+        </div>
+
+        <div class="workspace-list">
+          @for (workspace of filteredWorkspaces(); track workspace.id) {
+            <nz-card class="workspace-card" [nzBordered]="false">
+              <div class="workspace-card-heading">
+                <span class="workspace-mark"><nz-icon nzType="database" /></span>
+                <div>
+                  <h3>{{ workspace.name }}</h3>
+                  <code>{{ workspace.slug }}</code>
+                </div>
+              </div>
+              <dl>
+                <div>
+                  <dt>Tài liệu</dt>
+                  <dd>{{ docCounts()[workspace.id] || 0 }}</dd>
+                </div>
+                <div>
+                  <dt>Chatbot</dt>
+                  <dd>{{ botCounts()[workspace.id] || 0 }}</dd>
+                </div>
+              </dl>
+              <a nz-button nzType="link" [routerLink]="['/app/workspace-console', workspace.id]">
+                Mở workspace
+              </a>
+            </nz-card>
+          } @empty {
+            <div class="empty-workspaces">
+              <nz-empty nzNotFoundContent="Chưa có workspace trong phạm vi của bạn" />
+            </div>
+          }
+        </div>
       </section>
-    }
-  </section>
+
+    </div>
+  </nz-spin>
 </main>

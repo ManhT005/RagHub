@@ -15,7 +15,7 @@ describe("DashboardComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -72,16 +72,13 @@ describe("DashboardComponent", () => {
     return fixture;
   }
 
-  it("offers quick actions from the overview", async () => {
+  it("hides the quick actions section from the overview", async () => {
     const fixture = await setup();
     const content = fixture.nativeElement.textContent;
-    expect(content).toContain("Tạo workspace mới");
-    expect(content).toContain("Tải tài liệu lên");
-    expect(content).toContain("Tạo chatbot");
-    expect(content).toContain("Nhúng chatbot");
-    expect(
-      fixture.nativeElement.querySelector('a[href="/app/workspaces"]'),
-    ).not.toBeNull();
+    expect(content).not.toContain("Thao tác nhanh");
+    expect(content).not.toContain("Tạo workspace mới");
+    expect(content).not.toContain("Nhúng chatbot");
+    expect(content).toContain("Hoạt động gần đây");
   });
 
   it("renders real counts from the API instead of hardcoded numbers", async () => {

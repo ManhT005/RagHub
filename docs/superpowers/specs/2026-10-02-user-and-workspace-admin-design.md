@@ -19,10 +19,10 @@ Sidebar thêm mục **Quản lý người dùng** cho `ADMIN`. Mục này không
 
 Trang **Quản lý người dùng** gồm:
 
-- ô tìm kiếm theo email;
+- ô tìm kiếm theo tên hoặc email;
 - nút **Tạo tài khoản**;
-- bảng email, trạng thái, lần đăng nhập gần nhất, ngày tạo, vai trò và các workspace đang quản lý;
-- thao tác kích hoạt hoặc vô hiệu hóa;
+- bảng tên, email, trạng thái, lần đăng nhập gần nhất, ngày tạo, vai trò và các workspace đang quản lý;
+- thao tác đổi tên hiển thị, kích hoạt hoặc vô hiệu hóa;
 - phân trang phía server, cố định 10 người mỗi trang;
 - trạng thái tải, lỗi và danh sách trống bằng tiếng Việt.
 
@@ -45,13 +45,19 @@ Các endpoint quản trị yêu cầu access token, `X-Organization-ID` và memb
 
 `GET /api/v1/admin/users?q=&page=1&page_size=10`
 
-Phản hồi gồm `items`, `page`, `page_size`, `total`. Mỗi item có `id`, `email`, `status`, `last_login_at`, `created_at`, `role` và danh sách workspace được gán. `page_size` giới hạn tối đa 100; giao diện luôn gửi 10.
+Phản hồi gồm `items`, `page`, `page_size`, `total`. Mỗi item có `id`, `email`, `display_name`, `status`, `last_login_at`, `created_at`, `role` và danh sách workspace được gán. Tham số `q` khớp email hoặc tên hiển thị. `page_size` giới hạn tối đa 100; giao diện luôn gửi 10.
 
 ### Tạo tài khoản
 
 `POST /api/v1/admin/users`
 
-Nhận email và mật khẩu ban đầu. Email được chuẩn hóa chữ thường, không cho trùng. Tài khoản mới được thêm vào tổ chức hiện tại; vai trò mặc định là `WORKSPACE_ADMIN` và chưa có workspace.
+Nhận email, mật khẩu ban đầu và tên hiển thị (không bắt buộc). Email được chuẩn hóa chữ thường, không cho trùng. Tài khoản mới được thêm vào tổ chức hiện tại; vai trò mặc định là `WORKSPACE_ADMIN` và chưa có workspace.
+
+### Đổi tên hiển thị
+
+`PATCH /api/v1/admin/users/{user_id}`
+
+Nhận `display_name` (chuỗi rỗng để xóa tên). Chỉ `ADMIN` được gọi; tài khoản ngoài tổ chức trả `404`.
 
 ### Đổi trạng thái
 
