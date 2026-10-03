@@ -2,11 +2,11 @@
 
 from uuid import uuid4
 
-from app.application.documents.upload_document import UploadDocumentUseCase
-from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.application.ingestion.run_ingestion import RunIngestionUseCase
-from app.application.rag.stream_chat import StreamRagChatUseCase
-from app.application.retrieval.retrieve_context import RetrieveContextUseCase
+from raghub_core.application.documents.upload_document import UploadDocumentUseCase
+from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
+from raghub_core.application.ingestion.run_ingestion import RunIngestionUseCase
+from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
+from raghub_core.application.retrieval.retrieve_context import RetrieveContextUseCase
 from raghub_core.domain.documents.upload import UploadDocumentCommand
 from raghub_core.domain.ingestion.models import IngestionDocument
 from raghub_core.domain.ingestion.parser import parse_document

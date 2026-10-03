@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.rag.stream_chat import StreamRagChatUseCase
+from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
 from raghub_core.domain.chatbots.models import ChatbotConfig
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage

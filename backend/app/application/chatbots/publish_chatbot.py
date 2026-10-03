@@ -1,30 +1,3 @@
-from raghub_core.domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
-from raghub_core.domain.chatbots.policies import validate_chatbot_configuration
-from raghub_core.domain.errors import CoreError
-from raghub_core.ports.chatbots import ChatbotRepositoryPort
-from raghub_core.ports.provider_resolver import ProviderResolverPort
+"""Deprecated compatibility path; use raghub_core.application.chatbots.publish_chatbot."""
 
-
-class PublishChatbotUseCase:
-    def __init__(self, repository: ChatbotRepositoryPort, providers: ProviderResolverPort) -> None:
-        self.repository, self.providers = repository, providers
-
-    async def validate(
-        self, config: ChatbotRecord | CreateChatbotCommand, *, require_readiness: bool = True
-    ) -> None:
-        if not await self.repository.workspace_exists(config.scope):
-            raise CoreError(
-                "WORKSPACE_NOT_FOUND",
-                "Workspace was not found in the current organization.",
-            )
-        if require_readiness:
-            validate_chatbot_configuration(config)
-            await self.providers.resolve_embedding(config.scope)
-            await self.providers.resolve_chat(config.scope)
-
-    async def execute(self, config: ChatbotRecord, *, published: bool = True) -> ChatbotRecord:
-        from dataclasses import replace
-
-        if published:
-            await self.validate(config)
-        return await self.repository.save(replace(config, published=published))
+from raghub_core.application.chatbots.publish_chatbot import *  # noqa: F403

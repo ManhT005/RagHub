@@ -9,7 +9,7 @@ APP = Path(__file__).resolve().parents[2] / "app"
 LAYERS = {
     "domain": (APP.parent / "raghub_core" / "domain", "raghub_core.domain"),
     "ports": (APP.parent / "raghub_core" / "ports", "raghub_core.ports"),
-    "application": (APP / "application", "app.application"),
+    "application": (APP.parent / "raghub_core" / "application", "raghub_core.application"),
 }
 FORBIDDEN = {
     "fastapi",
@@ -116,7 +116,7 @@ def test_dependency_check_catches_runtime_and_hidden_imports(source: str) -> Non
     assert forbidden_imports(source, layer="domain")
 
 
-def test_core_imports_with_infrastructure_blocked() -> None:
+def test_core_imports_with_app_and_infrastructure_blocked() -> None:
     script = """
 import importlib
 import importlib.abc
@@ -129,12 +129,11 @@ class BlockInfrastructure(importlib.abc.MetaPathFinder):
                      'sqlalchemy', 'httpx', 'pymupdf', 'pydantic_settings'}
         if fullname.split('.')[0] in forbidden:
             raise AssertionError(f'Infrastructure import: {fullname}')
-        if fullname.startswith(('app.core.', 'app.infrastructure', 'app.modules', 'app.workers',
-                                'app.composition', 'app.delivery')):
+        if fullname == 'app' or fullname.startswith('app.'):
             raise AssertionError(f'Runtime import: {fullname}')
 
 sys.meta_path.insert(0, BlockInfrastructure())
-for package_name in ('raghub_core.domain', 'raghub_core.ports', 'app.application'):
+for package_name in ('raghub_core',):
     package = importlib.import_module(package_name)
     for module in pkgutil.walk_packages(package.__path__, package_name + '.'):
         importlib.import_module(module.name)

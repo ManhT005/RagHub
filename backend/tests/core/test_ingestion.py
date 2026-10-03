@@ -2,9 +2,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.documents.upload_document import UploadDocumentUseCase
-from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.application.ingestion.run_ingestion import RunIngestionUseCase
+from raghub_core.application.documents.upload_document import UploadDocumentUseCase
+from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
+from raghub_core.application.ingestion.run_ingestion import RunIngestionUseCase
 from raghub_core.domain.documents.upload import UploadDocumentCommand
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.ingestion.errors import IngestionError

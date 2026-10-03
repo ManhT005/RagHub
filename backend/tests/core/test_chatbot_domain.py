@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.chatbots.manage_chatbot import ManageChatbotUseCase
-from app.application.chatbots.publish_chatbot import PublishChatbotUseCase
+from raghub_core.application.chatbots.manage_chatbot import ManageChatbotUseCase
+from raghub_core.application.chatbots.publish_chatbot import PublishChatbotUseCase
 from raghub_core.domain.chatbots.models import (
     ChatbotRecord,
     CreateChatbotCommand,

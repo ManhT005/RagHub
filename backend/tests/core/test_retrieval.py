@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.retrieval.retrieve_context import RetrieveContextUseCase
+from raghub_core.application.retrieval.retrieve_context import RetrieveContextUseCase
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 

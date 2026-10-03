@@ -2,8 +2,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.application.ingestion.reindex_workspace import ReindexWorkspaceUseCase
+from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
+from raghub_core.application.ingestion.reindex_workspace import ReindexWorkspaceUseCase
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.models import IngestionDocument
 from raghub_core.domain.ingestion.parser import parse_document
