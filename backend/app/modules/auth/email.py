@@ -5,6 +5,7 @@ from email.message import EmailMessage
 from typing import Protocol
 
 from app.core.config import Settings
+from app.core.exceptions import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,17 @@ class DevelopmentLogSender:
         logger.warning("Development email to=%s subject=%s body=%s", recipient, subject, text)
 
 
+class UnavailableEmailSender:
+    async def send(self, recipient: str, subject: str, text: str) -> None:
+        raise AppError(
+            "EMAIL_NOT_CONFIGURED", "Configure SMTP to use email authentication.", status_code=503
+        )
+
+
 def build_email_sender(settings: Settings) -> EmailSender:
     if settings.smtp_host:
         return GmailSmtpSender(settings)
-    return DevelopmentLogSender()
+    return DevelopmentLogSender() if settings.is_development else UnavailableEmailSender()
 
 
 async def send_password_reset_email(sender: EmailSender, email: str, reset_url: str) -> None:

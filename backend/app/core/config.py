@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         if self.app_env.lower() not in {"development", "dev", "local", "test"}:
             if self.provider_master_key in insecure_provider_keys:
                 raise ValueError("PROVIDER_MASTER_KEY must be set to a dedicated production key")
-            if not all(
+            if self.app_env.lower() != "selfhost" and not all(
                 (
                     self.smtp_host,
                     self.smtp_username,
