@@ -9,13 +9,16 @@ and workspace isolation remains mandatory inside every data operation.
 ## Dependency direction
 
 ```text
-HTTP / worker delivery -> application -> core_domain + ports
-infrastructure / persistence / AI adapters -> core_domain + ports
-composition roots -> concrete adapters + application
+app delivery -> app composition -> raghub_core.application -> domain + ports
+app infrastructure / persistence / AI adapters -> raghub_core.domain + ports
+app composition roots -> concrete adapters + raghub_core.application
 ```
 
-`app/core_domain` is the engine's domain, algorithms, policies and contracts.
-`app/application` owns workflows. `app/ports` defines their external dependencies.
+`backend/raghub_core/domain` is the engine's domain, algorithms, policies and contracts.
+`raghub_core/application` owns workflows. `raghub_core/ports` defines their dependencies.
+The supported facade is `raghub_core.api`; see the [frozen public API](RAGHUB_CORE_PUBLIC_API.md).
+There are no remaining `app/core_domain`, `app/application`, or `app/ports` aliases.
+The engine must never import `app`, including its package root.
 The existing `app/core` is legacy runtime support (FastAPI authentication, settings,
 database, logging and middleware), **not RagHub Core**. Keeping that distinction
 avoids moving runtime dependencies into the reusable engine.
@@ -24,6 +27,13 @@ Core and application must not import FastAPI, Celery, SQLAlchemy, Redis, MinIO,
 Elasticsearch, vendor HTTP clients, settings or concrete adapters. CPU libraries
 such as tiktoken are allowed. PDF decoding with PyMuPDF is an adapter; text and
 Markdown parsing and section/chunk contracts belong to the core.
+
+The `raghub-backend` wheel contains both the host and engine packages. It is not
+a separately versioned `raghub-core` distribution. The `core-package-isolation`
+CI job installs that wheel without host dependencies into a fresh venv, blocks
+every `app` import, imports every engine module, verifies bundled tokenizer data
+with an empty cache and runs the complete fake-port lifecycle. Docker copies both
+packages; development reload/watch configuration watches both source trees.
 
 ## Baseline inventory
 
@@ -189,8 +199,10 @@ minimal dependency set. Adapter tests stay outside `tests/core`.
 | CORE-9 | HTTP maps inputs/results; Celery tasks delegate bootstrap and use cases; compatibility paths retained |
 | CORE-10 | Core-only CI, fake-port contracts, dependency tests and separate live integration tests implemented |
 
-The [self-host verification report](../operations/SELF_HOST_VERIFICATION.md) records
-current core-only, backend, UI, migration and operations evidence. The isolated
+The [original self-host verification report](../operations/SELF_HOST_VERIFICATION.md)
+records the previous extraction and operations evidence. The
+[package consolidation report](RAGHUB_CORE_PACKAGE_VERIFICATION.md) records current
+core-only, installed-wheel, backend, UI, migration and self-host evidence. The isolated
 adapter suite includes PostgreSQL concurrency, conversation persistence, public
 SSE, Redis admission and workspace rebuilds. A separate CPU self-host installation
 exercises actual Sentence Transformer and Ollama models, restart persistence and

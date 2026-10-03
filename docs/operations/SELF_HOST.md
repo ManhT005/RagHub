@@ -1,7 +1,8 @@
 # RagHub Self-host
 
 The self-host API, public chat host and Celery worker consume the same engine:
-`core_domain`, `application`, and `ports`. Configuration and concrete adapter wiring
+`raghub_core.domain`, `raghub_core.application`, and `raghub_core.ports`.
+Configuration and concrete adapter wiring
 belong to `composition/self_host.py`, `public_chat.py`, and `worker.py`.
 The engine does not read environment variables or contain deployment/role checks.
 

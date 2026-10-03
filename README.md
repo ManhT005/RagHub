@@ -71,11 +71,15 @@ Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện t
 billing và quản trị enterprise thuộc roadmap sau.
 
 **RagHub Core** là engine tri thức và RAG độc lập với cách triển khai. Logic và
-contracts độc lập nằm trong `backend/app/core_domain`; workflow nằm trong
-`application`, giao tiếp hạ tầng qua `ports`. Auth/RBAC và quản trị platform nằm
+contracts độc lập nằm trong `backend/raghub_core/domain`; workflow nằm trong
+`raghub_core/application`, giao tiếp hạ tầng qua `raghub_core/ports`. Các host dùng
+facade `raghub_core.api` hoặc các protocol canonical. Auth/RBAC và quản trị platform nằm
 ngoài engine. Playground và public widget dùng cùng typed RAG runtime; origin,
 rate limit và concurrency thuộc delivery. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
 và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
+Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
+Backend wheel chứa cả `app` và `raghub_core`; CI kiểm tra engine từ installed wheel
+trong venv tối thiểu, chặn import `app` và dùng cache tokenizer rỗng.
 
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |
@@ -255,10 +259,12 @@ CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile T
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
 apps/chat-widget/     Widget Web Component và website demo
-backend/app/          API, nghiệp vụ, adapter hạ tầng và worker
-  core_domain/        RagHub Core: domain, thuật toán, policy và AI contracts
+backend/raghub_core/  Engine RAG độc lập, không import app
+  domain/             Domain, thuật toán, policy và AI contracts
   application/        Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
   ports/              Hợp đồng storage, search, queue, provider và persistence
+  api.py              Facade public cho các host
+backend/app/          API, control plane, adapter hạ tầng và worker
   composition/        Ghép use cases với adapter của từng runtime
   delivery/           Upload/SSE HTTP adapter và worker bootstrap
 backend/alembic/      Migration cơ sở dữ liệu
