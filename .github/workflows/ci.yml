@@ -15,6 +15,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  core-contracts:
+    name: Core contracts without runtime dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-core-test.lock
+      - name: Install core test dependencies
+        working-directory: backend
+        run: python -m pip install -r requirements-core-test.lock
+      - name: Test engine contracts and dependency direction
+        working-directory: backend
+        run: python -m pytest -p no:cacheprovider tests/core
+
   backend:
     name: Backend checks
     runs-on: ubuntu-latest

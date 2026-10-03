@@ -6,6 +6,9 @@
 .python-version
 .worktrees/
 
+# Local core extraction plan (kept outside version control)
+/RagHub_Core_Remake_Implementation_Plan.md
+
 # Python
 __pycache__/
 *.py[cod]
@@ -14,6 +17,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+backend/build/
+*.egg-info/
 
 # Node.js and frontend builds
 node_modules/

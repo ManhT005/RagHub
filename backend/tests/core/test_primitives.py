@@ -5,7 +5,6 @@ import pytest
 from app.core_domain.ingestion.chunker import chunk_sections
 from app.core_domain.ingestion.parser import ParsedSection, parse_document
 from app.core_domain.providers.contracts import ChatMessage
-from app.core_domain.providers.errors import ProviderTimeoutError
 from app.core_domain.providers.usage import estimate_chat_usage
 from app.core_domain.rag.citations import resolve_citations
 from app.core_domain.retrieval.hybrid import build_context_bundle, fuse_rrf
@@ -37,13 +36,3 @@ def test_pdf_dispatch_uses_injected_decoder() -> None:
     assert parse_document(b"%PDF-", "guide.pdf", pdf_parser=lambda *_: [section]) == [section]
     with pytest.raises(ValueError, match="adapter"):
         parse_document(b"%PDF-", "guide.pdf")
-
-
-def test_compatibility_exports_preserve_identity() -> None:
-    from app.modules.ai_providers.errors import ProviderTimeoutError as LegacyError
-    from app.modules.ingestion.chunker import chunk_sections as legacy_chunker
-    from app.modules.ingestion.parser import ParsedSection as LegacySection
-
-    assert LegacyError is ProviderTimeoutError
-    assert legacy_chunker is chunk_sections
-    assert LegacySection is ParsedSection

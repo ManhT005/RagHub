@@ -201,6 +201,11 @@ npm run build
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
 backend/app/          API, nghiệp vụ, adapter hạ tầng và worker
+  core_domain/        RagHub Core: domain, thuật toán, policy và AI contracts
+  application/        Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
+  ports/              Hợp đồng storage, search, queue, provider và persistence
+  composition/        Ghép use cases với adapter của từng runtime
+  delivery/           Upload/SSE HTTP adapter và worker bootstrap
 backend/alembic/      Migration cơ sở dữ liệu
 backend/tests/        Kiểm thử backend
 infrastructure/       Docker Compose và cấu hình Nginx

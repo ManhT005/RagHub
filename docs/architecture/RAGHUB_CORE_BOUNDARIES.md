@@ -61,6 +61,55 @@ Markdown parsing and section/chunk contracts belong to the core.
 Package `__init__.py` files are namespace markers and take the classification of
 their containing package. Alembic is persistence/deployment tooling.
 
+The baseline dependency map was:
+
+```text
+DocumentService -> UploadFile + MinIO + SQLAlchemy repository + Celery task
+workers -> parsing/chunking + ProviderResolver + MinIO + Elasticsearch + ORM
+SearchService -> ProviderResolver + Elasticsearch + ORM readiness query
+ChatbotService -> CRUD + retrieval + provider resolution + conversation/usage ORM
+ProviderRegistry -> SQLAlchemy ProviderConfig
+```
+
+## Extracted engine entry points
+
+| Capability | Application entry point | Dependencies |
+| --- | --- | --- |
+| Upload | `application/documents/upload_document.py` | DocumentRepositoryPort, ObjectStoragePort, TaskQueuePort |
+| Retry / document reindex | `application/documents/retry_document.py` | DocumentRetryRepositoryPort, TaskQueuePort |
+| Ingestion | `application/ingestion/run_ingestion.py` | IngestionRepositoryPort, provider resolver, index builder |
+| Parse/chunk/embed/index | `application/ingestion/build_document_index.py` | Parser callable, ObjectStoragePort, embedding runtime, VectorStorePort |
+| Workspace rebuild | `application/ingestion/reindex_workspace.py` | ReindexRepositoryPort and the same index builder |
+| Retrieval/context | `application/retrieval/retrieve_context.py` | ProviderResolverPort, VectorSearchPort, DocumentReadinessPort |
+| Streaming RAG | `application/rag/stream_chat.py` | ChatbotReadPort, RetrievalPort, ProviderResolverPort, ConversationRepositoryPort, UsageRecorderPort |
+| Chatbot CRUD/publication | `application/chatbots/*` | ChatbotRepositoryPort and provider readiness contracts |
+
+`composition/*` and `delivery/workers/*` wire those ports to the existing adapters.
+`modules/*/service.py` retains compatibility facades. HTTP uploads stop at
+`delivery/http/uploads.py`; typed RAG events become SSE only in
+`delivery/http/sse.py`. Celery task names and arguments remain unchanged.
+
+`ProviderDescriptor` contains deeply immutable, detached options and no credentials.
+The persistence mapper selects the embedding index snapshot before registry
+construction. Decrypted credentials are passed separately to the factory.
+
+## Platform authorization versus engine scope
+
+Cloud membership roles and enterprise identity/SSO policies can differ. Their
+delivery adapters must authenticate and authorize a request before creating an
+engine command. The engine has no platform role enum, billing state or deployment
+mode. Its repositories still enforce the command's organization/workspace scope,
+and the RAG runtime verifies the resolved chatbot belongs to that organization.
+
+For a future public widget, the delivery adapter must resolve scope from the public
+chatbot identity on the server. It must never construct scope from browser-supplied
+tenant IDs. Origin checks, rate limits and concurrency leases belong to that wrapper.
+
+The existing authenticated API keeps its permissive `published` flag semantics.
+`PublishChatbotUseCase.execute` provides the stricter configuration/provider
+readiness gate for a control plane that chooses to enable it. Public integration
+readiness has no implementation to validate in this baseline.
+
 ## Migration and invariants
 
 Each step is a separate reviewable commit: inventory; pure primitives; ports;
@@ -94,3 +143,37 @@ Run backend checks from `backend/`:
 Core contract tests use fake ports and no Docker or network. Infrastructure
 integration tests remain marked `integration` and require the existing stack.
 Architecture tests enforce dependency direction, including transitive imports.
+
+For a core-only environment, install `backend/requirements-core-test.lock` rather
+than the backend runtime dependencies, then run `python -m pytest -p
+no:cacheprovider tests/core` from `backend/`. CI has a separate job using that
+minimal dependency set. Adapter tests stay outside `tests/core`.
+
+## Extraction status and verified limits
+
+| Plan stage | Status |
+| --- | --- |
+| CORE-0 / CORE-1 | Inventory, canonical pure packages, PDF adapter and compatibility imports implemented |
+| CORE-2 | Typed ports wired into the existing adapters; fake adapters exercised by contract tests |
+| CORE-3 | Upload/ingestion/rebuild callable without Celery; initial and rebuild indexing share one use case |
+| CORE-4 | Retrieval callable without concrete Elasticsearch dependencies; READY and tenant filters preserved |
+| CORE-5 | Typed streaming events, prompt/citation policies, conversation/usage ports and SSE adapter implemented |
+| CORE-6 | Chatbot management separated; publication readiness gate explicit and opt-in for existing HTTP behavior |
+| CORE-7 | Registry imports without ORM/settings; immutable descriptor and shared provider contract tests implemented |
+| CORE-8 | Not applicable to existing functionality: public runtime is absent |
+| CORE-9 | HTTP maps inputs/results; Celery tasks delegate bootstrap and use cases; compatibility paths retained |
+| CORE-10 | Core-only CI, fake-port contracts, dependency tests and separate live integration tests implemented |
+
+Verified locally: 220 backend tests passed, including nine live integration tests;
+lint passed. The 50 core tests also passed in a Python environment without FastAPI,
+ORM, worker, storage/search SDKs or PyMuPDF. Live coverage includes ingestion and
+PostgreSQL concurrency, chatbot CRUD and empty-context authenticated SSE, and a
+workspace rebuild changing embedding dimension from 384 to 128 while retaining
+the document version and switching the active index.
+The backend wheel includes the bundled tokenizer and its core imports independently
+of the runtime dependencies.
+
+Live tests used an isolated Docker project and local token-hash embeddings. Shared
+provider tests mock vendor I/O and the local sentence-transformer model. This does
+not claim a live Gemini/OpenAI/Ollama/model-download or public-widget deployment
+test, nor a completed Cloud/Enterprise control plane.
