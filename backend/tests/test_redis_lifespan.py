@@ -12,8 +12,12 @@ from app.core import redis as redis_module
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.exceptions import register_exception_handlers
+from app.infrastructure.redis.public_chat_admission import (
+    ACQUIRE_SCRIPT,
+    RELEASE_SCRIPT,
+    PublicChatLimits,
+)
 from app.modules.chatbots import router
-from app.modules.chatbots.public_limits import ACQUIRE_SCRIPT, RELEASE_SCRIPT, PublicChatLimits
 
 
 @pytest.fixture

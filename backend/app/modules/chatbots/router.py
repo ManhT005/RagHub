@@ -18,7 +18,8 @@ from app.core_domain.rag.models import StreamChatCommand
 from app.delivery.http.public_chat import PublicStreamingResponse as PublicStreamingResponse
 from app.delivery.http.public_chat import public_stream_sse
 from app.delivery.http.sse import stream_sse
-from app.modules.chatbots.public_limits import PublicChatLimits, client_ip, get_public_limits
+from app.delivery.public.admission import client_ip, get_public_limits
+from app.infrastructure.redis.public_chat_admission import PublicChatLimits
 from app.modules.chatbots.schemas import (
     ChatbotInput,
     ChatbotPatch,
