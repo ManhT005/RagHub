@@ -92,6 +92,13 @@ def main():
         }
         if not required.issubset(names):
             raise ValueError("Wheel is missing host or canonical engine modules")
+        if any(
+            name.startswith(("app/core_domain/", "app/application/", "app/ports/"))
+            for name in names
+        ):
+            raise ValueError(
+                "Wheel must not contain the retired compatibility namespaces"
+            )
         assets = [
             name
             for name in names

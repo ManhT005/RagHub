@@ -183,6 +183,11 @@ def test_production_hosts_use_canonical_core_imports() -> None:
     assert not violations, "\n".join(violations)
 
 
+def test_retired_core_namespaces_are_absent() -> None:
+    for directory in ("core_domain", "application", "ports"):
+        assert not (APP / directory).exists(), f"Retired engine namespace remains: {directory}"
+
+
 def test_core_imports_with_app_and_infrastructure_blocked() -> None:
     script = """
 import importlib
