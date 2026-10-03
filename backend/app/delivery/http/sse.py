@@ -22,11 +22,16 @@ def event_payload(event: RagEvent) -> tuple[str, dict[str, object]]:
             "user_message_id": str(event.user_message_id),
         }
     if isinstance(event, CitationsResolved):
-        return "citations", {"citations": [
-            {**asdict(citation), "document_id": str(citation.document_id),
-             "chunk_id": str(citation.chunk_id)}
-            for citation in event.citations
-        ]}
+        return "citations", {
+            "citations": [
+                {
+                    **asdict(citation),
+                    "document_id": str(citation.document_id),
+                    "chunk_id": str(citation.chunk_id),
+                }
+                for citation in event.citations
+            ]
+        }
     if isinstance(event, TokenDelta):
         return "token", {"text": event.text}
     if isinstance(event, UsageReported):
