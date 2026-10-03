@@ -14,10 +14,16 @@ from app.core_domain.retrieval.hybrid import build_context_bundle, fuse_rrf
 def test_text_to_trusted_context_without_runtime() -> None:
     chunks = chunk_sections(parse_document(b"# Guide\n\nUse RagHub.", "guide.md"), uuid4())
     hits = [
-        {"document_id": str(uuid4()), "document_version_id": str(uuid4()),
-         "chunk_id": str(chunk.chunk_id), "source_name": chunk.source_name,
-         "content": chunk.content, "heading": chunk.heading, "page_number": None,
-         "score": 1.0}
+        {
+            "document_id": str(uuid4()),
+            "document_version_id": str(uuid4()),
+            "chunk_id": str(chunk.chunk_id),
+            "source_name": chunk.source_name,
+            "content": chunk.content,
+            "heading": chunk.heading,
+            "page_number": None,
+            "score": 1.0,
+        }
         for chunk in chunks
     ]
     context = build_context_bundle(fuse_rrf([hits, hits], limit=5))

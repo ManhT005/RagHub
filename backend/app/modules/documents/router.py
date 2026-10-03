@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import OrganizationContext, get_organization_context, require_role
 from app.core.database import get_session
+from app.delivery.http.uploads import upload_from_http
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
 from app.modules.documents.service import DocumentService
 from app.modules.memberships.models import MembershipRole
@@ -26,11 +27,7 @@ async def upload_document(
 ) -> DocumentAccepted:
     require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
     service = DocumentService(session)
-    return await service.upload_document(
-        organization_id=context.organization_id,
-        workspace_id=workspace_id,
-        upload=file,
-    )
+    return await upload_from_http(service, context.organization_id, workspace_id, file)
 
 
 @router.post(

@@ -57,7 +57,7 @@ def test_writers_can_upload_and_retry(role, monkeypatch):
     )
     upload = AsyncMock(return_value=accepted)
     retry = AsyncMock(return_value=accepted)
-    monkeypatch.setattr(DocumentService, "upload_document", upload)
+    monkeypatch.setattr("app.modules.documents.router.upload_from_http", upload)
     monkeypatch.setattr(DocumentService, "retry", retry)
 
     async def context():
