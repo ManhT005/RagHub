@@ -11,7 +11,7 @@ RUN addgroup --system raghub && adduser --system --ingroup raghub raghub \
     && mkdir -p /app/.cache/huggingface \
     && chown -R raghub:raghub /app/.cache
 
-COPY requirements.lock pyproject.toml ./
+COPY requirements.lock ./
 RUN python -m pip install --upgrade pip==25.2 \
     && python -m pip install -r requirements.lock
 
@@ -25,7 +25,7 @@ RUN python -m pip install \
 
 FROM dependencies AS runtime
 
-COPY alembic.ini ./
+COPY alembic.ini pyproject.toml README.md ./
 COPY alembic ./alembic
 COPY app ./app
 COPY raghub_core ./raghub_core
