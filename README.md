@@ -64,6 +64,11 @@ Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tu
 
 ## Công nghệ và kiến trúc
 
+**RagHub Core** là engine tri thức và RAG dùng chung giữa các platform. Logic và
+contracts độc lập nằm trong `backend/app/core_domain`; workflow nằm trong
+`application`, giao tiếp hạ tầng qua `ports`. Auth/RBAC và quản trị platform nằm
+ngoài engine. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md).
+
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |
 | Giao diện | ![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white) | Ứng dụng quản trị tiếng Việt với NG-ZORRO |
