@@ -19,6 +19,7 @@ from app.core_domain.providers.enums import (
     ReindexJobStatus,
 )
 from app.core_domain.providers.errors import ProviderConfigurationError
+from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
@@ -34,6 +35,7 @@ from app.modules.ai_providers.schemas import (
 )
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.workspaces.models import Workspace
+from app.ports.task_queue import TaskQueuePort
 
 
 def embedding_fingerprint(config: ProviderConfig) -> str:
@@ -55,8 +57,9 @@ def workspace_index_name(workspace_id: UUID, version_id: UUID) -> str:
 
 
 class ProviderConfigService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, task_queue: TaskQueuePort | None = None) -> None:
         self.session = session
+        self.task_queue = task_queue or CeleryTaskQueue()
         self.repository = ProviderConfigRepository(session)
         self.registry = ProviderRegistry()
         self.cipher = ProviderSecretCipher(get_settings().provider_master_key)
@@ -270,9 +273,7 @@ class ProviderConfigService:
 
     async def _enqueue_reindex(self, job: EmbeddingReindexJob) -> None:
         try:
-            from app.workers.reindex_tasks import reindex_workspace
-
-            reindex_workspace.delay(str(job.id))
+            getattr(self, "task_queue", CeleryTaskQueue()).enqueue_reindex(job.id)
         except Exception:
             job.status = ReindexJobStatus.QUEUE_FAILED
             job.error_code = "REINDEX_QUEUE_UNAVAILABLE"

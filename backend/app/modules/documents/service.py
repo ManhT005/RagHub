@@ -12,8 +12,11 @@ from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
 from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.ports.object_storage import ObjectStoragePort
+from app.ports.task_queue import TaskQueuePort
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +28,15 @@ SUPPORTED_TYPES = {
 
 
 class DocumentService:
-    def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
+    def __init__(
+        self, session: AsyncSession, settings: Settings | None = None, *,
+        storage: ObjectStoragePort | None = None, task_queue: TaskQueuePort | None = None,
+    ) -> None:
         self.session = session
         self.settings = settings or get_settings()
         self.repository = DocumentRepository(session)
-        self.storage = MinioObjectStorage(self.settings)
+        self.storage: ObjectStoragePort = storage or MinioObjectStorage(self.settings)
+        self.task_queue = task_queue or CeleryTaskQueue()
 
     async def upload_document(
         self,
@@ -95,9 +102,7 @@ class DocumentService:
             raise
 
         try:
-            from app.workers.tasks import ingest_document_version
-
-            ingest_document_version.delay(str(version.id))
+            self.task_queue.enqueue_ingestion(version.id)
         except Exception as exc:
             logger.exception("Could not enqueue document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
@@ -147,9 +152,7 @@ class DocumentService:
         job.error_code = job.error_message = job.error_details = None
         await self.session.commit()
         try:
-            from app.workers.tasks import ingest_document_version
-
-            ingest_document_version.delay(str(version.id))
+            self.task_queue.enqueue_ingestion(version.id)
         except Exception as exc:
             logger.exception("Could not enqueue retry for document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
@@ -189,9 +192,7 @@ class DocumentService:
         job.error_code = job.error_message = job.error_details = None
         await self.session.commit()
         try:
-            from app.workers.tasks import ingest_document_version
-
-            ingest_document_version.delay(str(version.id))
+            self.task_queue.enqueue_ingestion(version.id)
         except Exception as exc:
             logger.exception("Could not enqueue re-index for document version %s", version.id)
             await self.repository.mark_queue_failure(version.id, str(exc))
