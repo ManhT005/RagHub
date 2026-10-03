@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "raghub-backend"
 version = "0.1.0"
-description = "RagHub API and document ingestion worker"
+description = "RagHub reusable engine, API and document ingestion worker"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic==1.16.4",
@@ -40,10 +41,10 @@ local-ai = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "raghub_core*"]
 
 [tool.setuptools.package-data]
-"app.core_domain.ingestion" = ["token_cache/*.gz"]
+"raghub_core.domain.ingestion" = ["token_cache/*.gz"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
