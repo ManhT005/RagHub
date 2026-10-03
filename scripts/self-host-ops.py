@@ -103,10 +103,10 @@ def backup(args):
         .stdout.decode()
         .splitlines()
     )
-    for name in ("worker", "api", "nginx"):
-        if name in active:
-            compose(args, "stop", "-t", "90", name)
     try:
+        for name in ("nginx", "api", "worker"):
+            if name in active:
+                compose(args, "stop", "-t", "90", name)
         print("Capture consistent database and offline data volumes", flush=True)
         with (directory / "postgres.dump").open("wb") as destination:
             compose(
@@ -186,6 +186,9 @@ def restore(args):
         raise ValueError("Backup is missing required data volumes.")
     if not set(manifest["volumes"]).issubset({*DATA_VOLUMES, *MODEL_VOLUMES}):
         raise ValueError("Unsupported backup volume.")
+    required = {"postgres.dump", "runtime.env", *[f"{key}.tar" for key in manifest["volumes"]]}
+    if set(manifest["checksums"]) != required:
+        raise ValueError("Backup manifest must cover every required artifact.")
     configuration = model(args)
     for key in ("postgres-data", *manifest["volumes"]):
         volume = configuration["volumes"][key]["name"]
