@@ -1,5 +1,8 @@
 # Phase-one and phase-two architecture
 
+For the reusable engine boundary and extraction status, see
+[RagHub Core boundaries](architecture/RAGHUB_CORE_BOUNDARIES.md).
+
 RagHub starts as a modular monolith plus a background worker. The API and worker
 share domain models and infrastructure adapters while running as separate
 processes.
