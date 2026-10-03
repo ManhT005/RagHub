@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from app.core_domain.providers.descriptor import ProviderDescriptor
+from raghub_core.domain.providers.descriptor import ProviderDescriptor
 
 
 def test_descriptor_has_no_secret_and_detaches_nested_options():

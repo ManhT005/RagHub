@@ -1,11 +1,11 @@
 from uuid import UUID
 
-from app.core_domain.documents.upload import UploadReceipt
-from app.core_domain.errors import CoreError
-from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES
-from app.core_domain.retrieval.models import RetrievalScope
 from app.ports.documents import DocumentRetryRepositoryPort
 from app.ports.task_queue import TaskQueuePort
+from raghub_core.domain.documents.upload import UploadReceipt
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.ingestion.errors import RETRYABLE_ERROR_CODES
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class RetryDocumentUseCase:

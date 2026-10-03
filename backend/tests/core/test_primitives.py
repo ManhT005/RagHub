@@ -2,13 +2,13 @@ from uuid import uuid4
 
 import pytest
 
-from app.core_domain.ingestion.chunker import chunk_sections
-from app.core_domain.ingestion.parser import ParsedSection, parse_document
-from app.core_domain.providers.contracts import ChatMessage
-from app.core_domain.providers.usage import estimate_chat_usage
-from app.core_domain.rag.citations import resolve_trusted_citations
-from app.core_domain.retrieval.hybrid import build_context_bundle, fuse_rrf
-from app.core_domain.retrieval.models import RetrievedChunk
+from raghub_core.domain.ingestion.chunker import chunk_sections
+from raghub_core.domain.ingestion.parser import ParsedSection, parse_document
+from raghub_core.domain.providers.contracts import ChatMessage
+from raghub_core.domain.providers.usage import estimate_chat_usage
+from raghub_core.domain.rag.citations import resolve_trusted_citations
+from raghub_core.domain.retrieval.hybrid import build_context_bundle, fuse_rrf
+from raghub_core.domain.retrieval.models import RetrievedChunk
 
 
 def test_text_to_trusted_context_without_runtime() -> None:

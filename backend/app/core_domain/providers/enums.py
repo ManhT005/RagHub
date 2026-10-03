@@ -1,32 +1,3 @@
-from enum import StrEnum
+"""Deprecated compatibility path; use raghub_core.domain.providers.enums."""
 
-
-class ProviderType(StrEnum):
-    OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE"
-    GOOGLE_GEMINI = "GOOGLE_GEMINI"
-    LOCAL_TOKEN_HASH = "LOCAL_TOKEN_HASH"
-    LOCAL_SENTENCE_TRANSFORMER = "LOCAL_SENTENCE_TRANSFORMER"
-    OLLAMA = "OLLAMA"
-
-
-class ProviderCapability(StrEnum):
-    EMBEDDING = "EMBEDDING"
-    CHAT = "CHAT"
-
-
-class IndexVersionStatus(StrEnum):
-    BUILDING = "BUILDING"
-    ACTIVE = "ACTIVE"
-    FAILED = "FAILED"
-    RETIRED = "RETIRED"
-
-
-class ReindexJobStatus(StrEnum):
-    QUEUED = "QUEUED"
-    QUEUE_FAILED = "QUEUE_FAILED"
-    RUNNING = "RUNNING"
-    VALIDATING = "VALIDATING"
-    SWITCHING = "SWITCHING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-    SUPERSEDED = "SUPERSEDED"
+from raghub_core.domain.providers.enums import *  # noqa: F403

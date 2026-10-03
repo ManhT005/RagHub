@@ -1,7 +1,7 @@
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
-from app.core_domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
+from raghub_core.domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
 
 
 @runtime_checkable

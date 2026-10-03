@@ -2,11 +2,11 @@ from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.core_domain.ingestion.errors import IngestionError
-from app.core_domain.ingestion.models import IngestionDocument, IngestionResult, IngestionStage
 from app.ports.ingestion import IngestionRepositoryPort
 from app.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
 from app.ports.vector_store import VectorStorePort
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionDocument, IngestionResult, IngestionStage
 
 
 class RunIngestionUseCase:

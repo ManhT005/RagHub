@@ -1,10 +1,13 @@
 import math
 from collections.abc import Awaitable, Callable
 
-from app.core_domain.ingestion.chunker import TextChunk, chunk_sections
-from app.core_domain.ingestion.errors import IngestionError
-from app.core_domain.ingestion.models import IngestionDocument, IngestionStage
-from app.core_domain.ingestion.parser import (
+from app.ports.object_storage import ObjectStoragePort
+from app.ports.provider_resolver import EmbeddingRuntime
+from app.ports.vector_store import VectorStorePort
+from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
+from raghub_core.domain.ingestion.parser import (
     EmptyExtractedTextError,
     InvalidPdfError,
     ParsedSection,
@@ -12,15 +15,12 @@ from app.core_domain.ingestion.parser import (
     UnsupportedFileTypeError,
     UnsupportedOcrError,
 )
-from app.core_domain.providers.errors import (
+from raghub_core.domain.providers.errors import (
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from app.core_domain.retrieval.models import DocumentIndex, IndexedChunk
-from app.ports.object_storage import ObjectStoragePort
-from app.ports.provider_resolver import EmbeddingRuntime
-from app.ports.vector_store import VectorStorePort
+from raghub_core.domain.retrieval.models import DocumentIndex, IndexedChunk
 
 StageCallback = Callable[[IngestionStage, int], Awaitable[None]]
 

@@ -4,9 +4,9 @@ from uuid import uuid4
 import pytest
 
 from app.application.documents.retry_document import RetryDocumentUseCase
-from app.core_domain.documents.upload import RetryDocumentState
-from app.core_domain.errors import CoreError
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.documents.upload import RetryDocumentState
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 from .fakes import FakeTaskQueue, FakeUploadRepository
 

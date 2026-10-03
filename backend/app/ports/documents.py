@@ -1,8 +1,8 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.documents.upload import RetryDocumentState, UploadReceipt
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.documents.upload import RetryDocumentState, UploadReceipt
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class DocumentRepositoryPort(Protocol):

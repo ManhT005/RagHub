@@ -1,9 +1,9 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.providers.contracts import ChatMessage, ChatUsage
-from app.core_domain.rag.models import TrustedCitation
+from raghub_core.domain.chatbots.models import ChatbotConfig
+from raghub_core.domain.providers.contracts import ChatMessage, ChatUsage
+from raghub_core.domain.rag.models import TrustedCitation
 
 
 class ConversationRepositoryPort(Protocol):

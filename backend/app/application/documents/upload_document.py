@@ -1,16 +1,16 @@
 import hashlib
 from uuid import uuid4
 
-from app.core_domain.documents.upload import (
+from app.ports.documents import DocumentRepositoryPort
+from app.ports.object_storage import ObjectStoragePort
+from app.ports.task_queue import TaskQueuePort
+from raghub_core.domain.documents.upload import (
     UploadDocumentCommand,
     UploadReceipt,
     validate_upload_content,
     validate_upload_metadata,
 )
-from app.core_domain.errors import CoreError
-from app.ports.documents import DocumentRepositoryPort
-from app.ports.object_storage import ObjectStoragePort
-from app.ports.task_queue import TaskQueuePort
+from raghub_core.domain.errors import CoreError
 
 
 class UploadDocumentUseCase:

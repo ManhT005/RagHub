@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.providers.contracts import ChatProvider, EmbeddingProvider
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 @dataclass(frozen=True)

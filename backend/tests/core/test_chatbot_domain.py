@@ -6,9 +6,13 @@ import pytest
 
 from app.application.chatbots.manage_chatbot import ManageChatbotUseCase
 from app.application.chatbots.publish_chatbot import PublishChatbotUseCase
-from app.core_domain.chatbots.models import ChatbotRecord, CreateChatbotCommand, PatchChatbotCommand
-from app.core_domain.errors import CoreError
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.chatbots.models import (
+    ChatbotRecord,
+    CreateChatbotCommand,
+    PatchChatbotCommand,
+)
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 from .fakes import FakeProviderResolver
 

@@ -4,11 +4,11 @@ import pytest
 
 from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
 from app.application.ingestion.reindex_workspace import ReindexWorkspaceUseCase
-from app.core_domain.ingestion.errors import IngestionError
-from app.core_domain.ingestion.models import IngestionDocument
-from app.core_domain.ingestion.parser import parse_document
-from app.core_domain.ingestion.reindex import ReindexTarget
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionDocument
+from raghub_core.domain.ingestion.parser import parse_document
+from raghub_core.domain.ingestion.reindex import ReindexTarget
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 from .fakes import FakeObjectStorage, FakeProviderResolver, FakeVectorStore
 

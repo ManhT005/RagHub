@@ -1,8 +1,8 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.chatbots.models import ChatbotConfig, ChatbotRecord, CreateChatbotCommand
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.chatbots.models import ChatbotConfig, ChatbotRecord, CreateChatbotCommand
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class ChatbotReadPort(Protocol):

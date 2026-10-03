@@ -2,15 +2,15 @@ from dataclasses import fields, replace
 from uuid import UUID
 
 from app.application.chatbots.publish_chatbot import PublishChatbotUseCase
-from app.core_domain.chatbots.models import (
+from app.ports.chatbots import ChatbotRepositoryPort
+from raghub_core.domain.chatbots.models import (
     ChatbotRecord,
     CreateChatbotCommand,
     PatchChatbotCommand,
     Unset,
 )
-from app.core_domain.errors import CoreError
-from app.core_domain.retrieval.models import RetrievalScope
-from app.ports.chatbots import ChatbotRepositoryPort
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class ManageChatbotUseCase:

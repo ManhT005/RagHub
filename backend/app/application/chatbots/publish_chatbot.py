@@ -1,8 +1,8 @@
-from app.core_domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
-from app.core_domain.chatbots.policies import validate_chatbot_configuration
-from app.core_domain.errors import CoreError
 from app.ports.chatbots import ChatbotRepositoryPort
 from app.ports.provider_resolver import ProviderResolverPort
+from raghub_core.domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
+from raghub_core.domain.chatbots.policies import validate_chatbot_configuration
+from raghub_core.domain.errors import CoreError
 
 
 class PublishChatbotUseCase:

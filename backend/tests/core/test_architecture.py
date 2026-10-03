@@ -6,6 +6,11 @@ from pathlib import Path
 import pytest
 
 APP = Path(__file__).resolve().parents[2] / "app"
+LAYERS = {
+    "domain": (APP.parent / "raghub_core" / "domain", "raghub_core.domain"),
+    "ports": (APP / "ports", "app.ports"),
+    "application": (APP / "application", "app.application"),
+}
 FORBIDDEN = {
     "fastapi",
     "starlette",
@@ -35,15 +40,16 @@ def forbidden_imports(source: str, *, layer: str) -> list[str]:
             if name.split(".")[0] in FORBIDDEN:
                 violations.append(name)
             root = name.split(".")[0]
-            approved = {"tiktoken"} if layer == "core_domain" else set()
-            if root != "app" and root not in sys.stdlib_module_names | approved:
+            approved = {"tiktoken"} if layer == "domain" else set()
+            if (
+                root not in {"app", "raghub_core"}
+                and root not in sys.stdlib_module_names | approved
+            ):
                 violations.append(name)
-            if name == "app" or name.startswith("app."):
-                allowed = ["app.core_domain"]
-                if layer != "core_domain":
-                    allowed.append("app.ports")
+            if root in {"app", "raghub_core"}:
+                allowed = [LAYERS["domain"][1]]
                 if layer == "application":
-                    allowed.append("app.application")
+                    allowed.extend([LAYERS["ports"][1], LAYERS["application"][1]])
                 if not any(name == value or name.startswith(value + ".") for value in allowed):
                     violations.append(name)
     return violations
@@ -51,11 +57,11 @@ def forbidden_imports(source: str, *, layer: str) -> list[str]:
 
 def test_engine_dependency_direction() -> None:
     violations = []
-    for layer in ("core_domain", "ports", "application"):
-        assert (APP / layer).is_dir(), f"Missing engine layer: {layer}"
-        for file in (APP / layer).rglob("*.py"):
+    for layer, (directory, _) in LAYERS.items():
+        assert directory.is_dir(), f"Missing engine layer: {layer}"
+        for file in directory.rglob("*.py"):
             for name in forbidden_imports(file.read_text(encoding="utf-8"), layer=layer):
-                violations.append(f"{file.relative_to(APP)}: {name}")
+                violations.append(f"{file.relative_to(APP.parent)}: {name}")
     assert not violations, "\n".join(violations)
 
 
@@ -76,14 +82,14 @@ def test_services_do_not_depend_on_delivery() -> None:
 
 
 def test_engine_errors_have_no_http_status_semantics() -> None:
-    from app.core_domain.errors import CoreError
-    from app.core_domain.providers.errors import ProviderTimeoutError
+    from raghub_core.domain.errors import CoreError
+    from raghub_core.domain.providers.errors import ProviderTimeoutError
 
     for error in (CoreError("TEST", "test", details={"reason": "test"}), ProviderTimeoutError()):
         assert not hasattr(error, "status_code")
     violations = []
-    for layer in ("core_domain", "application", "ports"):
-        for path in (APP / layer).rglob("*.py"):
+    for directory, _ in LAYERS.values():
+        for path in directory.rglob("*.py"):
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if (
                     isinstance(node, ast.keyword)
@@ -91,7 +97,7 @@ def test_engine_errors_have_no_http_status_semantics() -> None:
                     or isinstance(node, ast.Attribute)
                     and node.attr == "status_code"
                 ):
-                    violations.append(str(path.relative_to(APP)))
+                    violations.append(str(path.relative_to(APP.parent)))
     assert not violations, "\n".join(violations)
 
 
@@ -107,7 +113,7 @@ def test_engine_errors_have_no_http_status_semantics() -> None:
     ],
 )
 def test_dependency_check_catches_runtime_and_hidden_imports(source: str) -> None:
-    assert forbidden_imports(source, layer="core_domain")
+    assert forbidden_imports(source, layer="domain")
 
 
 def test_core_imports_with_infrastructure_blocked() -> None:
@@ -128,7 +134,7 @@ class BlockInfrastructure(importlib.abc.MetaPathFinder):
             raise AssertionError(f'Runtime import: {fullname}')
 
 sys.meta_path.insert(0, BlockInfrastructure())
-for package_name in ('app.core_domain', 'app.ports', 'app.application'):
+for package_name in ('raghub_core.domain', 'app.ports', 'app.application'):
     package = importlib.import_module(package_name)
     for module in pkgutil.walk_packages(package.__path__, package_name + '.'):
         importlib.import_module(module.name)

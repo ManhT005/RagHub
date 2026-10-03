@@ -1,16 +1,16 @@
 import math
 from collections.abc import Callable
 
-from app.core_domain.errors import CoreError
-from app.core_domain.retrieval.hybrid import (
+from app.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
+from app.ports.retrieval import DocumentReadinessPort
+from app.ports.vector_store import VectorSearchPort
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.retrieval.hybrid import (
     RETRIEVAL_CANDIDATES,
     ContextBundle,
     build_context_bundle,
 )
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
-from app.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
-from app.ports.retrieval import DocumentReadinessPort
-from app.ports.vector_store import VectorSearchPort
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 
 class RetrieveContextUseCase:

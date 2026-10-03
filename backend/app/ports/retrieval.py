@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 
 class DocumentReadinessPort(Protocol):

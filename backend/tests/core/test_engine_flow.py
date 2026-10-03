@@ -7,12 +7,12 @@ from app.application.ingestion.build_document_index import BuildDocumentIndexUse
 from app.application.ingestion.run_ingestion import RunIngestionUseCase
 from app.application.rag.stream_chat import StreamRagChatUseCase
 from app.application.retrieval.retrieve_context import RetrieveContextUseCase
-from app.core_domain.documents.upload import UploadDocumentCommand
-from app.core_domain.ingestion.models import IngestionDocument
-from app.core_domain.ingestion.parser import parse_document
-from app.core_domain.rag.events import ChatCompleted, CitationsResolved
-from app.core_domain.rag.models import StreamChatCommand
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
+from raghub_core.domain.documents.upload import UploadDocumentCommand
+from raghub_core.domain.ingestion.models import IngestionDocument
+from raghub_core.domain.ingestion.parser import parse_document
+from raghub_core.domain.rag.events import ChatCompleted, CitationsResolved
+from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 from .fakes import (
     FakeObjectStorage,

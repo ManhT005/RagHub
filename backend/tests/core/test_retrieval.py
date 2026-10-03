@@ -3,8 +3,8 @@ from uuid import uuid4
 import pytest
 
 from app.application.retrieval.retrieve_context import RetrieveContextUseCase
-from app.core_domain.errors import CoreError
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 from .fakes import FakeProviderResolver, FakeVectorStore
 

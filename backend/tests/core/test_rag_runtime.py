@@ -4,11 +4,11 @@ from uuid import uuid4
 import pytest
 
 from app.application.rag.stream_chat import StreamRagChatUseCase
-from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.errors import CoreError
-from app.core_domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
-from app.core_domain.providers.errors import ProviderUnavailableError
-from app.core_domain.rag.events import (
+from raghub_core.domain.chatbots.models import ChatbotConfig
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
+from raghub_core.domain.providers.errors import ProviderUnavailableError
+from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
@@ -16,9 +16,9 @@ from app.core_domain.rag.events import (
     TokenDelta,
     UsageReported,
 )
-from app.core_domain.rag.models import StreamChatCommand
-from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
+from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 from .fakes import FakeProviderResolver
 

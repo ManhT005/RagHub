@@ -1,8 +1,8 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.ingestion.models import IngestionDocument
-from app.core_domain.ingestion.reindex import ReindexTarget
+from raghub_core.domain.ingestion.models import IngestionDocument
+from raghub_core.domain.ingestion.reindex import ReindexTarget
 
 
 class ReindexRepositoryPort(Protocol):

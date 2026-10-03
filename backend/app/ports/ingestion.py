@@ -1,8 +1,8 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core_domain.ingestion.errors import IngestionError
-from app.core_domain.ingestion.models import IngestionAttempt, IngestionStage
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionStage
 
 
 class IngestionRepositoryPort(Protocol):

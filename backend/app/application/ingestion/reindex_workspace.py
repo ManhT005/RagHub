@@ -2,11 +2,11 @@ from collections.abc import Callable
 from uuid import UUID
 
 from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.core_domain.ingestion.reindex import has_all_document_versions, is_transient_failure
-from app.core_domain.providers.enums import ReindexJobStatus
 from app.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
 from app.ports.reindex import ReindexRepositoryPort
 from app.ports.vector_store import VectorStorePort
+from raghub_core.domain.ingestion.reindex import has_all_document_versions, is_transient_failure
+from raghub_core.domain.providers.enums import ReindexJobStatus
 
 
 class ReindexWorkspaceUseCase:

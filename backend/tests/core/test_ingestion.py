@@ -5,13 +5,13 @@ import pytest
 from app.application.documents.upload_document import UploadDocumentUseCase
 from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
 from app.application.ingestion.run_ingestion import RunIngestionUseCase
-from app.core_domain.documents.upload import UploadDocumentCommand
-from app.core_domain.errors import CoreError
-from app.core_domain.ingestion.errors import IngestionError
-from app.core_domain.ingestion.models import IngestionAttempt, IngestionDocument
-from app.core_domain.ingestion.parser import parse_document
-from app.core_domain.providers.errors import ProviderTimeoutError
-from app.core_domain.retrieval.models import RetrievalScope
+from raghub_core.domain.documents.upload import UploadDocumentCommand
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionDocument
+from raghub_core.domain.ingestion.parser import parse_document
+from raghub_core.domain.providers.errors import ProviderTimeoutError
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 from .fakes import (
     FakeObjectStorage,

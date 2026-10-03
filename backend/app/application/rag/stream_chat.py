@@ -2,12 +2,17 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import aclosing
 from uuid import UUID
 
-from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.errors import CoreError
-from app.core_domain.providers.contracts import ChatMessage, ChatOptions, ChatUsage
-from app.core_domain.providers.usage import estimate_chat_usage
-from app.core_domain.rag.citations import resolve_trusted_citations
-from app.core_domain.rag.events import (
+from app.ports.chatbots import ChatbotReadPort
+from app.ports.conversations import ConversationRepositoryPort
+from app.ports.provider_resolver import ProviderResolverPort
+from app.ports.retrieval import RetrievalPort
+from app.ports.usage import UsageRecorderPort
+from raghub_core.domain.chatbots.models import ChatbotConfig
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions, ChatUsage
+from raghub_core.domain.providers.usage import estimate_chat_usage
+from raghub_core.domain.rag.citations import resolve_trusted_citations
+from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
@@ -16,15 +21,10 @@ from app.core_domain.rag.events import (
     TokenDelta,
     UsageReported,
 )
-from app.core_domain.rag.models import ChatUsageRecord, StreamChatCommand
-from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
-from app.core_domain.rag.timing import ChatStreamTiming
-from app.core_domain.retrieval.hybrid import build_context_bundle
-from app.ports.chatbots import ChatbotReadPort
-from app.ports.conversations import ConversationRepositoryPort
-from app.ports.provider_resolver import ProviderResolverPort
-from app.ports.retrieval import RetrievalPort
-from app.ports.usage import UsageRecorderPort
+from raghub_core.domain.rag.models import ChatUsageRecord, StreamChatCommand
+from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
+from raghub_core.domain.rag.timing import ChatStreamTiming
+from raghub_core.domain.retrieval.hybrid import build_context_bundle
 
 
 class StreamRagChatUseCase:

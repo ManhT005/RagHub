@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from app.core_domain.rag.models import ChatUsageRecord
+from raghub_core.domain.rag.models import ChatUsageRecord
 
 
 class UsageRecorderPort(Protocol):
