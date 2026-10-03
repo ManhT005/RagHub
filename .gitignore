@@ -7,6 +7,9 @@
 .python-version
 .worktrees/
 
+# Local core extraction plan (kept outside version control)
+/RagHub_Core_Remake_Implementation_Plan.md
+
 # Python
 __pycache__/
 *.py[cod]
@@ -15,6 +18,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+backend/build/
+*.egg-info/
 
 # Node.js and frontend builds
 node_modules/
@@ -35,7 +40,4 @@ backend/data/
 .celerybeat-schedule
 
 # Local refactor plans and packaging artifacts
-/RagHub_Core_Remake_Implementation_Plan.md
 /RagHub_SelfHosted_First_Refactor_Plan.md
-backend/build/
-*.egg-info/

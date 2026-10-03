@@ -48,6 +48,7 @@ def forbidden_imports(source: str, *, layer: str) -> list[str]:
 def test_engine_dependency_direction() -> None:
     violations = []
     for layer in ("core_domain", "ports", "application"):
+        assert (APP / layer).is_dir(), f"Missing engine layer: {layer}"
         for file in (APP / layer).rglob("*.py"):
             for name in forbidden_imports(file.read_text(encoding="utf-8"), layer=layer):
                 violations.append(f"{file.relative_to(APP)}: {name}")
@@ -82,17 +83,13 @@ class BlockInfrastructure(importlib.abc.MetaPathFinder):
                      'sqlalchemy', 'httpx', 'pymupdf', 'pydantic_settings'}
         if fullname.split('.')[0] in forbidden:
             raise AssertionError(f'Infrastructure import: {fullname}')
-        if fullname.startswith(('app.core.', 'app.infrastructure', 'app.modules', 'app.workers')):
+        if fullname.startswith(('app.core.', 'app.infrastructure', 'app.modules', 'app.workers',
+                                'app.composition', 'app.delivery')):
             raise AssertionError(f'Runtime import: {fullname}')
 
 sys.meta_path.insert(0, BlockInfrastructure())
 for package_name in ('app.core_domain', 'app.ports', 'app.application'):
-    try:
-        package = importlib.import_module(package_name)
-    except ModuleNotFoundError as error:
-        if error.name == package_name:
-            continue
-        raise
+    package = importlib.import_module(package_name)
     for module in pkgutil.walk_packages(package.__path__, package_name + '.'):
         importlib.import_module(module.name)
 """

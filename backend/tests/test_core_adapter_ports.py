@@ -1,7 +1,8 @@
 from uuid import uuid4
 
 from app.core_domain.ingestion.chunker import chunk_sections
-from app.core_domain.ingestion.parser import parse_document
+from app.core_domain.ingestion.parser import ParsedSection, parse_document
+from app.core_domain.providers.errors import ProviderTimeoutError
 from app.core_domain.retrieval.models import DocumentIndex, IndexedChunk, RetrievalScope
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorStore
 from app.infrastructure.object_storage.minio import MinioObjectStorage
@@ -9,6 +10,16 @@ from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.ports.object_storage import ObjectStoragePort
 from app.ports.task_queue import TaskQueuePort
 from app.ports.vector_store import VectorStorePort
+
+
+def test_compatibility_exports_preserve_identity() -> None:
+    from app.modules.ai_providers.errors import ProviderTimeoutError as LegacyError
+    from app.modules.ingestion.chunker import chunk_sections as legacy_chunker
+    from app.modules.ingestion.parser import ParsedSection as LegacySection
+
+    assert LegacyError is ProviderTimeoutError
+    assert legacy_chunker is chunk_sections
+    assert LegacySection is ParsedSection
 
 
 def test_existing_adapters_satisfy_ports_without_connections() -> None:
