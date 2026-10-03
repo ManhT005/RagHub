@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from app.core_domain.providers.contracts import ChatProvider, EmbeddingProvider
+from app.core_domain.providers.descriptor import ProviderDescriptor
 from app.core_domain.providers.enums import ProviderCapability, ProviderType
 from app.core_domain.providers.errors import ProviderConfigurationError
 from app.modules.ai_providers.adapters import (
@@ -12,10 +13,9 @@ from app.modules.ai_providers.adapters import (
     OpenAICompatibleChatProvider,
     OpenAICompatibleEmbeddingProvider,
 )
-from app.modules.ai_providers.models import ProviderConfig
 from app.modules.ai_providers.policy import ProviderRequestPolicy
 
-ProviderFactory = Callable[[ProviderConfig, str | None], object]
+ProviderFactory = Callable[[ProviderDescriptor, str | None], object]
 
 
 class ProviderRegistry:
@@ -50,15 +50,15 @@ class ProviderRegistry:
     ) -> None:
         self._factories[(provider_type, capability)] = factory
 
-    def create(self, config: ProviderConfig, secret: str | None) -> object:
+    def create(self, config: ProviderDescriptor, secret: str | None) -> object:
         factory = self._factories.get((config.provider_type, config.capability))
         if factory is None:
             raise ProviderConfigurationError("Unsupported provider type and capability.")
         return factory(config, secret)
 
     @staticmethod
-    def _policy(config: ProviderConfig) -> ProviderRequestPolicy:
-        values = config.config_json or {}
+    def _policy(config: ProviderDescriptor) -> ProviderRequestPolicy:
+        values = config.options or {}
         return ProviderRequestPolicy(
             connect_timeout=float(values.get("connect_timeout", 10)),
             read_timeout=float(values.get("read_timeout", 45)),
@@ -67,11 +67,11 @@ class ProviderRegistry:
         )
 
     @staticmethod
-    def _include_stream_usage(config: ProviderConfig) -> bool:
-        return bool((config.config_json or {}).get("include_stream_usage", True))
+    def _include_stream_usage(config: ProviderDescriptor) -> bool:
+        return bool((config.options or {}).get("include_stream_usage", True))
 
     @classmethod
-    def _openai_embedding(cls, config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
+    def _openai_embedding(cls, config: ProviderDescriptor, secret: str | None) -> EmbeddingProvider:
         return OpenAICompatibleEmbeddingProvider(
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,
@@ -81,7 +81,7 @@ class ProviderRegistry:
         )
 
     @classmethod
-    def _openai_chat(cls, config: ProviderConfig, secret: str | None) -> ChatProvider:
+    def _openai_chat(cls, config: ProviderDescriptor, secret: str | None) -> ChatProvider:
         return OpenAICompatibleChatProvider(
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,
@@ -91,7 +91,7 @@ class ProviderRegistry:
         )
 
     @classmethod
-    def _gemini_embedding(cls, config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
+    def _gemini_embedding(cls, config: ProviderDescriptor, secret: str | None) -> EmbeddingProvider:
         return GoogleGeminiEmbeddingProvider(
             base_url=config.base_url or "https://generativelanguage.googleapis.com/v1beta/openai",
             model=config.model,
@@ -101,7 +101,7 @@ class ProviderRegistry:
         )
 
     @classmethod
-    def _gemini_chat(cls, config: ProviderConfig, secret: str | None) -> ChatProvider:
+    def _gemini_chat(cls, config: ProviderDescriptor, secret: str | None) -> ChatProvider:
         return GoogleGeminiChatProvider(
             base_url=config.base_url or "https://generativelanguage.googleapis.com/v1beta/openai",
             model=config.model,
@@ -111,15 +111,15 @@ class ProviderRegistry:
         )
 
     @staticmethod
-    def _local_token_hash(config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
+    def _local_token_hash(config: ProviderDescriptor, secret: str | None) -> EmbeddingProvider:
         return LocalTokenHashEmbeddingProvider(
             model=config.model,
             dimension=config.dimension or 0,
         )
 
     @staticmethod
-    def _local_embedding(config: ProviderConfig, secret: str | None) -> EmbeddingProvider:
-        values = config.config_json or {}
+    def _local_embedding(config: ProviderDescriptor, secret: str | None) -> EmbeddingProvider:
+        values = config.options or {}
         return LocalSentenceTransformerProvider(
             model=config.model,
             dimension=config.dimension or 0,
@@ -128,10 +128,10 @@ class ProviderRegistry:
         )
 
     @classmethod
-    def _ollama_chat(cls, config: ProviderConfig, secret: str | None) -> ChatProvider:
+    def _ollama_chat(cls, config: ProviderDescriptor, secret: str | None) -> ChatProvider:
         return OllamaChatProvider(
             base_url=config.base_url or "http://ollama:11434",
             model=config.model,
             policy=cls._policy(config),
-            config=config.config_json,
+            config=config.options_dict(),
         )

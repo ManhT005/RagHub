@@ -1,4 +1,3 @@
-import copy
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -12,6 +11,7 @@ from app.core_domain.providers.errors import (
     ProviderConfigurationError,
     ProviderDisabledError,
 )
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from app.modules.ai_providers.registry import ProviderRegistry
@@ -79,13 +79,7 @@ class ProviderResolver:
             raise ProviderConfigurationError("Workspace has no active embedding index.")
         _, version, config = row
         self._validate(config, ProviderCapability.EMBEDDING)
-        snapshot = copy.copy(config)
-        snapshot.provider_type = version.provider_type
-        snapshot.base_url = version.base_url
-        snapshot.model = version.model
-        snapshot.dimension = version.dimension
-        snapshot.config_json = version.config_json
-        provider = self.registry.create(snapshot, self._secret(config))
+        provider = self.registry.create(provider_descriptor(config, version), self._secret(config))
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
 
     async def chat_for_workspace(
@@ -104,7 +98,7 @@ class ProviderResolver:
             )
         ).scalar_one_or_none()
         config = self._validate(row, ProviderCapability.CHAT)
-        provider = self.registry.create(config, self._secret(config))
+        provider = self.registry.create(provider_descriptor(config), self._secret(config))
         return ResolvedChatProvider(provider, config)  # type: ignore[arg-type]
 
     async def embedding_for_version(
@@ -117,11 +111,5 @@ class ProviderResolver:
             )
         )
         config = self._validate(config, ProviderCapability.EMBEDDING)
-        snapshot = copy.copy(config)
-        snapshot.provider_type = version.provider_type
-        snapshot.base_url = version.base_url
-        snapshot.model = version.model
-        snapshot.dimension = version.dimension
-        snapshot.config_json = version.config_json
-        provider = self.registry.create(snapshot, self._secret(config))
+        provider = self.registry.create(provider_descriptor(config, version), self._secret(config))
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
