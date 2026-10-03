@@ -19,6 +19,7 @@ from app.core_domain.providers.enums import (
     ReindexJobStatus,
 )
 from app.core_domain.providers.errors import ProviderConfigurationError
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import (
@@ -194,8 +195,10 @@ class ProviderConfigService:
         config = await self.get(organization_id, provider_id)
         if not config.enabled:
             raise AppError("PROVIDER_DISABLED", "Provider is disabled.", status_code=409)
-        secret = self.cipher.decrypt(config.encrypted_secret) if config.encrypted_secret else None
-        provider = self.registry.create(config, secret)
+        from app.infrastructure.provider_credentials import resolve_provider_secret
+
+        secret = resolve_provider_secret(config, self.cipher)
+        provider = self.registry.create(provider_descriptor(config), secret)
         started = time.monotonic()
         dimension: int | None = None
         if config.capability == ProviderCapability.EMBEDDING:
