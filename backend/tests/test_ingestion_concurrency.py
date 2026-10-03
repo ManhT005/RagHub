@@ -14,6 +14,7 @@ from sqlalchemy.pool import NullPool
 import app.models  # noqa: F401
 from app.core.config import Settings
 from app.core.exceptions import AppError
+from app.delivery.workers import ingestion as ingestion_runtime
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.modules.documents.models import DocumentStatus, DocumentVersion, IngestionJob
 from app.modules.documents.repository import DocumentRepository
@@ -31,7 +32,7 @@ async def database(monkeypatch: pytest.MonkeyPatch):
     if not url:
         pytest.skip("Set RAGHUB_TEST_DATABASE_URL to a migrated PostgreSQL database.")
     settings = Settings(_env_file=None, database_url=url)
-    monkeypatch.setattr(tasks, "get_settings", lambda: settings)
+    monkeypatch.setattr(ingestion_runtime, "get_settings", lambda: settings)
     engine = create_async_engine(url, poolclass=NullPool)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
@@ -76,7 +77,7 @@ async def test_duplicate_workers_and_ready_redelivery(database, monkeypatch: pyt
         await asyncio.wait_for(release.wait(), timeout=15)
         await tasks._set_stage(session, document, version, job, DocumentStatus.READY, 100)
 
-    monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
     first = asyncio.create_task(tasks._process_document_version(version_id))
     try:
         await asyncio.wait_for(entered.wait(), timeout=10)
@@ -110,7 +111,7 @@ async def test_lock_released_after_failure_and_transient_retry_succeeds(database
             )
         await tasks._set_stage(session, document, version, job, DocumentStatus.READY, 100)
 
-    monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
     with pytest.raises(tasks.IngestionError):
         await tasks._process_document_version(version_id)
     async with sessions() as session:
@@ -199,7 +200,7 @@ async def test_final_failure_is_saved_before_unlock(database, monkeypatch, retry
     async def fail(*args):
         raise tasks.IngestionError(code, "private.internal", retryable=retryable)
 
-    monkeypatch.setattr(tasks, "_run_pipeline", fail)
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", fail)
     with pytest.raises(tasks.IngestionError):
         await tasks._process_document_version(version_id, retries=3 if retryable else 0)
     async with sessions() as session:

@@ -192,9 +192,13 @@ async def test_exact_25_mb_upload_boundary(service: DocumentService, extra_byte:
 async def test_manual_retry_rejects_permanent_errors(
     service: DocumentService, monkeypatch: pytest.MonkeyPatch, code: str
 ) -> None:
-    version = SimpleNamespace(id=uuid.uuid4(), status="FAILED")
+    version = SimpleNamespace(id=uuid.uuid4(), status="FAILED", created_at=datetime.now(UTC))
     service.repository.find_version_for_retry = AsyncMock(  # type: ignore[method-assign]
-        return_value=(SimpleNamespace(), version, SimpleNamespace(error_code=code))
+        return_value=(
+            SimpleNamespace(id=uuid.uuid4()),
+            version,
+            SimpleNamespace(id=uuid.uuid4(), error_code=code),
+        )
     )
     from app.workers.tasks import ingest_document_version
 
