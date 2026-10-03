@@ -6,7 +6,7 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text,
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.modules.ai_providers.enums import IndexVersionStatus, ReindexJobStatus
+from app.core_domain.providers.enums import IndexVersionStatus, ReindexJobStatus
 
 
 class ProviderConfig(Base):

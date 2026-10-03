@@ -42,6 +42,9 @@ local-ai = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+"app.core_domain.ingestion" = ["token_cache/*.gz"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 asyncio_mode = "auto"

@@ -2,7 +2,7 @@ import hashlib
 import math
 import re
 
-from app.modules.ai_providers.contracts import EmbeddingMetadata
+from app.core_domain.providers.contracts import EmbeddingMetadata
 
 
 class LocalTokenHashEmbeddingProvider:

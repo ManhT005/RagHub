@@ -9,19 +9,19 @@ from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
 from app.core.config import get_settings
-from app.infrastructure.elasticsearch.chunks import ChunkIndexer
-from app.infrastructure.ingestion_lock import try_ingestion_lock
-from app.infrastructure.object_storage.minio import MinioObjectStorage
-from app.infrastructure.task_queue.celery_app import celery_app
-from app.modules.ai_providers.errors import (
+from app.core_domain.ingestion.chunker import chunk_sections
+from app.core_domain.ingestion.errors import IngestionError, ingestion_error_message
+from app.core_domain.providers.errors import (
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
+from app.infrastructure.elasticsearch.chunks import ChunkIndexer
+from app.infrastructure.ingestion_lock import try_ingestion_lock
+from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.task_queue.celery_app import celery_app
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
-from app.modules.ingestion.chunker import chunk_sections
-from app.modules.ingestion.errors import IngestionError, ingestion_error_message
 from app.modules.ingestion.parser import (
     EmptyExtractedTextError,
     InvalidPdfError,

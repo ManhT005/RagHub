@@ -5,11 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
+from app.core_domain.providers.errors import ProviderError
+from app.core_domain.retrieval.hybrid import RETRIEVAL_CANDIDATES
 from app.infrastructure.elasticsearch.chunks import ChunkSearch
-from app.modules.ai_providers.errors import ProviderError
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
-from app.modules.search.hybrid import RETRIEVAL_CANDIDATES
 
 
 class SearchService:

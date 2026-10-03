@@ -6,13 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.modules.ai_providers.contracts import ChatProvider, EmbeddingProvider
-from app.modules.ai_providers.crypto import ProviderSecretCipher
-from app.modules.ai_providers.enums import IndexVersionStatus, ProviderCapability
-from app.modules.ai_providers.errors import (
+from app.core_domain.providers.contracts import ChatProvider, EmbeddingProvider
+from app.core_domain.providers.enums import IndexVersionStatus, ProviderCapability
+from app.core_domain.providers.errors import (
     ProviderConfigurationError,
     ProviderDisabledError,
 )
+from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.workspaces.models import Workspace

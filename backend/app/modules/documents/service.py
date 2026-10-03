@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
+from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
-from app.modules.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 
 logger = logging.getLogger(__name__)
 
