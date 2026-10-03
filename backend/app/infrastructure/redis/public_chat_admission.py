@@ -7,7 +7,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import Settings
-from app.core_domain.errors import CoreError
+from raghub_core.domain.errors import CoreError
 
 RATE_SCRIPT = """
 for i, key in ipairs(KEYS) do

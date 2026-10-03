@@ -5,10 +5,10 @@ from collections.abc import Awaitable, Callable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core_domain.ingestion.errors import IngestionError, ingestion_error_message
-from app.core_domain.ingestion.models import IngestionAttempt, IngestionDocument, IngestionStage
-from app.core_domain.retrieval.models import RetrievalScope
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
+from raghub_core.domain.ingestion.errors import IngestionError, ingestion_error_message
+from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionDocument, IngestionStage
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 logger = logging.getLogger(__name__)
 

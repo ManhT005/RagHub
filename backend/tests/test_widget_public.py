@@ -89,7 +89,7 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
             return SimpleNamespace(id=uuid4(), organization_id=uuid4())
 
         async def stream_events(self, command):
-            from app.core_domain.rag.events import TokenDelta
+            from raghub_core.domain.rag.events import TokenDelta
 
             yield TokenDelta("Xin chào")
             raise AppError("TEST_ERROR", "Try again", status_code=503)

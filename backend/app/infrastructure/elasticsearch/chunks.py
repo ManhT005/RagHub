@@ -5,9 +5,9 @@ from typing import Any
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from app.core.config import Settings, get_settings
-from app.core_domain.ingestion.chunker import TextChunk
-from app.core_domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
+from raghub_core.domain.ingestion.chunker import TextChunk
+from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
 def chunk_index_mapping(dimension: int) -> dict[str, Any]:

@@ -11,18 +11,18 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
-from app.application.rag.stream_chat import StreamRagChatUseCase
-from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.providers.contracts import ChatMessage, ChatStreamDelta
-from app.core_domain.providers.errors import ProviderUnavailableError
-from app.core_domain.rag.events import ChatCompleted, ChatFailed, ConversationStarted
-from app.core_domain.rag.models import StreamChatCommand
-from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
 from app.infrastructure.persistence.conversations import ConversationRepositoryAdapter
 from app.modules.chatbots.models import Chatbot, Message, UsageEvent
 from app.modules.organizations.models import Organization
 from app.modules.workspaces.models import Workspace
-from app.ports.provider_resolver import ChatRuntime
+from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
+from raghub_core.domain.chatbots.models import ChatbotConfig
+from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta
+from raghub_core.domain.providers.errors import ProviderUnavailableError
+from raghub_core.domain.rag.events import ChatCompleted, ChatFailed, ConversationStarted
+from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
+from raghub_core.ports.provider_resolver import ChatRuntime
 
 pytestmark = pytest.mark.integration
 

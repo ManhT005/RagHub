@@ -1,15 +1,15 @@
 from uuid import uuid4
 
-from app.core_domain.ingestion.chunker import chunk_sections
-from app.core_domain.ingestion.parser import ParsedSection, parse_document
-from app.core_domain.providers.errors import ProviderTimeoutError
-from app.core_domain.retrieval.models import DocumentIndex, IndexedChunk, RetrievalScope
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorStore
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
-from app.ports.object_storage import ObjectStoragePort
-from app.ports.task_queue import TaskQueuePort
-from app.ports.vector_store import VectorStorePort
+from raghub_core.domain.ingestion.chunker import chunk_sections
+from raghub_core.domain.ingestion.parser import ParsedSection, parse_document
+from raghub_core.domain.providers.errors import ProviderTimeoutError
+from raghub_core.domain.retrieval.models import DocumentIndex, IndexedChunk, RetrievalScope
+from raghub_core.ports.object_storage import ObjectStoragePort
+from raghub_core.ports.task_queue import TaskQueuePort
+from raghub_core.ports.vector_store import VectorStorePort
 
 
 def test_compatibility_exports_preserve_identity() -> None:

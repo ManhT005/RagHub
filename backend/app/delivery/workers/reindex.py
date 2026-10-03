@@ -7,14 +7,14 @@ from sqlalchemy.pool import NullPool
 import app.models  # noqa: F401
 from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
-from app.core_domain.ingestion.reindex import is_transient_failure
-from app.core_domain.providers.errors import (
+from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
+from app.modules.workspaces.models import Workspace
+from raghub_core.domain.ingestion.reindex import is_transient_failure
+from raghub_core.domain.providers.errors import (
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
-from app.modules.workspaces.models import Workspace
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,5 @@
-"""Compatibility imports; new callers should use app.core_domain.ingestion.tokenizer."""
+"""Compatibility imports; new callers should use raghub_core.domain.ingestion.tokenizer."""
 
-from app.core_domain.ingestion.tokenizer import (
+from raghub_core.domain.ingestion.tokenizer import (
     ENCODING as ENCODING,
 )

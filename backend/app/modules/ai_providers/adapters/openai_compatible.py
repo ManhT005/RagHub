@@ -5,22 +5,22 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from app.core_domain.providers.contracts import (
+from app.modules.ai_providers.policy import ProviderRequestPolicy
+from raghub_core.domain.providers.contracts import (
     ChatMessage,
     ChatOptions,
     ChatStreamDelta,
     ChatUsage,
     EmbeddingMetadata,
 )
-from app.core_domain.providers.errors import (
+from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
     ProviderInvalidResponseError,
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from app.core_domain.providers.usage import estimate_chat_usage
-from app.modules.ai_providers.policy import ProviderRequestPolicy
+from raghub_core.domain.providers.usage import estimate_chat_usage
 
 
 class _OpenAICompatibleBase:
@@ -208,4 +208,4 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
             await asyncio.sleep(self.policy.backoff_seconds * (2**attempt))
 
 
-from app.core_domain.providers.errors import ProviderError  # noqa: E402
+from raghub_core.domain.providers.errors import ProviderError  # noqa: E402

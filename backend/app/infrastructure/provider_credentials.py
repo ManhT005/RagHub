@@ -1,5 +1,5 @@
 from app.core.config import get_settings
-from app.core_domain.providers.enums import ProviderType
+from raghub_core.domain.providers.enums import ProviderType
 
 
 def resolve_provider_secret(config, cipher, *, provider_type: str | None = None) -> str | None:

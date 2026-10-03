@@ -1,5 +1,5 @@
-"""Compatibility imports; new callers should use app.core_domain.rag.timing."""
+"""Compatibility imports; new callers should use raghub_core.domain.rag.timing."""
 
-from app.core_domain.rag.timing import (
+from raghub_core.domain.rag.timing import (
     ChatStreamTiming as ChatStreamTiming,
 )

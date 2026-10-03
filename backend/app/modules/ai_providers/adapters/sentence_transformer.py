@@ -4,8 +4,8 @@ from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
-from app.core_domain.providers.contracts import EmbeddingMetadata
-from app.core_domain.providers.errors import (
+from raghub_core.domain.providers.contracts import EmbeddingMetadata
+from raghub_core.domain.providers.errors import (
     ProviderConfigurationError,
     ProviderInvalidResponseError,
 )

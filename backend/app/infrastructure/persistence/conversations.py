@@ -4,10 +4,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core_domain.errors import CoreError
-from app.core_domain.providers.contracts import ChatMessage, ChatUsage
-from app.core_domain.rag.models import ChatUsageRecord, TrustedCitation
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.providers.contracts import ChatMessage, ChatUsage
+from raghub_core.domain.rag.models import ChatUsageRecord, TrustedCitation
 
 
 class ConversationRepositoryAdapter:

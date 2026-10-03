@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.composition.self_host import SelfHostContainer
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
-from app.core_domain.documents.upload import UploadDocumentCommand
-from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
-from app.core_domain.retrieval.models import RetrievalScope
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
-from app.ports.object_storage import ObjectStoragePort
-from app.ports.task_queue import TaskQueuePort
+from raghub_core.domain.documents.upload import UploadDocumentCommand
+from raghub_core.domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
+from raghub_core.domain.retrieval.models import RetrievalScope
+from raghub_core.ports.object_storage import ObjectStoragePort
+from raghub_core.ports.task_queue import TaskQueuePort
 
 logger = logging.getLogger(__name__)
 

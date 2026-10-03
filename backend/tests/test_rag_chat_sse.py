@@ -4,19 +4,19 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AppError
-from app.core_domain.errors import CoreError
-from app.core_domain.providers.contracts import ChatUsage
-from app.core_domain.rag.events import (
+from app.modules.ai_providers.errors import ProviderUnavailableError
+from app.modules.chatbots.provider import GeminiChatProvider
+from app.modules.chatbots.router import chat
+from app.modules.chatbots.schemas import ChatRequest
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.providers.contracts import ChatUsage
+from raghub_core.domain.rag.events import (
     ChatCompleted,
     CitationsResolved,
     ConversationStarted,
     TokenDelta,
     UsageReported,
 )
-from app.modules.ai_providers.errors import ProviderUnavailableError
-from app.modules.chatbots.provider import GeminiChatProvider
-from app.modules.chatbots.router import chat
-from app.modules.chatbots.schemas import ChatRequest
 
 
 @pytest.mark.asyncio

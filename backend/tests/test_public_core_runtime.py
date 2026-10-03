@@ -9,10 +9,10 @@ from starlette.requests import Request
 
 import app.modules.chatbots.router as router
 from app.core.config import Settings
-from app.core_domain.rag.events import ChatCompleted, ChatFailed, TokenDelta
-from app.core_domain.rag.models import StreamChatCommand
 from app.delivery.security.origins import origin_is_allowed
 from app.modules.chatbots.schemas import ChatRequest, EmbedPublishInput
+from raghub_core.domain.rag.events import ChatCompleted, ChatFailed, TokenDelta
+from raghub_core.domain.rag.models import StreamChatCommand
 
 
 @pytest.mark.parametrize(

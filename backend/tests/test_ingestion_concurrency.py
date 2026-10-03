@@ -13,7 +13,6 @@ from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
 from app.core.config import Settings
-from app.core_domain.errors import CoreError as AppError
 from app.delivery.http.error_mapping import http_status
 from app.delivery.workers import ingestion as ingestion_runtime
 from app.infrastructure.ingestion_lock import try_ingestion_lock
@@ -23,6 +22,7 @@ from app.modules.documents.service import DocumentService
 from app.modules.organizations.models import Organization
 from app.modules.workspaces.models import Workspace
 from app.workers import tasks
+from raghub_core.domain.errors import CoreError as AppError
 
 pytestmark = pytest.mark.integration
 

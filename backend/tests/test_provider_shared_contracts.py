@@ -7,23 +7,23 @@ from pathlib import Path
 import httpx
 import pytest
 
-from app.core_domain.providers.contracts import (
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+from app.modules.ai_providers.adapters.sentence_transformer import SentenceTransformerModelRegistry
+from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
+from app.modules.ai_providers.registry import ProviderRegistry
+from raghub_core.domain.providers.contracts import (
     ChatMessage,
     ChatOptions,
     ChatProvider,
     EmbeddingProvider,
 )
-from app.core_domain.providers.descriptor import ProviderDescriptor
-from app.core_domain.providers.errors import (
+from raghub_core.domain.providers.descriptor import ProviderDescriptor
+from raghub_core.domain.providers.errors import (
     ProviderInvalidResponseError,
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from app.infrastructure.persistence.provider_descriptors import provider_descriptor
-from app.modules.ai_providers.adapters.sentence_transformer import SentenceTransformerModelRegistry
-from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
-from app.modules.ai_providers.registry import ProviderRegistry
 
 EXTERNAL_EMBEDDING = ["OPENAI_COMPATIBLE", "GOOGLE_GEMINI"]
 EMBEDDING_TYPES = [*EXTERNAL_EMBEDDING, "LOCAL_SENTENCE_TRANSFORMER", "LOCAL_TOKEN_HASH"]
@@ -243,7 +243,7 @@ class BlockOrm(importlib.abc.MetaPathFinder):
             raise AssertionError(fullname)
 sys.meta_path.insert(0, BlockOrm())
 from app.modules.ai_providers.registry import ProviderRegistry
-from app.core_domain.providers.descriptor import ProviderDescriptor
+from raghub_core.domain.providers.descriptor import ProviderDescriptor
 descriptor = ProviderDescriptor('LOCAL_TOKEN_HASH', 'EMBEDDING', 'model', dimension=2)
 provider = ProviderRegistry().create(descriptor, None)
 assert provider.metadata.dimension == 2

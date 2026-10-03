@@ -1,7 +1,7 @@
 """Compatibility payloads are mapped outside the engine."""
 
-from app.core_domain.rag.citations import resolve_trusted_citations
 from app.infrastructure.retrieval_mapping import chunk_from_hit
+from raghub_core.domain.rag.citations import resolve_trusted_citations
 
 
 def resolve_citations(hits):

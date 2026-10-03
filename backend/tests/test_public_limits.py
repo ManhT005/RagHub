@@ -10,10 +10,10 @@ from redis.exceptions import ConnectionError
 from app.core.config import Settings
 from app.core.database import get_session
 from app.core.exceptions import register_exception_handlers
-from app.core_domain.errors import CoreError as AppError
 from app.delivery.http.error_mapping import http_status
 from app.modules.chatbots import router
 from app.modules.chatbots.public_limits import PublicChatLimits, get_public_limits
+from raghub_core.domain.errors import CoreError as AppError
 
 
 @pytest.mark.asyncio
@@ -120,7 +120,7 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
             yield "done", {}
 
         async def stream_events(self, *args):
-            from app.core_domain.rag.events import ChatCompleted
+            from raghub_core.domain.rag.events import ChatCompleted
 
             yield ChatCompleted(uuid4(), None, 0)
 

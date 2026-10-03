@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import UploadFile
 
 from app.core.exceptions import AppError
-from app.core_domain.documents.upload import UploadDocumentCommand, validate_upload_metadata
+from raghub_core.domain.documents.upload import UploadDocumentCommand, validate_upload_metadata
 
 
 async def read_upload(upload: UploadFile, *, max_size_mb: int) -> bytes:

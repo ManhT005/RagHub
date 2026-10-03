@@ -1,5 +1,5 @@
-from app.core_domain.ingestion.parser import ParsedSection, parse_document
 from app.infrastructure.parsing.pdf import parse_pdf
+from raghub_core.domain.ingestion.parser import ParsedSection, parse_document
 
 
 class DocumentParser:

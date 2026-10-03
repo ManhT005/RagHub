@@ -11,14 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.core_domain.providers.contracts import ChatMessage, ChatOptions
-from app.core_domain.providers.enums import (
-    IndexVersionStatus,
-    ProviderCapability,
-    ProviderType,
-    ReindexJobStatus,
-)
-from app.core_domain.providers.errors import ProviderConfigurationError
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.crypto import ProviderSecretCipher
@@ -36,7 +28,15 @@ from app.modules.ai_providers.schemas import (
 )
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.workspaces.models import Workspace
-from app.ports.task_queue import TaskQueuePort
+from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions
+from raghub_core.domain.providers.enums import (
+    IndexVersionStatus,
+    ProviderCapability,
+    ProviderType,
+    ReindexJobStatus,
+)
+from raghub_core.domain.providers.errors import ProviderConfigurationError
+from raghub_core.ports.task_queue import TaskQueuePort
 
 
 def embedding_fingerprint(config: ProviderConfig) -> str:

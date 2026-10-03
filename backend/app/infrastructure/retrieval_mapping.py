@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from app.core_domain.retrieval.models import RetrievedChunk
+from raghub_core.domain.retrieval.models import RetrievedChunk
 
 
 def chunk_from_hit(hit: dict[str, object]) -> RetrievedChunk:

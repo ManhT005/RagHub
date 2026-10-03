@@ -3,7 +3,7 @@ import hashlib
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from app.core_domain.providers.errors import ProviderConfigurationError
+from raghub_core.domain.providers.errors import ProviderConfigurationError
 
 
 class ProviderSecretCipher:

@@ -14,7 +14,6 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.core_domain.rag.models import StreamChatCommand
 from app.delivery.http.public_chat import PublicStreamingResponse as PublicStreamingResponse
 from app.delivery.http.public_chat import public_stream_sse
 from app.delivery.http.sse import stream_sse
@@ -30,6 +29,7 @@ from app.modules.chatbots.schemas import (
 )
 from app.modules.chatbots.service import ChatbotService
 from app.modules.users.models import User
+from raghub_core.domain.rag.models import StreamChatCommand
 
 router = APIRouter(tags=["chatbots"])
 

@@ -28,6 +28,7 @@ FROM dependencies AS runtime
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
+COPY raghub_core ./raghub_core
 
 USER raghub
 

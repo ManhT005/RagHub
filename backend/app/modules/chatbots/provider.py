@@ -1,10 +1,10 @@
 from collections.abc import AsyncIterator
 
 from app.core.config import Settings, get_settings
-from app.core_domain.providers.contracts import ChatMessage, ChatOptions
-from app.core_domain.providers.errors import ProviderConfigurationError
 from app.modules.ai_providers.adapters.google_gemini import GoogleGeminiChatProvider
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions
+from raghub_core.domain.providers.errors import ProviderConfigurationError
 
 
 class GeminiChatProvider:

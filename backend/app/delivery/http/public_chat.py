@@ -7,8 +7,8 @@ import anyio
 from fastapi import Request
 from fastapi.responses import StreamingResponse
 
-from app.core_domain.rag.events import ChatFailed, RagEvent
 from app.delivery.http.sse import serialize_event, stream_sse
+from raghub_core.domain.rag.events import ChatFailed, RagEvent
 
 logger = logging.getLogger(__name__)
 

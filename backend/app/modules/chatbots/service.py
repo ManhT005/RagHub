@@ -8,11 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.public_chat import PublicChatContainer
 from app.composition.self_host import SelfHostContainer
-from app.core_domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
-from app.core_domain.rag.events import RagEvent
-from app.core_domain.rag.models import StreamChatCommand
-from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
-from app.core_domain.retrieval.models import RetrievalScope
 from app.infrastructure.persistence.conversations import ConversationRepositoryAdapter
 from app.modules.chatbots.embed import (
     create_embed_key,
@@ -20,6 +15,11 @@ from app.modules.chatbots.embed import (
 )
 from app.modules.chatbots.models import Chatbot
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch, EmbedPublishInput
+from raghub_core.domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
+from raghub_core.domain.rag.events import RagEvent
+from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class ChatbotService:

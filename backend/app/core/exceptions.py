@@ -5,9 +5,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.core_domain.errors import CoreError
 from app.delivery.http.error_mapping import AppError as AppError
 from app.delivery.http.error_mapping import http_status
+from raghub_core.domain.errors import CoreError
 
 logger = logging.getLogger(__name__)
 

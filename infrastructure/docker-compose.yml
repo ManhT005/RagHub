@@ -56,10 +56,13 @@ services:
       - --reload
       - --reload-dir
       - /app/app
+      - --reload-dir
+      - /app/raghub_core
     environment:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
+      - ../backend/raghub_core:/app/raghub_core
   worker:
     extends:
       file: docker-compose.base.yml
@@ -72,10 +75,12 @@ services:
       - python
       - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1
       - /app/app
+      - /app/raghub_core
     environment:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
+      - ../backend/raghub_core:/app/raghub_core
   admin-web:
     extends:
       file: docker-compose.base.yml

@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.core_domain.errors import CoreError
+from raghub_core.domain.errors import CoreError
 
 HTTP_STATUS_BY_CODE = {
     "DOCUMENT_NOT_FOUND": 404,

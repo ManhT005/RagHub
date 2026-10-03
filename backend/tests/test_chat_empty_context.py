@@ -3,9 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from app.core_domain.rag.models import StreamChatCommand
 from app.delivery.http.sse import event_payload
 from app.modules.chatbots.service import EMPTY_CONTEXT_ANSWER, ChatbotService
+from raghub_core.domain.rag.models import StreamChatCommand
 
 
 class SessionStub:

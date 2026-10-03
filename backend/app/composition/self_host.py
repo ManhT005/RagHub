@@ -2,14 +2,9 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.documents.retry_document import RetryDocumentUseCase
-from app.application.documents.upload_document import UploadDocumentUseCase
-from app.application.rag.stream_chat import StreamRagChatUseCase
 from app.composition.chatbots import chatbot_management
 from app.composition.retrieval import retrieval_use_case
 from app.core.config import Settings, get_settings
-from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.retrieval.models import RetrievalScope
 from app.infrastructure.chat_runtime import ChatbotRuntimeReader, LazyProviderResolverAdapter
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.persistence.chatbots import ChatbotRepositoryAdapter
@@ -24,6 +19,11 @@ from app.infrastructure.persistence.uploads import (
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.repository import DocumentRepository
+from raghub_core.application.documents.retry_document import RetryDocumentUseCase
+from raghub_core.application.documents.upload_document import UploadDocumentUseCase
+from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
+from raghub_core.domain.chatbots.models import ChatbotConfig
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class SelfHostContainer:

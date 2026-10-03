@@ -1,6 +1,6 @@
 import pymupdf
 
-from app.core_domain.ingestion.parser import InvalidPdfError, ParsedSection, UnsupportedOcrError
+from raghub_core.domain.ingestion.parser import InvalidPdfError, ParsedSection, UnsupportedOcrError
 
 
 def parse_pdf(content: bytes, source_name: str = "document.pdf") -> list[ParsedSection]:

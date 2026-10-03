@@ -5,13 +5,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core_domain.ingestion.models import IngestionDocument
-from app.core_domain.ingestion.reindex import ReindexTarget
-from app.core_domain.providers.enums import IndexVersionStatus, ReindexJobStatus
-from app.core_domain.retrieval.models import RetrievalScope
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
 from app.modules.workspaces.models import Workspace
+from raghub_core.domain.ingestion.models import IngestionDocument
+from raghub_core.domain.ingestion.reindex import ReindexTarget
+from raghub_core.domain.providers.enums import IndexVersionStatus, ReindexJobStatus
+from raghub_core.domain.retrieval.models import RetrievalScope
 
 logger = logging.getLogger(__name__)
 

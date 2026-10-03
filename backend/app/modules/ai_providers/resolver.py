@@ -5,18 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core_domain.providers.contracts import ChatProvider, EmbeddingProvider
-from app.core_domain.providers.enums import IndexVersionStatus, ProviderCapability
-from app.core_domain.providers.errors import (
-    ProviderConfigurationError,
-    ProviderDisabledError,
-)
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.provider_credentials import resolve_provider_secret
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.workspaces.models import Workspace
+from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
+from raghub_core.domain.providers.enums import IndexVersionStatus, ProviderCapability
+from raghub_core.domain.providers.errors import (
+    ProviderConfigurationError,
+    ProviderDisabledError,
+)
 
 
 @dataclass(frozen=True)

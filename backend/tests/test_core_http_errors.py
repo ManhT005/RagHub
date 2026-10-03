@@ -3,8 +3,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.exceptions import register_exception_handlers
-from app.core_domain.errors import CoreError
 from app.delivery.http.error_mapping import AppError, http_status
+from raghub_core.domain.errors import CoreError
 
 
 @pytest.mark.parametrize(

@@ -42,7 +42,7 @@ async def test_public_requests_reuse_client_until_shutdown(shared_redis, monkeyp
             return bot
 
         async def stream_events(self, *args):
-            from app.core_domain.rag.events import ChatCompleted
+            from raghub_core.domain.rag.events import ChatCompleted
 
             yield ChatCompleted(uuid4(), None, 0)
 

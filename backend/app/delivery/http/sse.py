@@ -3,8 +3,8 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from dataclasses import asdict
 
-from app.core_domain.errors import CoreError
-from app.core_domain.rag.events import (
+from raghub_core.domain.errors import CoreError
+from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
