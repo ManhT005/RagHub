@@ -66,10 +66,16 @@ Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tu
 
 ## Công nghệ và kiến trúc
 
-**RagHub Core** là engine tri thức và RAG dùng chung giữa các platform. Logic và
+Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành instance quản lý**.
+Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
+billing và quản trị enterprise thuộc roadmap sau.
+
+**RagHub Core** là engine tri thức và RAG độc lập với cách triển khai. Logic và
 contracts độc lập nằm trong `backend/app/core_domain`; workflow nằm trong
 `application`, giao tiếp hạ tầng qua `ports`. Auth/RBAC và quản trị platform nằm
-ngoài engine. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md).
+ngoài engine. Playground và public widget dùng cùng typed RAG runtime; origin,
+rate limit và concurrency thuộc delivery. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
+và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
 
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |

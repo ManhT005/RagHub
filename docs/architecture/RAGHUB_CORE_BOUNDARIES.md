@@ -1,9 +1,9 @@
 # RagHub Core boundaries
 
-RagHub Core is the reusable knowledge and RAG engine. Cloud SaaS, enterprise,
-private and local deployments compose the same engine with different adapters.
-Platform administration, identity provisioning, billing and deployment are outside
-the engine. Platform authorization belongs at the delivery boundary; organization
+RagHub Core is the reusable knowledge and RAG engine. The current product is an
+owner-operated, self-hosted RagHub instance. Cloud/SaaS and enterprise governance
+remain future work; no deployment mode, platform role or billing policy enters the
+engine. Instance authorization belongs at the delivery boundary; organization
 and workspace isolation remains mandatory inside every data operation.
 
 ## Dependency direction
@@ -26,6 +26,11 @@ such as tiktoken are allowed. PDF decoding with PyMuPDF is an adapter; text and
 Markdown parsing and section/chunk contracts belong to the core.
 
 ## Baseline inventory
+
+This refactor was rebuilt from current `origin/develop` (`8c1c5ef`) on
+`refactor/core-selfhost-v1`, porting the earlier core commits individually. This
+baseline includes workspace RBAC, public chat, embed keys, origin policy, Redis
+admission, the widget, and current GHCR/CI workflows.
 
 | Existing location | Classification | Extraction |
 | --- | --- | --- |
@@ -95,27 +100,36 @@ construction. Decrypted credentials are passed separately to the factory.
 
 ## Platform authorization versus engine scope
 
-Cloud membership roles and enterprise identity/SSO policies can differ. Their
-delivery adapters must authenticate and authorize a request before creating an
-engine command. The engine has no platform role enum, billing state or deployment
-mode. Its repositories still enforce the command's organization/workspace scope,
+The instance keeps existing `ADMIN` / `WORKSPACE_ADMIN` authorization. Delivery
+authenticates and authorizes a request before creating an engine command. The
+engine has no platform role enum, billing state or deployment mode. Its
+repositories still enforce the command's organization/workspace scope,
 and the RAG runtime verifies the resolved chatbot belongs to that organization.
 
-For a future public widget, the delivery adapter must resolve scope from the public
-chatbot identity on the server. It must never construct scope from browser-supplied
-tenant IDs. Origin checks, rate limits and concurrency leases belong to that wrapper.
+`delivery/security/public_chat.py` resolves the published embed key to the chatbot
+and its active workspace on the server. Browser tenant IDs are ignored. Origin
+checks compare explicit HTTP(S) scheme/host/port and reject paths, credentials and
+wildcards. Redis rate limits and concurrency leases remain outside the core.
+
+Public chat and authenticated Playground both call `ChatbotService.stream_events`
+and the same `StreamRagChatUseCase`. `delivery/http/public_chat.py` adds the public
+deadline, observability and shielded lease cleanup around the shared SSE adapter.
+Cleanup covers completion, provider failure, timeout, disconnect and serialization
+failure. The core never imports Redis or serializes SSE.
 
 The existing authenticated API keeps its permissive `published` flag semantics.
 `PublishChatbotUseCase.execute` provides the stricter configuration/provider
-readiness gate for a control plane that chooses to enable it. Public integration
-readiness has no implementation to validate in this baseline.
+readiness gate for a control plane that chooses to enable it. The existing embed
+publication, appearance settings and key rotation retain their HTTP behavior.
 
 ## Migration and invariants
 
 Each step is a separate reviewable commit: inventory; pure primitives; ports;
 ingestion and reusable indexing; retrieval; typed RAG runtime and SSE adapter;
 chatbot domain; ORM-free provider registry; delivery cleanup; contract suite.
-Compatibility imports preserve class/function identity for existing consumers.
+Compatibility imports preserve pure primitive/provider class identity. Legacy
+HTTP `AppError` is now a delivery subclass of the transport-free `CoreError`;
+HTTP delivery selects the status using `delivery/http/error_mapping.py`.
 
 Keep routes, SSE payloads, database schema and RBAC unchanged. Preserve 25 MB
 validation, MIME/extension checks, SHA-256, immutable document versions, three
@@ -124,12 +138,10 @@ organization/workspace filtering, embedding snapshots/dimensions, trusted
 citations, empty-context provider bypass, no retry after first token, TTFT,
 latency and native/fallback usage.
 
-The checked-out baseline has authenticated chat only. Public keys, origin policy,
-Redis rate/concurrency limiting and a public widget are not existing capabilities.
-CORE-8 cannot be validated as an extraction here; adding those features is a
-separate change. A future public delivery adapter must call the same typed RAG
-runtime, derive tenant scope server-side and release concurrency leases on every
-exit path.
+The application explicitly loads previous history and appends the submitted
+question, commits the question before AI work, and records failed assistant turns
+using existing message metadata. See [conversation transaction policy](RAG_CONVERSATION_POLICY.md)
+for successful, failed and cancelled turns. No schema or role migration is added.
 
 ## Verification
 
@@ -160,20 +172,24 @@ minimal dependency set. Adapter tests stay outside `tests/core`.
 | CORE-5 | Typed streaming events, prompt/citation policies, conversation/usage ports and SSE adapter implemented |
 | CORE-6 | Chatbot management separated; publication readiness gate explicit and opt-in for existing HTTP behavior |
 | CORE-7 | Registry imports without ORM/settings; immutable descriptor and shared provider contract tests implemented |
-| CORE-8 | Not applicable to existing functionality: public runtime is absent |
+| CORE-8 | Current public chat uses the shared typed RAG runtime; server scope, explicit origins and Redis admission remain in delivery |
 | CORE-9 | HTTP maps inputs/results; Celery tasks delegate bootstrap and use cases; compatibility paths retained |
 | CORE-10 | Core-only CI, fake-port contracts, dependency tests and separate live integration tests implemented |
 
-Verified locally: 220 backend tests passed, including nine live integration tests;
-lint passed. The 50 core tests also passed in a Python environment without FastAPI,
-ORM, worker, storage/search SDKs or PyMuPDF. Live coverage includes ingestion and
-PostgreSQL concurrency, chatbot CRUD and empty-context authenticated SSE, and a
-workspace rebuild changing embedding dimension from 384 to 128 while retaining
-the document version and switching the active index.
+Local verification includes the independent core suite, backend regressions,
+frontend tests/build, widget tests/build, Compose validation, workflow lint and
+migration/model checks: 295 backend tests passed (13 live integration), 56 core-only
+tests passed with minimal dependencies, 56 frontend tests and four widget tests
+passed. Frontend build succeeds with its pre-existing bundle budget warning.
+Live coverage includes ingestion, PostgreSQL concurrency,
+explicit conversation persistence, chatbot CRUD, public SSE via Nginx, Redis
+admission, and a workspace rebuild changing embedding dimension from 384 to 128
+while retaining the document version and switching the active index.
 The backend wheel includes the bundled tokenizer and its core imports independently
 of the runtime dependencies.
 
 Live tests used an isolated Docker project and local token-hash embeddings. Shared
 provider tests mock vendor I/O and the local sentence-transformer model. This does
-not claim a live Gemini/OpenAI/Ollama/model-download or public-widget deployment
-test, nor a completed Cloud/Enterprise control plane.
+not claim a live Gemini/OpenAI/Ollama/model-download test, a completed Self-host V1
+release, or a Cloud/Enterprise control plane. Product UI, packaging/bootstrap and
+operational release sprints follow this immediate refactor.
