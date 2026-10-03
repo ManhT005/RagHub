@@ -89,7 +89,8 @@ ProviderRegistry -> SQLAlchemy ProviderConfig
 | Streaming RAG | `application/rag/stream_chat.py` | ChatbotReadPort, RetrievalPort, ProviderResolverPort, ConversationRepositoryPort, UsageRecorderPort |
 | Chatbot CRUD/publication | `application/chatbots/*` | ChatbotRepositoryPort and provider readiness contracts |
 
-`composition/*` and `delivery/workers/*` wire those ports to the existing adapters.
+`SelfHostContainer`, `PublicChatContainer`, and `WorkerContainer` wire those ports
+to the existing adapters for their respective hosts.
 `modules/*/service.py` retains compatibility facades. HTTP uploads stop at
 `delivery/http/uploads.py`; typed RAG events become SSE only in
 `delivery/http/sse.py`. Celery task names and arguments remain unchanged.
@@ -111,8 +112,9 @@ and its active workspace on the server. Browser tenant IDs are ignored. Origin
 checks compare explicit HTTP(S) scheme/host/port and reject paths, credentials and
 wildcards. Redis rate limits and concurrency leases remain outside the core.
 
-Public chat and authenticated Playground both call `ChatbotService.stream_events`
-and the same `StreamRagChatUseCase`. `delivery/http/public_chat.py` adds the public
+Public chat calls `PublicChatContainer.stream_events`; authenticated Playground
+uses the `ChatbotService.stream_events` facade over `SelfHostContainer`. Both use
+the same `StreamRagChatUseCase`. `delivery/http/public_chat.py` adds the public
 deadline, observability and shielded lease cleanup around the shared SSE adapter.
 Cleanup covers completion, provider failure, timeout, disconnect and serialization
 failure. The core never imports Redis or serializes SSE.
@@ -131,7 +133,7 @@ Compatibility imports preserve pure primitive/provider class identity. Legacy
 HTTP `AppError` is now a delivery subclass of the transport-free `CoreError`;
 HTTP delivery selects the status using `delivery/http/error_mapping.py`.
 
-Keep routes, SSE payloads, database schema and RBAC unchanged. Preserve 25 MB
+Preserve existing routes, SSE payloads and workspace authorization. Preserve 25 MB
 validation, MIME/extension checks, SHA-256, immutable document versions, three
 retries, pinned concurrent-delivery locks, index cleanup, READY-only retrieval,
 organization/workspace filtering, embedding snapshots/dimensions, trusted
@@ -141,7 +143,18 @@ latency and native/fallback usage.
 The application explicitly loads previous history and appends the submitted
 question, commits the question before AI work, and records failed assistant turns
 using existing message metadata. See [conversation transaction policy](RAG_CONVERSATION_POLICY.md)
-for successful, failed and cancelled turns. No schema or role migration is added.
+for successful, failed and cancelled turns. Membership lifecycle is now scoped to
+the organization by migration `20261003_0012`; an organization administrator cannot
+disable or reactivate a global identity. This control-plane change stays outside
+the engine.
+
+Retrieval fusion, context budgeting and citation resolution consume typed
+`RetrievedChunk` objects. Raw Elasticsearch hit mapping belongs to infrastructure;
+compatibility dictionaries remain in outer facades only. Object storage methods are
+async; the MinIO adapter runs blocking SDK calls in a thread. Services expose typed
+RAG events, and only HTTP delivery maps events to SSE payloads. Redis admission lives
+in `infrastructure/redis/public_chat_admission.py`, with HTTP dependencies in
+`delivery/public/admission.py`.
 
 ## Verification
 
@@ -176,20 +189,10 @@ minimal dependency set. Adapter tests stay outside `tests/core`.
 | CORE-9 | HTTP maps inputs/results; Celery tasks delegate bootstrap and use cases; compatibility paths retained |
 | CORE-10 | Core-only CI, fake-port contracts, dependency tests and separate live integration tests implemented |
 
-Local verification includes the independent core suite, backend regressions,
-frontend tests/build, widget tests/build, Compose validation, workflow lint and
-migration/model checks: 295 backend tests passed (13 live integration), 56 core-only
-tests passed with minimal dependencies, 56 frontend tests and four widget tests
-passed. Frontend build succeeds with its pre-existing bundle budget warning.
-Live coverage includes ingestion, PostgreSQL concurrency,
-explicit conversation persistence, chatbot CRUD, public SSE via Nginx, Redis
-admission, and a workspace rebuild changing embedding dimension from 384 to 128
-while retaining the document version and switching the active index.
-The backend wheel includes the bundled tokenizer and its core imports independently
-of the runtime dependencies.
-
-Live tests used an isolated Docker project and local token-hash embeddings. Shared
-provider tests mock vendor I/O and the local sentence-transformer model. This does
-not claim a live Gemini/OpenAI/Ollama/model-download test, a completed Self-host V1
-release, or a Cloud/Enterprise control plane. Product UI, packaging/bootstrap and
-operational release sprints follow this immediate refactor.
+The [self-host verification report](../operations/SELF_HOST_VERIFICATION.md) records
+current core-only, backend, UI, migration and operations evidence. The isolated
+adapter suite includes PostgreSQL concurrency, conversation persistence, public
+SSE, Redis admission and workspace rebuilds. A separate CPU self-host installation
+exercises actual Sentence Transformer and Ollama models, restart persistence and
+backup/restore into a new project. Core contracts still require neither Docker nor
+model downloads. Full pull-request CI remains necessary before merge into `develop`.
