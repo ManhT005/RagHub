@@ -117,6 +117,11 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
         async def stream(self, *args):
             yield "done", {}
 
+        async def stream_events(self, *args):
+            from app.core_domain.rag.events import ChatCompleted
+
+            yield ChatCompleted(uuid4(), None, 0)
+
     monkeypatch.setattr(router, "ChatbotService", Service)
     app = FastAPI()
     register_exception_handlers(app)

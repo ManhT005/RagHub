@@ -18,6 +18,8 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
+from app.core_domain.rag.models import StreamChatCommand
+from app.delivery.http.sse import stream_sse
 from app.modules.chatbots.public_limits import PublicChatLimits, client_ip, get_public_limits
 from app.modules.chatbots.schemas import (
     ChatbotInput,
@@ -282,22 +284,17 @@ async def chat(
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
     await require_workspace_access(context, chatbot.workspace_id, session)
 
-    async def events():
-        try:
-            async for event, data in ChatbotService(session).stream(
-                context.organization_id,
-                chatbot_id,
-                payload.message,
-                payload.conversation_id,
-                str(user.id),
-            ):
-                yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-        except AppError as exc:
-            error = {"code": exc.code, "message": exc.message}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-
+    events = ChatbotService(session).stream_events(
+        StreamChatCommand(
+            context.organization_id,
+            chatbot_id,
+            payload.message,
+            payload.conversation_id,
+            str(user.id),
+        )
+    )
     return StreamingResponse(
-        events(),
+        stream_sse(events),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

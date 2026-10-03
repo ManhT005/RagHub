@@ -4,6 +4,14 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AppError
+from app.core_domain.providers.contracts import ChatUsage
+from app.core_domain.rag.events import (
+    ChatCompleted,
+    CitationsResolved,
+    ConversationStarted,
+    TokenDelta,
+    UsageReported,
+)
 from app.modules.ai_providers.errors import ProviderUnavailableError
 from app.modules.chatbots.provider import GeminiChatProvider
 from app.modules.chatbots.router import chat
@@ -19,12 +27,12 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
         async def get(self, *args: object):
             return SimpleNamespace(workspace_id=uuid4())
 
-        async def stream(self, *args: object):
-            yield "conversation", {"conversation_id": "conversation"}
-            yield "citations", {"citations": [{"chunk_id": "chunk"}]}
-            yield "token", {"text": "Xin chào"}
-            yield "usage", {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3}
-            yield "done", {"message_id": "message", "first_token_ms": 1, "latency_ms": 1}
+        async def stream_events(self, *args: object):
+            yield ConversationStarted(uuid4(), uuid4())
+            yield CitationsResolved(())
+            yield TokenDelta("Xin chào")
+            yield UsageReported(ChatUsage(2, 1, 3, "provider"))
+            yield ChatCompleted(uuid4(), 1, 1)
 
     import app.modules.chatbots.router as chat_router
 
@@ -54,7 +62,7 @@ async def test_chat_sse_converts_service_error_to_event(monkeypatch: pytest.Monk
         async def get(self, *args: object):
             return SimpleNamespace(workspace_id=uuid4())
 
-        async def stream(self, *args: object):
+        async def stream_events(self, *args: object):
             raise AppError("CHAT_PROVIDER_TIMEOUT", "Gemini timed out.", status_code=504)
             yield  # pragma: no cover
 
@@ -84,10 +92,10 @@ async def test_stream_error_after_token_does_not_emit_done(
         async def get(self, *args: object):
             return SimpleNamespace(workspace_id=uuid4())
 
-        async def stream(self, *args: object):
-            yield "conversation", {"conversation_id": "conversation"}
-            yield "citations", {"citations": []}
-            yield "token", {"text": "partial"}
+        async def stream_events(self, *args: object):
+            yield ConversationStarted(uuid4(), uuid4())
+            yield CitationsResolved(())
+            yield TokenDelta("partial")
             raise ProviderUnavailableError()
 
     import app.modules.chatbots.router as chat_router
