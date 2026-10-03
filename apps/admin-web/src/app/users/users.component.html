@@ -4,7 +4,7 @@
       <span class="eyebrow">Quản trị tổ chức</span>
       <h1>Quản lý người dùng</h1>
       <p>
-        Tìm kiếm, tạo tài khoản và phân quyền cho toàn bộ tài khoản thuộc tổ chức hiện tại.
+        Tìm kiếm, tạo người dùng và quản lý quyền truy cập các workspace của cài đặt này.
       </p>
     </div>
     @if (organizations().length > 1) {
@@ -148,7 +148,7 @@
                   nzDanger
                   type="button"
                   nz-popconfirm
-                  nzPopconfirmTitle="Vô hiệu hóa tài khoản này?"
+                  nzPopconfirmTitle="Vô hiệu hóa quyền truy cập trong phạm vi này?"
                   nzPopconfirmPlacement="topRight"
                   nzOkText="Vô hiệu hóa"
                   nzCancelText="Hủy"
@@ -163,7 +163,7 @@
                   nzType="link"
                   type="button"
                   nz-popconfirm
-                  nzPopconfirmTitle="Kích hoạt lại tài khoản này?"
+                  nzPopconfirmTitle="Kích hoạt lại quyền truy cập trong phạm vi này?"
                   nzPopconfirmPlacement="topRight"
                   nzOkText="Kích hoạt"
                   nzCancelText="Hủy"

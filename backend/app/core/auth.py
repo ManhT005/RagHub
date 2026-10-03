@@ -56,7 +56,7 @@ async def get_organization_context(
             Membership.organization_id == header_organization_id, Membership.user_id == user.id
         )
     )
-    if membership is None:
+    if membership is None or getattr(membership, "status", "ACTIVE") != "ACTIVE":
         raise AppError(
             "ORGANIZATION_ACCESS_DENIED", "You do not belong to this organization.", status_code=403
         )
@@ -64,7 +64,10 @@ async def get_organization_context(
 
 
 def require_role(context: OrganizationContext, *roles: MembershipRole) -> None:
-    if context.membership.role not in roles:
+    if (
+        getattr(context.membership, "status", "ACTIVE") != "ACTIVE"
+        or context.membership.role not in roles
+    ):
         raise AppError(
             "INSUFFICIENT_PERMISSION",
             "Your organization role cannot perform this action.",

@@ -20,6 +20,75 @@ from app.modules.users.models import User
 pytestmark = pytest.mark.integration
 
 
+def test_membership_disable_does_not_block_another_organization(core_identity):
+    base_url = os.getenv("RAGHUB_TEST_BASE_URL")
+    if not base_url:
+        pytest.skip("Set RAGHUB_TEST_BASE_URL.")
+    unique = uuid4().hex[:12]
+    with httpx.Client(base_url=base_url, timeout=20) as client:
+
+        def request(method, path, **kwargs):
+            result = client.request(method, "/api/v1" + path, **kwargs)
+            assert result.is_success, result.text
+            return result.json()
+
+        token = request("POST", "/auth/login", json=core_identity)["access_token"]
+        admin = {"Authorization": f"Bearer {token}"}
+        organization = request(
+            "POST",
+            "/organizations",
+            headers=admin,
+            json={"name": "Scope A", "slug": f"scope-a-{unique}"},
+        )
+        admin["X-Organization-ID"] = organization["id"]
+        workspace = request(
+            "POST", "/workspaces", headers=admin, json={"name": "A", "slug": "workspace-a"}
+        )
+        credentials = {"email": f"member-{unique}@example.com", "password": uuid4().hex}
+        member = request("POST", "/admin/users", headers=admin, json=credentials)
+        request(
+            "PUT",
+            f"/organizations/{organization['id']}/members",
+            headers=admin,
+            json={
+                "email": credentials["email"],
+                "role": "WORKSPACE_ADMIN",
+                "workspace_ids": [workspace["id"]],
+            },
+        )
+        member_token = request("POST", "/auth/login", json=credentials)["access_token"]
+        member_headers = {"Authorization": f"Bearer {member_token}"}
+        other = request(
+            "POST",
+            "/organizations",
+            headers=member_headers,
+            json={"name": "Scope B", "slug": f"scope-b-{unique}"},
+        )
+        other_headers = {**member_headers, "X-Organization-ID": other["id"]}
+        scope_headers = {**member_headers, "X-Organization-ID": organization["id"]}
+        request("GET", "/workspaces", headers=scope_headers)
+        request(
+            "PATCH",
+            f"/admin/users/{member['id']}/status",
+            headers=admin,
+            json={"status": "DISABLED"},
+        )
+        denied = client.get("/api/v1/workspaces", headers=scope_headers)
+        assert (
+            denied.status_code == 403
+            and denied.json()["error"]["code"] == "ORGANIZATION_ACCESS_DENIED"
+        )
+        request("GET", "/workspaces", headers=other_headers)
+        # Global sessions and password login remain valid; only membership A is disabled.
+        request("POST", "/auth/login", json=credentials)
+        available = request("GET", "/organizations", headers=member_headers)
+        assert {item["id"] for item in available} == {other["id"]}
+        request(
+            "PATCH", f"/admin/users/{member['id']}/status", headers=admin, json={"status": "ACTIVE"}
+        )
+        request("GET", "/workspaces", headers=scope_headers)
+
+
 @pytest.fixture
 def core_identity():
     database = os.getenv("RAGHUB_TEST_DATABASE_URL")

@@ -221,8 +221,8 @@ export class UsersComponent {
         );
         this.success.set(
           nextStatus === "ACTIVE"
-            ? "Đã kích hoạt tài khoản."
-            : "Đã vô hiệu hóa tài khoản.",
+            ? "Đã kích hoạt quyền truy cập."
+            : "Đã vô hiệu hóa quyền truy cập trong phạm vi này.",
         );
       },
       error: (err) => {

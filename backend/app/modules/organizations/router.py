@@ -51,6 +51,7 @@ class MembershipResponse(BaseModel):
     user_id: UUID
     email: str
     role: MembershipRole
+    status: str = "ACTIVE"
     workspace_ids: list[UUID] = Field(default_factory=list)
 
 
@@ -88,7 +89,11 @@ async def list_organizations(
     rows = await session.execute(
         select(Organization, Membership.role)
         .join(Membership, Membership.organization_id == Organization.id)
-        .where(Membership.user_id == user.id, Organization.status == "ACTIVE")
+        .where(
+            Membership.user_id == user.id,
+            Membership.status == "ACTIVE",
+            Organization.status == "ACTIVE",
+        )
         .order_by(Organization.name)
     )
     return [organization_response(organization, role) for organization, role in rows]
@@ -130,6 +135,7 @@ async def list_members(
             user_id=membership.user_id,
             email=email,
             role=membership.role,
+            status=membership.status,
             workspace_ids=await _workspace_ids(session, membership.user_id, organization_id),
         )
         for membership, email in rows
@@ -187,7 +193,11 @@ async def upsert_member(
         session.add(WorkspaceMembership(user_id=user.id, workspace_id=workspace_id))
     await session.commit()
     return MembershipResponse(
-        user_id=user.id, email=user.email, role=membership.role, workspace_ids=payload.workspace_ids
+        user_id=user.id,
+        email=user.email,
+        role=membership.role,
+        status=membership.status or "ACTIVE",
+        workspace_ids=payload.workspace_ids,
     )
 
 

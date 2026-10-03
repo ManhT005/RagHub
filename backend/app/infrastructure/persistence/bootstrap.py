@@ -50,6 +50,7 @@ async def bootstrap_owner(session, payload: BootstrapOwnerInput) -> dict[str, st
                 or not user.email_verified_at
                 or membership is None
                 or membership.role != MembershipRole.ADMIN
+                or membership.status != "ACTIVE"
                 or identity is None
                 or not identity.password_hash
             ):

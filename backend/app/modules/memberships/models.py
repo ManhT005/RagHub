@@ -1,7 +1,7 @@
 import uuid
 from enum import StrEnum
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import CheckConstraint, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -14,6 +14,9 @@ class MembershipRole(StrEnum):
 
 class Membership(Base):
     __tablename__ = "memberships"
+    __table_args__ = (
+        CheckConstraint("status IN ('ACTIVE', 'DISABLED')", name="ck_memberships_status"),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
@@ -22,6 +25,7 @@ class Membership(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
     )
     role: Mapped[str] = mapped_column(String(32), default=MembershipRole.ADMIN)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", server_default="ACTIVE")
 
 
 class WorkspaceMembership(Base):

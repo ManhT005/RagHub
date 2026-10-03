@@ -68,6 +68,12 @@ control plane. Workspaces are the primary Console workflow. User management is
 under `/system/users`, with `/app/users` redirecting there. Existing `/admin/users`
 API clients remain supported.
 
+Disabling a user here disables only their membership in the current organization.
+Their global identity, sessions and access to other organizations remain intact.
+Globally suspended identities cannot be reactivated by an organization administrator.
+Migration `20261003_0012` preserves existing global suspensions and marks their
+memberships disabled; it does not silently reactivate accounts.
+
 ## Repeatable release smoke
 
 For source verification on a disposable machine:

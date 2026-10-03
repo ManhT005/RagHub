@@ -6,14 +6,14 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import OrganizationContext, get_organization_context, require_role
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.core.security import hash_password
-from app.modules.auth.models import IdentityProvider, UserIdentity, UserSession
+from app.modules.auth.models import IdentityProvider, UserIdentity
 from app.modules.memberships.models import Membership, MembershipRole, WorkspaceMembership
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
@@ -81,12 +81,17 @@ async def _workspace_map(
     return grouped
 
 
-def _item(user: User, role: MembershipRole, workspaces: list[AdminUserWorkspace]) -> AdminUserItem:
+def _item(
+    user: User,
+    role: MembershipRole,
+    workspaces: list[AdminUserWorkspace],
+    membership_status: str = "ACTIVE",
+) -> AdminUserItem:
     return AdminUserItem(
         id=user.id,
         email=user.email,
         display_name=getattr(user, "display_name", None),
-        status=user.status,
+        status=user.status if user.status != "ACTIVE" else membership_status,
         last_login_at=user.last_login_at,
         created_at=user.created_at,
         role=role,
@@ -131,7 +136,12 @@ async def list_admin_users(
     )
     return AdminUserPage(
         items=[
-            _item(user, membership.role, workspace_map.get(user.id, []))
+            _item(
+                user,
+                membership.role,
+                workspace_map.get(user.id, []),
+                getattr(membership, "status", None) or "ACTIVE",
+            )
             for membership, user in pairs
         ],
         page=page,
@@ -180,7 +190,7 @@ async def create_admin_user(
     session.add(membership)
     await session.commit()
     await session.refresh(user)
-    return _item(user, membership.role, [])
+    return _item(user, membership.role, [], membership.status or "ACTIVE")
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserItem)
@@ -201,7 +211,12 @@ async def update_admin_user(
     await session.commit()
     await session.refresh(user)
     workspace_map = await _workspace_map(session, [user.id], context.organization_id)
-    return _item(user, membership.role, workspace_map.get(user.id, []))
+    return _item(
+        user,
+        membership.role,
+        workspace_map.get(user.id, []),
+        getattr(membership, "status", None) or "ACTIVE",
+    )
 
 
 @router.patch("/users/{user_id}/status", response_model=AdminUserItem)
@@ -224,19 +239,15 @@ async def update_admin_user_status(
             "You cannot disable your own account.",
             status_code=409,
         )
-    now = datetime.now(UTC)
-    if payload.status == "DISABLED":
-        user.status = "DISABLED"
-        user.auth_version += 1
-        await session.execute(
-            update(UserSession)
-            .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
-            .values(revoked_at=now)
+    if user.status != "ACTIVE":
+        raise AppError(
+            "GLOBAL_ACCOUNT_UNAVAILABLE",
+            "Organization administrators cannot change global identity status.",
+            status_code=409,
         )
-    else:
-        user.status = "ACTIVE"
+    membership.status = payload.status
     await session.commit()
     await session.refresh(user)
     workspace_map = await _workspace_map(session, [user.id], context.organization_id)
     workspaces = workspace_map.get(user.id, [])
-    return _item(user, membership.role, workspaces)
+    return _item(user, membership.role, workspaces, membership.status)
