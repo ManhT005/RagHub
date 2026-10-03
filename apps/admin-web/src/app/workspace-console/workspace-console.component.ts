@@ -48,6 +48,12 @@ interface TranscriptMessage {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceConsoleComponent {
+  protected readonly section = signal("overview");
+  protected readonly sections = [
+    { key: "overview", label: "Tổng quan" }, { key: "documents", label: "Tài liệu" },
+    { key: "chatbot", label: "Chatbot" }, { key: "playground", label: "Playground" },
+    { key: "integration", label: "Tích hợp" }, { key: "settings", label: "Cài đặt" },
+  ];
   protected readonly ingestionErrorMessage = ingestionErrorMessage;
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
@@ -105,6 +111,11 @@ export class WorkspaceConsoleComponent {
   private conversationId: string | null = null;
 
   constructor() {
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const section = params.get("section") ?? "overview";
+      this.section.set(this.sections.some((item) => item.key === section) ? section : "overview");
+      this.setupOpen.set(["settings", "chatbot"].includes(this.section()));
+    });
     this.api.organizations().subscribe({
       next: (items) => {
         this.organizations.set(items);

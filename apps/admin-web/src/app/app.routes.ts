@@ -1,3 +1,5 @@
+import { AiSettingsComponent } from "./ai-settings/ai-settings.component";
+import { SystemComponent } from "./system/system.component";
 import { Routes } from "@angular/router";
 import { AuthComponent } from "./auth/auth.component";
 import { ChatbotsComponent } from "./chatbots/chatbots.component";
@@ -5,7 +7,7 @@ import { DashboardComponent } from "./dashboard/dashboard.component";
 import { DocumentsComponent } from "./documents/documents.component";
 import { WorkspaceConsoleComponent } from "./workspace-console/workspace-console.component";
 import { WorkspacesComponent } from "./workspaces/workspaces.component";
-import { AdminLayoutComponent } from "./layouts/admin-layout.component";
+import { ConsoleLayoutComponent } from "./layouts/console-layout.component";
 import { LandingComponent } from "./landing/landing.component";
 import { PublicPageComponent } from "./landing/public-page.component";
 import { ChatbotSettingsComponent } from "./chatbots/chatbot-settings.component";
@@ -44,13 +46,14 @@ export const routes: Routes = [
   { path: "auth", component: AuthComponent, title: "Tài khoản | RagHub" },
   {
     path: "app",
-    component: AdminLayoutComponent,
+    component: ConsoleLayoutComponent,
     canActivate: [authenticated],
     canActivateChild: [authenticatedChild],
     children: [
       { path: "overview", component: DashboardComponent },
       { path: "workspaces", component: WorkspacesComponent },
-      { path: "users", component: UsersComponent, canActivate: [adminOnly] },
+      { path: "users", pathMatch: "full", redirectTo: "/system/users" },
+      { path: "ai-settings", component: AiSettingsComponent, canActivate: [adminOnly] },
       { path: "workspace-console/:workspaceId", component: WorkspaceConsoleComponent },
       { path: "workspace-console", component: WorkspaceConsoleComponent },
       { path: "documents", component: DocumentsComponent },
@@ -59,6 +62,14 @@ export const routes: Routes = [
       { path: "security", component: SecurityComponent },
       { path: "profile", component: ProfileComponent },
       { path: "", pathMatch: "full", redirectTo: "overview" },
+    ],
+  },
+  {
+    path: "system", component: ConsoleLayoutComponent,
+    canActivate: [authenticated], canActivateChild: [authenticatedChild],
+    children: [
+      { path: "users", component: UsersComponent, canActivate: [adminOnly] },
+      { path: "", pathMatch: "full", component: SystemComponent },
     ],
   },
   { path: "workspaces", pathMatch: "full", redirectTo: "app/workspaces" },

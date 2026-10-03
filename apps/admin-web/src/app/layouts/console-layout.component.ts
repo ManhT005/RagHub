@@ -8,7 +8,7 @@ import { session } from "../core/api-auth.interceptor";
 import { Organization, RaghubApiService } from "../core/raghub-api.service";
 
 @Component({
-  selector: "raghub-admin-layout",
+  selector: "raghub-console-layout",
   imports: [
     RouterLink,
     RouterLinkActive,
@@ -17,11 +17,11 @@ import { Organization, RaghubApiService } from "../core/raghub-api.service";
     NzLayoutModule,
     NzMenuModule,
   ],
-  templateUrl: "./admin-layout.component.html",
-  styleUrl: "./admin-layout.component.css",
+  templateUrl: "./console-layout.component.html",
+  styleUrl: "./console-layout.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AdminLayoutComponent {
+export class ConsoleLayoutComponent {
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly isAdmin = computed(() => {
     const currentId = session.organizationId;
