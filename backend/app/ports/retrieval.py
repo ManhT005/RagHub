@@ -1,15 +1,3 @@
-from typing import Protocol
+"""Deprecated compatibility path; use raghub_core.ports.retrieval."""
 
-from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
-
-
-class DocumentReadinessPort(Protocol):
-    async def filter_ready(
-        self, scope: RetrievalScope, hits: list[RetrievedChunk]
-    ) -> list[RetrievedChunk]: ...
-
-
-class RetrievalPort(Protocol):
-    async def retrieve(
-        self, scope: RetrievalScope, query: str, limit: int
-    ) -> list[RetrievedChunk]: ...
+from raghub_core.ports.retrieval import *  # noqa: F403

@@ -8,7 +8,7 @@ import pytest
 APP = Path(__file__).resolve().parents[2] / "app"
 LAYERS = {
     "domain": (APP.parent / "raghub_core" / "domain", "raghub_core.domain"),
-    "ports": (APP / "ports", "app.ports"),
+    "ports": (APP.parent / "raghub_core" / "ports", "raghub_core.ports"),
     "application": (APP / "application", "app.application"),
 }
 FORBIDDEN = {
@@ -134,7 +134,7 @@ class BlockInfrastructure(importlib.abc.MetaPathFinder):
             raise AssertionError(f'Runtime import: {fullname}')
 
 sys.meta_path.insert(0, BlockInfrastructure())
-for package_name in ('raghub_core.domain', 'app.ports', 'app.application'):
+for package_name in ('raghub_core.domain', 'raghub_core.ports', 'app.application'):
     package = importlib.import_module(package_name)
     for module in pkgutil.walk_packages(package.__path__, package_name + '.'):
         importlib.import_module(module.name)

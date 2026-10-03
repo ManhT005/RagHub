@@ -1,8 +1,3 @@
-from typing import Protocol, runtime_checkable
+"""Deprecated compatibility path; use raghub_core.ports.object_storage."""
 
-
-@runtime_checkable
-class ObjectStoragePort(Protocol):
-    async def put(self, key: str, content: bytes, content_type: str) -> None: ...
-    async def get(self, key: str) -> bytes: ...
-    async def remove(self, key: str) -> None: ...
+from raghub_core.ports.object_storage import *  # noqa: F403

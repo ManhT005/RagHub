@@ -1,33 +1,3 @@
-from typing import Protocol
-from uuid import UUID
+"""Deprecated compatibility path; use raghub_core.ports.documents."""
 
-from raghub_core.domain.documents.upload import RetryDocumentState, UploadReceipt
-from raghub_core.domain.retrieval.models import RetrievalScope
-
-
-class DocumentRepositoryPort(Protocol):
-    async def workspace_exists(self, organization_id: UUID, workspace_id: UUID) -> bool: ...
-    async def create_upload(
-        self,
-        *,
-        organization_id: UUID,
-        workspace_id: UUID,
-        filename: str,
-        storage_key: str,
-        checksum: str,
-        mime_type: str,
-        size_bytes: int,
-    ) -> UploadReceipt: ...
-    async def commit(self) -> None: ...
-    async def rollback(self) -> None: ...
-    async def mark_queue_failure(self, version_id: UUID, message: str) -> None: ...
-
-
-class DocumentRetryRepositoryPort(Protocol):
-    async def load_for_retry(
-        self, scope: RetrievalScope, version_id: UUID
-    ) -> RetryDocumentState | None: ...
-    async def try_retry_lock(self, version_id: UUID) -> bool: ...
-    async def reset(self, version_id: UUID) -> UploadReceipt: ...
-    async def mark_queue_failure(self, version_id: UUID, message: str) -> None: ...
-    async def commit(self) -> None: ...
+from raghub_core.ports.documents import *  # noqa: F403

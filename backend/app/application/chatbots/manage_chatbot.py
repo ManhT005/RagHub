@@ -2,7 +2,6 @@ from dataclasses import fields, replace
 from uuid import UUID
 
 from app.application.chatbots.publish_chatbot import PublishChatbotUseCase
-from app.ports.chatbots import ChatbotRepositoryPort
 from raghub_core.domain.chatbots.models import (
     ChatbotRecord,
     CreateChatbotCommand,
@@ -11,6 +10,7 @@ from raghub_core.domain.chatbots.models import (
 )
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.retrieval.models import RetrievalScope
+from raghub_core.ports.chatbots import ChatbotRepositoryPort
 
 
 class ManageChatbotUseCase:

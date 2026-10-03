@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.ports.provider_resolver import ChatRuntime, EmbeddingRuntime
 from raghub_core.domain.documents.upload import UploadReceipt
 from raghub_core.domain.providers.contracts import ChatStreamDelta, EmbeddingMetadata
+from raghub_core.ports.provider_resolver import ChatRuntime, EmbeddingRuntime
 
 
 class FakeObjectStorage:

@@ -1,8 +1,3 @@
-from typing import Protocol, runtime_checkable
-from uuid import UUID
+"""Deprecated compatibility path; use raghub_core.ports.task_queue."""
 
-
-@runtime_checkable
-class TaskQueuePort(Protocol):
-    def enqueue_ingestion(self, version_id: UUID) -> None: ...
-    def enqueue_reindex(self, job_id: UUID) -> None: ...
+from raghub_core.ports.task_queue import *  # noqa: F403

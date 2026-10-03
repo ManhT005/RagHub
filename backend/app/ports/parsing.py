@@ -1,7 +1,3 @@
-from typing import Protocol
+"""Deprecated compatibility path; use raghub_core.ports.parsing."""
 
-from raghub_core.domain.ingestion.parser import ParsedSection
-
-
-class DocumentParserPort(Protocol):
-    def parse(self, content: bytes, source_name: str) -> list[ParsedSection]: ...
+from raghub_core.ports.parsing import *  # noqa: F403

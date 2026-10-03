@@ -1,9 +1,6 @@
 import math
 from collections.abc import Awaitable, Callable
 
-from app.ports.object_storage import ObjectStoragePort
-from app.ports.provider_resolver import EmbeddingRuntime
-from app.ports.vector_store import VectorStorePort
 from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
@@ -21,6 +18,9 @@ from raghub_core.domain.providers.errors import (
     ProviderUnavailableError,
 )
 from raghub_core.domain.retrieval.models import DocumentIndex, IndexedChunk
+from raghub_core.ports.object_storage import ObjectStoragePort
+from raghub_core.ports.provider_resolver import EmbeddingRuntime
+from raghub_core.ports.vector_store import VectorStorePort
 
 StageCallback = Callable[[IngestionStage, int], Awaitable[None]]
 

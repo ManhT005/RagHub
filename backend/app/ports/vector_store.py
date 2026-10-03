@@ -1,21 +1,3 @@
-from typing import Protocol, runtime_checkable
-from uuid import UUID
+"""Deprecated compatibility path; use raghub_core.ports.vector_store."""
 
-from raghub_core.domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
-
-
-@runtime_checkable
-class VectorSearchPort(Protocol):
-    async def search(
-        self, scope: RetrievalScope, query: str, query_vector: list[float], limit: int
-    ) -> list[RetrievedChunk]: ...
-    async def close(self) -> None: ...
-
-
-@runtime_checkable
-class VectorStorePort(Protocol):
-    def ensure_index(self) -> None: ...
-    def replace(self, index: DocumentIndex) -> None: ...
-    def delete_document_version(self, document_version_id: UUID) -> None: ...
-    def document_version_ids(self, workspace_id: UUID) -> set[UUID]: ...
-    def close(self) -> None: ...
+from raghub_core.ports.vector_store import *  # noqa: F403

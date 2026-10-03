@@ -1,8 +1,8 @@
-from app.ports.chatbots import ChatbotRepositoryPort
-from app.ports.provider_resolver import ProviderResolverPort
 from raghub_core.domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
 from raghub_core.domain.chatbots.policies import validate_chatbot_configuration
 from raghub_core.domain.errors import CoreError
+from raghub_core.ports.chatbots import ChatbotRepositoryPort
+from raghub_core.ports.provider_resolver import ProviderResolverPort
 
 
 class PublishChatbotUseCase:

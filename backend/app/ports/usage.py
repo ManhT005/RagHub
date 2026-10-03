@@ -1,7 +1,3 @@
-from typing import Protocol
+"""Deprecated compatibility path; use raghub_core.ports.usage."""
 
-from raghub_core.domain.rag.models import ChatUsageRecord
-
-
-class UsageRecorderPort(Protocol):
-    async def record_chat_usage(self, record: ChatUsageRecord) -> None: ...
+from raghub_core.ports.usage import *  # noqa: F403
