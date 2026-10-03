@@ -11,13 +11,13 @@ class FakeObjectStorage:
         self.objects: dict[str, bytes] = {}
         self.removed: list[str] = []
 
-    def put(self, key: str, content: bytes, content_type: str) -> None:
+    async def put(self, key: str, content: bytes, content_type: str) -> None:
         self.objects[key] = content
 
-    def get(self, key: str) -> bytes:
+    async def get(self, key: str) -> bytes:
         return self.objects[key]
 
-    def remove(self, key: str) -> None:
+    async def remove(self, key: str) -> None:
         self.removed.append(key)
         self.objects.pop(key, None)
 

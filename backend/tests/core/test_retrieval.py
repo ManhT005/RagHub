@@ -56,7 +56,7 @@ async def test_retrieval_builds_context_only_from_ready_hits():
         "question",
         5,
     )
-    assert "knowledge" in context.text and context.hits == [ready.as_hit()]
+    assert "knowledge" in context.text and context.hits == [ready]
 
 
 async def test_invalid_query_embedding_does_not_open_vector_store():

@@ -114,7 +114,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
         def close(self) -> None:
             pass
 
-    storage = SimpleNamespace(get=lambda _key: b"text")
+    storage = SimpleNamespace(get=AsyncMock(return_value=b"text"))
     monkeypatch.setattr(ingestion_runtime, "MinioObjectStorage", lambda _settings: storage)
     monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
     chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
@@ -190,7 +190,7 @@ async def test_transient_embedding_provider_failure_is_retryable(
     monkeypatch.setattr(
         ingestion_runtime,
         "MinioObjectStorage",
-        lambda _settings: SimpleNamespace(get=lambda _key: b"text"),
+        lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
     monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(
@@ -219,7 +219,7 @@ async def test_auth_embedding_provider_failure_is_permanent(
     monkeypatch.setattr(
         ingestion_runtime,
         "MinioObjectStorage",
-        lambda _settings: SimpleNamespace(get=lambda _key: b"text"),
+        lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
     monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(

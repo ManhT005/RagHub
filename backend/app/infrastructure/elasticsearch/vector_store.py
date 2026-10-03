@@ -5,6 +5,7 @@ from app.core_domain.ingestion.errors import IngestionError
 from app.core_domain.providers.errors import ProviderError
 from app.core_domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer, ChunkSearch
+from app.infrastructure.retrieval_mapping import chunk_from_hit
 
 
 class ElasticsearchVectorStore(ChunkIndexer):
@@ -76,7 +77,7 @@ class ElasticsearchVectorSearch:
                 query_vector=query_vector,
                 limit=limit,
             )
-            return [RetrievedChunk.from_hit(hit) for hit in hits]
+            return [chunk_from_hit(hit) for hit in hits]
         except NotFoundError:
             return []
         except ProviderError:

@@ -12,7 +12,6 @@ from app.core.exceptions import AppError
 from app.core_domain.documents.upload import UploadDocumentCommand
 from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 from app.core_domain.retrieval.models import RetrievalScope
-from app.delivery.http.uploads import read_upload, upload_from_http
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.persistence.uploads import (
     DocumentRetryRepositoryAdapter,
@@ -50,12 +49,6 @@ class DocumentService:
             max_size_mb=self.settings.max_upload_size_mb,
         ).execute(command)
         return DocumentAccepted(**asdict(result))
-
-    async def upload_document(
-        self, *, organization_id: uuid.UUID, workspace_id: uuid.UUID, upload
-    ) -> DocumentAccepted:
-        # Compatibility entry point; routers use the HTTP upload adapter directly.
-        return await upload_from_http(self, organization_id, workspace_id, upload)
 
     async def retry(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, version_id: uuid.UUID
@@ -114,5 +107,3 @@ class DocumentService:
         document.deleted_at = datetime.now(UTC)
         await self.session.commit()
 
-    async def _read_limited(self, upload) -> bytes:
-        return await read_upload(upload, max_size_mb=self.settings.max_upload_size_mb)

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import OrganizationContext, get_organization_context, require_workspace_access
 from app.core.database import get_session
-from app.core_domain.retrieval.hybrid import build_context
+from app.modules.search.hybrid import build_context
 from app.modules.search.schemas import SearchResponse
 from app.modules.search.service import SearchService
 

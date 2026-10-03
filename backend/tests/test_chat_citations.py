@@ -1,12 +1,18 @@
+from uuid import NAMESPACE_DNS, uuid5
+
 from app.modules.chatbots.citations import resolve_citations
 from app.modules.search.hybrid import build_context_bundle
+
+
+def identifier(name):
+    return str(uuid5(NAMESPACE_DNS, name))
 
 
 def hit(chunk_id: str, content: str = "content") -> dict[str, object]:
     return {
         "document_id": "00000000-0000-0000-0000-000000000001",
         "document_version_id": "00000000-0000-0000-0000-000000000002",
-        "chunk_id": chunk_id,
+        "chunk_id": identifier(chunk_id),
         "source_name": "guide.pdf",
         "page_number": 3,
         "content": content,
@@ -22,7 +28,7 @@ def test_citations_are_resolved_only_from_context_bundle_hits() -> None:
     citations = resolve_citations(bundle.hits)
 
     assert [citation["citation_id"] for citation in citations] == ["C1"]
-    assert [citation["chunk_id"] for citation in citations] == ["used"]
+    assert [citation["chunk_id"] for citation in citations] == [identifier("used")]
 
 
 def test_citation_metadata_comes_from_backend_hit() -> None:
@@ -34,7 +40,7 @@ def test_citation_metadata_comes_from_backend_hit() -> None:
             "document_id": "00000000-0000-0000-0000-000000000001",
             "document_name": "guide.pdf",
             "page": 3,
-            "chunk_id": "trusted",
+            "chunk_id": identifier("trusted"),
             "excerpt": "content",
             "score": 0.032,
         }

@@ -34,6 +34,10 @@ def forbidden_imports(source: str, *, layer: str) -> list[str]:
         for name in names:
             if name.split(".")[0] in FORBIDDEN:
                 violations.append(name)
+            root = name.split(".")[0]
+            approved = {"tiktoken"} if layer == "core_domain" else set()
+            if root != "app" and root not in sys.stdlib_module_names | approved:
+                violations.append(name)
             if name == "app" or name.startswith("app."):
                 allowed = ["app.core_domain"]
                 if layer != "core_domain":
@@ -52,6 +56,22 @@ def test_engine_dependency_direction() -> None:
         for file in (APP / layer).rglob("*.py"):
             for name in forbidden_imports(file.read_text(encoding="utf-8"), layer=layer):
                 violations.append(f"{file.relative_to(APP)}: {name}")
+    assert not violations, "\n".join(violations)
+
+
+def test_services_do_not_depend_on_delivery() -> None:
+    violations = []
+    for file in (APP / "modules").rglob("service.py"):
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            if any(name.startswith("app.delivery") for name in names):
+                violations.append(str(file.relative_to(APP)))
     assert not violations, "\n".join(violations)
 
 

@@ -3,6 +3,8 @@ from uuid import uuid4
 
 import pytest
 
+from app.core_domain.rag.models import StreamChatCommand
+from app.delivery.http.sse import event_payload
 from app.modules.ai_providers.contracts import ChatStreamDelta, ChatUsage
 from app.modules.chatbots.models import Message, MessageCitation, UsageEvent
 from app.modules.chatbots.service import ChatbotService
@@ -89,9 +91,9 @@ async def test_successful_rag_stream_persists_usage_and_selected_citations(
     session = SessionStub()
 
     events = [
-        event
-        async for event in Service(session).stream(  # type: ignore[arg-type]
-            organization_id, chatbot.id, "deadline", None, "user"
+        event_payload(event)
+        async for event in Service(session).stream_events(
+            StreamChatCommand(organization_id, chatbot.id, "deadline", None, "user")
         )
     ]
 

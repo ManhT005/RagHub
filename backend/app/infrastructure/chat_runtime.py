@@ -1,6 +1,7 @@
 from app.core_domain.chatbots.models import ChatbotConfig
 from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
 from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.retrieval_mapping import chunk_from_hit
 
 
 class ChatbotRuntimeReader:
@@ -31,7 +32,7 @@ class RuntimeRetrievalAdapter:
             query,
             limit,
         )
-        return [RetrievedChunk.from_hit(hit) for hit in hits]
+        return [chunk_from_hit(hit) for hit in hits]
 
 
 class LazyProviderResolverAdapter:

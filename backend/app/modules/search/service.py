@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.composition.retrieval import retrieval_use_case
 from app.core_domain.retrieval.models import RetrievalScope
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
+from app.infrastructure.retrieval_mapping import chunk_to_hit
 
 
 class SearchService:
@@ -30,4 +31,4 @@ class SearchService:
             query,
             limit,
         )
-        return [hit.as_hit() for hit in results]
+        return [chunk_to_hit(hit) for hit in results]

@@ -3,6 +3,7 @@ from typing import Any
 from app.core_domain.errors import CoreError
 
 HTTP_STATUS_BY_CODE = {
+    "DOCUMENT_NOT_FOUND": 404,
     "WORKSPACE_NOT_FOUND": 404,
     "CHATBOT_NOT_FOUND": 404,
     "CONVERSATION_NOT_FOUND": 404,

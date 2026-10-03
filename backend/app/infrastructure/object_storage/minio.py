@@ -1,3 +1,4 @@
+import asyncio
 from io import BytesIO
 from urllib.parse import urlsplit
 
@@ -22,7 +23,10 @@ class MinioObjectStorage:
         if not self.client.bucket_exists(self.settings.s3_bucket):
             self.client.make_bucket(self.settings.s3_bucket)
 
-    def put(self, key: str, content: bytes, content_type: str) -> None:
+    async def put(self, key: str, content: bytes, content_type: str) -> None:
+        await asyncio.to_thread(self._put, key, content, content_type)
+
+    def _put(self, key: str, content: bytes, content_type: str) -> None:
         self.ensure_bucket()
         self.client.put_object(
             self.settings.s3_bucket,
@@ -32,7 +36,10 @@ class MinioObjectStorage:
             content_type=content_type,
         )
 
-    def get(self, key: str) -> bytes:
+    async def get(self, key: str) -> bytes:
+        return await asyncio.to_thread(self._get, key)
+
+    def _get(self, key: str) -> bytes:
         response = self.client.get_object(self.settings.s3_bucket, key)
         try:
             return response.read()
@@ -40,5 +47,5 @@ class MinioObjectStorage:
             response.close()
             response.release_conn()
 
-    def remove(self, key: str) -> None:
-        self.client.remove_object(self.settings.s3_bucket, key)
+    async def remove(self, key: str) -> None:
+        await asyncio.to_thread(self.client.remove_object, self.settings.s3_bucket, key)

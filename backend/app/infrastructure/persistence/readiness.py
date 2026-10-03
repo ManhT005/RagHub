@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
+from app.infrastructure.retrieval_mapping import chunk_to_hit
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
 
 
@@ -49,7 +50,7 @@ class DocumentReadinessAdapter:
         self, scope: RetrievalScope, hits: list[RetrievedChunk]
     ) -> list[RetrievedChunk]:
         ready = await self.ready_hits(
-            scope.organization_id, scope.workspace_id, [hit.as_hit() for hit in hits]
+            scope.organization_id, scope.workspace_id, [chunk_to_hit(hit) for hit in hits]
         )
         pairs = {(hit["document_id"], hit["document_version_id"]) for hit in ready}
         return [

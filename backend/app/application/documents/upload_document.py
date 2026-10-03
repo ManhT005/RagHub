@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 from uuid import uuid4
 
@@ -38,7 +37,7 @@ class UploadDocumentUseCase:
         validate_upload_content(command.content, extension, self.max_size_mb)
         storage_key = f"{command.organization_id}/{command.workspace_id}/{uuid4()}{extension}"
         try:
-            await asyncio.to_thread(self.storage.put, storage_key, command.content, mime)
+            await self.storage.put(storage_key, command.content, mime)
         except Exception as exc:
             raise CoreError("STORAGE_UNAVAILABLE", "The document could not be stored.") from exc
         try:
@@ -55,7 +54,7 @@ class UploadDocumentUseCase:
         except Exception:
             await self.repository.rollback()
             try:
-                await asyncio.to_thread(self.storage.remove, storage_key)
+                await self.storage.remove(storage_key)
             except Exception:
                 pass
             raise

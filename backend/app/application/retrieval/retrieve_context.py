@@ -43,5 +43,5 @@ class RetrieveContextUseCase:
 
     async def execute(self, scope: RetrievalScope, query: str, limit: int) -> ContextBundle:
         return build_context_bundle(
-            [hit.as_hit() for hit in await self.retrieve(scope, query, limit)]
+            await self.retrieve(scope, query, limit)
         )

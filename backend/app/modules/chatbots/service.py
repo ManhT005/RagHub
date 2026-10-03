@@ -7,14 +7,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.chatbots import chatbot_management
+from app.composition.public_chat import public_chat_resolver
 from app.composition.rag import rag_use_case
 from app.core_domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
 from app.core_domain.rag.events import RagEvent
 from app.core_domain.rag.models import StreamChatCommand
 from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
 from app.core_domain.retrieval.models import RetrievalScope
-from app.delivery.http.sse import event_payload
-from app.delivery.security.public_chat import PublicChatResolver
 from app.infrastructure.persistence.chatbots import ChatbotRepositoryAdapter
 from app.infrastructure.persistence.conversations import ConversationRepositoryAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
@@ -88,7 +87,7 @@ class ChatbotService:
         return raw_key
 
     async def public_chatbot(self, raw_key: str, origin: str | None) -> Chatbot:
-        return await PublicChatResolver(self.session).resolve(raw_key, origin)
+        return await public_chat_resolver(self.session).resolve(raw_key, origin)
 
     async def public_config(self, raw_key: str, origin: str | None) -> dict[str, str]:
         return public_config(await self.public_chatbot(raw_key, origin))
@@ -116,22 +115,3 @@ class ChatbotService:
             async for event in stream:
                 yield event
 
-    async def stream(
-        self,
-        organization_id: UUID,
-        chatbot_id: UUID,
-        question: str,
-        conversation_id: UUID | None,
-        external_user_id: str | None,
-    ):
-        """Compatibility event tuples; new delivery uses stream_events."""
-        async for event in self.stream_events(
-            StreamChatCommand(
-                organization_id,
-                chatbot_id,
-                question,
-                conversation_id,
-                external_user_id,
-            )
-        ):
-            yield event_payload(event)

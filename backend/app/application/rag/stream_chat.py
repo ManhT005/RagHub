@@ -20,7 +20,6 @@ from app.core_domain.rag.models import ChatUsageRecord, StreamChatCommand
 from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
 from app.core_domain.rag.timing import ChatStreamTiming
 from app.core_domain.retrieval.hybrid import build_context_bundle
-from app.core_domain.retrieval.models import RetrievedChunk
 from app.ports.chatbots import ChatbotReadPort
 from app.ports.conversations import ConversationRepositoryPort
 from app.ports.provider_resolver import ProviderResolverPort
@@ -106,9 +105,8 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
         runtime = await self.providers.resolve_chat(chatbot.scope)
-        context = build_context_bundle([hit.as_hit() for hit in hits])
-        selected = [RetrievedChunk.from_hit(hit) for hit in context.hits]
-        citations = resolve_trusted_citations(selected)
+        context = build_context_bundle(hits)
+        citations = resolve_trusted_citations(context.hits)
         yield CitationsResolved(citations)
         messages = build_prompt(
             chatbot.system_prompt,

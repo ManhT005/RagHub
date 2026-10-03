@@ -3,6 +3,8 @@ from uuid import uuid4
 
 import pytest
 
+from app.core_domain.rag.models import StreamChatCommand
+from app.delivery.http.sse import event_payload
 from app.modules.chatbots.service import EMPTY_CONTEXT_ANSWER, ChatbotService
 
 
@@ -59,9 +61,9 @@ async def test_empty_context_skips_chat_provider(monkeypatch: pytest.MonkeyPatch
     session = SessionStub()
 
     events = [
-        event
-        async for event in Service(session).stream(  # type: ignore[arg-type]
-            organization_id, chatbot.id, "unknown", None, "user"
+        event_payload(event)
+        async for event in Service(session).stream_events(
+            StreamChatCommand(organization_id, chatbot.id, "unknown", None, "user")
         )
     ]
 

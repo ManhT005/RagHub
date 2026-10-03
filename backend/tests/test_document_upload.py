@@ -11,12 +11,16 @@ from fastapi import UploadFile
 from app.core.config import Settings
 from app.core_domain.errors import CoreError as AppError
 from app.delivery.http.error_mapping import http_status
+from app.delivery.http.uploads import read_upload, upload_from_http
 from app.modules.documents.service import DocumentService
 
 
 @pytest.fixture
 def service(monkeypatch: pytest.MonkeyPatch) -> DocumentService:
-    monkeypatch.setattr("app.modules.documents.service.MinioObjectStorage", lambda _: Mock())
+    monkeypatch.setattr(
+        "app.modules.documents.service.MinioObjectStorage",
+        lambda _: SimpleNamespace(put=AsyncMock(), get=AsyncMock(), remove=AsyncMock()),
+    )
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
     instance = DocumentService(session, Settings(max_upload_size_mb=1))  # type: ignore[arg-type]
     instance.repository.workspace_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
@@ -56,7 +60,8 @@ async def test_upload_accepts_supported_files_and_safe_key(
 
     queued = Mock()
     monkeypatch.setattr(ingest_document_version, "delay", queued)
-    response = await service.upload_document(
+    response = await upload_from_http(
+        service,
         organization_id=organization_id,
         workspace_id=workspace_id,
         upload=upload(f"{prefix}{name}", mime, data),
@@ -87,8 +92,11 @@ async def test_upload_validation(
     service: DocumentService, name: str, mime: str, data: bytes, code: str
 ) -> None:
     with pytest.raises(AppError) as error:
-        await service.upload_document(
-            organization_id=uuid.uuid4(), workspace_id=uuid.uuid4(), upload=upload(name, mime, data)
+        await upload_from_http(
+            service,
+            organization_id=uuid.uuid4(),
+            workspace_id=uuid.uuid4(),
+            upload=upload(name, mime, data),
         )
     assert error.value.code == code
     service.storage.put.assert_not_called()
@@ -97,7 +105,8 @@ async def test_upload_validation(
 @pytest.mark.asyncio
 async def test_upload_size_limit(service: DocumentService) -> None:
     with pytest.raises(AppError) as error:
-        await service.upload_document(
+        await upload_from_http(
+            service,
             organization_id=uuid.uuid4(),
             workspace_id=uuid.uuid4(),
             upload=upload("large.txt", "text/plain", b"x" * (1024 * 1024 + 1)),
@@ -109,7 +118,8 @@ async def test_upload_size_limit(service: DocumentService) -> None:
 async def test_upload_rejects_foreign_workspace(service: DocumentService) -> None:
     service.repository.workspace_exists = AsyncMock(return_value=False)  # type: ignore[method-assign]
     with pytest.raises(AppError) as error:
-        await service.upload_document(
+        await upload_from_http(
+            service,
             organization_id=uuid.uuid4(),
             workspace_id=uuid.uuid4(),
             upload=upload("a.txt", "text/plain", b"hello"),
@@ -183,10 +193,10 @@ async def test_exact_25_mb_upload_boundary(service: DocumentService, extra_byte:
     file = upload("boundary.txt", "text/plain", content)
     if extra_byte:
         with pytest.raises(AppError) as error:
-            await service._read_limited(file)
+            await read_upload(file, max_size_mb=service.settings.max_upload_size_mb)
         assert error.value.code == "FILE_TOO_LARGE" and http_status(error.value) == 413
     else:
-        assert await service._read_limited(file) == content
+        assert await read_upload(file, max_size_mb=service.settings.max_upload_size_mb) == content
 
 
 @pytest.mark.parametrize("code", ["INVALID_PDF", "FAILED_UNSUPPORTED_OCR", "TEXT_DECODE_FAILED"])

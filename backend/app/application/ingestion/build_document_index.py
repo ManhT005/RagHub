@@ -50,7 +50,7 @@ class BuildDocumentIndexUseCase:
         close_store: bool = True,
     ) -> DocumentIndex:
         try:
-            content = self.storage.get(document.storage_key)
+            content = await self.storage.get(document.storage_key)
         except Exception as exc:
             raise IngestionError("STORAGE_UNAVAILABLE", str(exc), retryable=True) from exc
         try:
