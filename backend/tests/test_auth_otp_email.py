@@ -24,6 +24,7 @@ async def test_password_reset_email_uses_sender() -> None:
 def test_production_requires_gmail_smtp_configuration() -> None:
     with pytest.raises(ValidationError):
         Settings(
+            _env_file=None,
             app_env="production",
             app_secret_key="production-secret",
             provider_master_key="production-provider-key",
