@@ -1,50 +1,70 @@
 <main class="overview-page">
-  <header class="page-heading">
-    <div>
-      <p class="kicker">Tổng quan hệ thống</p>
-      <h1>Chào mừng trở lại</h1>
-      <p>Theo dõi workspace, tài liệu và chatbot trong cùng một nơi.</p>
-    </div>
-    <a routerLink="/app/workspaces">Tạo workspace</a>
-  </header>
-
   @if (error()) {
     <p class="message error">{{ error() }}</p>
   }
 
-
-  <section class="overview-columns">
-    <article class="activity-card">
-      <div class="card-heading">
-        <div>
-          <h2>Hoạt động gần đây</h2>
-          <p>Cập nhật mới nhất trong workspace</p>
-        </div>
-        <a routerLink="/app/documents">Xem tài liệu</a>
-      </div>
-
-      @if (loading()) {
-        <p class="hint">Đang tải hoạt động…</p>
-      } @else {
-        @for (act of recent(); track act.title + act.createdAt) {
-          <div class="activity">
-            <i [class]="act.kind === 'document' ? 'red' : 'violet'">
-              <nz-icon
-                [nzType]="act.kind === 'document' ? 'file-text' : 'message'"
-              />
-            </i>
-            <p>
-              <b>{{ act.title }}</b>
-              <small>{{ act.subtitle }} · {{ act.createdAt }}</small>
-            </p>
-          </div>
-        } @empty {
-          <p class="hint">
-            Chưa có hoạt động nào. Hãy tạo workspace và tải tài liệu đầu tiên.
-          </p>
+  <section class="activity-section" aria-label="Hoạt động gần đây">
+    <h2>Hoạt động gần đây</h2>
+    <div class="activity-filters" aria-label="Bộ lọc hoạt động">
+      <nz-select
+        class="workspace-filter"
+        nzSize="large"
+        [ngModel]="selectedWorkspace()"
+        (ngModelChange)="selectedWorkspace.set($event)"
+        nzPlaceHolder="Tất cả workspace"
+        aria-label="Lọc theo workspace"
+      >
+        <nz-option nzValue="" nzLabel="Tất cả workspace" />
+        @for (workspace of workspaces(); track workspace.id) {
+          <nz-option [nzValue]="workspace.id" [nzLabel]="workspace.name" />
         }
-      }
-    </article>
-
+      </nz-select>
+      <nz-range-picker
+        class="date-filter"
+        nzSize="large"
+        nzFormat="dd/MM/yyyy"
+        [nzPlaceHolder]="['Từ ngày', 'Đến ngày']"
+        [ngModel]="dateRange()"
+        (ngModelChange)="dateRange.set($event)"
+        aria-label="Lọc theo khoảng thời gian"
+      />
+    </div>
+    <div class="activity-table">
+      <nz-table
+        #activityTable
+        [nzData]="filteredActivities()"
+        [nzLoading]="loading()"
+        [nzFrontPagination]="true"
+        [nzShowPagination]="true"
+        [nzPageSize]="pageSize"
+        [nzShowSizeChanger]="false"
+        [nzScroll]="{ x: '720px' }"
+        nzSize="middle"
+        nzNotFoundContent="Chưa có hoạt động nào. Hãy tạo workspace và tải tài liệu đầu tiên."
+      >
+        <thead>
+          <tr>
+            <th>Loại</th>
+            <th>Hoạt động</th>
+            <th>Workspace</th>
+            <th>Thời gian</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (act of activityTable.data; track act.title + act.createdAt) {
+            <tr>
+              <td>
+                <nz-tag [nzColor]="act.kind === 'document' ? 'red' : 'purple'">
+                  {{ act.kind === "document" ? "Tài liệu" : "Chatbot" }}
+                </nz-tag>
+              </td>
+              <td><strong>{{ act.title }}</strong></td>
+              <td>{{ act.subtitle }}</td>
+              <td>{{ act.createdAt | date: "medium" }}</td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+    </div>
   </section>
 </main>

@@ -124,6 +124,24 @@ docker compose -f infrastructure/docker-compose.yml ps
 
 Service `migrate` chạy Alembic trước khi API khởi động. Local ports mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
 
+Ở local, frontend và backend đều chạy với source bind mount:
+
+- `admin-web`: Angular dev server tự hot reload thay đổi trong `apps/admin-web/src`.
+- `api`: Uvicorn tự reload thay đổi trong `backend/app`.
+- `worker`: Watchfiles tự restart Celery khi source Python thay đổi.
+
+Không cần build lại Docker khi sửa HTML/CSS/TypeScript/Python. Chỉ build lại image tương ứng khi thay đổi dependency hoặc Dockerfile:
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml build admin-web
+docker compose -f infrastructure/docker-compose.yml up -d --no-deps admin-web
+
+docker compose -f infrastructure/docker-compose.yml build api
+docker compose -f infrastructure/docker-compose.yml up -d --no-deps api worker
+```
+
+Compose deploy/GHCR vẫn dùng production build tĩnh qua Nginx.
+
 | Địa chỉ | Dịch vụ |
 | --- | --- |
 | <http://localhost:8080> | Giao diện quản trị |

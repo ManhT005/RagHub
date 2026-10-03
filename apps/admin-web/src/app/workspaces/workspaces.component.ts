@@ -10,14 +10,13 @@ import { RouterLink } from "@angular/router";
 import { DatabaseOutline } from "@ant-design/icons-angular/icons";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzButtonModule } from "ng-zorro-antd/button";
-import { NzCardModule } from "ng-zorro-antd/card";
-import { NzEmptyModule } from "ng-zorro-antd/empty";
 import { NzIconModule, provideNzIconsPatch } from "ng-zorro-antd/icon";
 import { NzInputModule } from "ng-zorro-antd/input";
+import { NzModalModule } from "ng-zorro-antd/modal";
 import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzSpinModule } from "ng-zorro-antd/spin";
-import { NzTagModule } from "ng-zorro-antd/tag";
 import { catchError, forkJoin, map, of } from "rxjs";
+import { NzTableModule } from "ng-zorro-antd/table";
 
 import { session } from "../core/api-auth.interceptor";
 import {
@@ -25,6 +24,7 @@ import {
   RaghubApiService,
   Workspace,
 } from "../core/raghub-api.service";
+import { WorkspaceAccessComponent } from "../workspace-console/workspace-access.component";
 
 @Component({
   selector: "raghub-workspaces",
@@ -33,13 +33,13 @@ import {
     RouterLink,
     NzAlertModule,
     NzButtonModule,
-    NzCardModule,
-    NzEmptyModule,
     NzIconModule,
     NzInputModule,
+    NzModalModule,
     NzSelectModule,
     NzSpinModule,
-    NzTagModule,
+    NzTableModule,
+    WorkspaceAccessComponent,
   ],
   providers: [provideNzIconsPatch([DatabaseOutline])],
   templateUrl: "./workspaces.component.html",
@@ -49,11 +49,13 @@ import {
 export class WorkspacesComponent {
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
-  protected readonly docCounts = signal<Record<string, number>>({});
-  protected readonly botCounts = signal<Record<string, number>>({});
+  protected readonly docCounts = signal<Partial<Record<string, number>>>({});
+  protected readonly botCounts = signal<Partial<Record<string, number>>>({});
   protected readonly loading = signal(true);
   protected readonly error = signal("");
   protected readonly search = signal("");
+  protected readonly isCreateFormOpen = signal(false);
+  protected readonly accessWorkspace = signal<Workspace | null>(null);
 
   protected selectedOrganization = session.organizationId ?? "";
   protected name = "";
@@ -173,9 +175,28 @@ export class WorkspacesComponent {
         this.name = "";
         this.slug = "";
         this.error.set("");
+        this.isCreateFormOpen.set(false);
       },
       error: () =>
         this.error.set("Không thể tạo workspace. Mã định danh có thể đã được sử dụng."),
     });
+  }
+  protected toggleCreateForm(): void {
+    this.isCreateFormOpen.update((isOpen) => !isOpen);
+  }
+
+  protected openAccess(workspace: Workspace): void {
+    this.accessWorkspace.set(workspace);
+  }
+
+  protected closeAccess(): void {
+    this.accessWorkspace.set(null);
+  }
+
+  protected cancelCreate(): void {
+    this.name = "";
+    this.slug = "";
+    this.error.set("");
+    this.isCreateFormOpen.set(false);
   }
 }

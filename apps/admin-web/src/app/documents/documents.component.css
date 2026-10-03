@@ -17,88 +17,75 @@
   font-size: 26px;
   letter-spacing: -0.025em;
 }
-.panel {
-  margin-bottom: 14px;
-  padding: 20px;
-  border: 1px solid #dfeaf7;
-  border-radius: 13px;
-  background: #fff;
-  box-shadow: 0 5px 18px rgba(27, 93, 161, 0.045);
+.documents-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
 }
-select,
-input {
-  min-height: 42px;
-  margin-right: 10px;
-  padding: 9px 12px;
-  border: 1px solid #d8e7f8;
-  border-radius: 9px;
-  background: #f9fcff;
-  color: #0e2b61;
+.workspace-select {
+  width: 260px;
 }
-button {
-  min-height: 42px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 9px;
-  background: #0866ff;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
+.upload-trigger {
+  height: 40px;
+  border-radius: 0;
 }
-.danger {
-  min-height: 34px;
-  margin-left: 6px;
-  background: #d9363e;
-}
-table {
+.documents-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  overflow: hidden;
-  border: 1px solid #e3edf8;
-  border-radius: 10px;
-}
-th,
-td {
-  padding: 14px 13px;
-  border-bottom: 1px solid #edf3fa;
-  text-align: left;
-}
-tr:last-child td {
-  border-bottom: 0;
-}
-th {
-  font-size: 11px;
-  color: #607694;
-  background: #f7fbff;
-}
-td {
-  font-size: 12px;
-}
-.status {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #e9fbf4;
-  color: #0a8b5c;
-  font-size: 10px;
-  font-weight: 700;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
 }
 .error {
   color: #d9363e;
 }
+.row-error {
+  max-width: 320px;
+  margin: 6px 0 0;
+  color: #d9363e;
+}
+.progress-value {
+  font-variant-numeric: tabular-nums;
+}
+.actions {
+  white-space: nowrap;
+}
+.actions button + button {
+  margin-left: 8px;
+}
+.upload-title {
+  margin: 0 0 8px;
+  color: #0e2b61;
+  font-weight: 600;
+}
+.upload-hint {
+  margin: 0;
+  color: #607694;
+}
+.selected-file {
+  margin: 12px 0 0;
+}
+:host ::ng-deep .workspace-select.ant-select-lg .ant-select-selector {
+  height: 40px;
+  border-radius: 0;
+  align-items: center;
+}
+::ng-deep .document-upload-modal .ant-modal-content,
+::ng-deep .document-upload-modal .ant-upload.ant-upload-drag {
+  border-radius: 0;
+}
+:host ::ng-deep .documents-table .ant-table,
+:host ::ng-deep .documents-table .ant-table-container {
+  border-radius: 0;
+}
 @media (max-width: 700px) {
-  .panel {
-    overflow: auto;
-    padding: 14px;
+  .documents-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
-  select,
-  input,
-  button {
-    margin: 0 0 10px;
+  .workspace-select,
+  .upload-trigger {
     width: 100%;
-  }
-  table {
-    min-width: 720px;
   }
 }

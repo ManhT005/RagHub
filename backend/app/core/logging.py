@@ -13,17 +13,29 @@ class SecretRedactionFilter(logging.Filter):
         re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+"),
     )
 
-    def filter(self, record: logging.LogRecord) -> bool:
-        message = record.getMessage()
+    def _redact(self, value: str) -> str:
         for pattern in self._patterns:
-            message = pattern.sub(
+            value = pattern.sub(
                 lambda match: (
                     f"{match.group(1)}[REDACTED]" if match.lastindex else "[REDACTED]"
                 ),
-                message,
+                value,
             )
-        record.msg = message
-        record.args = ()
+        return value
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = self._redact(record.msg)
+        if isinstance(record.args, dict):
+            record.args = {
+                key: self._redact(value) if isinstance(value, str) else value
+                for key, value in record.args.items()
+            }
+        elif isinstance(record.args, tuple):
+            record.args = tuple(
+                self._redact(value) if isinstance(value, str) else value
+                for value in record.args
+            )
         return True
 
 

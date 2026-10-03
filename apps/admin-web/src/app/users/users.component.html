@@ -1,11 +1,7 @@
 <main class="users-page">
   <header class="page-heading">
     <div>
-      <span class="eyebrow">Quản trị tổ chức</span>
       <h1>Quản lý người dùng</h1>
-      <p>
-        Tìm kiếm, tạo tài khoản và phân quyền cho toàn bộ tài khoản thuộc tổ chức hiện tại.
-      </p>
     </div>
     @if (organizations().length > 1) {
       <label class="organization-picker">
@@ -55,32 +51,27 @@
   }
 
   <section class="toolbar">
-    <nz-input-group nzSearch [nzAddOnAfter]="searchButton" nzSize="large">
+    <nz-input-group nzSize="large">
       <input
         nz-input
         [ngModel]="searchInput()"
-        (ngModelChange)="searchInput.set($event)"
-        (keyup.enter)="search()"
+        (ngModelChange)="onSearchInputChange($event)"
         placeholder="Tìm theo tên hoặc email"
         aria-label="Tìm người dùng theo tên hoặc email"
       />
     </nz-input-group>
-    <ng-template #searchButton>
-      <button
-        nz-button
-        nzType="primary"
-        nzSearch
-        type="button"
-        (click)="search()"
-      >
-        Tìm kiếm
-      </button>
-    </ng-template>
-    <button nz-button nzType="primary" type="button" (click)="openCreate()">
+    <button
+      nz-button
+      nzType="primary"
+      nzSize="large"
+      type="button"
+      (click)="openCreate()"
+    >
       Tạo tài khoản
     </button>
   </section>
 
+  <section class="table-panel" aria-label="Danh sách người dùng">
   <nz-spin [nzSpinning]="loading()">
     <nz-table
       #userTable
@@ -135,7 +126,7 @@
             <td class="actions">
               <button
                 nz-button
-                nzType="link"
+                nzType="primary"
                 type="button"
                 (click)="openRename(user)"
               >
@@ -144,7 +135,7 @@
               @if (user.status === "ACTIVE") {
                 <button
                   nz-button
-                  nzType="link"
+                  nzType="primary"
                   nzDanger
                   type="button"
                   nz-popconfirm
@@ -160,7 +151,7 @@
               } @else {
                 <button
                   nz-button
-                  nzType="link"
+                  nzType="primary"
                   type="button"
                   nz-popconfirm
                   nzPopconfirmTitle="Kích hoạt lại tài khoản này?"
@@ -182,6 +173,7 @@
       <nz-empty nzNotFoundContent="Chưa có người dùng phù hợp" />
     }
   </nz-spin>
+  </section>
 
   <nz-modal
     [nzVisible]="modalOpen()"

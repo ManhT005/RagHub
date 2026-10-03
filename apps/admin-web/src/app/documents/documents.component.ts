@@ -2,15 +2,20 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
   inject,
   signal,
-  viewChild,
 } from "@angular/core";
 import { DatePipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
+import { ActivatedRoute } from "@angular/router";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { timer } from "rxjs";
+import { NzButtonModule } from "ng-zorro-antd/button";
+import { NzModalModule } from "ng-zorro-antd/modal";
+import { NzSelectModule } from "ng-zorro-antd/select";
+import { NzTableModule } from "ng-zorro-antd/table";
+import { NzTagModule } from "ng-zorro-antd/tag";
+import { NzUploadFile, NzUploadModule } from "ng-zorro-antd/upload";
 
 import {
   RaghubApiService,
@@ -21,7 +26,16 @@ import { ingestionErrorMessage } from "./ingestion-errors";
 
 @Component({
   selector: "raghub-documents",
-  imports: [DatePipe, FormsModule],
+  imports: [
+    DatePipe,
+    FormsModule,
+    NzButtonModule,
+    NzModalModule,
+    NzSelectModule,
+    NzTableModule,
+    NzTagModule,
+    NzUploadModule,
+  ],
   templateUrl: "./documents.component.html",
   styleUrl: "./documents.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,21 +52,36 @@ export class DocumentsComponent {
       READY: "Sẵn sàng",
       FAILED: "Thất bại",
     })[status] ?? status;
+  protected readonly statusColor = (status: string): string =>
+    status === "READY" ? "green" : status === "FAILED" ? "red" : "blue";
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly documents = signal<DocumentItem[]>([]);
   protected readonly error = signal("");
   protected readonly reindexingVersionId = signal("");
+  protected readonly uploadDialogOpen = signal(false);
+  protected readonly selectedFile = signal<File | null>(null);
+  protected readonly uploading = signal(false);
   protected workspaceId = "";
-  protected readonly fileInput =
-    viewChild<ElementRef<HTMLInputElement>>("fileInput");
+  protected readonly beforeUpload = (file: NzUploadFile): boolean => {
+    this.selectedFile.set((file.originFileObj ?? file) as File);
+    return false;
+  };
   private readonly api = inject(RaghubApiService);
+  private readonly requestedWorkspaceId =
+    inject(ActivatedRoute, { optional: true })?.snapshot.queryParamMap.get(
+      "workspaceId",
+    ) ?? "";
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     this.api.workspaces().subscribe({
       next: (items) => {
         this.workspaces.set(items);
-        this.workspaceId = items[0]?.id ?? "";
+        this.workspaceId =
+          items.find((workspace) => workspace.id === this.requestedWorkspaceId)
+            ?.id ??
+          items[0]?.id ??
+          "";
         this.load();
       },
       error: () => this.error.set("Hãy đăng nhập và chọn tổ chức trước."),
@@ -78,16 +107,31 @@ export class DocumentsComponent {
         error: () => this.error.set("Không thể tải danh sách tài liệu."),
       });
   }
+  protected openUploadDialog(): void {
+    this.selectedFile.set(null);
+    this.uploadDialogOpen.set(true);
+  }
+  protected closeUploadDialog(): void {
+    if (this.uploading()) return;
+    this.uploadDialogOpen.set(false);
+    this.selectedFile.set(null);
+  }
   protected upload(): void {
-    const file = this.fileInput()?.nativeElement.files?.[0];
+    const file = this.selectedFile();
     if (!file || !this.workspaceId) return;
+    this.uploading.set(true);
     this.api.upload(this.workspaceId, file).subscribe({
       next: () => {
+        this.uploading.set(false);
+        this.uploadDialogOpen.set(false);
+        this.selectedFile.set(null);
         this.error.set("");
         this.load();
       },
-      error: (response) =>
-        this.error.set(ingestionErrorMessage(response.error?.error?.code)),
+      error: (response) => {
+        this.uploading.set(false);
+        this.error.set(ingestionErrorMessage(response.error?.error?.code));
+      },
     });
   }
   protected retry(document: DocumentItem): void {

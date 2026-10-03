@@ -46,12 +46,36 @@ services:
     build:
       context: ../backend
       target: ${BACKEND_IMAGE_TARGET:-runtime}
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+      - --reload
+      - --reload-dir
+      - /app/app
+    environment:
+      WATCHFILES_FORCE_POLLING: 'true'
+    volumes:
+      - ../backend/app:/app/app
   worker:
     extends:
       file: docker-compose.base.yml
       service: worker
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: never
+    command:
+      - watchfiles
+      - --filter
+      - python
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1
+      - /app/app
+    environment:
+      WATCHFILES_FORCE_POLLING: 'true'
+    volumes:
+      - ../backend/app:/app/app
   admin-web:
     extends:
       file: docker-compose.base.yml
@@ -60,6 +84,21 @@ services:
     pull_policy: build
     build:
       context: ../apps/admin-web
+      target: development
+    volumes:
+      - ../apps/admin-web/src:/app/src
+      - ../apps/admin-web/angular.json:/app/angular.json:ro
+      - ../apps/admin-web/proxy.json:/app/proxy.json:ro
+      - ../apps/admin-web/tsconfig.json:/app/tsconfig.json:ro
+      - ../apps/admin-web/tsconfig.app.json:/app/tsconfig.app.json:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:4200/ || exit 1
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
   chat-widget:
     extends:
       file: docker-compose.base.yml
@@ -89,13 +128,17 @@ services:
     build:
       context: ./nginx
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/default.dev.conf:/etc/nginx/conf.d/default.conf:ro
   migrate:
     extends:
       file: docker-compose.base.yml
       service: migrate
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: never
+    volumes:
+      - ../backend/app:/app/app
+      - ../backend/alembic:/app/alembic
+      - ../backend/alembic.ini:/app/alembic.ini:ro
 volumes:
   postgres-data: {}
   redis-data: {}
