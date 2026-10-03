@@ -24,17 +24,6 @@ class TrustedCitation:
     excerpt: str
     score: float
 
-    def as_payload(self) -> dict[str, object]:
-        return {
-            "citation_id": self.citation_id,
-            "document_id": str(self.document_id),
-            "document_name": self.document_name,
-            "page": self.page,
-            "chunk_id": str(self.chunk_id),
-            "excerpt": self.excerpt,
-            "score": self.score,
-        }
-
 
 @dataclass(frozen=True)
 class ChatUsageRecord:

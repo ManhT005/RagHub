@@ -1,5 +1,3 @@
-from typing import Any
-
 
 class CoreError(Exception):
     def __init__(
@@ -7,7 +5,7 @@ class CoreError(Exception):
         code: str,
         message: str,
         *,
-        details: dict[str, Any] | None = None,
+        details: dict[str, object] | None = None,
     ) -> None:
         self.code = code
         self.message = message

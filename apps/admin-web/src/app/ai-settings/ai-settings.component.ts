@@ -101,7 +101,7 @@ export class AiSettingsComponent {
     this.api.testProvider(provider.id).subscribe({next: result => {
       this.busy.set(false);
       const check = result as {status?: string};
-      this.notice.set(check.status === 'ok' ? `${provider.name}: kết nối thành công.` : 'Kiểm tra thất bại.');
+      this.notice.set(check.status?.toLowerCase() === 'ok' ? `${provider.name}: kết nối thành công.` : 'Kiểm tra thất bại.');
     }, error: () => {this.busy.set(false); this.error.set('Không thể kết nối provider.');}});
   }
   protected toggle(provider: ProviderConfig): void {
