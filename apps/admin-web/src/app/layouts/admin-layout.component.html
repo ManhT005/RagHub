@@ -8,6 +8,13 @@
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng quản trị">
       <li nz-menu-item><a routerLink="/app/overview" routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan</span></a></li>
       <li nz-menu-item><a routerLink="/app/workspaces" routerLinkActive="active"><nz-icon nzType="database" /><span>Workspace</span></a></li>
+      @if (isAdmin()) {
+        <li nz-menu-item>
+          <a routerLink="/app/users" routerLinkActive="active"
+            ><nz-icon nzType="team" /><span>Quản lý người dùng</span></a
+          >
+        </li>
+      }
       <li nz-menu-item><a routerLink="/app/documents" routerLinkActive="active"><nz-icon nzType="file-text" /><span>Tài liệu</span></a></li>
       <li nz-menu-item><a routerLink="/app/chatbots" routerLinkActive="active"><nz-icon nzType="message" /><span>Chatbot</span></a></li>
       <li nz-menu-item><a routerLink="/app/security" routerLinkActive="active"><nz-icon nzType="setting" /><span>Bảo mật</span></a></li>

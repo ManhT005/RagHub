@@ -9,7 +9,7 @@ import {
   viewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { RouterLink } from "@angular/router";
+import { ActivatedRoute, RouterLink } from "@angular/router";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { forkJoin, of, timer } from "rxjs";
 
@@ -25,6 +25,7 @@ import {
   Workspace,
 } from "../core/raghub-api.service";
 import { ingestionErrorMessage } from "../documents/ingestion-errors";
+import { WorkspaceAccessComponent } from "./workspace-access.component";
 
 interface Citation {
   document_id?: string;
@@ -41,7 +42,7 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-workspace-console",
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, WorkspaceAccessComponent],
   templateUrl: "./workspace-console.component.html",
   styleUrl: "./workspace-console.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -78,6 +79,12 @@ export class WorkspaceConsoleComponent {
   protected readonly hasPublishedBot = computed(() =>
     Boolean(this.selectedBot()?.published),
   );
+  protected readonly selectedWorkspaceData = computed(() =>
+    this.workspaces().find((item) => item.id === this.selectedWorkspace),
+  );
+  protected readonly isAdmin = computed(() =>
+    this.organizations().find((item) => item.id === this.selectedOrganization)?.role === "ADMIN",
+  );
   protected readonly error = signal("");
   protected selectedOrganization = session.organizationId ?? "";
   protected selectedWorkspace = "";
@@ -92,6 +99,8 @@ export class WorkspaceConsoleComponent {
   protected readonly fileInput =
     viewChild<ElementRef<HTMLInputElement>>("fileInput");
   private readonly api = inject(RaghubApiService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly requestedWorkspaceId = this.route.snapshot.paramMap.get("workspaceId");
   private readonly destroyRef = inject(DestroyRef);
   private conversationId: string | null = null;
 
@@ -128,7 +137,10 @@ export class WorkspaceConsoleComponent {
     this.api.workspaces().subscribe({
       next: (items) => {
         this.workspaces.set(items);
-        this.selectedWorkspace = items[0]?.id ?? "";
+        this.selectedWorkspace =
+          items.find((item) => item.id === this.requestedWorkspaceId)?.id ??
+          items[0]?.id ??
+          "";
         this.changeWorkspace();
       },
       error: () =>

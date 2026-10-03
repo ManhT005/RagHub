@@ -36,7 +36,7 @@ Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) v�
 
 | Nhóm | Khả năng hiện có | Giao diện web |
 | --- | --- | --- |
-| Tài khoản và phân quyền | Đăng ký, đăng nhập, JWT; tổ chức, thành viên và vai trò `OWNER` / `ADMIN` / `EDITOR` / `VIEWER` | Có |
+| Tài khoản và phân quyền | Đăng ký, đăng nhập, JWT; tổ chức, thành viên và vai trò `ADMIN` / `WORKSPACE_ADMIN` theo từng workspace | Có |
 | Không gian làm việc | Tạo, xem, cập nhật và xóa mềm trong phạm vi tổ chức | Một phần: tạo và xem |
 | Tài liệu | Upload PDF/TXT/Markdown, xử lý bất đồng bộ, theo dõi tiến độ, retry và lập chỉ mục lại | Có |
 | Tìm kiếm | BM25 kết hợp vector, lọc theo tổ chức và không gian làm việc | API |

@@ -34,7 +34,7 @@ def test_search_passes_both_tenant_filters(monkeypatch: object) -> None:
     workspace_id = UUID("00000000-0000-0000-0000-000000000002")
 
     class MembershipStub:
-        role = MembershipRole.VIEWER
+        role = MembershipRole.ADMIN
 
     async def organization_context_override() -> OrganizationContext:
         return OrganizationContext(organization_id=organization_id, membership=MembershipStub())  # type: ignore[arg-type]

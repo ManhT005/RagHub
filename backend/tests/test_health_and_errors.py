@@ -19,7 +19,7 @@ def test_liveness_returns_request_id() -> None:
 
 def test_validation_errors_use_standard_envelope() -> None:
     class MembershipStub:
-        role = MembershipRole.VIEWER
+        role = MembershipRole.ADMIN
 
     async def organization_context_override() -> OrganizationContext:
         return OrganizationContext(

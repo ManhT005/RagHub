@@ -13,8 +13,10 @@ import {
   MessageOutline,
   BellOutline,
   SettingOutline,
+  TeamOutline,
 } from '@ant-design/icons-angular/icons';
 import { provideNzIcons } from 'ng-zorro-antd/icon';
+import { provideNzI18n, vi_VN } from 'ng-zorro-antd/i18n';
 
 import { routes } from './app.routes';
 import { apiAuthInterceptor } from './core/api-auth.interceptor';
@@ -28,6 +30,7 @@ export const appConfig: ApplicationConfig = {
     provideAnimationsAsync(),
     provideRouter(routes),
     provideHttpClient(withFetch(), withInterceptors([apiAuthInterceptor])),
+    provideNzI18n(vi_VN),
     provideNzIcons([
       DashboardOutline,
       DatabaseOutline,
@@ -36,6 +39,7 @@ export const appConfig: ApplicationConfig = {
       BellOutline,
       SettingOutline,
       CloudServerOutline,
+      TeamOutline,
     ]),
   ],
 };

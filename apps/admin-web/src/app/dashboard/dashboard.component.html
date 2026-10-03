@@ -12,40 +12,6 @@
     <p class="message error">{{ error() }}</p>
   }
 
-  <section class="stat-grid" aria-label="Thống kê nhanh">
-    <article>
-      <span class="stat-icon blue"><nz-icon nzType="database" /></span>
-      <div>
-        <small>Workspace</small>
-        <b>{{ loading() ? "…" : workspaceCount() }}</b>
-        <p>Không gian tri thức</p>
-      </div>
-    </article>
-    <article>
-      <span class="stat-icon red"><nz-icon nzType="file-text" /></span>
-      <div>
-        <small>Tài liệu</small>
-        <b>{{ loading() ? "…" : documentCount() }}</b>
-        <p>Đã thêm vào hệ thống</p>
-      </div>
-    </article>
-    <article>
-      <span class="stat-icon violet"><nz-icon nzType="message" /></span>
-      <div>
-        <small>Chatbot</small>
-        <b>{{ loading() ? "…" : chatbotCount() }}</b>
-        <p>{{ publishedCount() }} đang hoạt động</p>
-      </div>
-    </article>
-    <article>
-      <span class="stat-icon green"><nz-icon nzType="cloud-server" /></span>
-      <div>
-        <small>Lượt truy vấn</small>
-        <b>—</b>
-        <p>Chưa có API thống kê</p>
-      </div>
-    </article>
-  </section>
 
   <section class="overview-columns">
     <article class="activity-card">
@@ -80,45 +46,5 @@
       }
     </article>
 
-    <aside class="quick-card">
-      <div class="card-heading">
-        <div>
-          <h2>Thao tác nhanh</h2>
-          <p>Bắt đầu công việc tiếp theo</p>
-        </div>
-      </div>
-      <a routerLink="/app/workspaces">
-        <i class="blue"><nz-icon nzType="database" /></i>
-        <span>
-          <b>Tạo workspace mới</b>
-          <small>Tổ chức một miền tri thức riêng</small>
-        </span>
-        <em>›</em>
-      </a>
-      <a routerLink="/app/documents">
-        <i class="red"><nz-icon nzType="file-text" /></i>
-        <span>
-          <b>Tải tài liệu lên</b>
-          <small>PDF, TXT và Markdown</small>
-        </span>
-        <em>›</em>
-      </a>
-      <a routerLink="/app/chatbots">
-        <i class="violet"><nz-icon nzType="message" /></i>
-        <span>
-          <b>Tạo chatbot</b>
-          <small>Cấu hình và xuất bản trợ lý</small>
-        </span>
-        <em>›</em>
-      </a>
-      <a routerLink="/app/chatbots">
-        <i class="green"><nz-icon nzType="cloud-server" /></i>
-        <span>
-          <b>Nhúng chatbot</b>
-          <small>Đưa trợ lý lên website của bạn</small>
-        </span>
-        <em>›</em>
-      </a>
-    </aside>
   </section>
 </main>

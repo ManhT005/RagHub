@@ -102,13 +102,16 @@ async def test_redis_failure_fails_closed():
 
 @pytest.mark.asyncio
 async def test_http_rate_limit_and_admin_isolation(monkeypatch):
-    bot = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+    bot = SimpleNamespace(id=uuid4(), organization_id=uuid4(), workspace_id=uuid4())
 
     class Service:
         def __init__(self, session):
             pass
 
         async def public_chatbot(self, *args):
+            return bot
+
+        async def get(self, *args):
             return bot
 
         async def stream(self, *args):
@@ -122,7 +125,10 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
     limits = AsyncMock()
     limits.settings = Settings()
     app.dependency_overrides[get_public_limits] = lambda: limits
-    app.dependency_overrides[router.get_organization_context] = lambda: bot
+    app.dependency_overrides[router.get_organization_context] = lambda: SimpleNamespace(
+        organization_id=bot.organization_id,
+        membership=SimpleNamespace(role="ADMIN"),
+    )
     app.dependency_overrides[router.get_current_user] = lambda: bot
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),

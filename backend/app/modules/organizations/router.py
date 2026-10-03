@@ -1,9 +1,10 @@
 from typing import Annotated
 from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -14,9 +15,10 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.modules.memberships.models import Membership, MembershipRole
+from app.modules.memberships.models import Membership, MembershipRole, WorkspaceMembership
 from app.modules.organizations.models import Organization
 from app.modules.users.models import User
+from app.modules.workspaces.models import Workspace
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
@@ -28,18 +30,28 @@ class OrganizationInput(BaseModel):
 
 class OrganizationResponse(OrganizationInput):
     id: UUID
-    role: str
+    role: MembershipRole
 
 
 class MembershipInput(BaseModel):
     email: str = Field(min_length=3, max_length=320)
-    role: MembershipRole = MembershipRole.EDITOR
+    role: MembershipRole = MembershipRole.WORKSPACE_ADMIN
+    workspace_ids: list[UUID] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_workspace_scope(self):
+        if self.role == MembershipRole.WORKSPACE_ADMIN and not self.workspace_ids:
+            raise ValueError("workspace_ids is required for WORKSPACE_ADMIN")
+        if self.role == MembershipRole.ADMIN and self.workspace_ids:
+            raise ValueError("ADMIN cannot be limited to workspace_ids")
+        return self
 
 
 class MembershipResponse(BaseModel):
     user_id: UUID
     email: str
     role: MembershipRole
+    workspace_ids: list[UUID] = Field(default_factory=list)
 
 
 def organization_response(organization: Organization, role: str) -> OrganizationResponse:
@@ -62,10 +74,10 @@ async def create_organization(
     session.add(organization)
     await session.flush()
     session.add(
-        Membership(user_id=user.id, organization_id=organization.id, role=MembershipRole.OWNER)
+        Membership(user_id=user.id, organization_id=organization.id, role=MembershipRole.ADMIN)
     )
     await session.commit()
-    return organization_response(organization, MembershipRole.OWNER)
+    return organization_response(organization, MembershipRole.ADMIN)
 
 
 @router.get("", response_model=list[OrganizationResponse])
@@ -82,6 +94,18 @@ async def list_organizations(
     return [organization_response(organization, role) for organization, role in rows]
 
 
+async def _workspace_ids(session: AsyncSession, user_id: UUID, organization_id: UUID) -> list[UUID]:
+    rows = await session.scalars(
+        select(WorkspaceMembership.workspace_id)
+        .join(Workspace, Workspace.id == WorkspaceMembership.workspace_id)
+        .where(
+            WorkspaceMembership.user_id == user_id,
+            Workspace.organization_id == organization_id,
+        )
+    )
+    return list(rows)
+
+
 @router.get("/{organization_id}/members", response_model=list[MembershipResponse])
 async def list_members(
     organization_id: UUID,
@@ -94,6 +118,7 @@ async def list_members(
             "Organization scope does not match the path.",
             status_code=400,
         )
+    require_role(context, MembershipRole.ADMIN)
     rows = await session.execute(
         select(Membership, User.email)
         .join(User, User.id == Membership.user_id)
@@ -101,7 +126,12 @@ async def list_members(
         .order_by(User.email)
     )
     return [
-        MembershipResponse(user_id=membership.user_id, email=email, role=membership.role)
+        MembershipResponse(
+            user_id=membership.user_id,
+            email=email,
+            role=membership.role,
+            workspace_ids=await _workspace_ids(session, membership.user_id, organization_id),
+        )
         for membership, email in rows
     ]
 
@@ -119,20 +149,46 @@ async def upsert_member(
             "Organization scope does not match the path.",
             status_code=400,
         )
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    require_role(context, MembershipRole.ADMIN)
     user = await session.scalar(select(User).where(User.email == payload.email.lower()))
     if user is None:
         raise AppError(
             "USER_NOT_FOUND", "Invitee must register before being added.", status_code=404
         )
+    if payload.workspace_ids:
+        count = await session.scalar(
+            select(sa.func.count())
+            .select_from(Workspace)
+            .where(
+                Workspace.id.in_(payload.workspace_ids),
+                Workspace.organization_id == organization_id,
+                Workspace.deleted_at.is_(None),
+            )
+        )
+        if count != len(set(payload.workspace_ids)):
+            raise AppError(
+                "INVALID_WORKSPACE_SCOPE", "One or more workspaces are invalid.", status_code=400
+            )
     membership = await session.get(Membership, (user.id, organization_id))
     if membership is None:
         membership = Membership(user_id=user.id, organization_id=organization_id, role=payload.role)
         session.add(membership)
     else:
         membership.role = payload.role
+    await session.execute(
+        delete(WorkspaceMembership).where(
+            WorkspaceMembership.user_id == user.id,
+            WorkspaceMembership.workspace_id.in_(
+                select(Workspace.id).where(Workspace.organization_id == organization_id)
+            ),
+        )
+    )
+    for workspace_id in set(payload.workspace_ids):
+        session.add(WorkspaceMembership(user_id=user.id, workspace_id=workspace_id))
     await session.commit()
-    return MembershipResponse(user_id=user.id, email=user.email, role=membership.role)
+    return MembershipResponse(
+        user_id=user.id, email=user.email, role=membership.role, workspace_ids=payload.workspace_ids
+    )
 
 
 @router.delete("/{organization_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -148,15 +204,9 @@ async def delete_member(
             "Organization scope does not match the path.",
             status_code=400,
         )
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    require_role(context, MembershipRole.ADMIN)
     membership = await session.get(Membership, (user_id, organization_id))
     if membership is None:
         raise AppError("MEMBERSHIP_NOT_FOUND", "Member was not found.", status_code=404)
-    if membership.role == MembershipRole.OWNER:
-        raise AppError(
-            "OWNER_MEMBERSHIP_PROTECTED",
-            "The organization owner cannot be removed.",
-            status_code=409,
-        )
-    session.delete(membership)
+    await session.delete(membership)
     await session.commit()

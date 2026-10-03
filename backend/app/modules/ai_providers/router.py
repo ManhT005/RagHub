@@ -59,7 +59,7 @@ def reindex_job_response(job: EmbeddingReindexJob) -> EmbeddingReindexJobRespons
 
 
 def _manage(context: OrganizationContext) -> None:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    require_role(context, MembershipRole.ADMIN)
 
 
 @router.get(

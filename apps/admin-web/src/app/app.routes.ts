@@ -13,6 +13,8 @@ import { ResetPasswordComponent } from "./auth/reset-password.component";
 import { SecurityComponent } from "./auth/security.component";
 import { ProfileComponent } from "./profile/profile.component";
 import { authenticated, authenticatedChild } from "./core/auth.guard";
+import { adminOnly } from "./core/admin.guard";
+import { UsersComponent } from "./users/users.component";
 
 export const routes: Routes = [
   { path: "", pathMatch: "full", component: LandingComponent, title: "RagHub" },
@@ -48,6 +50,8 @@ export const routes: Routes = [
     children: [
       { path: "overview", component: DashboardComponent },
       { path: "workspaces", component: WorkspacesComponent },
+      { path: "users", component: UsersComponent, canActivate: [adminOnly] },
+      { path: "workspace-console/:workspaceId", component: WorkspaceConsoleComponent },
       { path: "workspace-console", component: WorkspaceConsoleComponent },
       { path: "documents", component: DocumentsComponent },
       { path: "chatbots/:id/settings", component: ChatbotSettingsComponent },

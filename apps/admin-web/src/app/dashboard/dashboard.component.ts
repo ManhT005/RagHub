@@ -69,12 +69,6 @@ export class DashboardComponent {
     (DocumentItem & { workspaceName: string })[]
   >([]);
   protected readonly bots = signal<(Chatbot & { workspaceName: string })[]>([]);
-  protected readonly workspaceCount = computed(() => this.workspaces().length);
-  protected readonly documentCount = computed(() => this.documents().length);
-  protected readonly chatbotCount = computed(() => this.bots().length);
-  protected readonly publishedCount = computed(
-    () => this.bots().filter((bot) => bot.published).length,
-  );
   protected readonly recent = computed<Activity[]>(() => {
     const docs: Activity[] = this.documents().map((doc) => ({
       kind: "document",
