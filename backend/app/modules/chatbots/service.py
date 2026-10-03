@@ -4,25 +4,22 @@ from collections.abc import AsyncIterator
 from contextlib import aclosing
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.chatbots import chatbot_management
 from app.composition.rag import rag_use_case
-from app.core.exceptions import AppError
 from app.core_domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
 from app.core_domain.rag.events import RagEvent
 from app.core_domain.rag.models import StreamChatCommand
 from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
 from app.core_domain.retrieval.models import RetrievalScope
 from app.delivery.http.sse import event_payload
+from app.delivery.security.public_chat import PublicChatResolver
 from app.infrastructure.persistence.chatbots import ChatbotRepositoryAdapter
 from app.infrastructure.persistence.conversations import ConversationRepositoryAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.chatbots.embed import (
     create_embed_key,
-    hash_embed_key,
-    origin_is_allowed,
     public_config,
 )
 from app.modules.chatbots.models import Chatbot
@@ -91,18 +88,7 @@ class ChatbotService:
         return raw_key
 
     async def public_chatbot(self, raw_key: str, origin: str | None) -> Chatbot:
-        chatbot = await self.session.scalar(
-            select(Chatbot).where(Chatbot.embed_key_hash == hash_embed_key(raw_key))
-        )
-        if chatbot is None or not chatbot.published:
-            raise AppError(
-                "EMBED_CHATBOT_NOT_FOUND", "This chatbot is unavailable.", status_code=404
-            )
-        if not origin_is_allowed(origin, chatbot.allowed_origins):
-            raise AppError(
-                "EMBED_ORIGIN_NOT_ALLOWED", "This website is not allowed.", status_code=403
-            )
-        return chatbot
+        return await PublicChatResolver(self.session).resolve(raw_key, origin)
 
     async def public_config(self, raw_key: str, origin: str | None) -> dict[str, str]:
         return public_config(await self.public_chatbot(raw_key, origin))

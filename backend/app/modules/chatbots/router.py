@@ -1,11 +1,6 @@
-import asyncio
-import json
-import logging
-from contextlib import aclosing
 from typing import Annotated
 from uuid import UUID
 
-import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +14,8 @@ from app.core.auth import (
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.core_domain.rag.models import StreamChatCommand
+from app.delivery.http.public_chat import PublicStreamingResponse as PublicStreamingResponse
+from app.delivery.http.public_chat import public_stream_sse
 from app.delivery.http.sse import stream_sse
 from app.modules.chatbots.public_limits import PublicChatLimits, client_ip, get_public_limits
 from app.modules.chatbots.schemas import (
@@ -33,34 +30,6 @@ from app.modules.chatbots.service import ChatbotService
 from app.modules.users.models import User
 
 router = APIRouter(tags=["chatbots"])
-logger = logging.getLogger(__name__)
-
-
-class PublicStreamingResponse(StreamingResponse):
-    def __init__(self, *args, limits, chatbot_id, slot, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.limits = limits
-        self.chatbot_id = chatbot_id
-        self.slot = slot
-
-    async def __call__(self, scope, receive, send):
-        try:
-            # Also bound slow network sends, which the generator deadline cannot cancel.
-            with anyio.move_on_after(self.limits.settings.public_chat_stream_timeout_seconds + 1):
-                await super().__call__(scope, receive, send)
-        finally:
-            # Starlette cancels the stream task on disconnect. Cleanup must survive it.
-            with anyio.CancelScope(shield=True):
-                try:
-                    await self.body_iterator.aclose()
-                finally:
-                    await self._release_slot()
-
-    async def _release_slot(self):
-        try:
-            await self.limits.release(self.chatbot_id, self.slot)
-        except Exception:
-            logger.warning("Public slot release failed chatbot_id=%s", self.chatbot_id)
 
 
 def response(chatbot: object) -> ChatbotResponse:
@@ -234,33 +203,19 @@ async def public_chat(
     await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
     slot = await limits.acquire(str(chatbot.id))
 
-    async def events():
-        try:
-            async with (
-                asyncio.timeout(limits.settings.public_chat_stream_timeout_seconds),
-                aclosing(
-                    ChatbotService(session).stream(
-                        chatbot.organization_id,
-                        chatbot.id,
-                        payload.message,
-                        payload.conversation_id,
-                        payload.external_user_id,
-                    )
-                ) as stream,
-            ):
-                async for event, data in stream:
-                    yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-        except TimeoutError:
-            request.state.public_error_code = "PUBLIC_CHAT_TIMEOUT"
-            error = {"code": "PUBLIC_CHAT_TIMEOUT", "message": "Chat timed out."}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-        except AppError as exc:
-            request.state.public_error_code = exc.code
-            error = {"code": exc.code, "message": exc.message}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-
+    events = ChatbotService(session).stream_events(
+        StreamChatCommand(
+            chatbot.organization_id,
+            chatbot.id,
+            payload.message,
+            payload.conversation_id,
+            payload.external_user_id,
+        )
+    )
     return PublicStreamingResponse(
-        events(),
+        public_stream_sse(
+            events, request, timeout_seconds=limits.settings.public_chat_stream_timeout_seconds
+        ),
         limits=limits,
         chatbot_id=str(chatbot.id),
         slot=slot,

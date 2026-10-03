@@ -88,8 +88,10 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
         async def public_chatbot(self, key: str, origin: str | None):
             return SimpleNamespace(id=uuid4(), organization_id=uuid4())
 
-        async def stream(self, *args):
-            yield "token", {"text": "Xin chào"}
+        async def stream_events(self, command):
+            from app.core_domain.rag.events import TokenDelta
+
+            yield TokenDelta("Xin chào")
             raise AppError("TEST_ERROR", "Try again", status_code=503)
 
     monkeypatch.setattr(router, "ChatbotService", FakeService)

@@ -1,7 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.delivery.security.origins import normalize_origin
 
 
 class ChatbotInput(BaseModel):
@@ -49,6 +51,16 @@ class EmbedPublishInput(BaseModel):
     greeting: str = Field(
         default="Xin chao! Toi co the giup gi cho ban?", min_length=1, max_length=1000
     )
+
+    @field_validator("allowed_origins")
+    @classmethod
+    def validate_origins(cls, values: list[str]) -> list[str]:
+        normalized = [normalize_origin(value) for value in values]
+        if any(value is None for value in normalized):
+            raise ValueError(
+                "Use explicit HTTP(S) origins without paths, credentials or wildcards."
+            )
+        return list(dict.fromkeys(normalized))
 
 
 class EmbedCodeResponse(BaseModel):

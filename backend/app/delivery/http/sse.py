@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from dataclasses import asdict
 
@@ -43,10 +43,19 @@ def serialize_event(event: RagEvent) -> str:
     return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def stream_sse(events: AsyncIterator[RagEvent]) -> AsyncIterator[str]:
+async def stream_sse(
+    events: AsyncIterator[RagEvent],
+    *,
+    on_error: Callable[[ChatFailed], None] | None = None,
+) -> AsyncIterator[str]:
     try:
         async with aclosing(events) as stream:
             async for event in stream:
+                if isinstance(event, ChatFailed) and on_error:
+                    on_error(event)
                 yield serialize_event(event)
     except CoreError as exc:
-        yield serialize_event(ChatFailed(exc.code, exc.message))
+        error = ChatFailed(exc.code, exc.message)
+        if on_error:
+            on_error(error)
+        yield serialize_event(error)
