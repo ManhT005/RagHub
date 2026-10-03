@@ -157,3 +157,94 @@ a {
   color: var(--rh-text) !important;
   background: var(--rh-surface) !important;
 }
+
+html[data-theme="dark"] {
+  --rh-bg: #08111f;
+  --rh-surface: #101d2f;
+  --rh-surface-raised: #14243a;
+  --rh-surface-soft: #182b45;
+  --rh-border: #2b405a;
+  --rh-text: #e7eef8;
+  --rh-muted: #9bb0c9;
+  --rh-cyan: #6ea8ff;
+  --rh-indigo: #4f8df7;
+  --rh-success: #66d6a6;
+  --rh-danger: #ff8592;
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .ant-layout,
+html[data-theme="dark"] .ant-layout-content {
+  color: var(--rh-text);
+  background: var(--rh-bg);
+}
+
+html[data-theme="dark"] .admin-shell main,
+html[data-theme="dark"] .admin-shell h1,
+html[data-theme="dark"] .admin-shell h2,
+html[data-theme="dark"] .admin-shell h3,
+html[data-theme="dark"] .admin-shell strong,
+html[data-theme="dark"] .admin-shell b,
+html[data-theme="dark"] .admin-shell code {
+  color: var(--rh-text) !important;
+}
+
+html[data-theme="dark"] .admin-shell p,
+html[data-theme="dark"] .admin-shell small,
+html[data-theme="dark"] .admin-shell label,
+html[data-theme="dark"] .admin-shell dt {
+  color: var(--rh-muted);
+}
+
+html[data-theme="dark"] .workspace-section,
+html[data-theme="dark"] .access-section,
+html[data-theme="dark"] .workspace-card,
+html[data-theme="dark"] .activity-card,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .profile-card,
+html[data-theme="dark"] .security-card,
+html[data-theme="dark"] .settings .grid form,
+html[data-theme="dark"] .settings .grid aside {
+  color: var(--rh-text) !important;
+  background: var(--rh-surface) !important;
+  border-color: var(--rh-border) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18) !important;
+}
+
+html[data-theme="dark"] .admin-shell input,
+html[data-theme="dark"] .admin-shell textarea,
+html[data-theme="dark"] .admin-shell select {
+  color: var(--rh-text) !important;
+  background: var(--rh-surface-raised) !important;
+  border-color: var(--rh-border) !important;
+}
+
+html[data-theme="dark"] .admin-shell input::placeholder,
+html[data-theme="dark"] .admin-shell textarea::placeholder {
+  color: #7f96b1 !important;
+}
+
+html,
+body,
+.ant-layout,
+.ant-layout-content,
+.ant-card,
+.ant-modal-content,
+.ant-input,
+.ant-select-selector {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  .ant-layout,
+  .ant-layout-content,
+  .ant-card,
+  .ant-modal-content,
+  .ant-input,
+  .ant-select-selector {
+    transition: none;
+  }
+}

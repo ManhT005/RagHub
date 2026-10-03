@@ -5,16 +5,12 @@ import {
   inject,
   signal,
 } from "@angular/core";
-import { RouterLink } from "@angular/router";
-import { NzCardModule } from "ng-zorro-antd/card";
-import { NzIconModule, provideNzIconsPatch } from "ng-zorro-antd/icon";
+import { DatePipe } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { NzDatePickerModule } from "ng-zorro-antd/date-picker";
+import { NzSelectModule } from "ng-zorro-antd/select";
+import { NzTableModule } from "ng-zorro-antd/table";
 import { NzTagModule } from "ng-zorro-antd/tag";
-import {
-  CloudServerOutline,
-  DatabaseOutline,
-  FileTextOutline,
-  MessageOutline,
-} from "@ant-design/icons-angular/icons";
 import { catchError, forkJoin, map, of, switchMap } from "rxjs";
 
 import { session } from "../core/api-auth.interceptor";
@@ -29,62 +25,68 @@ interface Activity {
   kind: "document" | "chatbot";
   title: string;
   subtitle: string;
+  workspaceId: string;
   createdAt: string;
 }
 
 @Component({
   selector: "raghub-dashboard",
-  imports: [NzCardModule, NzIconModule, NzTagModule, RouterLink],
-  providers: [
-    provideNzIconsPatch([
-      CloudServerOutline,
-      DatabaseOutline,
-      FileTextOutline,
-      MessageOutline,
-    ]),
+  imports: [
+    DatePipe,
+    FormsModule,
+    NzDatePickerModule,
+    NzSelectModule,
+    NzTableModule,
+    NzTagModule,
   ],
   templateUrl: "./dashboard.component.html",
   styleUrl: "./dashboard.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {
-  protected readonly services = [
-    {
-      name: "PostgreSQL",
-      role: "Dữ liệu và trạng thái xử lý",
-      icon: "database",
-    },
-    { name: "Redis", role: "Hàng đợi tác vụ Celery", icon: "cloud-server" },
-    {
-      name: "Elasticsearch",
-      role: "Tìm kiếm trong phạm vi tổ chức",
-      icon: "database",
-    },
-    { name: "MinIO", role: "Lưu trữ tài liệu gốc", icon: "file-text" },
-  ];
   protected readonly loading = signal(true);
   protected readonly error = signal("");
   protected readonly workspaces = signal<Workspace[]>([]);
+  protected readonly selectedWorkspace = signal("");
+  protected readonly dateRange = signal<Date[] | null>(null);
+  protected readonly pageSize = 10;
   protected readonly documents = signal<
-    (DocumentItem & { workspaceName: string })[]
+    (DocumentItem & { workspaceId: string; workspaceName: string })[]
   >([]);
   protected readonly bots = signal<(Chatbot & { workspaceName: string })[]>([]);
-  protected readonly recent = computed<Activity[]>(() => {
+  protected readonly activities = computed<Activity[]>(() => {
     const docs: Activity[] = this.documents().map((doc) => ({
       kind: "document",
       title: `Tài liệu ${doc.name} đã được thêm`,
       subtitle: doc.workspaceName,
+      workspaceId: doc.workspaceId,
       createdAt: doc.created_at,
     }));
     const bots: Activity[] = this.bots().map((bot) => ({
       kind: "chatbot",
       title: `Chatbot ${bot.name} ${bot.published ? "đã được xuất bản" : "đã được tạo"}`,
       subtitle: bot.workspaceName,
+      workspaceId: bot.workspace_id,
       createdAt: bot.created_at,
     }));
     return [...docs, ...bots]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 5);
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  });
+  protected readonly filteredActivities = computed<Activity[]>(() => {
+    const workspaceId = this.selectedWorkspace();
+    const range = this.dateRange();
+    const from = range?.[0] ? new Date(range[0]) : null;
+    const to = range?.[1] ? new Date(range[1]) : null;
+    from?.setHours(0, 0, 0, 0);
+    to?.setHours(23, 59, 59, 999);
+
+    return this.activities().filter((activity) => {
+      if (workspaceId && activity.workspaceId !== workspaceId) return false;
+      const createdAt = new Date(activity.createdAt).getTime();
+      if (from && createdAt < from.getTime()) return false;
+      if (to && createdAt > to.getTime()) return false;
+      return true;
+    });
   });
   private readonly api = inject(RaghubApiService);
 
@@ -104,7 +106,11 @@ export class DashboardComponent {
               const docReqs = items.map((ws) =>
                 this.api.documents(ws.id).pipe(
                   map((docs) =>
-                    docs.map((doc) => ({ ...doc, workspaceName: ws.name })),
+                    docs.map((doc) => ({
+                      ...doc,
+                      workspaceId: ws.id,
+                      workspaceName: ws.name,
+                    })),
                   ),
                   catchError(() => of([])),
                 ),
@@ -134,7 +140,10 @@ export class DashboardComponent {
         next: ({ workspaces, docs, bots }) => {
           this.workspaces.set(workspaces);
           this.documents.set(
-            docs as (DocumentItem & { workspaceName: string })[],
+            docs as (DocumentItem & {
+              workspaceId: string;
+              workspaceName: string;
+            })[],
           );
           this.bots.set(bots as (Chatbot & { workspaceName: string })[]);
           this.loading.set(false);

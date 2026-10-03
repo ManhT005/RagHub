@@ -1,34 +1,91 @@
-<nz-layout class="admin-shell">
+<nz-layout class="admin-shell" [class.sidebar-collapsed]="sidebarCollapsed()">
   <nz-sider nzTheme="light" nzWidth="232">
-    <a class="brand" routerLink="/app/overview" aria-label="Trang quản trị RAGHub">
-      <span class="brand-mark"><img src="assets/logo.png" alt="" /></span>
-      <span><strong>RAGHub</strong><small>Knowledge workspace</small></span>
-    </a>
-    <p class="nav-label">Không gian quản trị</p>
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng quản trị">
       <li nz-menu-item><a routerLink="/app/overview" routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan</span></a></li>
       <li nz-menu-item><a routerLink="/app/workspaces" routerLinkActive="active"><nz-icon nzType="database" /><span>Workspace</span></a></li>
       @if (isAdmin()) {
         <li nz-menu-item>
-          <a routerLink="/app/users" routerLinkActive="active"
-            ><nz-icon nzType="team" /><span>Quản lý người dùng</span></a
-          >
+          <a routerLink="/app/users" routerLinkActive="active"><nz-icon nzType="team" /><span>Quản lý người dùng</span></a>
         </li>
       }
       <li nz-menu-item><a routerLink="/app/documents" routerLinkActive="active"><nz-icon nzType="file-text" /><span>Tài liệu</span></a></li>
       <li nz-menu-item><a routerLink="/app/chatbots" routerLinkActive="active"><nz-icon nzType="message" /><span>Chatbot</span></a></li>
-      <li nz-menu-item><a routerLink="/app/security" routerLinkActive="active"><nz-icon nzType="setting" /><span>Bảo mật</span></a></li>
     </ul>
-    <footer><span class="user-dot">T</span><div><b>Tài khoản</b><small>Quản trị viên</small></div><a routerLink="/app/profile" aria-label="Mở thông tin tài khoản">›</a></footer>
+    <button
+      type="button"
+      class="sidebar-toggle"
+      [attr.aria-label]="sidebarCollapsed() ? 'Mở sidebar' : 'Thu gọn sidebar'"
+      [attr.aria-expanded]="!sidebarCollapsed()"
+      (click)="toggleSidebar()"
+    >
+      <svg [class.open-sidebar]="sidebarCollapsed()" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m14.5 6-6 6 6 6" />
+      </svg>
+      <span>Thu gọn</span>
+    </button>
   </nz-sider>
+
   <nz-layout class="admin-main">
-    <nz-header>
-      <div class="header-context"><b>Trung tâm quản trị</b><small>Quản lý tri thức và chatbot của bạn</small></div>
-      <div class="header-actions">
-        <button class="icon-button" type="button" aria-label="Thông báo"><nz-icon nzType="bell" /></button>
-        <a routerLink="/app/profile" class="profile"><span class="user-dot">T</span><span><b>Tài khoản</b><small>Bảo mật & phiên đăng nhập</small></span></a>
+    <header class="topbar">
+      <a class="topbar-brand" routerLink="/app/overview" aria-label="RAGHub admin home">
+        <span class="brand-mark"><img src="assets/logo.png" alt="" /></span>
+        <span><strong>RAGHub</strong><small>Knowledge workspace</small></span>
+      </a>
+      <div class="topbar-actions">
+        <button
+          type="button"
+          class="theme-toggle"
+          [attr.aria-label]="darkMode() ? 'Chuyển sang nền sáng' : 'Chuyển sang nền tối'"
+          [attr.aria-pressed]="darkMode()"
+          (click)="toggleTheme()"
+        >
+          @if (darkMode()) {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg>
+          } @else {
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg>
+          }
+        </button>
+
+        <div class="account-switcher topbar-account" (click)="$event.stopPropagation()">
+          <button
+            type="button"
+            class="account-trigger"
+            aria-haspopup="menu"
+            [attr.aria-label]="'Tài khoản của ' + userLabel()"
+            [attr.aria-expanded]="accountMenuOpen()"
+            aria-controls="account-menu"
+            (click)="toggleAccountMenu()"
+          >
+            <span class="user-dot">{{ userInitial() }}</span>
+            <span class="account-identity"><b>{{ userLabel() }}</b><small>Tài khoản quản trị</small></span>
+            <svg class="account-chevron" [class.open]="accountMenuOpen()" viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 4 4.5-4" /></svg>
+          </button>
+          @if (accountMenuOpen()) {
+            <div id="account-menu" class="account-menu" role="menu">
+              <div class="account-menu__header">
+                <span class="user-dot">{{ userInitial() }}</span>
+                <span><b>{{ userLabel() }}</b><small>Đang đăng nhập</small></span>
+              </div>
+              <div class="account-menu__divider"></div>
+              <a routerLink="/app/profile" role="menuitem" (click)="closeAccountMenu()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
+                <span><b>Tài khoản</b><small>Xem thông tin cá nhân</small></span>
+              </a>
+              <a routerLink="/app/security" role="menuitem" (click)="closeAccountMenu()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                <span><b>Đổi mật khẩu</b><small>Cập nhật mật khẩu đăng nhập</small></span>
+              </a>
+              <div class="account-menu__divider"></div>
+              <button type="button" class="account-menu__logout" role="menuitem" (click)="logout()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14 8l4 4-4 4M9 12h9"/></svg>
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+          }
+        </div>
       </div>
-    </nz-header>
+    </header>
+
     <nz-content><div class="content-frame"><router-outlet /></div></nz-content>
   </nz-layout>
 </nz-layout>

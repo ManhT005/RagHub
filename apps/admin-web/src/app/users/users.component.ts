@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   signal,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzButtonModule } from "ng-zorro-antd/button";
@@ -16,6 +18,7 @@ import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzSpinModule } from "ng-zorro-antd/spin";
 import { NzTableModule } from "ng-zorro-antd/table";
 import { NzTagModule } from "ng-zorro-antd/tag";
+import { debounceTime, distinctUntilChanged, Subject } from "rxjs";
 
 import { session } from "../core/api-auth.interceptor";
 import {
@@ -85,8 +88,20 @@ export class UsersComponent {
     user.display_name?.trim() ? user.display_name : "—";
 
   private readonly api = inject(RaghubApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchChanges = new Subject<string>();
 
   constructor() {
+    this.searchChanges
+      .pipe(
+        debounceTime(350),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.page.set(1);
+        this.loadUsers();
+      });
     this.loadOrganizations();
   }
 
@@ -119,6 +134,11 @@ export class UsersComponent {
   protected search(): void {
     this.page.set(1);
     this.loadUsers();
+  }
+
+  protected onSearchInputChange(value: string): void {
+    this.searchInput.set(value);
+    this.searchChanges.next(value.trim());
   }
 
   protected changePage(index: number): void {
