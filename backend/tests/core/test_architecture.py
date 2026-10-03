@@ -7,8 +7,17 @@ import pytest
 
 APP = Path(__file__).resolve().parents[2] / "app"
 FORBIDDEN = {
-    "fastapi", "starlette", "celery", "redis", "minio", "elasticsearch",
-    "sqlalchemy", "httpx", "pymupdf", "pydantic", "pydantic_settings",
+    "fastapi",
+    "starlette",
+    "celery",
+    "redis",
+    "minio",
+    "elasticsearch",
+    "sqlalchemy",
+    "httpx",
+    "pymupdf",
+    "pydantic",
+    "pydantic_settings",
 }
 
 
@@ -48,9 +57,12 @@ def test_engine_dependency_direction() -> None:
 @pytest.mark.parametrize(
     "source",
     [
-        "from fastapi import UploadFile", "import sqlalchemy.orm",
-        "from app.core.config import get_settings", "from app.modules.search import service",
-        "def hidden():\n    from celery import Task", "from . import adapter",
+        "from fastapi import UploadFile",
+        "import sqlalchemy.orm",
+        "from app.core.config import get_settings",
+        "from app.modules.search import service",
+        "def hidden():\n    from celery import Task",
+        "from . import adapter",
     ],
 )
 def test_dependency_check_catches_runtime_and_hidden_imports(source: str) -> None:
@@ -58,7 +70,7 @@ def test_dependency_check_catches_runtime_and_hidden_imports(source: str) -> Non
 
 
 def test_core_imports_with_infrastructure_blocked() -> None:
-    script = '''
+    script = """
 import importlib
 import importlib.abc
 import pkgutil
@@ -83,9 +95,12 @@ for package_name in ('app.core_domain', 'app.ports', 'app.application'):
         raise
     for module in pkgutil.walk_packages(package.__path__, package_name + '.'):
         importlib.import_module(module.name)
-'''
+"""
     result = subprocess.run(
-        [sys.executable, "-c", script], cwd=APP.parent, capture_output=True, text=True,
+        [sys.executable, "-c", script],
+        cwd=APP.parent,
+        capture_output=True,
+        text=True,
         timeout=30,
     )
     assert result.returncode == 0, result.stderr

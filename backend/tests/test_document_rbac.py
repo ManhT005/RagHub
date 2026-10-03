@@ -56,7 +56,7 @@ def test_writers_can_upload_and_retry(role, monkeypatch):
     )
     upload = AsyncMock(return_value=accepted)
     retry = AsyncMock(return_value=accepted)
-    monkeypatch.setattr(DocumentService, "upload_document", upload)
+    monkeypatch.setattr("app.modules.documents.router.upload_from_http", upload)
     monkeypatch.setattr(DocumentService, "retry", retry)
 
     async def context():
@@ -94,7 +94,7 @@ def test_assigned_workspace_admin_can_upload(monkeypatch):
         created_at=datetime.now(UTC),
     )
     upload = AsyncMock(return_value=accepted)
-    monkeypatch.setattr(DocumentService, "upload_document", upload)
+    monkeypatch.setattr("app.modules.documents.router.upload_from_http", upload)
 
     user_id = uuid.uuid4()
 

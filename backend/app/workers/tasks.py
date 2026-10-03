@@ -3,183 +3,81 @@ import logging
 import uuid
 
 from celery import Task
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
+from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
+from app.application.ingestion.run_ingestion import RunIngestionUseCase
 from app.core.config import get_settings
 from app.core_domain.ingestion.chunker import chunk_sections
-from app.core_domain.ingestion.errors import IngestionError, ingestion_error_message
-from app.core_domain.providers.errors import (
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-    ProviderUnavailableError,
-)
+from app.core_domain.ingestion.errors import IngestionError
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer
+from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.persistence.ingestion import (
+    IngestionRepositoryAdapter,
+)
+from app.infrastructure.persistence.ingestion import (
+    _record_failure as _record_failure,
+)
+from app.infrastructure.persistence.ingestion import (
+    _set_stage as _set_stage,
+)
+from app.infrastructure.providers import ProviderResolverAdapter
 from app.infrastructure.task_queue.celery_app import celery_app
 from app.modules.ai_providers.resolver import ProviderResolver
-from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
+from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 from app.modules.ingestion.parser import (
-    EmptyExtractedTextError,
-    InvalidPdfError,
-    TextDecodeError,
-    UnsupportedFileTypeError,
-    UnsupportedOcrError,
     parse_document,
 )
+from app.ports.provider_resolver import EmbeddingRuntime
 
 logger = logging.getLogger(__name__)
 
 
-async def _set_stage(
-    session: AsyncSession,
-    document: Document,
-    version: DocumentVersion,
-    job: IngestionJob,
-    stage: DocumentStatus,
-    progress: int,
-) -> None:
-    document.status = version.status = job.stage = stage
-    job.progress = progress
-    await session.commit()
-
-
-async def _record_failure(
-    session: AsyncSession, version_id: uuid.UUID, error: IngestionError, *, failed: bool
-) -> None:
-    await session.rollback()
-    version = await session.get(DocumentVersion, version_id)
-    job = await session.scalar(
-        select(IngestionJob).where(IngestionJob.document_version_id == version_id)
-    )
-    if version is None or job is None:
-        return
-    job.error_code = error.code
-    job.error_message = ingestion_error_message(error.code)
-    job.error_details = {"stage": job.stage, "retryable": error.retryable}
-    if failed:
-        document = await session.get(Document, version.document_id)
-        version.status = job.stage = DocumentStatus.FAILED
-        if document is not None:
-            document.status = DocumentStatus.FAILED
-    await session.commit()
-
 async def _run_pipeline(
     session: AsyncSession, document: Document, version: DocumentVersion, job: IngestionJob
 ) -> None:
+    repository = IngestionRepositoryAdapter(session, document=document, version=version, job=job)
+    await _make_use_case(session, repository).build(repository.snapshot())
+
+
+def _make_use_case(
+    session: AsyncSession, repository: IngestionRepositoryAdapter, *, pipeline=None
+) -> RunIngestionUseCase:
     settings = get_settings()
-    try:
-        content = MinioObjectStorage(settings).get(version.storage_key)
-    except Exception as exc:
-        raise IngestionError("STORAGE_UNAVAILABLE", str(exc), retryable=True) from exc
-    try:
-        sections = parse_document(content, document.name)
-    except InvalidPdfError as exc:
-        raise IngestionError("INVALID_PDF", str(exc), retryable=False) from exc
-    except UnsupportedOcrError as exc:
-        raise IngestionError("FAILED_UNSUPPORTED_OCR", str(exc), retryable=False) from exc
-    except TextDecodeError as exc:
-        raise IngestionError("TEXT_DECODE_FAILED", str(exc), retryable=False) from exc
-    except EmptyExtractedTextError as exc:
-        raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
-    except UnsupportedFileTypeError as exc:
-        raise IngestionError("UNSUPPORTED_FILE_TYPE", str(exc), retryable=False) from exc
-    except Exception as exc:
-        raise IngestionError("PARSE_FAILED", str(exc), retryable=False) from exc
-    await _set_stage(session, document, version, job, DocumentStatus.CHUNKING, 45)
-    try:
-        chunks = chunk_sections(sections, version.id)
-        if not chunks:
-            raise EmptyExtractedTextError("No chunks were extracted.")
-    except EmptyExtractedTextError as exc:
-        raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
-    except Exception as exc:
-        raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
-    await _set_stage(session, document, version, job, DocumentStatus.EMBEDDING, 65)
-    try:
-        resolved = await ProviderResolver(session).embedding_for_workspace(
-            version.organization_id, version.workspace_id
-        )
-        vectors = await resolved.provider.embed_documents([chunk.content for chunk in chunks])
-        if len(vectors) != len(chunks):
-            raise ValueError("Embedding response count does not match chunks")
-        embeddings = {
-            str(chunk.chunk_id): vector
-            for chunk, vector in zip(chunks, vectors, strict=True)
-        }
-    except (ProviderTimeoutError, ProviderUnavailableError, ProviderRateLimitError) as exc:
-        raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
-    except Exception as exc:
-        raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
-    await _set_stage(session, document, version, job, DocumentStatus.INDEXING, 85)
-    # Persist the version as READY before exposing its chunks to Elasticsearch.
-    # Keep the document and job in INDEXING until bulk indexing completes, so the
-    # API never reports a searchable document before its chunks are available.
-    version.status = DocumentStatus.READY
-    job.progress = 90
-    await session.commit()
-    indexer = ChunkIndexer(
-        settings=settings,
-        index_name=resolved.index_version.index_name,
-        dimension=resolved.index_version.dimension,
+    builder = BuildDocumentIndexUseCase(
+        MinioObjectStorage(settings), parse_document, chunker=chunk_sections
     )
-    try:
-        indexer.replace_document_version(
-            organization_id=version.organization_id,
-            workspace_id=version.workspace_id,
-            document_id=document.id,
-            document_version_id=version.id,
-            source_name=document.name,
-            chunks=chunks,
-            embeddings=embeddings,
+
+    def make_store(runtime: EmbeddingRuntime):
+        indexer = ChunkIndexer(
+            settings=settings, index_name=runtime.index_name, dimension=runtime.dimension
         )
-    except Exception as exc:
-        try:
-            indexer.delete_document_version(version.id)
-        except Exception:
-            logger.exception("Could not clean up failed index for version %s", version.id)
-        raise IngestionError("INDEX_UNAVAILABLE", str(exc), retryable=True) from exc
-    finally:
-        indexer.close()
-    job.error_code = job.error_message = job.error_details = None
-    await _set_stage(session, document, version, job, DocumentStatus.READY, 100)
+        return LegacyVectorStoreAdapter(indexer)
+
+    return RunIngestionUseCase(
+        repository,
+        builder,
+        ProviderResolverAdapter(ProviderResolver(session)),
+        make_store,
+        pipeline=pipeline,
+    )
 
 
 async def _run_attempt(
     session: AsyncSession, version_id: uuid.UUID, *, retries: int, max_retries: int
 ) -> None:
-    version = await session.get(DocumentVersion, version_id)
-    # READY remains resumable until the final Elasticsearch replacement commits.
-    if version is None or version.status == DocumentStatus.FAILED:
-        return
-    job = await session.scalar(
-        select(IngestionJob).where(IngestionJob.document_version_id == version_id)
+    repository = IngestionRepositoryAdapter(session, failure=_record_failure)
+
+    async def pipeline(_document):
+        await _run_pipeline(session, repository.document, repository.version, repository.job)
+
+    await _make_use_case(session, repository, pipeline=pipeline).execute(
+        version_id, retries=retries, max_retries=max_retries
     )
-    if version.status == DocumentStatus.READY and job is not None and job.progress >= 100:
-        return
-    # Terminal redeliveries must not change status, attempts or error information.
-    document = await session.get(Document, version.document_id)
-    if document is None or document.deleted_at is not None or job is None:
-        return
-    job.attempts += 1
-    job.error_code = job.error_message = job.error_details = None
-    await _set_stage(session, document, version, job, DocumentStatus.PARSING, 20)
-    try:
-        await _run_pipeline(session, document, version, job)
-    except IngestionError as exc:
-        logger.exception("Ingestion failed for version %s (%s)", version_id, exc.code)
-        await _record_failure(
-            session, version_id, exc, failed=not exc.retryable or retries >= max_retries
-        )
-        raise
-    except Exception as exc:
-        logger.exception("Unexpected ingestion failure for version %s", version_id)
-        error = IngestionError("INGESTION_FAILED", str(exc), retryable=False)
-        await _record_failure(session, version_id, error, failed=True)
-        raise error from exc
 
 
 async def _process_document_version(

@@ -62,8 +62,15 @@ async def test_terminal_redelivery_does_not_mutate_metrics(
 async def test_incomplete_ready_redelivery_resumes_indexing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    version = SimpleNamespace(id=uuid.uuid4(), document_id=uuid.uuid4(), status="READY")
-    document = SimpleNamespace(status="READY", deleted_at=None)
+    version = SimpleNamespace(
+        id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        status="READY",
+        organization_id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        storage_key="key",
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt", status="READY", deleted_at=None)
     job = SimpleNamespace(attempts=0, stage="READY", progress=90)
     session = SimpleNamespace(
         get=AsyncMock(side_effect=[version, document]),
@@ -140,9 +147,16 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
 async def test_attempt_records_failure_before_leaving_lock(
     monkeypatch: pytest.MonkeyPatch, retryable: bool, retries: int, failed: bool
 ) -> None:
-    version = SimpleNamespace(id=uuid.uuid4(), document_id=uuid.uuid4(), status="QUEUED")
-    document = SimpleNamespace(status="QUEUED", deleted_at=None)
-    job = SimpleNamespace(attempts=retries, stage="QUEUED")
+    version = SimpleNamespace(
+        id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        status="QUEUED",
+        organization_id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        storage_key="key",
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt", status="QUEUED", deleted_at=None)
+    job = SimpleNamespace(attempts=retries, stage="QUEUED", progress=0)
     session = SimpleNamespace(
         get=AsyncMock(side_effect=[version, document]),
         scalar=AsyncMock(return_value=job),

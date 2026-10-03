@@ -1,17 +1,18 @@
-import hashlib
 import logging
 import uuid
+from dataclasses import asdict
 from datetime import UTC, datetime
-from pathlib import Path
 
-import anyio
-from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.documents.upload_document import UploadDocumentUseCase
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
+from app.core_domain.documents.upload import UploadDocumentCommand
 from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
+from app.delivery.http.uploads import read_upload, upload_from_http
 from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.persistence.uploads import UploadRepositoryAdapter
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
@@ -20,17 +21,15 @@ from app.ports.task_queue import TaskQueuePort
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_TYPES = {
-    ".pdf": {"application/pdf", "application/x-pdf"},
-    ".txt": {"text/plain"},
-    ".md": {"text/markdown", "text/plain"},
-}
-
 
 class DocumentService:
     def __init__(
-        self, session: AsyncSession, settings: Settings | None = None, *,
-        storage: ObjectStoragePort | None = None, task_queue: TaskQueuePort | None = None,
+        self,
+        session: AsyncSession,
+        settings: Settings | None = None,
+        *,
+        storage: ObjectStoragePort | None = None,
+        task_queue: TaskQueuePort | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
@@ -38,89 +37,20 @@ class DocumentService:
         self.storage: ObjectStoragePort = storage or MinioObjectStorage(self.settings)
         self.task_queue = task_queue or CeleryTaskQueue()
 
+    async def upload(self, command: UploadDocumentCommand) -> DocumentAccepted:
+        result = await UploadDocumentUseCase(
+            UploadRepositoryAdapter(self.repository, self.session),
+            self.storage,
+            self.task_queue,
+            max_size_mb=self.settings.max_upload_size_mb,
+        ).execute(command)
+        return DocumentAccepted(**asdict(result))
+
     async def upload_document(
-        self,
-        *,
-        organization_id: uuid.UUID,
-        workspace_id: uuid.UUID,
-        upload: UploadFile,
+        self, *, organization_id: uuid.UUID, workspace_id: uuid.UUID, upload
     ) -> DocumentAccepted:
-        if not await self.repository.workspace_exists(organization_id, workspace_id):
-            raise AppError(
-                "WORKSPACE_NOT_FOUND",
-                "Workspace was not found in the current organization.",
-                status_code=404,
-            )
-
-        filename = Path((upload.filename or "").replace("\\", "/")).name
-        extension = Path(filename).suffix.lower()
-        if not filename or extension not in SUPPORTED_TYPES:
-            raise AppError(
-                "UNSUPPORTED_FILE_TYPE", "Only PDF, TXT and Markdown files are supported."
-            )
-        mime_type = (upload.content_type or "").split(";", 1)[0].strip().lower()
-        if mime_type not in SUPPORTED_TYPES[extension]:
-            raise AppError(
-                "INVALID_CONTENT_TYPE",
-                "The content type does not match the file extension.",
-            )
-
-        content = await self._read_limited(upload)
-        if extension == ".pdf" and not content.startswith(b"%PDF-"):
-            raise AppError("INVALID_PDF", "The uploaded file is not a valid PDF.")
-
-        checksum = hashlib.sha256(content).hexdigest()
-        storage_key = f"{organization_id}/{workspace_id}/{uuid.uuid4()}{extension}"
-        try:
-            await anyio.to_thread.run_sync(
-                lambda: self.storage.put(storage_key, content, mime_type)
-            )
-        except Exception as exc:
-            raise AppError(
-                "STORAGE_UNAVAILABLE",
-                "The document could not be stored.",
-                status_code=503,
-            ) from exc
-
-        try:
-            document, version, job = await self.repository.create_upload(
-                organization_id=organization_id,
-                workspace_id=workspace_id,
-                filename=filename,
-                storage_key=storage_key,
-                checksum=checksum,
-                mime_type=mime_type,
-                size_bytes=len(content),
-            )
-            await self.session.commit()
-        except Exception:
-            await self.session.rollback()
-            try:
-                await anyio.to_thread.run_sync(lambda: self.storage.remove(storage_key))
-            except Exception:
-                pass
-            raise
-
-        try:
-            self.task_queue.enqueue_ingestion(version.id)
-        except Exception as exc:
-            logger.exception("Could not enqueue document version %s", version.id)
-            await self.repository.mark_queue_failure(version.id, str(exc))
-            await self.session.commit()
-            raise AppError(
-                "QUEUE_UNAVAILABLE",
-                "The document was stored but could not be queued for ingestion.",
-                status_code=503,
-                details={"document_id": str(document.id)},
-            ) from exc
-
-        return DocumentAccepted(
-            document_id=document.id,
-            document_version_id=version.id,
-            job_id=job.id,
-            status=version.status,
-            created_at=version.created_at,
-        )
+        # Compatibility entry point; routers use the HTTP upload adapter directly.
+        return await upload_from_http(self, organization_id, workspace_id, upload)
 
     async def retry(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, version_id: uuid.UUID
@@ -248,18 +178,5 @@ class DocumentService:
         document.deleted_at = datetime.now(UTC)
         await self.session.commit()
 
-    async def _read_limited(self, upload: UploadFile) -> bytes:
-        chunks: list[bytes] = []
-        total = 0
-        while chunk := await upload.read(1024 * 1024):
-            total += len(chunk)
-            if total > self.settings.max_upload_size_bytes:
-                raise AppError(
-                    "FILE_TOO_LARGE",
-                    f"The upload exceeds {self.settings.max_upload_size_mb} MB.",
-                    status_code=413,
-                )
-            chunks.append(chunk)
-        if total == 0:
-            raise AppError("EMPTY_FILE", "The uploaded file is empty.")
-        return b"".join(chunks)
+    async def _read_limited(self, upload) -> bytes:
+        return await read_upload(upload, max_size_mb=self.settings.max_upload_size_mb)
