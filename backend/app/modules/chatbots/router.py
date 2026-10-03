@@ -1,4 +1,3 @@
-import json
 from typing import Annotated
 from uuid import UUID
 
@@ -13,7 +12,8 @@ from app.core.auth import (
     require_role,
 )
 from app.core.database import get_session
-from app.core.exceptions import AppError
+from app.core_domain.rag.models import StreamChatCommand
+from app.delivery.http.sse import stream_sse
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch, ChatbotResponse, ChatRequest
 from app.modules.chatbots.service import ChatbotService
 from app.modules.memberships.models import MembershipRole
@@ -96,22 +96,17 @@ async def chat(
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> StreamingResponse:
-    async def events():
-        try:
-            async for event, data in ChatbotService(session).stream(
-                context.organization_id,
-                chatbot_id,
-                payload.message,
-                payload.conversation_id,
-                str(user.id),
-            ):
-                yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-        except AppError as exc:
-            error = {"code": exc.code, "message": exc.message}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-
+    events = ChatbotService(session).stream_events(
+        StreamChatCommand(
+            context.organization_id,
+            chatbot_id,
+            payload.message,
+            payload.conversation_id,
+            str(user.id),
+        )
+    )
     return StreamingResponse(
-        events(),
+        stream_sse(events),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
