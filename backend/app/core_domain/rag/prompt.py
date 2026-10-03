@@ -19,5 +19,6 @@ def build_prompt(
     )
     return [
         ChatMessage("system", f"{system_instruction}\n\n{guardrail}"),
-        *(history or [ChatMessage("user", question)]),
+        *history,
+        ChatMessage("user", question),
     ]

@@ -1,7 +1,10 @@
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import aclosing
+from uuid import UUID
 
+from app.core_domain.chatbots.models import ChatbotConfig
 from app.core_domain.errors import CoreError
-from app.core_domain.providers.contracts import ChatOptions, ChatUsage
+from app.core_domain.providers.contracts import ChatMessage, ChatOptions, ChatUsage
 from app.core_domain.providers.usage import estimate_chat_usage
 from app.core_domain.rag.citations import resolve_trusted_citations
 from app.core_domain.rag.events import (
@@ -48,15 +51,46 @@ class StreamRagChatUseCase:
             )
         if not chatbot.published:
             raise CoreError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.")
-        hits = await self.retrieval.retrieve(
-            chatbot.scope, command.question, chatbot.retrieval_limit
-        )
         conversation_id = await self.conversations.open(
             chatbot,
             command.conversation_id,
             command.external_user_id,
         )
+        previous_history = await self.conversations.history(conversation_id)
         user_message_id = await self.conversations.add_user(conversation_id, command.question)
+        # The submitted question remains durable even when provider resolution/generation fails.
+        await self.conversations.commit()
+        yield ConversationStarted(conversation_id, user_message_id)
+        answer: list[str] = []
+        try:
+            async with aclosing(
+                self._answer(command, chatbot, conversation_id, previous_history, answer)
+            ) as stream:
+                async for event in stream:
+                    yield event
+        except (CoreError, TimeoutError) as exc:
+            error = (
+                exc
+                if isinstance(exc, CoreError)
+                else CoreError("PROVIDER_TIMEOUT", "The AI provider timed out.")
+            )
+            await self.conversations.add_failed_assistant(
+                conversation_id, "".join(answer), error.code
+            )
+            await self.conversations.commit()
+            yield ChatFailed(error.code, error.message)
+
+    async def _answer(
+        self,
+        command: StreamChatCommand,
+        chatbot: ChatbotConfig,
+        conversation_id: UUID,
+        previous_history: Sequence[ChatMessage],
+        answer: list[str],
+    ) -> AsyncIterator[RagEvent]:
+        hits = await self.retrieval.retrieve(
+            chatbot.scope, command.question, chatbot.retrieval_limit
+        )
         if not hits:
             usage = ChatUsage(0, 0, 0, "none")
             message_id = await self.conversations.add_assistant(
@@ -66,7 +100,6 @@ class StreamRagChatUseCase:
                 (),
             )
             await self.conversations.commit()
-            yield ConversationStarted(conversation_id, user_message_id)
             yield CitationsResolved(())
             yield TokenDelta(EMPTY_CONTEXT_ANSWER)
             yield UsageReported(usage)
@@ -76,16 +109,14 @@ class StreamRagChatUseCase:
         context = build_context_bundle([hit.as_hit() for hit in hits])
         selected = [RetrievedChunk.from_hit(hit) for hit in context.hits]
         citations = resolve_trusted_citations(selected)
-        yield ConversationStarted(conversation_id, user_message_id)
         yield CitationsResolved(citations)
         messages = build_prompt(
             chatbot.system_prompt,
             command.question,
             context,
-            await self.conversations.history(conversation_id),
+            previous_history,
         )
         timing = self.timing_factory()
-        answer: list[str] = []
         usage: ChatUsage | None = None
         stream = runtime.provider.stream_chat(
             messages, ChatOptions(model=chatbot.model or runtime.model)
@@ -98,9 +129,10 @@ class StreamRagChatUseCase:
                     yield TokenDelta(delta.text)
                 if delta.usage:
                     usage = delta.usage
-        except CoreError as exc:
-            yield ChatFailed(exc.code, exc.message)
-            return
+        except (CoreError, TimeoutError):
+            raise
+        except Exception as exc:
+            raise CoreError("CHAT_RUNTIME_FAILED", "Chat generation failed.") from exc
         finally:
             close = getattr(stream, "aclose", None)
             if close:

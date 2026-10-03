@@ -32,6 +32,9 @@ async def test_empty_context_skips_chat_provider(monkeypatch: pytest.MonkeyPatch
     )
 
     class Service(ChatbotService):
+        async def _history(self, conversation_id):
+            return []
+
         async def get(self, organization_id: object, chatbot_id: object) -> object:
             return chatbot
 

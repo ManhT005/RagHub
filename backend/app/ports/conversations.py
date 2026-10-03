@@ -7,6 +7,10 @@ from app.core_domain.rag.models import TrustedCitation
 
 
 class ConversationRepositoryPort(Protocol):
+    """Writes are staged; the use case chooses when to commit a turn.
+
+    History is requested before add_user and excludes failed assistant messages.
+    """
     async def open(
         self, chatbot: ChatbotConfig, conversation_id: UUID | None, external_user_id: str | None
     ) -> UUID: ...
@@ -18,5 +22,8 @@ class ConversationRepositoryPort(Protocol):
         content: str,
         usage: ChatUsage,
         citations: tuple[TrustedCitation, ...],
+    ) -> UUID: ...
+    async def add_failed_assistant(
+        self, conversation_id: UUID, content: str, error_code: str
     ) -> UUID: ...
     async def commit(self) -> None: ...

@@ -52,6 +52,7 @@ class Conversations:
         self.id = uuid4()
         self.messages = []
         self.commits = 0
+        self.failures = []
 
     async def open(self, chatbot, conversation_id, external_user_id):
         return self.id
@@ -66,6 +67,10 @@ class Conversations:
     async def add_assistant(self, conversation_id, content, usage, citations):
         self.messages.append(("assistant", content))
         self.usage, self.citations = usage, citations
+        return uuid4()
+
+    async def add_failed_assistant(self, conversation_id, content, error_code):
+        self.failures.append((content, error_code))
         return uuid4()
 
     async def commit(self):
@@ -111,7 +116,7 @@ async def test_runtime_preserves_events_trusted_citations_native_usage_and_scope
     assert usage.records[0].scope == chatbots.config.scope
     assert providers.chat_scopes == [chatbots.config.scope]
     assert events[4].first_token_ms <= events[4].latency_ms
-    assert conversations.commits == 1
+    assert conversations.commits == 2
     prompt = providers.chat.calls[0][0]
     assert "untrusted document context" in prompt[0].content
     assert "trusted knowledge" in prompt[0].content
@@ -137,6 +142,47 @@ async def test_runtime_estimates_missing_provider_usage():
     assert usage.records[0].usage == events[3].usage
 
 
+async def test_current_question_is_appended_once_after_previous_history():
+    command, _, _, providers, conversations, _, use_case = runtime()
+    conversations.messages = [("user", "earlier"), ("assistant", "previous answer")]
+    _ = [event async for event in use_case.execute(command)]
+    prompt = providers.chat.calls[0][0]
+    assert prompt[1:] == [
+        ChatMessage("user", "earlier"),
+        ChatMessage("assistant", "previous answer"),
+        ChatMessage("user", command.question),
+    ]
+
+
+@pytest.mark.parametrize("failure", ["resolution", "retrieval", "timeout", "unexpected"])
+async def test_failure_policy_saves_user_and_failed_assistant_before_error_event(failure):
+    command, _, retrieval, providers, conversations, usage, use_case = runtime()
+    if failure in {"resolution", "retrieval"}:
+
+        async def fail(*_):
+            assert conversations.commits == 1
+            raise CoreError("PROVIDER_NOT_CONFIGURED", "The AI provider is not configured.")
+
+        if failure == "resolution":
+            providers.resolve_chat = fail
+        else:
+            retrieval.retrieve = fail
+        code, partial = "PROVIDER_NOT_CONFIGURED", ""
+    else:
+        providers.chat.error = (
+            TimeoutError() if failure == "timeout" else RuntimeError("vendor-secret")
+        )
+        code = "PROVIDER_TIMEOUT" if failure == "timeout" else "CHAT_RUNTIME_FAILED"
+        partial = "answer"
+    events = [event async for event in use_case.execute(command)]
+    assert isinstance(events[0], ConversationStarted)
+    assert isinstance(events[-1], ChatFailed) and events[-1].code == code
+    assert conversations.messages == [("user", command.question)]
+    assert conversations.failures == [(partial, code)] and conversations.commits == 2
+    assert not usage.records and not any(isinstance(event, ChatCompleted) for event in events)
+    assert "vendor-secret" not in repr(events)
+
+
 async def test_provider_failure_after_token_never_retries_or_persists_completed_answer():
     command, _, _, providers, conversations, usage, use_case = runtime()
     providers.chat.error = ProviderUnavailableError()
@@ -147,8 +193,9 @@ async def test_provider_failure_after_token_never_retries_or_persists_completed_
         TokenDelta,
         ChatFailed,
     ]
-    assert len(providers.chat.calls) == 1 and not usage.records and not conversations.commits
+    assert len(providers.chat.calls) == 1 and not usage.records and conversations.commits == 2
     assert conversations.messages == [("user", command.question)]
+    assert conversations.failures == [("answer", "PROVIDER_UNAVAILABLE")]
 
 
 @pytest.mark.parametrize("wrong_tenant", [False, True])
@@ -181,4 +228,5 @@ async def test_closing_runtime_stream_closes_provider_and_leaves_no_completed_me
     assert isinstance(await anext(stream), CitationsResolved)
     assert isinstance(await anext(stream), TokenDelta)
     await stream.aclose()
-    assert closed == [True] and not usage.records and not conversations.commits
+    assert closed == [True] and not usage.records and conversations.commits == 1
+    assert not conversations.failures

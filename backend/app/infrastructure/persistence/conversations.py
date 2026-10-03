@@ -48,7 +48,10 @@ class ConversationRepositoryAdapter:
             (
                 await self.session.scalars(
                     select(Message)
-                    .where(Message.conversation_id == conversation_id)
+                    .where(
+                        Message.conversation_id == conversation_id,
+                        Message.usage_json["status"].as_string().is_distinct_from("FAILED"),
+                    )
                     .order_by(Message.created_at.desc())
                     .limit(12)
                 )
@@ -67,7 +70,20 @@ class ConversationRepositoryAdapter:
             conversation_id=conversation_id, role="user", content=content, usage_json=None
         )
         self.session.add(message)
-        await self.session.commit()
+        await self.session.flush()
+        return message.id
+
+    async def add_failed_assistant(
+        self, conversation_id: UUID, content: str, error_code: str
+    ) -> UUID:
+        message = Message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=content,
+            usage_json={"status": "FAILED", "error_code": error_code},
+        )
+        self.session.add(message)
+        await self.session.flush()
         return message.id
 
     async def history(self, conversation_id: UUID) -> list[ChatMessage]:
