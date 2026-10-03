@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator, Callable
 from app.core_domain.errors import AppError
 from app.core_domain.providers.contracts import ChatOptions, ChatUsage
 from app.core_domain.providers.usage import estimate_chat_usage
+from app.core_domain.rag.citations import resolve_trusted_citations
 from app.core_domain.rag.events import (
     ChatCompleted,
     ChatFailed,
@@ -12,7 +13,7 @@ from app.core_domain.rag.events import (
     TokenDelta,
     UsageReported,
 )
-from app.core_domain.rag.models import ChatUsageRecord, StreamChatCommand, TrustedCitation
+from app.core_domain.rag.models import ChatUsageRecord, StreamChatCommand
 from app.core_domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
 from app.core_domain.rag.timing import ChatStreamTiming
 from app.core_domain.retrieval.hybrid import build_context_bundle
@@ -75,18 +76,7 @@ class StreamRagChatUseCase:
         runtime = await self.providers.resolve_chat(chatbot.scope)
         context = build_context_bundle([hit.as_hit() for hit in hits])
         selected = [RetrievedChunk.from_hit(hit) for hit in context.hits]
-        citations = tuple(
-            TrustedCitation(
-                f"C{rank}",
-                hit.document_id,
-                hit.source_name,
-                hit.page_number,
-                hit.chunk_id,
-                hit.content[:500],
-                hit.score,
-            )
-            for rank, hit in enumerate(selected, 1)
-        )
+        citations = resolve_trusted_citations(selected)
         yield ConversationStarted(conversation_id, user_message_id)
         yield CitationsResolved(citations)
         messages = build_prompt(

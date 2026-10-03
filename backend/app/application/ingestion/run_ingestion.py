@@ -35,6 +35,8 @@ class RunIngestionUseCase:
             attempt.status == IngestionStage.READY and attempt.progress >= 100
         ):
             return IngestionResult(version_id, attempt.status, False)
+        if attempt.document is None:
+            raise ValueError("A nonterminal ingestion attempt must contain document metadata.")
         await self.repository.begin(version_id)
         try:
             if self.pipeline:

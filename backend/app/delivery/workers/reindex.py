@@ -17,12 +17,14 @@ from app.core_domain.providers.errors import (
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
 from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.parsing.documents import DocumentParser
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
 from app.modules.ai_providers.resolver import ProviderResolver
-from app.modules.ingestion.parser import parse_document
 from app.modules.workspaces.models import Workspace
+
+parse_document = DocumentParser().parse
 
 logger = logging.getLogger(__name__)
 
