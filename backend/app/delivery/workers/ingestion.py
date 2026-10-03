@@ -13,6 +13,7 @@ from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.infrastructure.object_storage.minio import MinioObjectStorage
+from app.infrastructure.parsing.documents import DocumentParser
 from app.infrastructure.persistence.ingestion import (
     IngestionRepositoryAdapter,
 )
@@ -25,10 +26,9 @@ from app.infrastructure.persistence.ingestion import (
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
-from app.modules.ingestion.parser import (
-    parse_document,
-)
 from app.ports.provider_resolver import EmbeddingRuntime
+
+parse_document = DocumentParser().parse
 
 logger = logging.getLogger(__name__)
 

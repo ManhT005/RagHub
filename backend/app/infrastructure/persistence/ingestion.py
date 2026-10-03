@@ -70,17 +70,7 @@ class IngestionRepositoryAdapter:
         )
         if version.status == DocumentStatus.READY and job is not None and job.progress >= 100:
             # Terminal redelivery avoids loading or mutating any other entity.
-            return IngestionAttempt(
-                IngestionDocument(
-                    RetrievalScope(uuid.UUID(int=0), uuid.UUID(int=0)),
-                    uuid.UUID(int=0),
-                    version_id,
-                    "",
-                    "",
-                ),
-                version.status,
-                job.progress,
-            )
+            return IngestionAttempt(None, version.status, job.progress)
         document = await self.session.get(Document, version.document_id)
         if document is None or document.deleted_at is not None or job is None:
             return None

@@ -77,9 +77,17 @@ async def test_pipeline_runs_without_celery_and_preserves_stage_order():
 @pytest.mark.parametrize("status,progress", [("READY", 100), ("FAILED", 0)])
 async def test_terminal_redelivery_does_not_repeat_work(status, progress):
     document, repository, providers, store, use_case = pipeline()
-    repository.attempt = IngestionAttempt(document, status, progress)
+    repository.attempt = IngestionAttempt(None, status, progress)
     assert not (await use_case.execute(document.version_id)).processed
     assert not repository.stages and not providers.scopes and not store.indexes
+
+
+async def test_nonterminal_attempt_requires_metadata_before_starting_work():
+    document, repository, providers, _, use_case = pipeline()
+    repository.attempt = IngestionAttempt(None, "QUEUED", 0)
+    with pytest.raises(ValueError, match="metadata"):
+        await use_case.execute(document.version_id)
+    assert not repository.stages and not providers.scopes
 
 
 async def test_partial_ready_resumes_and_index_failure_cleans_up_before_retry():

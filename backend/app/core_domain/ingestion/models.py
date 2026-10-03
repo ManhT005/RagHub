@@ -26,7 +26,7 @@ class IngestionDocument:
 
 @dataclass(frozen=True)
 class IngestionAttempt:
-    document: IngestionDocument
+    document: IngestionDocument | None
     status: str
     progress: int
 
