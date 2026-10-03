@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.ghcr.example
+!.env.self-host.example
 .venv/
 .python-version
 .worktrees/

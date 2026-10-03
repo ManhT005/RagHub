@@ -1,0 +1,10 @@
+# Opt-in NVIDIA reservation; the base works on CPU-only hosts.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

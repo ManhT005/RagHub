@@ -17,7 +17,12 @@ def test_bootstrap_validates_credentials_without_disclosing_password():
 
 
 async def test_selfhost_without_smtp_cannot_log_reset_tokens(monkeypatch):
-    settings = Settings(_env_file=None, app_env="selfhost", provider_master_key="test-master-key")
+    settings = Settings(
+        _env_file=None,
+        app_env="selfhost",
+        provider_master_key="test-master-key",
+        app_secret_key="selfhost-test-key-at-least-32-characters",
+    )
     warning = AsyncMock()
     monkeypatch.setattr("app.modules.auth.email.logger.warning", warning)
     with pytest.raises(AppError, match="Configure SMTP"):

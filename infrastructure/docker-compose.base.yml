@@ -122,14 +122,6 @@ services:
     image: ollama/ollama:0.12.1
     profiles:
       - local-ai
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities:
-                - gpu
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
