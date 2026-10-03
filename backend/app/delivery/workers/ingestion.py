@@ -5,30 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
-from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.application.ingestion.run_ingestion import RunIngestionUseCase
+from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
-from app.core_domain.ingestion.chunker import chunk_sections
-from app.infrastructure.elasticsearch.chunks import ChunkIndexer
-from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
 from app.infrastructure.ingestion_lock import try_ingestion_lock
-from app.infrastructure.object_storage.minio import MinioObjectStorage
-from app.infrastructure.parsing.documents import DocumentParser
-from app.infrastructure.persistence.ingestion import (
-    IngestionRepositoryAdapter,
-)
 from app.infrastructure.persistence.ingestion import (
     _record_failure as _record_failure,
 )
 from app.infrastructure.persistence.ingestion import (
     _set_stage as _set_stage,
 )
-from app.infrastructure.providers import ProviderResolverAdapter
-from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
-from app.ports.provider_resolver import EmbeddingRuntime
-
-parse_document = DocumentParser().parse
 
 logger = logging.getLogger(__name__)
 
@@ -36,37 +22,20 @@ logger = logging.getLogger(__name__)
 async def _run_pipeline(
     session: AsyncSession, document: Document, version: DocumentVersion, job: IngestionJob
 ) -> None:
-    repository = IngestionRepositoryAdapter(session, document=document, version=version, job=job)
+    repository = WorkerContainer(session).ingestion_repository(
+        document=document, version=version, job=job
+    )
     await _make_use_case(session, repository).build(repository.snapshot())
 
 
-def _make_use_case(
-    session: AsyncSession, repository: IngestionRepositoryAdapter, *, pipeline=None
-) -> RunIngestionUseCase:
-    settings = get_settings()
-    builder = BuildDocumentIndexUseCase(
-        MinioObjectStorage(settings), parse_document, chunker=chunk_sections
-    )
-
-    def make_store(runtime: EmbeddingRuntime):
-        indexer = ChunkIndexer(
-            settings=settings, index_name=runtime.index_name, dimension=runtime.dimension
-        )
-        return LegacyVectorStoreAdapter(indexer)
-
-    return RunIngestionUseCase(
-        repository,
-        builder,
-        ProviderResolverAdapter(ProviderResolver(session)),
-        make_store,
-        pipeline=pipeline,
-    )
+def _make_use_case(session, repository, *, pipeline=None):
+    return WorkerContainer(session).run_ingestion(repository, pipeline=pipeline)
 
 
 async def _run_attempt(
     session: AsyncSession, version_id: uuid.UUID, *, retries: int, max_retries: int
 ) -> None:
-    repository = IngestionRepositoryAdapter(session, failure=_record_failure)
+    repository = WorkerContainer(session).ingestion_repository(failure=_record_failure)
 
     async def pipeline(_document):
         await _run_pipeline(session, repository.document, repository.version, repository.job)

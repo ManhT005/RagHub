@@ -84,10 +84,15 @@ async def test_successful_rag_stream_persists_usage_and_selected_citations(
                 config=SimpleNamespace(provider_type="OPENAI_COMPATIBLE", model="chat-model"),
             )
 
-    import app.modules.chatbots.service as service_module
+    import app.composition.self_host as composition
+    from app.infrastructure.chat_runtime import RuntimeRetrievalAdapter
 
-    monkeypatch.setattr(service_module, "SearchService", Search)
-    monkeypatch.setattr(service_module, "ProviderResolver", Resolver)
+    monkeypatch.setattr(
+        composition.SelfHostContainer,
+        "retrieve_context",
+        lambda self: RuntimeRetrievalAdapter(lambda: Search(None)),
+    )
+    monkeypatch.setattr(composition, "ProviderResolver", Resolver)
     session = SessionStub()
 
     events = [

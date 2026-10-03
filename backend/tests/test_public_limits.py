@@ -108,7 +108,7 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
         def __init__(self, session):
             pass
 
-        async def public_chatbot(self, *args):
+        async def resolve(self, *args):
             return bot
 
         async def get(self, *args):
@@ -122,6 +122,7 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
 
             yield ChatCompleted(uuid4(), None, 0)
 
+    monkeypatch.setattr(router, "PublicChatContainer", Service)
     monkeypatch.setattr(router, "ChatbotService", Service)
     app = FastAPI()
     register_exception_handlers(app)

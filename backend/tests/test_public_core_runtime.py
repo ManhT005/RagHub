@@ -58,7 +58,7 @@ async def test_public_delivery_uses_server_scope_and_closes_typed_runtime_on_eve
         def __init__(self, session):
             pass
 
-        async def public_chatbot(self, key, origin):
+        async def resolve(self, key, origin):
             assert key == "rgh_test" and origin == "https://example.com"
             return bot
 
@@ -77,7 +77,7 @@ async def test_public_delivery_uses_server_scope_and_closes_typed_runtime_on_eve
             finally:
                 closed.append(True)
 
-    monkeypatch.setattr(router, "ChatbotService", Service)
+    monkeypatch.setattr(router, "PublicChatContainer", Service)
     limits = AsyncMock()
     limits.settings = Settings(_env_file=None, public_chat_stream_timeout_seconds=1)
     request = Request({"type": "http", "client": ("127.0.0.1", 1234)})

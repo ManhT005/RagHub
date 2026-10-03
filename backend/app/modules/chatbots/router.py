@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.composition.public_chat import PublicChatContainer
 from app.core.auth import (
     OrganizationContext,
     get_current_user,
@@ -165,7 +166,7 @@ async def public_config(
     origin: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> JSONResponse:
-    config = await ChatbotService(session).public_config(embed_key, origin)
+    config = await PublicChatContainer(session).config(embed_key, origin)
     return JSONResponse(config, headers=public_cors_headers(origin))
 
 
@@ -184,7 +185,7 @@ async def public_chat_options(
     origin: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> Response:
-    await ChatbotService(session).public_chatbot(embed_key, origin)
+    await PublicChatContainer(session).resolve(embed_key, origin)
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers=public_cors_headers(origin))
 
 
@@ -197,13 +198,13 @@ async def public_chat(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
+    chatbot = await PublicChatContainer(session).resolve(embed_key, origin)
     request.state.public_origin = origin
     request.state.public_chatbot_id = str(chatbot.id)
     await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
     slot = await limits.acquire(str(chatbot.id))
 
-    events = ChatbotService(session).stream_events(
+    events = PublicChatContainer(session).stream_events(
         StreamChatCommand(
             chatbot.organization_id,
             chatbot.id,

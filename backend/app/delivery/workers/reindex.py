@@ -5,8 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
-from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from app.application.ingestion.reindex_workspace import ReindexWorkspaceUseCase
+from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
 from app.core_domain.ingestion.reindex import is_transient_failure
 from app.core_domain.providers.errors import (
@@ -14,17 +13,8 @@ from app.core_domain.providers.errors import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
-from app.infrastructure.elasticsearch.chunks import ChunkIndexer
-from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
-from app.infrastructure.object_storage.minio import MinioObjectStorage
-from app.infrastructure.parsing.documents import DocumentParser
-from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
-from app.infrastructure.providers import ProviderResolverAdapter
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
-from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.workspaces.models import Workspace
-
-parse_document = DocumentParser().parse
 
 logger = logging.getLogger(__name__)
 
@@ -66,24 +56,7 @@ async def _run_reindex(job_id: uuid.UUID, *, fail_transient: bool = False) -> No
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            repository = ReindexRepositoryAdapter(session)
-            builder = BuildDocumentIndexUseCase(MinioObjectStorage(settings), parse_document)
-
-            def make_store(runtime):
-                return LegacyVectorStoreAdapter(
-                    ChunkIndexer(
-                        settings=settings,
-                        index_name=runtime.index_name,
-                        dimension=runtime.dimension,
-                    )
-                )
-
-            use_case = ReindexWorkspaceUseCase(
-                repository,
-                builder,
-                ProviderResolverAdapter(ProviderResolver(session)),
-                make_store,
-            )
+            use_case = WorkerContainer(session, settings).reindex_workspace()
             await use_case.execute(job_id, fail_transient=fail_transient)
     finally:
         await engine.dispose()

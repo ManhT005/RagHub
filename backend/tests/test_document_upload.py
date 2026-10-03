@@ -18,7 +18,7 @@ from app.modules.documents.service import DocumentService
 @pytest.fixture
 def service(monkeypatch: pytest.MonkeyPatch) -> DocumentService:
     monkeypatch.setattr(
-        "app.modules.documents.service.MinioObjectStorage",
+        "app.composition.self_host.MinioObjectStorage",
         lambda _: SimpleNamespace(put=AsyncMock(), get=AsyncMock(), remove=AsyncMock()),
     )
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())

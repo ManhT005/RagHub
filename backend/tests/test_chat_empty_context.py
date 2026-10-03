@@ -54,10 +54,15 @@ async def test_empty_context_skips_chat_provider(monkeypatch: pytest.MonkeyPatch
         def __init__(self, session: object) -> None:
             raise AssertionError("chat provider must not be resolved for empty context")
 
-    import app.modules.chatbots.service as service_module
+    import app.composition.self_host as composition
+    from app.infrastructure.chat_runtime import RuntimeRetrievalAdapter
 
-    monkeypatch.setattr(service_module, "SearchService", EmptySearch)
-    monkeypatch.setattr(service_module, "ProviderResolver", ForbiddenResolver)
+    monkeypatch.setattr(
+        composition.SelfHostContainer,
+        "retrieve_context",
+        lambda self: RuntimeRetrievalAdapter(lambda: EmptySearch(None)),
+    )
+    monkeypatch.setattr(composition, "ProviderResolver", ForbiddenResolver)
     session = SessionStub()
 
     events = [

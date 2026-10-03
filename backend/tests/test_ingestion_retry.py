@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from celery.exceptions import Retry
 
+from app.composition import worker as worker_composition
 from app.delivery.workers import ingestion as ingestion_runtime
 from app.modules.ai_providers.errors import (
     ProviderAuthenticationError,
@@ -115,10 +116,12 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
             pass
 
     storage = SimpleNamespace(get=AsyncMock(return_value=b"text"))
-    monkeypatch.setattr(ingestion_runtime, "MinioObjectStorage", lambda _settings: storage)
-    monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(worker_composition, "MinioObjectStorage", lambda _settings: storage)
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
-    monkeypatch.setattr(ingestion_runtime, "chunk_sections", lambda _sections, _version_id: [chunk])
+    monkeypatch.setattr(
+        worker_composition, "chunk_sections", lambda _sections, _version_id: [chunk]
+    )
     provider = SimpleNamespace(embed_documents=AsyncMock(return_value=[[1.0, 0.0]]))
     resolved = SimpleNamespace(
         provider=provider,
@@ -132,8 +135,8 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
         async def embedding_for_workspace(self, *_args: object) -> object:
             return resolved
 
-    monkeypatch.setattr(ingestion_runtime, "ProviderResolver", Resolver)
-    monkeypatch.setattr(ingestion_runtime, "ChunkIndexer", Indexer)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", Resolver)
+    monkeypatch.setattr(worker_composition, "ChunkIndexer", Indexer)
 
     await tasks._run_pipeline(session, document, version, job)
 
@@ -188,18 +191,18 @@ async def test_transient_embedding_provider_failure_is_retryable(
     job = SimpleNamespace(stage="PARSING", progress=20)
     session = SimpleNamespace(commit=AsyncMock())
     monkeypatch.setattr(
-        ingestion_runtime,
+        worker_composition,
         "MinioObjectStorage",
         lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(
-        ingestion_runtime,
+        worker_composition,
         "chunk_sections",
         lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
     )
     resolver = SimpleNamespace(embedding_for_workspace=AsyncMock(side_effect=provider_error))
-    monkeypatch.setattr(ingestion_runtime, "ProviderResolver", lambda _session: resolver)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", lambda _session: resolver)
 
     with pytest.raises(tasks.IngestionError) as caught:
         await tasks._run_pipeline(session, document, version, job)
@@ -217,20 +220,20 @@ async def test_auth_embedding_provider_failure_is_permanent(
     job = SimpleNamespace(stage="PARSING", progress=20)
     session = SimpleNamespace(commit=AsyncMock())
     monkeypatch.setattr(
-        ingestion_runtime,
+        worker_composition,
         "MinioObjectStorage",
         lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(ingestion_runtime, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(
-        ingestion_runtime,
+        worker_composition,
         "chunk_sections",
         lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
     )
     resolver = SimpleNamespace(
         embedding_for_workspace=AsyncMock(side_effect=ProviderAuthenticationError())
     )
-    monkeypatch.setattr(ingestion_runtime, "ProviderResolver", lambda _session: resolver)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", lambda _session: resolver)
 
     with pytest.raises(tasks.IngestionError) as caught:
         await tasks._run_pipeline(session, document, version, job)

@@ -5,20 +5,12 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.documents.retry_document import RetryDocumentUseCase
-from app.application.documents.upload_document import UploadDocumentUseCase
+from app.composition.self_host import SelfHostContainer
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
 from app.core_domain.documents.upload import UploadDocumentCommand
 from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 from app.core_domain.retrieval.models import RetrievalScope
-from app.infrastructure.object_storage.minio import MinioObjectStorage
-from app.infrastructure.persistence.uploads import (
-    DocumentRetryRepositoryAdapter,
-    UploadRepositoryAdapter,
-)
-from app.infrastructure.task_queue.queue import CeleryTaskQueue
-from app.modules.documents.repository import DocumentRepository
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
 from app.ports.object_storage import ObjectStoragePort
 from app.ports.task_queue import TaskQueuePort
@@ -37,17 +29,15 @@ class DocumentService:
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
-        self.repository = DocumentRepository(session)
-        self.storage: ObjectStoragePort = storage or MinioObjectStorage(self.settings)
-        self.task_queue = task_queue or CeleryTaskQueue()
+        self.container = SelfHostContainer(
+            session, self.settings, storage=storage, task_queue=task_queue
+        )
+        self.repository = self.container.documents
+        self.storage = self.container.storage
+        self.task_queue = self.container.queue
 
     async def upload(self, command: UploadDocumentCommand) -> DocumentAccepted:
-        result = await UploadDocumentUseCase(
-            UploadRepositoryAdapter(self.repository, self.session),
-            self.storage,
-            self.task_queue,
-            max_size_mb=self.settings.max_upload_size_mb,
-        ).execute(command)
+        result = await self.container.upload_document().execute(command)
         return DocumentAccepted(**asdict(result))
 
     async def retry(
@@ -61,10 +51,9 @@ class DocumentService:
         return await self._retry(organization_id, workspace_id, version_id, reindex=True)
 
     async def _retry(self, organization_id, workspace_id, version_id, *, reindex):
-        receipt = await RetryDocumentUseCase(
-            DocumentRetryRepositoryAdapter(self.repository, self.session),
-            self.task_queue,
-        ).execute(RetrievalScope(organization_id, workspace_id), version_id, reindex=reindex)
+        receipt = await self.container.retry_document().execute(
+            RetrievalScope(organization_id, workspace_id), version_id, reindex=reindex
+        )
         return DocumentAccepted(**asdict(receipt))
 
     async def list_documents(
@@ -106,4 +95,3 @@ class DocumentService:
             )
         document.deleted_at = datetime.now(UTC)
         await self.session.commit()
-

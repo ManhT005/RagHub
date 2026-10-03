@@ -34,7 +34,7 @@ async def test_public_requests_reuse_client_until_shutdown(shared_redis, monkeyp
         def __init__(self, session):
             pass
 
-        async def public_chatbot(self, *args):
+        async def resolve(self, *args):
             return bot
 
         async def stream_events(self, *args):
@@ -42,7 +42,7 @@ async def test_public_requests_reuse_client_until_shutdown(shared_redis, monkeyp
 
             yield ChatCompleted(uuid4(), None, 0)
 
-    monkeypatch.setattr(router, "ChatbotService", Service)
+    monkeypatch.setattr(router, "PublicChatContainer", Service)
     app = FastAPI(lifespan=redis_module.redis_lifespan)
     register_exception_handlers(app)
     app.include_router(router.router)

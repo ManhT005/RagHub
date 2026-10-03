@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.composition.retrieval import retrieval_use_case
+from app.composition.self_host import SelfHostContainer
 from app.core_domain.retrieval.models import RetrievalScope
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.retrieval_mapping import chunk_to_hit
@@ -13,6 +13,7 @@ class SearchService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self.container = SelfHostContainer(session)
 
     async def _ready_hits(
         self, organization_id: UUID, workspace_id: UUID, hits: list[dict[str, object]]
@@ -26,7 +27,7 @@ class SearchService:
     async def retrieve(
         self, organization_id: UUID, workspace_id: UUID, query: str, limit: int
     ) -> list[dict[str, object]]:
-        results = await retrieval_use_case(self.session).retrieve(
+        results = await self.container.retrieve_context().retrieve(
             RetrievalScope(organization_id, workspace_id),
             query,
             limit,
