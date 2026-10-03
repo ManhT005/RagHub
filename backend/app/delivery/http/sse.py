@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from contextlib import aclosing
 from dataclasses import asdict
 
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.rag.events import (
     ChatCompleted,
     ChatFailed,
@@ -48,5 +48,5 @@ async def stream_sse(events: AsyncIterator[RagEvent]) -> AsyncIterator[str]:
         async with aclosing(events) as stream:
             async for event in stream:
                 yield serialize_event(event)
-    except AppError as exc:
+    except CoreError as exc:
         yield serialize_event(ChatFailed(exc.code, exc.message))

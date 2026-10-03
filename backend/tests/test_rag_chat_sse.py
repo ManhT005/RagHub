@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.providers.contracts import ChatUsage
 from app.core_domain.rag.events import (
     ChatCompleted,
@@ -122,6 +123,6 @@ async def test_gemini_provider_requires_server_side_key() -> None:
     from app.core.config import Settings
 
     provider = GeminiChatProvider(Settings(gemini_api_key=""))
-    with pytest.raises(AppError, match="Gemini is not configured"):
+    with pytest.raises(CoreError, match="Gemini is not configured"):
         async for _ in provider.stream_chat(messages=[], model="gemini-2.5-flash"):
             pass

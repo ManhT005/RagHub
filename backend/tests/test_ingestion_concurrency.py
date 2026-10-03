@@ -13,7 +13,8 @@ from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
 from app.core.config import Settings
-from app.core.exceptions import AppError
+from app.core_domain.errors import CoreError as AppError
+from app.delivery.http.error_mapping import http_status
 from app.delivery.workers import ingestion as ingestion_runtime
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.modules.documents.models import DocumentStatus, DocumentVersion, IngestionJob
@@ -152,7 +153,7 @@ async def test_concurrent_manual_retries_enqueue_once(database, monkeypatch):
     accepted = [result for result in results if not isinstance(result, Exception)]
     conflicts = [result for result in results if isinstance(result, AppError)]
     assert len(accepted) == len(conflicts) == 1, results
-    assert accepted[0].status == "QUEUED" and conflicts[0].status_code == 409
+    assert accepted[0].status == "QUEUED" and http_status(conflicts[0]) == 409
     queued.assert_called_once_with(str(version_id))
     async with sessions() as session:
         job = await session.scalar(
@@ -176,7 +177,7 @@ async def test_foreign_retry_and_active_worker_lock_are_rejected(database, monke
     async with sessions() as session:
         with pytest.raises(AppError) as error:
             await DocumentService(session).retry(uuid.uuid4(), workspace_id, version_id)
-        assert error.value.status_code == 404
+        assert http_status(error.value) == 404
     async with engine.connect() as connection:
         async with try_ingestion_lock(connection, version_id) as acquired:
             assert acquired

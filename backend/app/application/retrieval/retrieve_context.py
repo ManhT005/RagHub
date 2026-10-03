@@ -1,7 +1,7 @@
 import math
 from collections.abc import Callable
 
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.retrieval.hybrid import (
     RETRIEVAL_CANDIDATES,
     ContextBundle,
@@ -26,21 +26,18 @@ class RetrieveContextUseCase:
         runtime = await self.providers.resolve_embedding(scope)
         vector = await runtime.provider.embed_query(query)
         if len(vector) != runtime.dimension or not all(math.isfinite(x) for x in vector):
-            raise AppError(
+            raise CoreError(
                 "PROVIDER_INVALID_RESPONSE",
                 "Query embedding dimension does not match the active index.",
-                status_code=502,
             )
         search = self.make_search(runtime)
         try:
             candidates = await search.search(scope, query, vector, max(limit, RETRIEVAL_CANDIDATES))
             return (await self.readiness.filter_ready(scope, candidates))[:limit]
-        except AppError:
+        except CoreError:
             raise
         except Exception as exc:
-            raise AppError(
-                "SEARCH_UNAVAILABLE", "Search is temporarily unavailable.", status_code=503
-            ) from exc
+            raise CoreError("SEARCH_UNAVAILABLE", "Search is temporarily unavailable.") from exc
         finally:
             await search.close()
 

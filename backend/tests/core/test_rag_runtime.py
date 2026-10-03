@@ -5,7 +5,7 @@ import pytest
 
 from app.application.rag.stream_chat import StreamRagChatUseCase
 from app.core_domain.chatbots.models import ChatbotConfig
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
 from app.core_domain.providers.errors import ProviderUnavailableError
 from app.core_domain.rag.events import (
@@ -158,7 +158,7 @@ async def test_access_check_precedes_retrieval(wrong_tenant):
         command = replace(command, organization_id=uuid4())
     else:
         chatbots.config = replace(chatbots.config, published=False)
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         _ = [event async for event in use_case.execute(command)]
     assert error.value.code == ("CHATBOT_NOT_FOUND" if wrong_tenant else "CHATBOT_NOT_PUBLISHED")
     assert not retrieval.calls and not providers.chat_scopes

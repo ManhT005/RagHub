@@ -55,6 +55,26 @@ def test_engine_dependency_direction() -> None:
     assert not violations, "\n".join(violations)
 
 
+def test_engine_errors_have_no_http_status_semantics() -> None:
+    from app.core_domain.errors import CoreError
+    from app.core_domain.providers.errors import ProviderTimeoutError
+
+    for error in (CoreError("TEST", "test", details={"reason": "test"}), ProviderTimeoutError()):
+        assert not hasattr(error, "status_code")
+    violations = []
+    for layer in ("core_domain", "application", "ports"):
+        for path in (APP / layer).rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if (
+                    isinstance(node, ast.keyword)
+                    and node.arg == "status_code"
+                    or isinstance(node, ast.Attribute)
+                    and node.attr == "status_code"
+                ):
+                    violations.append(str(path.relative_to(APP)))
+    assert not violations, "\n".join(violations)
+
+
 @pytest.mark.parametrize(
     "source",
     [

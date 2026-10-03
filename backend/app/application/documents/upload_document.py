@@ -8,7 +8,7 @@ from app.core_domain.documents.upload import (
     validate_upload_content,
     validate_upload_metadata,
 )
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.ports.documents import DocumentRepositoryPort
 from app.ports.object_storage import ObjectStoragePort
 from app.ports.task_queue import TaskQueuePort
@@ -30,10 +30,9 @@ class UploadDocumentUseCase:
         if not await self.repository.workspace_exists(
             command.organization_id, command.workspace_id
         ):
-            raise AppError(
+            raise CoreError(
                 "WORKSPACE_NOT_FOUND",
                 "Workspace was not found in the current organization.",
-                status_code=404,
             )
         filename, extension, mime = validate_upload_metadata(command.filename, command.content_type)
         validate_upload_content(command.content, extension, self.max_size_mb)
@@ -41,9 +40,7 @@ class UploadDocumentUseCase:
         try:
             await asyncio.to_thread(self.storage.put, storage_key, command.content, mime)
         except Exception as exc:
-            raise AppError(
-                "STORAGE_UNAVAILABLE", "The document could not be stored.", status_code=503
-            ) from exc
+            raise CoreError("STORAGE_UNAVAILABLE", "The document could not be stored.") from exc
         try:
             receipt = await self.repository.create_upload(
                 organization_id=command.organization_id,
@@ -67,10 +64,9 @@ class UploadDocumentUseCase:
         except Exception as exc:
             await self.repository.mark_queue_failure(receipt.document_version_id, str(exc))
             await self.repository.commit()
-            raise AppError(
+            raise CoreError(
                 "QUEUE_UNAVAILABLE",
                 "The document was stored but could not be queued for ingestion.",
-                status_code=503,
                 details={"document_id": str(receipt.document_id)},
             ) from exc
         return receipt

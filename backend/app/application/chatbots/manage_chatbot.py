@@ -8,7 +8,7 @@ from app.core_domain.chatbots.models import (
     PatchChatbotCommand,
     Unset,
 )
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.retrieval.models import RetrievalScope
 from app.ports.chatbots import ChatbotRepositoryPort
 
@@ -21,10 +21,9 @@ class ManageChatbotUseCase:
 
     async def _workspace(self, scope: RetrievalScope) -> None:
         if not await self.repository.workspace_exists(scope):
-            raise AppError(
+            raise CoreError(
                 "WORKSPACE_NOT_FOUND",
                 "Workspace was not found in the current organization.",
-                status_code=404,
             )
 
     async def list(self, scope: RetrievalScope) -> list[ChatbotRecord]:
@@ -34,10 +33,9 @@ class ManageChatbotUseCase:
     async def get(self, organization_id: UUID, chatbot_id: UUID) -> ChatbotRecord:
         record = await self.repository.get(organization_id, chatbot_id)
         if record is None:
-            raise AppError(
+            raise CoreError(
                 "CHATBOT_NOT_FOUND",
                 "Chatbot was not found in the current organization.",
-                status_code=404,
             )
         return record
 

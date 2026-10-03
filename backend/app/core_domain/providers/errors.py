@@ -1,14 +1,13 @@
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 
 
-class ProviderError(AppError):
-    def __init__(self, code: str, message: str, *, status_code: int = 502) -> None:
-        super().__init__(code, message, status_code=status_code)
+class ProviderError(CoreError):
+    pass
 
 
 class ProviderTimeoutError(ProviderError):
     def __init__(self, message: str = "The AI provider timed out.") -> None:
-        super().__init__("PROVIDER_TIMEOUT", message, status_code=504)
+        super().__init__("PROVIDER_TIMEOUT", message)
 
 
 class ProviderUnavailableError(ProviderError):
@@ -37,11 +36,10 @@ class ProviderConfigurationError(ProviderError):
         message: str = "The AI provider is not configured.",
         *,
         code: str = "PROVIDER_NOT_CONFIGURED",
-        status_code: int = 422,
     ) -> None:
-        super().__init__(code, message, status_code=status_code)
+        super().__init__(code, message)
 
 
 class ProviderDisabledError(ProviderConfigurationError):
     def __init__(self) -> None:
-        super().__init__("The AI provider is disabled.", code="PROVIDER_DISABLED", status_code=409)
+        super().__init__("The AI provider is disabled.", code="PROVIDER_DISABLED")

@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from app.application.retrieval.retrieve_context import RetrieveContextUseCase
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 from .fakes import FakeProviderResolver, FakeVectorStore
@@ -70,7 +70,7 @@ async def test_invalid_query_embedding_does_not_open_vector_store():
     def forbidden(_):
         raise AssertionError("Invalid vectors must not be searched")
 
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await RetrieveContextUseCase(providers, readiness, forbidden).retrieve(
             RetrievalScope(uuid4(), uuid4()),
             "question",
@@ -86,7 +86,7 @@ async def test_readiness_failure_closes_search_and_maps_error():
         raise ConnectionError("database failure")
 
     readiness.filter_ready = failed
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await RetrieveContextUseCase(providers, readiness, lambda _: store).retrieve(
             RetrievalScope(uuid4(), uuid4()),
             "question",

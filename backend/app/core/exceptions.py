@@ -5,7 +5,9 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.core_domain.errors import AppError as AppError
+from app.core_domain.errors import CoreError
+from app.delivery.http.error_mapping import AppError as AppError
+from app.delivery.http.error_mapping import http_status
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +38,12 @@ def _error_response(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(AppError)
-    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    @app.exception_handler(CoreError)
+    async def handle_app_error(request: Request, exc: CoreError) -> JSONResponse:
         request.state.public_error_code = exc.code
         response = _error_response(
             request,
-            status_code=exc.status_code,
+            status_code=http_status(exc),
             code=exc.code,
             message=exc.message,
             details=exc.details,

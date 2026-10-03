@@ -7,7 +7,7 @@ import pytest
 from app.application.chatbots.manage_chatbot import ManageChatbotUseCase
 from app.application.chatbots.publish_chatbot import PublishChatbotUseCase
 from app.core_domain.chatbots.models import ChatbotRecord, CreateChatbotCommand, PatchChatbotCommand
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.retrieval.models import RetrievalScope
 
 from .fakes import FakeProviderResolver
@@ -82,11 +82,11 @@ async def test_strict_publication_rejects_missing_workspace_or_invalid_config():
     repository, providers = Repository(), FakeProviderResolver()
     publication = PublishChatbotUseCase(repository, providers)
     repository.exists = False
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await publication.execute(repository.record)
     assert error.value.code == "WORKSPACE_NOT_FOUND"
     repository.exists = True
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await publication.execute(replace(repository.record, name=" "))
     assert error.value.code == "INVALID_CHATBOT_CONFIG" and not repository.saved
 
@@ -94,6 +94,6 @@ async def test_strict_publication_rejects_missing_workspace_or_invalid_config():
 async def test_chatbot_management_cannot_read_another_tenant():
     repository, providers = Repository(), FakeProviderResolver()
     manage = ManageChatbotUseCase(repository, PublishChatbotUseCase(repository, providers))
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await manage.get(uuid4(), repository.record.id)
     assert error.value.code == "CHATBOT_NOT_FOUND"

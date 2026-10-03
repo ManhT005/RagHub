@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from app.core_domain.documents.upload import UploadReceipt
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.ingestion.errors import RETRYABLE_ERROR_CODES
 from app.core_domain.retrieval.models import RetrievalScope
 from app.ports.documents import DocumentRetryRepositoryPort
@@ -17,9 +17,7 @@ class RetryDocumentUseCase:
     ) -> UploadReceipt:
         state = await self.repository.load_for_retry(scope, version_id)
         if state is None:
-            raise AppError(
-                "DOCUMENT_VERSION_NOT_FOUND", "Document version was not found.", status_code=404
-            )
+            raise CoreError("DOCUMENT_VERSION_NOT_FOUND", "Document version was not found.")
         expected = "READY" if reindex else "FAILED"
         if state.receipt.status != expected:
             message = (
@@ -27,17 +25,14 @@ class RetryDocumentUseCase:
                 if reindex
                 else "Only failed versions can be retried."
             )
-            raise AppError("INVALID_DOCUMENT_STATUS", message, status_code=409)
+            raise CoreError("INVALID_DOCUMENT_STATUS", message)
         if not reindex and state.error_code not in RETRYABLE_ERROR_CODES:
-            raise AppError(
+            raise CoreError(
                 "DOCUMENT_NOT_RETRYABLE",
                 "This failure cannot be retried. Correct the document and upload it again.",
-                status_code=409,
             )
         if not await self.repository.try_retry_lock(version_id):
-            raise AppError(
-                "INGESTION_IN_PROGRESS", "Ingestion is still finishing.", status_code=409
-            )
+            raise CoreError("INGESTION_IN_PROGRESS", "Ingestion is still finishing.")
         receipt = await self.repository.reset(version_id)
         await self.repository.commit()
         try:
@@ -46,5 +41,5 @@ class RetryDocumentUseCase:
             await self.repository.mark_queue_failure(version_id, str(exc))
             await self.repository.commit()
             message = "Could not queue re-indexing." if reindex else "Could not queue ingestion."
-            raise AppError("QUEUE_UNAVAILABLE", message, status_code=503) from exc
+            raise CoreError("QUEUE_UNAVAILABLE", message) from exc
         return receipt

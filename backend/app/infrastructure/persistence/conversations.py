@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.providers.contracts import ChatMessage, ChatUsage
 from app.core_domain.rag.models import ChatUsageRecord, TrustedCitation
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
@@ -28,16 +28,14 @@ class ConversationRepositoryAdapter:
                 )
             )
             if conversation is None:
-                raise AppError(
+                raise CoreError(
                     "CONVERSATION_NOT_FOUND",
                     "Conversation does not belong to this chatbot.",
-                    status_code=404,
                 )
             if conversation.external_user_id != external_user_id:
-                raise AppError(
+                raise CoreError(
                     "CONVERSATION_ACCESS_DENIED",
                     "Conversation does not belong to this user.",
-                    status_code=403,
                 )
             return conversation
         conversation = Conversation(chatbot_id=chatbot.id, external_user_id=external_user_id)

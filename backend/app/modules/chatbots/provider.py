@@ -18,7 +18,7 @@ class GeminiChatProvider:
     ) -> AsyncIterator[str]:
         if not self.settings.gemini_api_key:
             raise ProviderConfigurationError(
-                "Gemini is not configured.", code="CHAT_PROVIDER_NOT_CONFIGURED", status_code=503
+                "Gemini is not configured.", code="CHAT_PROVIDER_NOT_CONFIGURED"
             )
         provider = GoogleGeminiChatProvider(
             base_url=self.settings.gemini_base_url,

@@ -6,7 +6,7 @@ from app.application.documents.upload_document import UploadDocumentUseCase
 from app.application.ingestion.build_document_index import BuildDocumentIndexUseCase
 from app.application.ingestion.run_ingestion import RunIngestionUseCase
 from app.core_domain.documents.upload import UploadDocumentCommand
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.ingestion.errors import IngestionError
 from app.core_domain.ingestion.models import IngestionAttempt, IngestionDocument
 from app.core_domain.ingestion.parser import parse_document
@@ -145,7 +145,7 @@ async def test_upload_rolls_back_and_removes_orphan_on_database_error():
 async def test_queue_failure_keeps_original_and_records_retryable_failure():
     storage, queue, repository = FakeObjectStorage(), FakeTaskQueue(), FakeUploadRepository()
     queue.error = ConnectionError("broker failure")
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await UploadDocumentUseCase(repository, storage, queue).execute(
             UploadDocumentCommand(uuid4(), uuid4(), "a.txt", "text/plain", b"knowledge")
         )

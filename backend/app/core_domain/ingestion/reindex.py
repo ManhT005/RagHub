@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.core_domain.errors import CoreError
 from app.core_domain.ingestion.errors import IngestionError
 from app.core_domain.providers.errors import (
     ProviderRateLimitError,
@@ -35,9 +36,9 @@ def is_transient_failure(exc: Exception) -> bool:
         | TimeoutError,
     ):
         return True
-    return (getattr(exc, "status_code", None) or getattr(exc, "status", None)) in {
-        429,
-        502,
-        503,
-        504,
+    return isinstance(exc, CoreError) and exc.code in {
+        "STORAGE_UNAVAILABLE",
+        "QUEUE_UNAVAILABLE",
+        "SEARCH_UNAVAILABLE",
+        "INDEX_UNAVAILABLE",
     }

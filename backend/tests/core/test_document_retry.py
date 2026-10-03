@@ -5,7 +5,7 @@ import pytest
 
 from app.application.documents.retry_document import RetryDocumentUseCase
 from app.core_domain.documents.upload import RetryDocumentState
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.retrieval.models import RetrievalScope
 
 from .fakes import FakeTaskQueue, FakeUploadRepository
@@ -52,7 +52,7 @@ async def test_permanent_failure_or_active_worker_lock_prevents_retry(permanent)
         repository.state = replace(repository.state, error_code="INVALID_PDF")
     else:
         repository.locked = False
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await RetryDocumentUseCase(repository, queue).execute(
             RetrievalScope(uuid4(), uuid4()),
             repository.receipt.document_version_id,
@@ -64,7 +64,7 @@ async def test_permanent_failure_or_active_worker_lock_prevents_retry(permanent)
 async def test_queue_failure_is_recorded_for_the_same_version():
     repository, queue = Repository(), FakeTaskQueue()
     queue.error = ConnectionError("offline")
-    with pytest.raises(AppError) as error:
+    with pytest.raises(CoreError) as error:
         await RetryDocumentUseCase(repository, queue).execute(
             RetrievalScope(uuid4(), uuid4()),
             repository.receipt.document_version_id,

@@ -9,7 +9,8 @@ import pytest
 from fastapi import UploadFile
 
 from app.core.config import Settings
-from app.core.exceptions import AppError
+from app.core_domain.errors import CoreError as AppError
+from app.delivery.http.error_mapping import http_status
 from app.modules.documents.service import DocumentService
 
 
@@ -183,7 +184,7 @@ async def test_exact_25_mb_upload_boundary(service: DocumentService, extra_byte:
     if extra_byte:
         with pytest.raises(AppError) as error:
             await service._read_limited(file)
-        assert error.value.code == "FILE_TOO_LARGE" and error.value.status_code == 413
+        assert error.value.code == "FILE_TOO_LARGE" and http_status(error.value) == 413
     else:
         assert await service._read_limited(file) == content
 

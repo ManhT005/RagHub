@@ -1,6 +1,6 @@
 from app.core_domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
 from app.core_domain.chatbots.policies import validate_chatbot_configuration
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.ports.chatbots import ChatbotRepositoryPort
 from app.ports.provider_resolver import ProviderResolverPort
 
@@ -13,10 +13,9 @@ class PublishChatbotUseCase:
         self, config: ChatbotRecord | CreateChatbotCommand, *, require_readiness: bool = True
     ) -> None:
         if not await self.repository.workspace_exists(config.scope):
-            raise AppError(
+            raise CoreError(
                 "WORKSPACE_NOT_FOUND",
                 "Workspace was not found in the current organization.",
-                status_code=404,
             )
         if require_readiness:
             validate_chatbot_configuration(config)

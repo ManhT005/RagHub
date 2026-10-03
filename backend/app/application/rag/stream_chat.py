@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator, Callable
 
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.providers.contracts import ChatOptions, ChatUsage
 from app.core_domain.providers.usage import estimate_chat_usage
 from app.core_domain.rag.citations import resolve_trusted_citations
@@ -42,13 +42,12 @@ class StreamRagChatUseCase:
     async def execute(self, command: StreamChatCommand) -> AsyncIterator[RagEvent]:
         chatbot = await self.chatbots.get(command.organization_id, command.chatbot_id)
         if chatbot.scope.organization_id != command.organization_id:
-            raise AppError(
+            raise CoreError(
                 "CHATBOT_NOT_FOUND",
                 "Chatbot was not found in the current organization.",
-                status_code=404,
             )
         if not chatbot.published:
-            raise AppError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.", status_code=409)
+            raise CoreError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.")
         hits = await self.retrieval.retrieve(
             chatbot.scope, command.question, chatbot.retrieval_limit
         )
@@ -99,7 +98,7 @@ class StreamRagChatUseCase:
                     yield TokenDelta(delta.text)
                 if delta.usage:
                     usage = delta.usage
-        except AppError as exc:
+        except CoreError as exc:
             yield ChatFailed(exc.code, exc.message)
             return
         finally:

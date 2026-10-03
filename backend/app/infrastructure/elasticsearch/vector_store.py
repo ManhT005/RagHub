@@ -1,6 +1,6 @@
 from elasticsearch import NotFoundError
 
-from app.core_domain.errors import AppError
+from app.core_domain.errors import CoreError
 from app.core_domain.ingestion.errors import IngestionError
 from app.core_domain.providers.errors import ProviderError
 from app.core_domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
@@ -33,7 +33,20 @@ class LegacyVectorStoreAdapter:
             raise IngestionError("INDEX_UNAVAILABLE", str(exc), retryable=True) from exc
 
     def replace(self, index: DocumentIndex) -> None:
-        ElasticsearchVectorStore.replace(self.indexer, index)
+        try:
+            ElasticsearchVectorStore.replace(self.indexer, index)
+        except Exception as exc:
+            status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+            transient = status in {429, 502, 503, 504} or isinstance(
+                exc, ConnectionError | TimeoutError
+            )
+            transient = transient or exc.__class__.__module__.split(".")[0] in {
+                "elastic_transport",
+                "urllib3",
+            }
+            raise IngestionError(
+                "INDEX_UNAVAILABLE" if transient else "INDEX_FAILED", str(exc), retryable=transient
+            ) from exc
 
     def delete_document_version(self, document_version_id) -> None:
         self.indexer.delete_document_version(document_version_id)
@@ -69,9 +82,7 @@ class ElasticsearchVectorSearch:
         except ProviderError:
             raise
         except Exception as exc:
-            raise AppError(
-                "SEARCH_UNAVAILABLE", "Search is temporarily unavailable.", status_code=503
-            ) from exc
+            raise CoreError("SEARCH_UNAVAILABLE", "Search is temporarily unavailable.") from exc
 
     async def close(self) -> None:
         await self.search_adapter.close()
