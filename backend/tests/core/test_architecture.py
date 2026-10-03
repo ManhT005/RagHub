@@ -6,10 +6,9 @@ from pathlib import Path
 import pytest
 
 APP = Path(__file__).resolve().parents[2] / "app"
+CORE = APP.parent / "raghub_core"
 LAYERS = {
-    "domain": (APP.parent / "raghub_core" / "domain", "raghub_core.domain"),
-    "ports": (APP.parent / "raghub_core" / "ports", "raghub_core.ports"),
-    "application": (APP.parent / "raghub_core" / "application", "raghub_core.application"),
+    layer: (CORE / layer, f"raghub_core.{layer}") for layer in ("domain", "ports", "application")
 }
 FORBIDDEN = {
     "fastapi",
@@ -62,6 +61,9 @@ def test_engine_dependency_direction() -> None:
         for file in directory.rglob("*.py"):
             for name in forbidden_imports(file.read_text(encoding="utf-8"), layer=layer):
                 violations.append(f"{file.relative_to(APP.parent)}: {name}")
+    for file in CORE.glob("*.py"):
+        for name in forbidden_imports(file.read_text(encoding="utf-8"), layer="application"):
+            violations.append(f"{file.relative_to(APP.parent)}: {name}")
     assert not violations, "\n".join(violations)
 
 
@@ -114,6 +116,71 @@ def test_engine_errors_have_no_http_status_semantics() -> None:
 )
 def test_dependency_check_catches_runtime_and_hidden_imports(source: str) -> None:
     assert forbidden_imports(source, layer="domain")
+
+
+@pytest.mark.parametrize("layer", ["domain", "ports", "application"])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import app",
+        "from app.main import app",
+        "from app.core_domain.errors import CoreError",
+        "from app.ports.object_storage import ObjectStoragePort",
+        "from app.application.rag.stream_chat import StreamRagChatUseCase",
+    ],
+)
+def test_every_engine_layer_rejects_the_host_namespace(layer: str, source: str) -> None:
+    assert forbidden_imports(source, layer=layer)
+
+
+@pytest.mark.parametrize(
+    "layer,source",
+    [
+        ("domain", "from raghub_core.ports.documents import DocumentRepositoryPort"),
+        ("domain", "from raghub_core.application.rag.stream_chat import StreamRagChatUseCase"),
+        ("ports", "from raghub_core.application.rag.stream_chat import StreamRagChatUseCase"),
+        ("ports", "import tiktoken"),
+        ("application", "import httpx"),
+        ("domain", "import requests"),
+    ],
+)
+def test_dependency_check_rejects_upward_and_unapproved_dependencies(layer, source) -> None:
+    assert forbidden_imports(source, layer=layer)
+
+
+@pytest.mark.parametrize(
+    "layer,source",
+    [
+        ("domain", "from uuid import UUID"),
+        ("domain", "import tiktoken"),
+        ("ports", "from raghub_core.domain.retrieval.models import RetrievalScope"),
+        ("application", "from raghub_core.ports.object_storage import ObjectStoragePort"),
+        (
+            "application",
+            "from raghub_core.application.ingestion.run_ingestion import RunIngestionUseCase",
+        ),
+    ],
+)
+def test_dependency_check_allows_supported_engine_directions(layer, source) -> None:
+    assert not forbidden_imports(source, layer=layer)
+
+
+def test_production_hosts_use_canonical_core_imports() -> None:
+    legacy = ("app.core_domain", "app.application", "app.ports")
+    violations = []
+    for file in APP.rglob("*.py"):
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
+            names = (
+                [alias.name for alias in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            for name in names:
+                if any(name == root or name.startswith(root + ".") for root in legacy):
+                    violations.append(f"{file.relative_to(APP)}: {name}")
+    assert not violations, "\n".join(violations)
 
 
 def test_core_imports_with_app_and_infrastructure_blocked() -> None:
