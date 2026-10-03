@@ -6,72 +6,133 @@
     </div>
   </section>
   <p class="error">{{ error() }}</p>
-  <section class="panel">
-    <select [(ngModel)]="workspaceId" (change)="load()">
-      <option value="">Chọn không gian làm việc</option>
+  <section class="documents-toolbar" aria-label="Công cụ tài liệu">
+    <nz-select
+      class="workspace-select"
+      nzSize="large"
+      [(ngModel)]="workspaceId"
+      (ngModelChange)="load()"
+      nzPlaceHolder="Chọn workspace"
+      aria-label="Chọn workspace"
+    >
       @for (workspace of workspaces(); track workspace.id) {
-        <option [value]="workspace.id">{{ workspace.name }}</option>
-      }</select
-    ><input
-      #fileInput
-      type="file"
-      accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-    /><button (click)="upload()">Tải tài liệu lên</button>
+        <nz-option [nzValue]="workspace.id" [nzLabel]="workspace.name" />
+      }
+    </nz-select>
+    <button
+      nz-button
+      nzType="primary"
+      nzSize="large"
+      class="upload-trigger"
+      type="button"
+      [disabled]="!workspaceId"
+      (click)="openUploadDialog()"
+    >
+      Tải tài liệu lên
+    </button>
   </section>
-  <section class="panel">
-    <table>
+
+  <section class="documents-table" aria-label="Danh sách tài liệu">
+    <nz-table
+      #documentTable
+      [nzData]="documents()"
+      [nzShowPagination]="true"
+      [nzFrontPagination]="true"
+      [nzPageSize]="10"
+      [nzShowSizeChanger]="false"
+      [nzScroll]="{ x: '720px' }"
+      nzSize="middle"
+      nzNotFoundContent="Chưa có tài liệu nào."
+    >
       <thead>
         <tr>
           <th>Tên</th>
           <th>Trạng thái</th>
           <th>Tiến độ</th>
           <th>Ngày tạo</th>
-          <th></th>
+          <th aria-label="Thao tác">Thao tác</th>
         </tr>
       </thead>
       <tbody>
-        @for (document of documents(); track document.id) {
+        @for (document of documentTable.data; track document.id) {
           <tr>
-            <td>{{ document.name }}</td>
+            <td><strong>{{ document.name }}</strong></td>
             <td>
-              <span class="status">{{
-                statusLabel(document.stage ?? document.status)
-              }}</span>
+              <nz-tag [nzColor]="statusColor(document.stage ?? document.status)">
+                {{ statusLabel(document.stage ?? document.status) }}
+              </nz-tag>
               @if (document.error_code) {
-                <p class="error">{{ errorMessage(document.error_code) }}</p>
+                <p class="row-error">{{ errorMessage(document.error_code) }}</p>
               }
             </td>
-            <td>{{ document.progress ?? 0 }}%</td>
+            <td class="progress-value">{{ document.progress ?? 0 }}%</td>
             <td>{{ document.created_at | date: "medium" }}</td>
-            <td>
+            <td class="actions">
               @if (document.status === "FAILED" && document.retryable) {
-                <button (click)="retry(document)">Thử lại</button>
+                <button nz-button type="button" (click)="retry(document)">
+                  Thử lại
+                </button>
               }
               @if (
                 document.status === "READY" && document.document_version_id
               ) {
                 <button
-                  [disabled]="
+                  nz-button
+                  nzType="primary"
+                  type="button"
+                  [nzLoading]="
                     reindexingVersionId() === document.document_version_id
                   "
                   (click)="reindex(document)"
                 >
-                  {{
-                    reindexingVersionId() === document.document_version_id
-                      ? "Đang lập chỉ mục lại…"
-                      : "Lập chỉ mục lại"
-                  }}
+                  Lập chỉ mục lại
                 </button>
               }
-              <button class="danger" (click)="remove(document)">Xóa</button>
+              <button
+                nz-button
+                nzType="primary"
+                nzDanger
+                type="button"
+                (click)="remove(document)"
+              >
+                Xóa
+              </button>
             </td>
-          </tr>
-        } @empty {
-          <tr>
-            <td colspan="5">Chưa có tài liệu nào.</td>
           </tr>
         }
       </tbody>
-    </table>
+    </nz-table>
   </section>
+
+  <nz-modal
+    [nzVisible]="uploadDialogOpen()"
+    nzTitle="Tải tài liệu lên"
+    nzOkText="Tải lên"
+    nzCancelText="Hủy"
+    nzClassName="document-upload-modal"
+    [nzOkDisabled]="!selectedFile()"
+    [nzOkLoading]="uploading()"
+    [nzClosable]="!uploading()"
+    [nzMaskClosable]="!uploading()"
+    (nzOnOk)="upload()"
+    (nzOnCancel)="closeUploadDialog()"
+  >
+    <ng-container *nzModalContent>
+      <nz-upload
+        nzType="drag"
+        [nzMultiple]="false"
+        [nzShowUploadList]="false"
+        [nzBeforeUpload]="beforeUpload"
+        nzAccept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+      >
+        <p class="upload-title">Chọn tệp hoặc kéo thả tệp vào đây</p>
+        <p class="upload-hint">Hỗ trợ PDF, TXT và Markdown.</p>
+      </nz-upload>
+      @if (selectedFile(); as file) {
+        <p class="selected-file" aria-live="polite">
+          Tệp đã chọn: <strong>{{ file.name }}</strong>
+        </p>
+      }
+    </ng-container>
+  </nz-modal>
 </main>

@@ -74,6 +74,32 @@ describe("UsersComponent", () => {
     expect(text).not.toMatch(/[一-鿿]/);
   });
 
+  it("renders user actions as solid primary and danger buttons", () => {
+    const buttons = fixture.nativeElement.querySelectorAll(".actions button");
+
+    expect(buttons.length).toBe(2);
+    expect(buttons[0].classList.contains("ant-btn-primary")).toBe(true);
+    expect(buttons[1].classList.contains("ant-btn-primary")).toBe(true);
+    expect(buttons[1].classList.contains("ant-btn-dangerous")).toBe(true);
+  });
+
+  it("uses debounced search without a submit button and keeps create action large", () => {
+    const toolbar = fixture.nativeElement.querySelector(".toolbar") as HTMLElement;
+    const createButton = Array.from(
+      toolbar.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("Tạo tài khoản"));
+
+    expect(toolbar.textContent).not.toContain("Tìm kiếm");
+    expect(createButton?.classList.contains("ant-btn-lg")).toBe(true);
+  });
+
+  it("places the user table on a white table panel", () => {
+    const panel = fixture.nativeElement.querySelector(".table-panel");
+
+    expect(panel).not.toBeNull();
+    expect(panel.querySelector("nz-table")).not.toBeNull();
+  });
+
   it("hides the organization picker for a single organization", () => {
     expect(fixture.nativeElement.textContent).not.toContain(
       "Tổ chức đang quản lý",

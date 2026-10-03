@@ -11,7 +11,6 @@ import {
   DatabaseOutline,
   FileTextOutline,
   MessageOutline,
-  BellOutline,
   SettingOutline,
   TeamOutline,
 } from '@ant-design/icons-angular/icons';
@@ -36,7 +35,6 @@ export const appConfig: ApplicationConfig = {
       DatabaseOutline,
       FileTextOutline,
       MessageOutline,
-      BellOutline,
       SettingOutline,
       CloudServerOutline,
       TeamOutline,
