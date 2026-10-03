@@ -252,6 +252,9 @@ docs/                 Tài liệu thiết kế, API và hướng dẫn tích h�
 
 ## Xử lý sự cố và tài liệu
 
+Self-host: [cài đặt Console và AI local](docs/operations/SELF_HOST.md) ·
+[backup, restore và nâng cấp](docs/operations/SELF_HOST_OPERATIONS.md).
+
 - **`502 Bad Gateway` sau khi build lại web:** Nginx có thể vẫn giữ địa chỉ container cũ. Chạy `docker compose -f infrastructure/docker-compose.yml restart nginx` rồi tải lại trang.
 - **Tài liệu không đến trạng thái Sẵn sàng:** xem `docker compose -f infrastructure/docker-compose.yml logs -f worker api`; tra mã lỗi xử lý trong [hướng dẫn ingestion](docs/ingestion-qa.md).
 - **Chat không có câu trả lời dựa trên tài liệu:** kiểm tra provider đã gắn vào workspace, tài liệu đã sẵn sàng và chatbot đã xuất bản. Xem [tích hợp RAG chat](docs/rag-chat-integration.md).

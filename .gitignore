@@ -38,6 +38,7 @@ Thumbs.db
 # Runtime data and logs
 *.log
 backend/data/
+.backups/
 .celerybeat-schedule
 
 # Local refactor plans and packaging artifacts

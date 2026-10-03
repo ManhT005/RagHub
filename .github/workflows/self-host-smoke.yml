@@ -45,6 +45,32 @@ jobs:
           --project raghub-selfhost-test --base-url http://localhost:18082
           --owner-file .env.selfhost-owner.json --state-file .env.selfhost-state.json
           --compose-override infrastructure/docker-compose.self-host.build.yml --restart
+      - name: Back up installed data, secrets and model cache
+        run: >-
+          python scripts/self-host-ops.py backup --env-file .env.selfhost-test
+          --project raghub-selfhost-test --directory .backups/smoke
+          --compose-override infrastructure/docker-compose.self-host.build.yml --include-models
+      - name: Prepare a different installation target
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          original = Path('.backups/smoke/runtime.env').read_text()
+          target = original.replace('18082', '18083').replace('172.31.83.', '172.31.84.')
+          Path('.env.selfhost-restore').write_text(target)
+          Path('.env.selfhost-restore').chmod(0o600)
+          PY
+          docker compose --env-file .env.selfhost-test -p raghub-selfhost-test -f infrastructure/docker-compose.self-host.yml -f infrastructure/docker-compose.self-host.build.yml --profile local-ai stop
+      - name: Restore into a fresh project
+        run: >-
+          python scripts/self-host-ops.py restore --env-file .env.selfhost-restore
+          --project raghub-selfhost-restore --directory .backups/smoke
+          --compose-override infrastructure/docker-compose.self-host.build.yml
+      - name: Verify restored owner, objects, index and local chat
+        run: >-
+          python scripts/self-host-smoke.py --env-file .env.selfhost-restore
+          --project raghub-selfhost-restore --base-url http://localhost:18083
+          --owner-file .env.selfhost-owner.json --state-file .env.selfhost-state.json
+          --compose-override infrastructure/docker-compose.self-host.build.yml --verify-only
       - name: Capture diagnostic logs
         if: failure()
         run: >-
@@ -59,3 +85,9 @@ jobs:
           -f infrastructure/docker-compose.self-host.yml
           -f infrastructure/docker-compose.self-host.build.yml
           --profile local-ai down -v --remove-orphans
+      - name: Remove restored test installation
+        if: always()
+        run: |
+          if [ -f .env.selfhost-restore ]; then
+            docker compose --env-file .env.selfhost-restore -p raghub-selfhost-restore -f infrastructure/docker-compose.self-host.yml -f infrastructure/docker-compose.self-host.build.yml --profile local-ai down -v --remove-orphans
+          fi
