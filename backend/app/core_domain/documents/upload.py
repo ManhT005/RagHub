@@ -30,6 +30,12 @@ class UploadReceipt:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class RetryDocumentState:
+    receipt: UploadReceipt
+    error_code: str | None
+
+
 def validate_upload_metadata(filename: str, content_type: str) -> tuple[str, str, str]:
     filename = PurePosixPath(filename.replace("\\", "/")).name
     extension = PurePosixPath(filename).suffix.lower()
