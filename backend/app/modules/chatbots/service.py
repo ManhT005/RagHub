@@ -7,10 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions, ChatUsage
+from app.core_domain.providers.contracts import ChatMessage, ChatOptions, ChatUsage
+from app.core_domain.providers.usage import estimate_chat_usage
+from app.core_domain.rag.citations import resolve_citations
+from app.core_domain.rag.timing import ChatStreamTiming
+from app.core_domain.retrieval.hybrid import build_context_bundle
 from app.modules.ai_providers.resolver import ProviderResolver
-from app.modules.ai_providers.usage import estimate_chat_usage
-from app.modules.chatbots.citations import resolve_citations
 from app.modules.chatbots.embed import (
     create_embed_key,
     hash_embed_key,
@@ -19,8 +21,6 @@ from app.modules.chatbots.embed import (
 )
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch, EmbedPublishInput
-from app.modules.chatbots.timing import ChatStreamTiming
-from app.modules.search.hybrid import build_context_bundle
 from app.modules.search.service import SearchService
 from app.modules.workspaces.models import Workspace
 

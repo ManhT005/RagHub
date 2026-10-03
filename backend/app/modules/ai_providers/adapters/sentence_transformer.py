@@ -4,8 +4,8 @@ from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
-from app.modules.ai_providers.contracts import EmbeddingMetadata
-from app.modules.ai_providers.errors import (
+from app.core_domain.providers.contracts import EmbeddingMetadata
+from app.core_domain.providers.errors import (
     ProviderConfigurationError,
     ProviderInvalidResponseError,
 )

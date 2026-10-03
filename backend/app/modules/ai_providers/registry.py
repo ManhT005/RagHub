@@ -1,6 +1,9 @@
 from collections.abc import Callable
 
 from app.core.config import get_settings
+from app.core_domain.providers.contracts import ChatProvider, EmbeddingProvider
+from app.core_domain.providers.enums import ProviderCapability, ProviderType
+from app.core_domain.providers.errors import ProviderConfigurationError
 from app.modules.ai_providers.adapters import (
     GoogleGeminiChatProvider,
     GoogleGeminiEmbeddingProvider,
@@ -10,9 +13,6 @@ from app.modules.ai_providers.adapters import (
     OpenAICompatibleChatProvider,
     OpenAICompatibleEmbeddingProvider,
 )
-from app.modules.ai_providers.contracts import ChatProvider, EmbeddingProvider
-from app.modules.ai_providers.enums import ProviderCapability, ProviderType
-from app.modules.ai_providers.errors import ProviderConfigurationError
 from app.modules.ai_providers.models import ProviderConfig
 from app.modules.ai_providers.policy import ProviderRequestPolicy
 

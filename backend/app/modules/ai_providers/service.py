@@ -11,15 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions
-from app.modules.ai_providers.crypto import ProviderSecretCipher
-from app.modules.ai_providers.enums import (
+from app.core_domain.providers.contracts import ChatMessage, ChatOptions
+from app.core_domain.providers.enums import (
     IndexVersionStatus,
     ProviderCapability,
     ProviderType,
     ReindexJobStatus,
 )
-from app.modules.ai_providers.errors import ProviderConfigurationError
+from app.core_domain.providers.errors import ProviderConfigurationError
+from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,

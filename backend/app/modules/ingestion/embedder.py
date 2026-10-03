@@ -1,4 +1,4 @@
-from app.modules.ingestion.chunker import TextChunk
+from app.core_domain.ingestion.chunker import TextChunk
 
 
 def embed_chunks(chunks: list[TextChunk], *, batch_size: int = 32) -> dict[str, list[float]]:

@@ -5,8 +5,8 @@ from typing import Any
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from app.core.config import Settings, get_settings
-from app.modules.ingestion.chunker import TextChunk
-from app.modules.search.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
+from app.core_domain.ingestion.chunker import TextChunk
+from app.core_domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
 def chunk_index_mapping(dimension: int) -> dict[str, Any]:

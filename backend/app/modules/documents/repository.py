@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core_domain.ingestion.errors import ingestion_error_message
 from app.infrastructure.ingestion_lock import ingestion_lock_key
 from app.modules.documents.models import (
     Document,
@@ -10,7 +11,6 @@ from app.modules.documents.models import (
     DocumentVersion,
     IngestionJob,
 )
-from app.modules.ingestion.errors import ingestion_error_message
 from app.modules.workspaces.models import Workspace
 
 
