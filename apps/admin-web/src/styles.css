@@ -180,20 +180,20 @@ html[data-theme="dark"] .ant-layout-content {
   background: var(--rh-bg);
 }
 
-html[data-theme="dark"] .admin-shell main,
-html[data-theme="dark"] .admin-shell h1,
-html[data-theme="dark"] .admin-shell h2,
-html[data-theme="dark"] .admin-shell h3,
-html[data-theme="dark"] .admin-shell strong,
-html[data-theme="dark"] .admin-shell b,
-html[data-theme="dark"] .admin-shell code {
+html[data-theme="dark"] .console-shell main,
+html[data-theme="dark"] .console-shell h1,
+html[data-theme="dark"] .console-shell h2,
+html[data-theme="dark"] .console-shell h3,
+html[data-theme="dark"] .console-shell strong,
+html[data-theme="dark"] .console-shell b,
+html[data-theme="dark"] .console-shell code {
   color: var(--rh-text) !important;
 }
 
-html[data-theme="dark"] .admin-shell p,
-html[data-theme="dark"] .admin-shell small,
-html[data-theme="dark"] .admin-shell label,
-html[data-theme="dark"] .admin-shell dt {
+html[data-theme="dark"] .console-shell p,
+html[data-theme="dark"] .console-shell small,
+html[data-theme="dark"] .console-shell label,
+html[data-theme="dark"] .console-shell dt {
   color: var(--rh-muted);
 }
 
@@ -212,16 +212,16 @@ html[data-theme="dark"] .settings .grid aside {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18) !important;
 }
 
-html[data-theme="dark"] .admin-shell input,
-html[data-theme="dark"] .admin-shell textarea,
-html[data-theme="dark"] .admin-shell select {
+html[data-theme="dark"] .console-shell input,
+html[data-theme="dark"] .console-shell textarea,
+html[data-theme="dark"] .console-shell select {
   color: var(--rh-text) !important;
   background: var(--rh-surface-raised) !important;
   border-color: var(--rh-border) !important;
 }
 
-html[data-theme="dark"] .admin-shell input::placeholder,
-html[data-theme="dark"] .admin-shell textarea::placeholder {
+html[data-theme="dark"] .console-shell input::placeholder,
+html[data-theme="dark"] .console-shell textarea::placeholder {
   color: #7f96b1 !important;
 }
 
