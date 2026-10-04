@@ -19,6 +19,11 @@ def main():
     parser.add_argument("--owner-file", type=Path, required=True)
     parser.add_argument("--state-file", type=Path, required=True)
     parser.add_argument(
+        "--layout-only",
+        action="store_true",
+        help="Check themes, workspace summary and admin create/delete without model migration",
+    )
+    parser.add_argument(
         "--output", type=Path, default=Path(".backups/ui-validation/screenshots")
     )
     args = parser.parse_args()
@@ -42,6 +47,30 @@ def main():
             sessionStorage.setItem('raghub.access-token', data.token);
             sessionStorage.setItem('raghub.organization-id', data.org);
             localStorage.setItem('raghub-theme', 'light');"""
+        )
+
+    def readable_ui(page):
+        failures = page.evaluate("""() => {
+          const rgb = value => (value.match(/[\\d.]+/g) || []).map(Number);
+          const blend = (top, bottom) => top.slice(0, 3).map((v, i) => v * (top[3] ?? 1) + bottom[i] * (1 - (top[3] ?? 1)));
+          const luminance = color => color.map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((v, n, i) => v + n * [.2126, .7152, .0722][i], 0);
+          const failures = [];
+          document.querySelectorAll('h1, h2, .muted, .ant-btn, .ant-tag, .ant-modal-title, .ant-drawer-title, .ant-table-thead th, .ant-dropdown-menu-item button, .ant-popover-message-title, .ant-pagination-item a').forEach(node => {
+            const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+            if (!rect.width || !rect.height || style.visibility === 'hidden' || !node.textContent.trim() || node.closest('[disabled], [aria-disabled="true"]')) return;
+            const layers = [];
+            for (let ancestor = node; ancestor; ancestor = ancestor.parentElement) layers.push(rgb(getComputedStyle(ancestor).backgroundColor));
+            let bg = [255, 255, 255];
+            layers.reverse().forEach(color => bg = blend(color, bg));
+            const fg = blend(rgb(style.color), bg), a = luminance(fg), b = luminance(bg);
+            const contrast = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+            const minimum = parseFloat(style.fontSize) >= 24 || (parseFloat(style.fontSize) >= 18.667 && parseFloat(style.fontWeight) >= 700) ? 3 : 4.5;
+            if (contrast + .05 < minimum) failures.push({ element: node.tagName, label: node.textContent.trim().slice(0, 60), contrast: contrast.toFixed(2), color: style.color, background: bg });
+          });
+          return failures;
+        }""")
+        assert not failures, "Unreadable UI colors: " + json.dumps(
+            failures, ensure_ascii=False
         )
 
     with sync_playwright() as playwright:
@@ -91,6 +120,13 @@ def main():
                     expect(
                         page.get_by_role("button", name="recovery.txt", exact=True)
                     ).to_be_visible()
+                if route.endswith("/overview"):
+                    expect(page.locator(".workspace-summary")).to_have_count(1)
+                    expect(page.locator(".summary-grid .surface")).to_have_count(0)
+                if route == "/app/workspaces":
+                    expect(page.get_by_label("Chọn tổ chức", exact=True)).to_have_count(
+                        0
+                    )
                 page.screenshot(
                     path=str(
                         args.output
@@ -126,6 +162,139 @@ def main():
             "PASS: mobile/tablet, dark mode, workspace isolation and local logo loading",
             flush=True,
         )
+
+        if args.layout_only:
+            theme_pages = pages + [
+                ("/system/users", "Quản lý người dùng"),
+                ("/system", "Hệ thống"),
+            ]
+            for theme in ("dark", "light"):
+                for route, heading in theme_pages:
+                    page.goto(args.base_url + route)
+                    expect(
+                        page.get_by_role("heading", name=heading, exact=True)
+                    ).to_be_visible(timeout=30000)
+                    if page.locator("html").get_attribute("data-theme") != theme:
+                        page.get_by_role(
+                            "button",
+                            name="Chuyển sang nền tối"
+                            if theme == "dark"
+                            else "Chuyển sang nền sáng",
+                        ).click()
+                    page.wait_for_load_state("networkidle")
+                    assert not page.evaluate(
+                        "document.documentElement.scrollWidth > innerWidth + 1"
+                    ), route
+                    readable_ui(page)
+                    page.screenshot(
+                        path=str(
+                            args.output
+                            / f"{theme}-{route.strip('/').replace('/', '_')}.png"
+                        ),
+                        full_page=True,
+                    )
+            print(
+                "PASS: 10 screens in both themes with readable headings, controls, tags and secondary text",
+                flush=True,
+            )
+
+            page.goto(args.base_url + "/app/workspaces")
+            page.get_by_role("button", name="Chuyển sang nền tối").click()
+            name = "Browser workspace " + uuid4().hex[:8]
+            created_id = None
+            api_headers = {
+                "Authorization": "Bearer " + token(owner),
+                "X-Organization-ID": state["organization_id"],
+            }
+            try:
+                page.get_by_role("button", name="+ Tạo workspace", exact=True).click()
+                page.get_by_label("Tên workspace", exact=True).fill(name)
+                page.get_by_label("Mã định danh", exact=True).fill(
+                    name.lower().replace(" ", "-")
+                )
+                readable_ui(page)
+                page.screenshot(
+                    path=str(args.output / "dark-create-workspace.png"), full_page=True
+                )
+                with page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith("/api/v1/workspaces")
+                ) as creation:
+                    page.get_by_role("button", name="Lưu workspace", exact=True).click()
+                assert creation.value.status == 201
+                created_id = creation.value.json()["id"]
+                expect(page.locator(".ant-modal")).to_have_count(0)
+                page.get_by_label("Tìm workspace", exact=True).fill(name)
+                expect(page.get_by_role("link", name=name, exact=True)).to_be_visible()
+                page.get_by_role(
+                    "button", name="Thao tác với " + name, exact=True
+                ).click()
+                expect(
+                    page.get_by_role("button", name="Xóa workspace", exact=True)
+                ).to_be_visible()
+                readable_ui(page)
+                page.get_by_role("button", name="Xóa workspace", exact=True).click()
+                expect(
+                    page.get_by_text("Xóa workspace này?", exact=True)
+                ).to_be_visible()
+                readable_ui(page)
+                page.screenshot(
+                    path=str(args.output / "dark-delete-workspace.png"), full_page=True
+                )
+                page.locator(".ant-popover-buttons button").last.click()
+                expect(page.get_by_role("link", name=name, exact=True)).to_have_count(
+                    0, timeout=30000
+                )
+                created_id = None
+            finally:
+                if created_id:
+                    assert (
+                        httpx.delete(
+                            args.base_url + "/api/v1/workspaces/" + created_id,
+                            headers=api_headers,
+                        ).status_code
+                        == 204
+                    )
+            print(
+                "PASS: system admin creates and deletes a workspace from the single aggregate page",
+                flush=True,
+            )
+
+            page.goto(args.base_url + workspace_path + "/documents")
+            page.get_by_role("button", name="+ Tải tài liệu lên", exact=True).click()
+            readable_ui(page)
+            page.screenshot(
+                path=str(args.output / "dark-upload-modal.png"), full_page=True
+            )
+            page.get_by_role("dialog").get_by_role(
+                "button", name="Hủy", exact=True
+            ).click()
+            expect(page.locator(".ant-modal")).to_have_count(0)
+            page.get_by_role("button", name="Đổi model", exact=True).click()
+            expect(page.get_by_role("radiogroup")).to_be_visible()
+            readable_ui(page)
+            page.screenshot(
+                path=str(args.output / "dark-embedding-picker.png"), full_page=True
+            )
+            page.locator(".embedding-picker").get_by_role(
+                "button", name="Hủy", exact=True
+            ).click()
+            expect(page.locator(".ant-modal")).to_have_count(0)
+            page.get_by_role("button", name="recovery.txt", exact=True).click()
+            expect(
+                page.get_by_role("heading", name="recovery.txt", exact=True)
+            ).to_be_visible()
+            readable_ui(page)
+            page.screenshot(
+                path=str(args.output / "dark-document-detail.png"), full_page=True
+            )
+            assert not errors, "Browser reported errors: " + "\n".join(errors)
+            browser.close()
+            print(
+                "PASS: dark upload/model/detail overlays and no console errors",
+                flush=True,
+            )
+            return
 
         page.set_viewport_size({"width": 1024, "height": 1000})
         custom_name = "Custom brand regression " + uuid4().hex[:8]

@@ -17,11 +17,13 @@ import { finalize, switchMap } from "rxjs";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { WorkspaceApiService } from "../../core/api/workspace-api.service";
 import { apiError } from "../../core/api/api-error";
-import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
-import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
+import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { shortModelName } from "../../core/provider-brand/provider-brand.registry";
+import { NzTagModule } from "ng-zorro-antd/tag";
 @Component({
   selector: "raghub-workspace-overview",
   imports: [
+    NzTagModule,
     ProviderLogoComponent,
     DatePipe,
     RouterLink,
@@ -51,45 +53,98 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
       <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
     }
     @if (context.workspace(); as workspace) {
-      <div class="summary-grid">
-        <article class="surface">
-          <h2>Embedding model</h2>
+      <section class="workspace-summary" aria-label="Tóm tắt workspace">
+        <div class="summary-model">
+          <p class="eyebrow">Embedding model của workspace</p>
           @if (workspace.embedding_model; as model) {
-            <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" /><span><b>{{ model.provider_name }}</b><small class="block model-name" [title]="model.model">{{ shortModelName(model.model) }}</small></span></div>
-            <p class="muted">{{ model.provider_catalog_id === 'sentence-transformer' || model.provider_catalog_id === 'ollama' ? 'Local' : 'Cloud / Custom' }} · {{ model.dimension }} dimensions</p>
-            <p>{{ model.status === 'AVAILABLE' ? '● Healthy' : model.status }}</p>
-          } @else { <p>Chưa cấu hình</p> }
+            <div class="provider-model">
+              <raghub-provider-logo
+                [catalogId]="model.provider_catalog_id"
+                size="lg"
+              />
+              <div class="summary-model-identity">
+                <strong [title]="model.model"
+                  >{{ model.provider_name }} /
+                  {{ shortModelName(model.model) }}</strong
+                >
+                <div class="model-badges">
+                  <nz-tag>{{
+                    model.provider_catalog_id === "sentence-transformer" ||
+                    model.provider_catalog_id === "ollama"
+                      ? "Local"
+                      : model.provider_catalog_id === "compatible" ||
+                          !model.provider_catalog_id
+                        ? "Custom"
+                        : "Cloud"
+                  }}</nz-tag
+                  ><nz-tag>{{ model.dimension }} dims</nz-tag
+                  ><nz-tag
+                    [nzColor]="
+                      model.status === 'AVAILABLE' ? 'green' : 'default'
+                    "
+                    >{{
+                      model.status === "AVAILABLE"
+                        ? "Hoạt động"
+                        : model.status === "UNTESTED"
+                          ? "Chưa kiểm tra"
+                          : "Cần kiểm tra"
+                    }}</nz-tag
+                  >
+                </div>
+              </div>
+            </div>
+          } @else {
+            <p>Chưa cấu hình</p>
+          }
           @if (context.can("ai.view")) {
             <a routerLink="../ai">AI &amp; Models →</a>
           }
-        </article>
-        <article class="surface">
-          <p class="muted">Tài liệu</p>
-          <h2>{{ workspace.document_count }}</h2>
-          <p>{{ workspace.chunk_count ?? "—" }} chunks</p>
+        </div>
+        <div class="summary-stat">
+          <strong>{{ workspace.document_count }}</strong>
+          <span class="muted"
+            >Tài liệu · {{ workspace.chunk_count ?? "—" }} chunks</span
+          >
           @if (context.can("document.view")) {
             <a routerLink="../documents">Xem tài liệu →</a>
           }
-        </article>
-        <article class="surface">
-          <p class="muted">Thành viên</p>
-          <h2>{{ workspace.member_count }}</h2>
+        </div>
+        <div class="summary-stat">
+          <strong>{{ workspace.member_count }}</strong>
+          <span class="muted">Thành viên</span>
           @if (context.can("member.view")) {
             <a routerLink="../members">Thành viên & quyền →</a>
           }
-        </article>
-        <article class="surface">
-          <p class="muted">Lần lập chỉ mục gần nhất</p>
-          <h2>
+        </div>
+        <div class="summary-stat">
+          <strong>
             {{
               workspace.last_indexed_at
                 ? (workspace.last_indexed_at | date: "dd/MM/yyyy HH:mm")
                 : "Chưa lập chỉ mục"
             }}
-          </h2>
-          <p>{{ workspace.status }}</p>
-        </article>
-      </div>
+          </strong>
+          <span class="muted">Lần lập chỉ mục gần nhất</span>
+          <nz-tag
+            [nzColor]="
+              workspace.status === 'ACTIVE'
+                ? 'green'
+                : workspace.status === 'REINDEXING'
+                  ? 'blue'
+                  : 'default'
+            "
+            >{{
+              workspace.status === "ACTIVE"
+                ? "Hoạt động"
+                : workspace.status === "REINDEXING"
+                  ? "Đang lập chỉ mục"
+                  : workspace.status === "AI_NOT_CONFIGURED"
+                    ? "AI chưa cấu hình"
+                    : "Cần kiểm tra"
+            }}</nz-tag
+          >
+        </div>
+      </section>
     }
     <nz-modal
       [nzVisible]="editorOpen()"
@@ -115,6 +170,7 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
       </ng-container></nz-modal
     >
   </section>`,
+  styleUrl: "./workspace-overview.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceOverviewComponent {

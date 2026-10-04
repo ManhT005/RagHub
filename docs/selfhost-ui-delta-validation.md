@@ -28,3 +28,11 @@ The existing ingestion pipeline controls chunking at 450 tokens with 80-token ov
 - An additional real PDF upload/download check confirmed the authenticated PDF blob loads into Edge's native embedded viewer. Automated screenshots do not assert the native viewer's internal rendering.
 
 Local screenshots are stored under the ignored `.backups/ui-validation/screenshots/` directory. The test UI is served at `http://localhost:18082`; no production publication or remote Git push is included.
+
+## Follow-up feedback
+
+- Kept all existing routes. Merged the four overview cards into one full-width summary strip containing the embedding model, documents/chunks, members and latest indexing information. The strip adapts within one container at narrower widths.
+- Removed the organization/domain picker from the active workspace and user management screens and removed the redundant administration-scope table column. Console pages consistently resolve the existing authorized session scope, falling back to the bootstrap `raghub` organization for a fresh session. Existing organization data is retained.
+- System admin can create, edit and delete workspaces from the aggregate list. Delegated users cannot trigger these actions; focused regression tests cover both roles and initialization with old test organizations.
+- Added semantic theme colors for buttons, headings, overlays, menus, table hover, pagination, tags, alerts, form controls and calendar panels. Adjusted secondary text, sidebar dividers and active link colors for readability in both modes.
+- The feedback browser check (`--layout-only`) passed 24 desktop page/width combinations, mobile/tablet layouts, 10 screens in both themes with computed text-contrast checks, real creation/deletion of a temporary workspace and dark upload/model/detail overlays without console errors. The revised workspace/user/guard unit tests passed (16 tests); other frontend tests passed in the full run.
