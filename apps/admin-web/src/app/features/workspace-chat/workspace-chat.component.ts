@@ -1,6 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
+  effect,
+  untracked,
   DestroyRef,
   OnDestroy,
   inject,
@@ -13,7 +16,7 @@ import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzModalModule } from "ng-zorro-antd/modal";
-import { finalize } from "rxjs";
+import { Subscription, finalize } from "rxjs";
 import {
   Chatbot,
   ChatStreamEvent,
@@ -57,12 +60,22 @@ export class WorkspaceChatComponent implements OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private conversationId: string | null = null;
   private controller?: AbortController;
+  private loadRequest?: Subscription;
   constructor() {
-    this.load();
+    const workspaceId = computed(() => this.context.workspace()?.id);
+    effect(() => {
+      const id = workspaceId();
+      this.loadRequest?.unsubscribe();
+      untracked(() => this.reset());
+      this.bots.set([]);
+      this.selected = "";
+      if (id) untracked(() => this.load());
+    });
   }
   protected load() {
     this.loading.set(true);
-    this.api
+    this.loadRequest?.unsubscribe();
+    this.loadRequest = this.api
       .chatbots(this.context.workspace()!.id)
       .pipe(
         finalize(() => this.loading.set(false)),

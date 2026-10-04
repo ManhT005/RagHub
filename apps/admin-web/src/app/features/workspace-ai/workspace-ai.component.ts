@@ -1,6 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
+  effect,
+  untracked,
   DestroyRef,
   inject,
   signal,
@@ -9,7 +12,7 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzAlertModule } from "ng-zorro-antd/alert";
-import { finalize } from "rxjs";
+import { Subscription, finalize } from "rxjs";
 import {
   ProviderApiService,
   RegistryModel,
@@ -78,9 +81,20 @@ export class WorkspaceAiComponent {
   private readonly api = inject(WorkspaceApiService);
   private readonly providers = inject(ProviderApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private modelRequest?: Subscription;
   constructor() {
-    this.providers
-      .workspaceModels(this.context.workspace()!.id, "CHAT")
+    const workspaceId = computed(() => this.context.workspace()?.id);
+    effect(() => {
+      const id = workspaceId();
+      this.modelRequest?.unsubscribe();
+      this.models.set([]);
+      this.selected = "";
+      if (id) untracked(() => this.loadModels(id));
+    });
+  }
+  private loadModels(id: string) {
+    this.modelRequest = this.providers
+      .workspaceModels(id, "CHAT")
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => {

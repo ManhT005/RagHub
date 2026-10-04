@@ -1,6 +1,6 @@
 import { TestBed } from "@angular/core/testing";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
-import { of } from "rxjs";
+import { of, Subject } from "rxjs";
 import {
   DocumentApiService,
   DocumentMetadata,
@@ -113,6 +113,18 @@ describe("Workspace documents", () => {
       "FAILED",
     ]);
     expect(component["size"](null)).toBe("—");
+    view.destroy();
+  });
+  it("cancels the previous workspace response when a reused route changes scope", () => {
+    const stale = new Subject<DocumentMetadata[]>();
+    api.list.mockReturnValueOnce(stale).mockReturnValue(of([]));
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent);
+    view.detectChanges();
+    context.workspace.set({ ...context.workspace()!, id: "workspace-2" });
+    view.detectChanges();
+    stale.next([doc]);
+    expect(view.componentInstance["documents"]()).toHaveLength(0);
+    expect(api.list).toHaveBeenLastCalledWith("workspace-2");
     view.destroy();
   });
 });

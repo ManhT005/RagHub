@@ -85,6 +85,25 @@ describe("Safe embedding selection", () => {
     expect(context.refresh).toHaveBeenCalled();
     view.destroy();
   });
+  it("closes confirmation and blocks applying after permission revocation", () => {
+    const view = TestBed.createComponent(EmbeddingProfileComponent),
+      component = view.componentInstance;
+    view.detectChanges();
+    component["choose"]();
+    component["selected"] = "model-2";
+    component["review"]();
+    component["confirmed"] = true;
+    context.accessInfo.update((access) => ({
+      ...access,
+      permissions: ["workspace.view", "ai.view"],
+    }));
+    component["apply"]();
+    expect(api.changeEmbedding).not.toHaveBeenCalled();
+    view.detectChanges();
+    expect(component["open"]()).toBe(false);
+    expect(component["preview"]()).toBeNull();
+    view.destroy();
+  });
   it("invalidates confirmation when the target selection changes", () => {
     const view = TestBed.createComponent(EmbeddingProfileComponent),
       component = view.componentInstance;

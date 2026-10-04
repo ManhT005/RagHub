@@ -23,6 +23,7 @@ import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
 import {
   EMPTY,
   Subscription,
+  Subject,
   catchError,
   concatMap,
   exhaustMap,
@@ -30,6 +31,7 @@ import {
   from,
   of,
   takeWhile,
+  takeUntil,
   timer,
   toArray,
 } from "rxjs";
@@ -94,13 +96,22 @@ export class WorkspaceDocumentsComponent {
   private readonly actions = inject(RaghubApiService);
   private readonly destroyRef = inject(DestroyRef);
   private polling?: Subscription;
+  private readonly workspaceChanged = new Subject<void>();
   private workspaceId = "";
   constructor() {
     effect(() => {
       const id = this.context.workspace()?.id ?? "";
-      if (!id || id === this.workspaceId) return;
+      if (id === this.workspaceId) return;
+      this.workspaceChanged.next();
       this.workspaceId = id;
-      untracked(() => this.load());
+      this.documents.set([]);
+      this.detail.set(null);
+      this.detailOpen.set(false);
+      this.files.set([]);
+      this.uploadOpen.set(false);
+      this.error.set("");
+      this.notice.set("");
+      if (id) untracked(() => this.load());
     });
   }
   protected statusLabel(status: string) {
@@ -133,6 +144,7 @@ export class WorkspaceDocumentsComponent {
       .list(this.workspaceId)
       .pipe(
         finalize(() => this.loading.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -157,6 +169,7 @@ export class WorkspaceDocumentsComponent {
           this.error.set(apiError(error));
           return EMPTY;
         }),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((items) => {
@@ -211,6 +224,7 @@ export class WorkspaceDocumentsComponent {
         ),
         toArray(),
         finalize(() => this.busy.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
@@ -235,6 +249,7 @@ export class WorkspaceDocumentsComponent {
       .detail(this.workspaceId, doc.id)
       .pipe(
         finalize(() => this.detailLoading.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -250,6 +265,7 @@ export class WorkspaceDocumentsComponent {
       .download(this.workspaceId, doc.id)
       .pipe(
         finalize(() => this.busy.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -281,6 +297,7 @@ export class WorkspaceDocumentsComponent {
     request
       .pipe(
         finalize(() => this.busy.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -299,6 +316,7 @@ export class WorkspaceDocumentsComponent {
       .deleteDocument(this.workspaceId, doc.id)
       .pipe(
         finalize(() => this.busy.set(false)),
+        takeUntil(this.workspaceChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({

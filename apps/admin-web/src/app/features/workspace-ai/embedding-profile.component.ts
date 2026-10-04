@@ -71,10 +71,19 @@ export class EmbeddingProfileComponent {
   constructor() {
     effect(() => {
       const workspace = this.context.workspace();
+
+      if (!this.context.can("ai.change_embedding")) {
+        this.open.set(false);
+        this.preview.set(null);
+      }
       const key = workspace
         ? `${workspace.id}:${workspace.reindex_job_id}`
         : "";
       if (key === this.pollKey) return;
+      this.open.set(false);
+      this.preview.set(null);
+      this.confirmed = false;
+      this.selected = "";
       this.pollKey = key;
       this.polling?.unsubscribe();
       this.job.set(null);
@@ -146,6 +155,7 @@ export class EmbeddingProfileComponent {
   protected apply() {
     const preview = this.preview();
     if (
+      !this.context.can("ai.change_embedding") ||
       !preview ||
       preview.target_model.id !== this.selected ||
       !this.confirmed ||

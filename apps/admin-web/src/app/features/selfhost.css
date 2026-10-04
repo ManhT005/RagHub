@@ -87,6 +87,9 @@
   margin: 0;
   flex: 1;
 }
+.embedding-profile .card-heading > div {
+  flex: 1;
+}
 
 .provider-avatar {
   display: grid;
@@ -192,7 +195,7 @@
 
 .metadata-grid {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
   margin: 24px 0;
 }
@@ -202,7 +205,9 @@
 }
 
 .metadata-grid dd {
+  min-width: 0;
   margin: 0;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
