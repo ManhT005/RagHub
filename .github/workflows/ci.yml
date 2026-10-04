@@ -201,6 +201,10 @@ jobs:
         working-directory: apps/admin-web
         run: npm test
 
+      - name: Check provider brand assets
+        if: steps.frontend.outputs.present == 'true'
+        run: node scripts/check-provider-brand-assets.mjs
+
       - name: Build frontend
         if: steps.frontend.outputs.present == 'true'
         working-directory: apps/admin-web

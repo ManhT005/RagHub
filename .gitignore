@@ -45,3 +45,5 @@ backend/data/
 /selfhost-update-UI/
 /RagHub_SelfHosted_First_Refactor_Plan.md
 /RagHub_Core_Package_Consolidation_Plan.md
+# Generated Angular asset staging; canonical files live in /assets/providers.
+apps/admin-web/.provider-assets/

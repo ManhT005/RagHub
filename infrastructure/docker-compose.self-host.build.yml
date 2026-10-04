@@ -12,7 +12,8 @@ services:
   admin-web:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/admin-web:${LOCAL_IMAGE_TAG:-local}
     build:
-      context: ../apps/admin-web
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
   chat-widget:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/chat-widget:${LOCAL_IMAGE_TAG:-local}
     build:

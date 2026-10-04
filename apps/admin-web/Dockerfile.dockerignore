@@ -1,0 +1,16 @@
+**
+!apps/
+!apps/admin-web/
+!apps/admin-web/**
+!assets/
+!assets/providers/
+!assets/providers/**
+!scripts/
+!scripts/sync-provider-assets.mjs
+apps/admin-web/node_modules/
+apps/admin-web/dist/
+apps/admin-web/.angular/
+apps/admin-web/.provider-assets/
+apps/admin-web/.env*
+apps/admin-web/*.log
+apps/admin-web/coverage/
