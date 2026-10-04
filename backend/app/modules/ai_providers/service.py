@@ -168,26 +168,26 @@ class ProviderConfigService:
         return config
 
     async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
+        indexes = select(EmbeddingIndexVersion.id).where(
+            EmbeddingIndexVersion.organization_id == organization_id,
+            EmbeddingIndexVersion.provider_config_id == provider_id,
+        )
         return bool(
             await self.session.scalar(
                 select(Workspace.id).where(
                     Workspace.organization_id == organization_id,
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
-                    | (Workspace.chat_provider_id == provider_id),
+                    | (Workspace.chat_provider_id == provider_id)
+                    | Workspace.active_embedding_index_version_id.in_(indexes)
+                    | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
             )
         )
 
     async def delete(self, organization_id: UUID, provider_id: UUID) -> None:
         config = await self.get(organization_id, provider_id)
-        bound = await self.session.scalar(
-            select(Workspace.id).where(
-                Workspace.organization_id == organization_id,
-                (Workspace.embedding_provider_id == provider_id)
-                | (Workspace.chat_provider_id == provider_id),
-            )
-        )
+        bound = await self._is_bound(organization_id, provider_id)
         if bound:
             raise AppError("PROVIDER_IN_USE", "Provider is bound to a workspace.", status_code=409)
         has_history = await self.session.scalar(
@@ -197,6 +197,7 @@ class ProviderConfigService:
         )
         if has_history:
             config.enabled = False
+            config.availability_status = "DISABLED"
             config.encrypted_secret = None
             await self.session.commit()
             return

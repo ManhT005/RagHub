@@ -99,7 +99,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     job = SimpleNamespace(
         stage="PARSING", progress=20, error_code="old", error_message="old", error_details={}
     )
-    session = SimpleNamespace(commit=AsyncMock())
+    session = SimpleNamespace(commit=AsyncMock(), scalar=AsyncMock(return_value=None))
     observed: list[tuple[str, str, str, int]] = []
 
     class Indexer:

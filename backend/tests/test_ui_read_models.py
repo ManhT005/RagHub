@@ -9,6 +9,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.exceptions import AppError
 from app.infrastructure.persistence.index_metadata import MetadataIndexBuilder
 from app.modules.ai_providers.models import ProviderConfig, ProviderConnection
+from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.ai_providers.workspace_ai_router import available
 from app.modules.documents.service import DocumentService
 from app.modules.workspaces.summary import summary_data, summary_statement
@@ -108,6 +109,7 @@ async def test_document_detail_and_download_do_not_expose_storage_key():
         list_documents=AsyncMock(return_value=[document]),
         list_document_jobs=AsyncMock(return_value={document.id: (version, job)}),
         embedding_snapshot=AsyncMock(return_value=snapshot),
+        active_metadata=AsyncMock(return_value={version.id: version}),
         find_document=AsyncMock(return_value=document),
         latest_version=AsyncMock(return_value=version),
     )
@@ -117,3 +119,58 @@ async def test_document_detail_and_download_do_not_expose_storage_key():
     assert "private-key" not in str(detail.model_dump())
     assert (await service.download(uuid4(), uuid4(), document.id))[2] == b"content"
     service.storage.get.assert_awaited_once_with("private-key")
+    service.repository.active_metadata.return_value = {}
+    detail = await service.detail(uuid4(), uuid4(), document.id)
+    assert detail.chunk_count is None and detail.embedding_model_name is None
+    service.repository.list_documents.assert_not_awaited()
+
+
+async def test_pending_index_model_is_protected_from_disable_or_delete():
+    session = SimpleNamespace(scalar=AsyncMock(return_value=uuid4()))
+    assert await ProviderConfigService(session)._is_bound(uuid4(), uuid4())
+    query = str(session.scalar.call_args.args[0])
+    assert "pending_embedding_index_version_id" in query
+    assert "active_embedding_index_version_id" in query
+
+
+def test_model_change_rejects_an_in_progress_reindex(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.core.auth import OrganizationContext, get_organization_context
+    from app.core.database import get_session
+    from app.main import app
+
+    org_id, workspace_id = uuid4(), uuid4()
+    config = ProviderConfig(
+        id=uuid4(),
+        capability="EMBEDDING",
+        enabled=True,
+        availability_status="AVAILABLE",
+        connection=ProviderConnection(enabled=True, status="CONNECTED"),
+    )
+    session = SimpleNamespace(
+        scalar=AsyncMock(
+            side_effect=[
+                workspace_id,
+                SimpleNamespace(pending_embedding_index_version_id=uuid4()),
+                SimpleNamespace(status="RUNNING"),
+            ]
+        )
+    )
+    context = OrganizationContext(org_id, SimpleNamespace(role="ADMIN", status="ACTIVE"))
+    bind = AsyncMock()
+    monkeypatch.setattr(ProviderConfigService, "get", AsyncMock(return_value=config))
+    monkeypatch.setattr(ProviderConfigService, "bind_workspace", bind)
+    app.dependency_overrides[get_organization_context] = lambda: context
+    app.dependency_overrides[get_session] = lambda: session
+    try:
+        with TestClient(app) as client:
+            result = client.put(
+                f"/api/v1/workspaces/{workspace_id}/embedding-model",
+                json={"model_id": str(config.id)},
+            )
+            assert result.status_code == 409
+            assert result.json()["error"]["code"] == "REINDEX_IN_PROGRESS"
+            bind.assert_not_awaited()
+    finally:
+        app.dependency_overrides.clear()

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.ingestion_lock import ingestion_lock_key
 from app.modules.documents.models import (
     Document,
+    DocumentIndexMetadata,
     DocumentStatus,
     DocumentVersion,
     IngestionJob,
@@ -140,17 +141,23 @@ class DocumentRepository:
         )
 
     async def list_document_jobs(
-        self, organization_id: uuid.UUID, workspace_id: uuid.UUID
+        self,
+        organization_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        document_id: uuid.UUID | None = None,
     ) -> dict[uuid.UUID, tuple[DocumentVersion, IngestionJob]]:
-        rows = await self.session.execute(
+        statement = (
             select(DocumentVersion, IngestionJob)
             .join(IngestionJob, IngestionJob.document_version_id == DocumentVersion.id)
             .where(
                 DocumentVersion.organization_id == organization_id,
                 DocumentVersion.workspace_id == workspace_id,
             )
-            .order_by(DocumentVersion.created_at.desc())
+            .order_by(DocumentVersion.created_at.desc(), DocumentVersion.id.desc())
         )
+        if document_id is not None:
+            statement = statement.where(DocumentVersion.document_id == document_id)
+        rows = await self.session.execute(statement)
         jobs: dict[uuid.UUID, tuple[DocumentVersion, IngestionJob]] = {}
         for version, job in rows:
             jobs.setdefault(version.document_id, (version, job))
@@ -183,6 +190,24 @@ class DocumentRepository:
                 Workspace.deleted_at.is_(None),
             )
         )
+
+    async def active_metadata(self, organization_id, workspace_id, document_id=None):
+        statement = (
+            select(DocumentIndexMetadata)
+            .join(DocumentVersion, DocumentVersion.id == DocumentIndexMetadata.document_version_id)
+            .join(Workspace, Workspace.id == DocumentVersion.workspace_id)
+            .where(
+                DocumentVersion.organization_id == organization_id,
+                Workspace.organization_id == organization_id,
+                Workspace.id == workspace_id,
+                DocumentIndexMetadata.embedding_index_version_id
+                == Workspace.active_embedding_index_version_id,
+            )
+        )
+        if document_id is not None:
+            statement = statement.where(DocumentVersion.document_id == document_id)
+        rows = await self.session.scalars(statement)
+        return {item.document_version_id: item for item in rows}
 
     async def latest_version(self, organization_id, workspace_id, document_id):
         return await self.session.scalar(

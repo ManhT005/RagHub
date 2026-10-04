@@ -186,6 +186,12 @@ async def test_model(model_id: UUID, context: Context, session: Session):
     return model_response(config)
 
 
+@router.delete("/models/{model_id}", status_code=204)
+async def delete_model(model_id: UUID, context: Context, session: Session):
+    admin(context)
+    await ProviderConfigService(session).delete(context.organization_id, model_id)
+
+
 @router.get("/workspaces/{workspace_id}/models", response_model=list[ModelResponse])
 async def workspace_models(
     workspace_id: UUID, context: Context, session: Session, capability: str = "EMBEDDING"

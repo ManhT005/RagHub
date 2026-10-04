@@ -26,6 +26,7 @@ def service(monkeypatch: pytest.MonkeyPatch) -> DocumentService:
     instance.repository.workspace_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
     instance.repository.try_retry_lock = AsyncMock(return_value=True)  # type: ignore[method-assign]
     instance.repository.embedding_snapshot = AsyncMock(return_value=None)
+    instance.repository.active_metadata = AsyncMock(return_value={})
     return instance
 
 

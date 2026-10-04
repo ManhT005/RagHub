@@ -68,6 +68,7 @@ class DocumentService:
         documents = await self.repository.list_documents(organization_id, workspace_id)
         jobs = await self.repository.list_document_jobs(organization_id, workspace_id)
         snapshot = await self.repository.embedding_snapshot(organization_id, workspace_id)
+        metadata = await self.repository.active_metadata(organization_id, workspace_id)
         result = []
         for document in documents:
             response = DocumentResponse.model_validate(document, from_attributes=True)
@@ -85,8 +86,9 @@ class DocumentService:
                 )
                 response.mime_type = getattr(version, "mime_type", None)
                 response.size_bytes = getattr(version, "size_bytes", None)
-                response.chunk_count = getattr(version, "chunk_count", None)
-                response.indexed_at = getattr(version, "indexed_at", None)
+                indexed = metadata.get(version.id)
+                response.chunk_count = indexed.chunk_count if indexed else None
+                response.indexed_at = indexed.indexed_at if indexed else None
                 if snapshot and response.indexed_at:
                     response.embedding_model_id = snapshot.provider_config_id
                     response.embedding_model_name = snapshot.model
@@ -98,10 +100,28 @@ class DocumentService:
         document = await self.repository.find_document(organization_id, workspace_id, document_id)
         if document is None:
             raise AppError("DOCUMENT_NOT_FOUND", "Document not found.", status_code=404)
-        # Uses the same bounded read model as list; no Elasticsearch requests.
-        rows = await self.list_documents(organization_id, workspace_id)
         version = await self.repository.latest_version(organization_id, workspace_id, document_id)
-        item = next(row for row in rows if row.id == document_id)
+        jobs = await self.repository.list_document_jobs(organization_id, workspace_id, document_id)
+        metadata = await self.repository.active_metadata(organization_id, workspace_id, document_id)
+        snapshot = await self.repository.embedding_snapshot(organization_id, workspace_id)
+        item = DocumentResponse.model_validate(document, from_attributes=True)
+        if version:
+            item.document_version_id = version.id
+            item.mime_type, item.size_bytes = version.mime_type, version.size_bytes
+            indexed = metadata.get(version.id)
+            if indexed and snapshot:
+                item.chunk_count, item.indexed_at = indexed.chunk_count, indexed.indexed_at
+                item.embedding_model_id = snapshot.provider_config_id
+                item.embedding_model_name, item.embedding_dimension = (
+                    snapshot.model,
+                    snapshot.dimension,
+                )
+        if document_id in jobs:
+            latest, job = jobs[document_id]
+            item.job_id, item.stage, item.progress = job.id, job.stage, job.progress
+            item.attempts, item.error_code = job.attempts, job.error_code
+            item.error_message = ingestion_error_message(job.error_code)
+            item.retryable = latest.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
         return DocumentDetail(**item.model_dump(), checksum=version.checksum if version else None)
 
     async def download(self, organization_id, workspace_id, document_id):

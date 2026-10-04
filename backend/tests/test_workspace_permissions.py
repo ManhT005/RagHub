@@ -83,6 +83,17 @@ def test_read_only_member_cannot_mutate_even_with_direct_http_requests(monkeypat
             assert client.get(f"/api/v1/workspaces/{workspace_id}/members").status_code == 403
             response = client.get(f"/api/v1/organizations/{organization_id}/providers")
             assert response.status_code == 403
+            for method, path, body in (
+                ("GET", "models", None),
+                ("PUT", "embedding-model", {"model_id": str(uuid4())}),
+                ("POST", "embedding-model/preview", {"model_id": str(uuid4())}),
+                ("PUT", "chat-model", {"model_id": str(uuid4())}),
+                ("POST", "members", {"user_id": str(uuid4()), "permissions": []}),
+            ):
+                response = client.request(
+                    method, f"/api/v1/workspaces/{workspace_id}/{path}", json=body
+                )
+                assert response.status_code == 403
     finally:
         app.dependency_overrides.clear()
 

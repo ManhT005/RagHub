@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
@@ -29,7 +29,13 @@ def summary_statement(organization_id):
         select(
             Document.workspace_id,
             func.count().label("document_count"),
-            func.sum(DocumentIndexMetadata.chunk_count).label("chunk_count"),
+            case(
+                (
+                    func.count(DocumentIndexMetadata.chunk_count) == func.count(Document.id),
+                    func.sum(DocumentIndexMetadata.chunk_count),
+                ),
+                else_=None,
+            ).label("chunk_count"),
             func.max(DocumentIndexMetadata.indexed_at).label("last_indexed_at"),
         )
         .join(Workspace, Workspace.id == Document.workspace_id)
