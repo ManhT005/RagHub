@@ -7,7 +7,7 @@ from app.infrastructure.persistence.conversations import (
     ConversationRepositoryAdapter,
     UsageRecorderAdapter,
 )
-from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
+from raghub_core.api import StreamRagChatUseCase
 
 
 def rag_use_case(

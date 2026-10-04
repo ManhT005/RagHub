@@ -1,8 +1,7 @@
 from app.infrastructure.chat_runtime import LazyProviderResolverAdapter
 from app.infrastructure.persistence.chatbots import ChatbotRepositoryAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
-from raghub_core.application.chatbots.manage_chatbot import ManageChatbotUseCase
-from raghub_core.application.chatbots.publish_chatbot import PublishChatbotUseCase
+from raghub_core.api import ManageChatbotUseCase, PublishChatbotUseCase
 
 
 def chatbot_management(session) -> ManageChatbotUseCase:

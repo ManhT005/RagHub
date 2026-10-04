@@ -9,9 +9,11 @@ from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
-from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from raghub_core.application.ingestion.reindex_workspace import ReindexWorkspaceUseCase
-from raghub_core.application.ingestion.run_ingestion import RunIngestionUseCase
+from raghub_core.api import (
+    BuildDocumentIndexUseCase,
+    ReindexWorkspaceUseCase,
+    RunIngestionUseCase,
+)
 from raghub_core.domain.ingestion.chunker import chunk_sections
 
 parse_document = DocumentParser().parse

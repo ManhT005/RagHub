@@ -1,4 +1,9 @@
-"""Supported host-facing entry points; implementation helpers stay in their modules."""
+"""Stable host-facing facade for Core use cases, commands, values and events.
+
+Host composition imports public use cases here. Infrastructure implements ports
+directly and may import their domain contracts; helpers stay in their modules.
+This facade only re-exports Core symbols and never constructs host adapters.
+"""
 
 from raghub_core.application.chatbots.manage_chatbot import ManageChatbotUseCase
 from raghub_core.application.chatbots.publish_chatbot import PublishChatbotUseCase

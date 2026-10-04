@@ -19,11 +19,13 @@ from app.infrastructure.persistence.uploads import (
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.repository import DocumentRepository
-from raghub_core.application.documents.retry_document import RetryDocumentUseCase
-from raghub_core.application.documents.upload_document import UploadDocumentUseCase
-from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
-from raghub_core.domain.chatbots.models import ChatbotConfig
-from raghub_core.domain.retrieval.models import RetrievalScope
+from raghub_core.api import (
+    ChatbotConfig,
+    RetrievalScope,
+    RetryDocumentUseCase,
+    StreamRagChatUseCase,
+    UploadDocumentUseCase,
+)
 
 
 class SelfHostContainer:
