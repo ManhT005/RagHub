@@ -1,20 +1,30 @@
 <nz-layout class="console-shell" [class.sidebar-collapsed]="sidebarCollapsed()">
   <nz-sider nzTheme="light" nzWidth="232">
+    @if (context.workspace(); as workspace) {
+    <a class="workspace-back" routerLink="/app/workspaces" aria-label="Tất cả workspace">
+      <span aria-hidden="true">←</span><span>Tất cả workspace</span>
+    </a>
+    <div class="workspace-identity">
+      <strong [title]="workspace.name">{{ workspace.name }}</strong>
+      <small [title]="workspace.slug">{{ workspace.slug }}</small>
+    </div>
+    }
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng Console">
       @if (context.workspace(); as workspace) {
-      <li nz-menu-item><a routerLink="/app/workspaces" aria-label="Tất cả workspace"><nz-icon
-            nzType="database" /><span>Tất cả workspace</span></a></li>
       <li nz-menu-item><a [routerLink]="['/app/workspaces', workspace.id, 'overview']"
-          routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan workspace</span></a></li>
+          routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan</span></a></li>
       @if (context.can('document.view')) { <li nz-menu-item><a
           [routerLink]="['/app/workspaces', workspace.id, 'documents']" routerLinkActive="active"><nz-icon
             nzType="file-text" /><span>Tài liệu</span></a></li> }
       @if (context.can('chat.use')) { <li nz-menu-item><a [routerLink]="['/app/workspaces', workspace.id, 'chat']"
           routerLinkActive="active"><nz-icon nzType="message" /><span>Chat</span></a></li> }
+      @if (context.can('member.view') || context.can('ai.view') || context.can('workspace.edit')) {
+      <li class="workspace-admin-label" role="presentation">QUẢN TRỊ</li>
+      }
       @if (context.can('member.view')) { <li nz-menu-item><a [routerLink]="['/app/workspaces', workspace.id, 'members']"
           routerLinkActive="active"><nz-icon nzType="team" /><span>Thành viên</span></a></li> }
       @if (context.can('ai.view')) { <li nz-menu-item><a [routerLink]="['/app/workspaces', workspace.id, 'ai']"
-          routerLinkActive="active"><nz-icon nzType="setting" /><span>Cài đặt AI</span></a></li> }
+          routerLinkActive="active"><nz-icon nzType="setting" /><span>AI &amp; Models</span></a></li> }
       } @else {
       <li nz-menu-item><a aria-label="Tổng quan" routerLink="/app/overview" routerLinkActive="active"><nz-icon
             nzType="dashboard" /><span>Tổng quan</span></a></li>
@@ -28,9 +38,9 @@
       }
       <li nz-menu-item><a routerLink="/system" routerLinkActive="active" aria-label="Hệ thống"><nz-icon
             nzType="team" /><span>Hệ thống</span></a></li>
-      }
       <li nz-menu-item><a routerLink="/app/profile" routerLinkActive="active" aria-label="Tài khoản"><nz-icon
             nzType="setting" /><span>Tài khoản</span></a></li>
+      }
     </ul>
     <button type="button" class="sidebar-toggle"
       [attr.aria-label]="sidebarCollapsed() ? 'Mở sidebar' : 'Thu gọn sidebar'"

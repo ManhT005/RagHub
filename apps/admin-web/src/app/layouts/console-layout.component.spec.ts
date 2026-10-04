@@ -15,6 +15,8 @@ import { of } from "rxjs";
 import { session } from "../core/api-auth.interceptor";
 import { RaghubApiService } from "../core/raghub-api.service";
 import { ConsoleLayoutComponent } from "./console-layout.component";
+import { WorkspaceContextStore } from '../core/workspace-context/workspace-context.store';
+import { workspaceFixture } from '../features/selfhost-test-fixtures';
 
 describe("ConsoleLayoutComponent", () => {
   const currentUser = {
@@ -64,6 +66,37 @@ describe("ConsoleLayoutComponent", () => {
     session.organizationId = null;
     localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
+  });
+
+  it('isolates workspace navigation and displays its identity and back action', () => {
+    const context = TestBed.inject(WorkspaceContextStore);
+    context.workspace.set(workspaceFixture);
+    context.accessInfo.set({ workspace_id: workspaceFixture.id, is_system_admin: false, permissions: ['workspace.view', 'document.view', 'ai.view', 'member.view'] });
+    const fixture = TestBed.createComponent(ConsoleLayoutComponent);
+    fixture.detectChanges();
+    const sidebar = fixture.nativeElement.querySelector('nz-sider');
+    expect(sidebar.querySelector('.workspace-identity').textContent).toContain('Knowledge');
+    expect(sidebar.querySelector('.workspace-identity').textContent).toContain('knowledge');
+    expect(sidebar.querySelector('.workspace-back').getAttribute('href')).toBe('/app/workspaces');
+    expect(sidebar.querySelector('li .workspace-back')).toBeNull();
+    expect(sidebar.querySelector('a[href="/app/profile"]')).toBeNull();
+    expect(sidebar.querySelector('a[href^="/system"]')).toBeNull();
+    expect(sidebar.textContent).toContain('QUẢN TRỊ');
+    expect(sidebar.textContent).toContain('AI & Models');
+    expect(sidebar.querySelector('a[href$="/chat"]')).toBeNull();
+  });
+
+  it('hides the administration group for document-only members and keeps global account access', () => {
+    const context = TestBed.inject(WorkspaceContextStore);
+    context.workspace.set(workspaceFixture);
+    context.accessInfo.set({ workspace_id: workspaceFixture.id, is_system_admin: false, permissions: ['workspace.view', 'document.view'] });
+    const fixture = TestBed.createComponent(ConsoleLayoutComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.workspace-admin-label')).toBeNull();
+    context.clear();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('nz-sider a[href="/app/profile"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.workspace-identity')).toBeNull();
   });
 
   it("shows the signed-in user email in the account trigger", () => {
