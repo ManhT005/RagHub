@@ -42,5 +42,6 @@ backend/data/
 .celerybeat-schedule
 
 # Local refactor plans and packaging artifacts
+/selfhost-update-UI/
 /RagHub_SelfHosted_First_Refactor_Plan.md
 /RagHub_Core_Package_Consolidation_Plan.md
