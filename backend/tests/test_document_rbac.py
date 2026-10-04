@@ -63,7 +63,7 @@ def test_writers_can_upload_and_retry(role, monkeypatch):
         return OrganizationContext(organization_id, SimpleNamespace(role=role))
 
     async def session():
-        return None
+        return SimpleNamespace(scalar=AsyncMock(return_value=workspace_id))
 
     app.dependency_overrides[get_organization_context] = context
     app.dependency_overrides[get_session] = session
@@ -105,6 +105,9 @@ def test_assigned_workspace_admin_can_upload(monkeypatch):
     class SessionStub:
         async def scalar(self, statement):
             return SimpleNamespace(user_id=user_id, workspace_id=workspace_id)
+
+        async def scalars(self, statement):
+            return ["workspace.view", "document.view", "document.upload"]
 
     async def session():
         return SessionStub()

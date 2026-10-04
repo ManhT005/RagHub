@@ -15,9 +15,15 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.modules.memberships.models import Membership, MembershipRole, WorkspaceMembership
+from app.modules.memberships.models import (
+    Membership,
+    MembershipRole,
+    WorkspaceMembership,
+    WorkspaceMembershipPermission,
+)
 from app.modules.organizations.models import Organization
 from app.modules.users.models import User
+from app.modules.workspace_access.permissions import PERMISSIONS
 from app.modules.workspaces.models import Workspace
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
@@ -181,6 +187,16 @@ async def upsert_member(
         session.add(membership)
     else:
         membership.role = payload.role
+    existing_grants = list(
+        await session.scalars(
+            select(WorkspaceMembershipPermission).where(
+                WorkspaceMembershipPermission.user_id == user.id,
+                WorkspaceMembershipPermission.workspace_id.in_(payload.workspace_ids),
+            )
+        )
+    )
+    assigned = set(await _workspace_ids(session, user.id, organization_id))
+    retained = {(grant.workspace_id, grant.permission) for grant in existing_grants}
     await session.execute(
         delete(WorkspaceMembership).where(
             WorkspaceMembership.user_id == user.id,
@@ -191,6 +207,23 @@ async def upsert_member(
     )
     for workspace_id in set(payload.workspace_ids):
         session.add(WorkspaceMembership(user_id=user.id, workspace_id=workspace_id))
+    await session.flush()
+    for workspace_id in set(payload.workspace_ids):
+        permissions = (
+            [permission for wid, permission in retained if wid == workspace_id]
+            if workspace_id in assigned
+            else list(PERMISSIONS)
+        )
+        session.add_all(
+            [
+                WorkspaceMembershipPermission(
+                    user_id=user.id,
+                    workspace_id=workspace_id,
+                    permission=permission,
+                )
+                for permission in permissions
+            ]
+        )
     await session.commit()
     return MembershipResponse(
         user_id=user.id,
@@ -219,4 +252,14 @@ async def delete_member(
     if membership is None:
         raise AppError("MEMBERSHIP_NOT_FOUND", "Member was not found.", status_code=404)
     await session.delete(membership)
+    await session.execute(
+        delete(WorkspaceMembership).where(
+            WorkspaceMembership.user_id == user_id,
+            WorkspaceMembership.workspace_id.in_(
+                select(Workspace.id).where(
+                    Workspace.organization_id == organization_id,
+                )
+            ),
+        )
+    )
     await session.commit()

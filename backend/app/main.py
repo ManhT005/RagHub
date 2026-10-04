@@ -15,6 +15,7 @@ from app.modules.documents.router import router as documents_router
 from app.modules.health.router import router as health_router
 from app.modules.organizations.router import router as organizations_router
 from app.modules.search.router import router as search_router
+from app.modules.workspace_access.router import router as workspace_access_router
 from app.modules.workspaces.router import router as workspaces_router
 
 configure_logging()
@@ -38,5 +39,6 @@ app.include_router(ai_providers_router, prefix=settings.api_v1_prefix)
 app.include_router(chatbots_router, prefix=settings.api_v1_prefix)
 app.include_router(organizations_router, prefix=settings.api_v1_prefix)
 app.include_router(workspaces_router, prefix=settings.api_v1_prefix)
+app.include_router(workspace_access_router, prefix=settings.api_v1_prefix)
 app.include_router(documents_router, prefix=settings.api_v1_prefix)
 app.include_router(search_router, prefix=settings.api_v1_prefix)

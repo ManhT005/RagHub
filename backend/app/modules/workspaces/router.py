@@ -11,7 +11,7 @@ from app.core.auth import (
     OrganizationContext,
     get_organization_context,
     require_role,
-    require_workspace_access,
+    require_workspace_permission,
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
@@ -83,7 +83,7 @@ async def get_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Workspace:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "workspace.view", session)
     workspace = await session.scalar(
         select(Workspace).where(
             Workspace.id == workspace_id,
@@ -114,7 +114,7 @@ async def update_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WorkspaceResponse:
-    require_role(context, MembershipRole.ADMIN)
+    await require_workspace_permission(context, workspace.id, "workspace.edit", session)
     workspace.name, workspace.slug = payload.name.strip(), payload.slug
     try:
         await session.commit()

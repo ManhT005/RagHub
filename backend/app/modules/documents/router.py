@@ -4,7 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import OrganizationContext, get_organization_context, require_workspace_access
+from app.core.auth import (
+    OrganizationContext,
+    get_organization_context,
+    require_workspace_permission,
+)
 from app.core.database import get_session
 from app.delivery.http.uploads import upload_from_http
 from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
@@ -24,7 +28,7 @@ async def upload_document(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "document.upload", session)
     service = DocumentService(session)
     return await upload_from_http(service, context.organization_id, workspace_id, file)
 
@@ -40,7 +44,7 @@ async def retry_document_version(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "document.reindex", session)
     return await DocumentService(session).retry(context.organization_id, workspace_id, version_id)
 
 
@@ -55,7 +59,7 @@ async def reindex_document_version(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "document.reindex", session)
     return await DocumentService(session).reindex(context.organization_id, workspace_id, version_id)
 
 
@@ -65,7 +69,7 @@ async def list_documents(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[DocumentResponse]:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "document.view", session)
     return await DocumentService(session).list_documents(context.organization_id, workspace_id)
 
 
@@ -76,7 +80,7 @@ async def delete_document(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "document.delete", session)
     await DocumentService(session).delete_document(
         context.organization_id, workspace_id, document_id
     )

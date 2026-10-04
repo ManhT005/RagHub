@@ -13,7 +13,12 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.core.security import decode_token
-from app.modules.memberships.models import Membership, MembershipRole, WorkspaceMembership
+from app.modules.memberships.models import (
+    Membership,
+    MembershipRole,
+    WorkspaceMembership,
+    WorkspaceMembershipPermission,
+)
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
@@ -99,4 +104,40 @@ async def require_workspace_access(
             "WORKSPACE_ACCESS_DENIED",
             "You are not assigned to this workspace.",
             status_code=403,
+        )
+
+
+async def workspace_permissions(
+    context: OrganizationContext, workspace_id: UUID, session: AsyncSession
+) -> list[str]:
+    from app.modules.workspace_access.permissions import PERMISSIONS
+
+    require_role(context, MembershipRole.ADMIN, MembershipRole.WORKSPACE_ADMIN)
+    workspace = await session.scalar(
+        select(Workspace.id).where(
+            Workspace.id == workspace_id,
+            Workspace.organization_id == context.organization_id,
+            Workspace.deleted_at.is_(None),
+        )
+    )
+    if workspace is None:
+        raise AppError("WORKSPACE_ACCESS_DENIED", "Workspace is unavailable.", status_code=403)
+    if context.membership.role == MembershipRole.ADMIN:
+        return list(PERMISSIONS)
+    await require_workspace_access(context, workspace_id, session)
+    rows = await session.scalars(
+        select(WorkspaceMembershipPermission.permission).where(
+            WorkspaceMembershipPermission.workspace_id == workspace_id,
+            WorkspaceMembershipPermission.user_id == context.membership.user_id,
+        )
+    )
+    return sorted(set(rows) & set(PERMISSIONS))
+
+
+async def require_workspace_permission(
+    context: OrganizationContext, workspace_id: UUID, permission: str, session: AsyncSession
+) -> None:
+    if permission not in await workspace_permissions(context, workspace_id, session):
+        raise AppError(
+            "WORKSPACE_PERMISSION_DENIED", "Workspace permission is required.", status_code=403
         )
