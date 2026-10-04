@@ -20,6 +20,10 @@ import { NzTableModule } from "ng-zorro-antd/table";
 import { NzTagModule } from "ng-zorro-antd/tag";
 import { NzDropDownModule } from "ng-zorro-antd/dropdown";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
+import { NzProgressModule } from "ng-zorro-antd/progress";
+import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
+import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { shortModelName } from "../../core/provider-brand/provider-brand.registry";
 import {
   EMPTY,
   Subscription,
@@ -51,6 +55,8 @@ import { EmbeddingProfileComponent } from "../workspace-ai/embedding-profile.com
 @Component({
   selector: "raghub-workspace-documents",
   imports: [
+    NzProgressModule,
+    ProviderLogoComponent,
     DatePipe,
     FormsModule,
     NzButtonModule,
@@ -65,6 +71,7 @@ import { EmbeddingProfileComponent } from "../workspace-ai/embedding-profile.com
     EmbeddingProfileComponent,
   ],
   templateUrl: "./workspace-documents.component.html",
+  styleUrl: "./workspace-documents.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceDocumentsComponent {
@@ -77,6 +84,15 @@ export class WorkspaceDocumentsComponent {
   protected readonly search = signal("");
   protected readonly status = signal("");
   protected readonly fileType = signal("");
+  protected readonly sort = signal("newest");
+  protected readonly helpOpen = signal(false);
+  protected readonly dragging = signal(false);
+  protected readonly detailTab = signal<"info" | "content">("info");
+  protected readonly contentLoading = signal(false);
+  protected readonly contentError = signal("");
+  protected readonly contentText = signal<string | null>(null);
+  protected readonly pdfPreview = signal<SafeResourceUrl | null>(null);
+  protected readonly shortModelName = shortModelName;
   protected readonly uploadOpen = signal(false);
   protected readonly files = signal<File[]>([]);
   protected readonly detailOpen = signal(false);
@@ -85,24 +101,42 @@ export class WorkspaceDocumentsComponent {
   protected readonly statuses = Object.entries(DOCUMENT_STATUSES);
   protected readonly ingestionError = ingestionErrorMessage;
   protected readonly filtered = computed(() =>
-    this.documents().filter(
-      (doc) =>
-        doc.name.toLowerCase().includes(this.search().toLowerCase()) &&
-        (!this.status() || doc.status === this.status()) &&
-        (!this.fileType() || this.extension(doc.name) === this.fileType()),
-    ),
+    this.documents()
+      .filter(
+        (doc) =>
+          doc.name.toLowerCase().includes(this.search().toLowerCase()) &&
+          (!this.status() || doc.status === this.status()) &&
+          (!this.fileType() || this.extension(doc.name) === this.fileType()),
+      )
+      .sort((a, b) =>
+        this.sort() === "name"
+          ? a.name.localeCompare(b.name)
+          : this.sort() === "oldest"
+            ? a.created_at.localeCompare(b.created_at)
+            : b.created_at.localeCompare(a.created_at),
+      ),
   );
   private readonly api = inject(DocumentApiService);
   private readonly actions = inject(RaghubApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly detailChanged = new Subject<void>();
+  private previewUrl: string | null = null;
+  private resumeUpload = false;
+  private pendingModelPicker: EmbeddingProfileComponent | null = null;
   private polling?: Subscription;
   private readonly workspaceChanged = new Subject<void>();
   private workspaceId = "";
   constructor() {
+    this.destroyRef.onDestroy(() => this.clearPreview());
     effect(() => {
       const id = this.context.workspace()?.id ?? "";
       if (id === this.workspaceId) return;
       this.workspaceChanged.next();
+      this.detailChanged.next();
+      this.clearPreview();
+      this.resumeUpload = false;
+      this.pendingModelPicker = null;
       this.workspaceId = id;
       this.documents.set([]);
       this.detail.set(null);
@@ -185,6 +219,15 @@ export class WorkspaceDocumentsComponent {
     const input = event.target as HTMLInputElement,
       files = Array.from(input.files ?? []);
     input.value = "";
+    this.acceptFiles(files);
+  }
+  protected dropFiles(event: DragEvent) {
+    event.preventDefault();
+    this.dragging.set(false);
+    if (!this.busy())
+      this.acceptFiles(Array.from(event.dataTransfer?.files ?? []));
+  }
+  private acceptFiles(files: File[]) {
     this.files.set([]);
     this.error.set("");
     if (files.some((file) => file.size > 25 * 1024 * 1024)) {
@@ -204,6 +247,22 @@ export class WorkspaceDocumentsComponent {
       return;
     }
     this.files.set(files);
+  }
+  protected changeUploadModel(profile: EmbeddingProfileComponent) {
+    this.resumeUpload = true;
+    this.pendingModelPicker = profile;
+    this.uploadOpen.set(false);
+  }
+  protected uploadDialogClosed() {
+    const profile = this.pendingModelPicker;
+    this.pendingModelPicker = null;
+    if (!profile) return;
+    if (this.context.can("ai.change_embedding")) profile.choose();
+    else this.modelDialogClosed();
+  }
+  protected modelDialogClosed() {
+    if (this.resumeUpload) this.uploadOpen.set(true);
+    this.resumeUpload = false;
   }
   protected upload() {
     if (this.busy() || !this.files().length || !this.uploadAllowed()) return;
@@ -241,6 +300,9 @@ export class WorkspaceDocumentsComponent {
       });
   }
   protected showDetail(doc: DocumentMetadata) {
+    this.detailChanged.next();
+    this.clearPreview();
+    this.detailTab.set("info");
     this.detailOpen.set(true);
     this.detail.set(null);
     this.detailLoading.set(true);
@@ -250,12 +312,77 @@ export class WorkspaceDocumentsComponent {
       .pipe(
         finalize(() => this.detailLoading.set(false)),
         takeUntil(this.workspaceChanged),
+        takeUntil(this.detailChanged),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (item) => this.detail.set(item),
         error: (error) => this.error.set(apiError(error)),
       });
+  }
+  protected closeDetail() {
+    this.detailChanged.next();
+    this.clearPreview();
+    this.detailOpen.set(false);
+  }
+  protected navigateDetailTab(event: KeyboardEvent) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const tab =
+      event.key === "Home"
+        ? "info"
+        : event.key === "End"
+          ? "content"
+          : this.detailTab() === "info"
+            ? "content"
+            : "info";
+    if (tab === "content") this.showContent();
+    else this.detailTab.set("info");
+    document.getElementById(`document-${tab}-tab`)?.focus();
+  }
+  protected showContent() {
+    this.detailTab.set("content");
+    const doc = this.detail();
+    if (
+      !doc ||
+      this.contentLoading() ||
+      this.pdfPreview() ||
+      this.contentText() !== null
+    )
+      return;
+    this.contentLoading.set(true);
+    this.api
+      .download(this.workspaceId, doc.id)
+      .pipe(
+        concatMap((blob) =>
+          this.extension(doc.name) === "pdf" ? of(blob) : from(blob.text()),
+        ),
+        finalize(() => this.contentLoading.set(false)),
+        takeUntil(this.workspaceChanged),
+        takeUntil(this.detailChanged),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (value) => {
+          if (typeof value === "string") this.contentText.set(value);
+          else {
+            this.previewUrl = URL.createObjectURL(
+              new Blob([value], { type: "application/pdf" }),
+            );
+            this.pdfPreview.set(
+              this.sanitizer.bypassSecurityTrustResourceUrl(this.previewUrl),
+            );
+          }
+        },
+        error: (error) => this.contentError.set(apiError(error)),
+      });
+  }
+  private clearPreview() {
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.previewUrl = null;
+    this.pdfPreview.set(null);
+    this.contentText.set(null);
+    this.contentError.set("");
   }
   protected download(doc: DocumentMetadata) {
     if (this.busy()) return;

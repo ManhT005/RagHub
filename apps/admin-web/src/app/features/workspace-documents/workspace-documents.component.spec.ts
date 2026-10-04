@@ -115,6 +115,90 @@ describe("Workspace documents", () => {
     expect(component["size"](null)).toBe("—");
     view.destroy();
   });
+
+  it("combines search, type, status and chronological sorting without changing source documents", () => {
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent);
+    view.detectChanges();
+    const component = view.componentInstance;
+    const recent = {
+      ...doc,
+      id: "doc-2",
+      name: "Other.md",
+      created_at: "2026-10-05T00:00:00Z",
+    };
+    component["documents"].set([
+      doc,
+      recent,
+      { ...doc, id: "doc-3", name: "Other.pdf", status: "FAILED" },
+    ]);
+    expect(component["filtered"]()[0].id).toBe("doc-2");
+    component["search"].set("other");
+    component["fileType"].set("md");
+    component["status"].set("READY");
+    expect(component["filtered"]().map((item) => item.id)).toEqual(["doc-2"]);
+    expect(component["documents"]()[0].id).toBe("doc-1");
+    view.destroy();
+  });
+
+  it("validates dropped files with the same rules as the file picker and blocks changes while uploading", () => {
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent),
+      component = view.componentInstance;
+    const preventDefault = vi.fn();
+    component["dropFiles"]({
+      preventDefault,
+      dataTransfer: { files: [new File(["content"], "valid.md")] },
+    } as unknown as DragEvent);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(component["files"]()[0].name).toBe("valid.md");
+    component["busy"].set(true);
+    component["dropFiles"]({
+      preventDefault,
+      dataTransfer: { files: [new File(["bad"], "bad.exe")] },
+    } as unknown as DragEvent);
+    expect(component["files"]()[0].name).toBe("valid.md");
+    view.destroy();
+  });
+
+  it("cancels stale details and content when another document is opened", () => {
+    const stale = new Subject<any>(),
+      content = new Subject<Blob>();
+    api.detail
+      .mockReturnValueOnce(stale)
+      .mockReturnValue(of({ ...doc, id: "doc-2" }));
+    api.download.mockReturnValue(content);
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent),
+      component = view.componentInstance;
+    view.detectChanges();
+    component["showDetail"](doc);
+    component["showDetail"]({ ...doc, id: "doc-2" });
+    stale.next(doc);
+    expect(component["detail"]()?.id).toBe("doc-2");
+    component["showContent"]();
+    expect(content.observed).toBe(true);
+    component["closeDetail"]();
+    expect(content.observed).toBe(false);
+    expect(component["contentLoading"]()).toBe(false);
+    view.destroy();
+  });
+
+  it("renders downloaded text as plain content and caches it only for the current document", async () => {
+    api.detail.mockReturnValue(of(doc));
+    api.download.mockReturnValue(
+      of({ text: () => Promise.resolve("<script>alert(1)</script>") }),
+    );
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent),
+      component = view.componentInstance;
+    view.detectChanges();
+    component["showDetail"](doc);
+    component["showContent"]();
+    await Promise.resolve();
+    expect(component["contentText"]()).toBe("<script>alert(1)</script>");
+    component["showContent"]();
+    expect(api.download).toHaveBeenCalledTimes(1);
+    component["closeDetail"]();
+    expect(component["contentText"]()).toBeNull();
+    view.destroy();
+  });
   it("cancels the previous workspace response when a reused route changes scope", () => {
     const stale = new Subject<DocumentMetadata[]>();
     api.list.mockReturnValueOnce(stale).mockReturnValue(of([]));

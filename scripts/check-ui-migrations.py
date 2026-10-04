@@ -139,6 +139,18 @@ def main():
         )
         migrate("head")
         assert sql("SELECT version_num FROM alembic_version") == "20261004_0016"
+        assert (
+            sql(
+                f"SELECT c.catalog_id FROM provider_connections c JOIN provider_configs p ON p.connection_id=c.id WHERE p.id='{fixture_id}'"
+            )
+            == "compatible"
+        )
+        assert (
+            sql(
+                "SELECT count(*) FROM provider_connections WHERE provider_type IN ('GOOGLE_GEMINI', 'OLLAMA', 'LOCAL_SENTENCE_TRANSFORMER', 'OPENAI_COMPATIBLE') AND catalog_id IS NULL"
+            )
+            == "0"
+        )
         moved = rows(
             "SELECT p.id, c.encrypted_secret FROM provider_configs p "
             "JOIN provider_connections c ON c.id=p.connection_id ORDER BY p.id"

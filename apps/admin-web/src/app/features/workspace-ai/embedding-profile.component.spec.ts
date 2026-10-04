@@ -117,6 +117,35 @@ describe("Safe embedding selection", () => {
     expect(component["preview"]()).toBeNull();
     view.destroy();
   });
+
+  it("filters model cards by catalog identity and local/cloud category", () => {
+    const view = TestBed.createComponent(EmbeddingProfileComponent),
+      component = view.componentInstance;
+    component["models"].set([
+      {
+        id: "local",
+        model: "arbitrary",
+        provider_name: "Private",
+        provider_catalog_id: "sentence-transformer",
+      },
+      {
+        id: "cloud",
+        model: "arbitrary",
+        provider_name: "Private",
+        provider_catalog_id: "gemini",
+      },
+    ] as any);
+    component["modelCategory"].set("Local");
+    expect(component["filteredModels"]().map((model) => model.id)).toEqual([
+      "local",
+    ]);
+    component["modelCategory"].set("");
+    component["modelProvider"].set("gemini");
+    expect(component["filteredModels"]().map((model) => model.id)).toEqual([
+      "cloud",
+    ]);
+    view.destroy();
+  });
   it("keeps the current embedding profile and stops polling after reindex failure", () => {
     vi.useFakeTimers();
     context.workspace.set({

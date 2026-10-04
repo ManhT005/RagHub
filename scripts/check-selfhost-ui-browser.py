@@ -66,7 +66,7 @@ def main():
             (workspace_path + "/overview", "UI knowledge workspace"),
             (workspace_path + "/documents", "Tài liệu"),
             (workspace_path + "/members", "Thành viên & quyền"),
-            (workspace_path + "/ai", "Cài đặt AI"),
+            (workspace_path + "/ai", "AI & Models"),
             (workspace_path + "/chat", "Chat với tài liệu"),
         ]
         for width in (1024, 1440, 1920):
@@ -82,6 +82,12 @@ def main():
                 )
                 assert not overflow, f"Page overflows at {width}: {route}"
                 if route.endswith("/documents"):
+                    sidebar = page.locator("nz-sider")
+                    expect(sidebar.locator('a[href="/app/profile"]')).to_have_count(0)
+                    expect(sidebar.locator('a[href^="/system"]')).to_have_count(0)
+                    expect(sidebar.locator(".workspace-identity")).to_contain_text(
+                        "ui-knowledge"
+                    )
                     expect(
                         page.get_by_role("button", name="recovery.txt", exact=True)
                     ).to_be_visible()
@@ -94,7 +100,79 @@ def main():
                 )
             print(f"PASS: 8 screens at {width}px without page overflow", flush=True)
 
+        for width in (390, 768):
+            page.set_viewport_size({"width": width, "height": 900})
+            page.goto(args.base_url + workspace_path + "/documents")
+            expect(
+                page.get_by_role("heading", name="Tài liệu", exact=True)
+            ).to_be_visible()
+            assert not page.evaluate(
+                "document.documentElement.scrollWidth > window.innerWidth + 1"
+            )
+            page.screenshot(
+                path=str(args.output / f"{width}-workspace-documents.png"),
+                full_page=True,
+            )
+        page.set_viewport_size({"width": 1440, "height": 1000})
+        page.get_by_role("button", name="Chuyển sang nền tối").click()
+        page.screenshot(
+            path=str(args.output / "dark-workspace-documents.png"), full_page=True
+        )
+        page.get_by_role("button", name="Chuyển sang nền sáng").click()
+        assert page.locator("raghub-provider-logo img").evaluate_all(
+            "images => images.every(img => img.complete && img.naturalWidth > 0)"
+        )
+        print(
+            "PASS: mobile/tablet, dark mode, workspace isolation and local logo loading",
+            flush=True,
+        )
+
         page.set_viewport_size({"width": 1024, "height": 1000})
+        custom_name = "Custom brand regression " + uuid4().hex[:8]
+        api_headers = {
+            "Authorization": "Bearer " + token(owner),
+            "X-Organization-ID": state["organization_id"],
+        }
+        custom = httpx.post(
+            args.base_url
+            + f"/api/v1/organizations/{state['organization_id']}/provider-connections",
+            headers=api_headers,
+            json={
+                "name": custom_name,
+                "catalog_id": "compatible",
+                "provider_type": "OPENAI_COMPATIBLE",
+                "base_url": "https://api.openai.com/v1",
+            },
+            timeout=20,
+        )
+        assert custom.status_code == 201 and custom.json()["catalog_id"] == "compatible"
+        try:
+            page.goto(args.base_url + "/system/ai/providers")
+            card = page.locator(".provider-card").filter(
+                has=page.get_by_role("heading", name=custom_name, exact=True)
+            )
+            expect(card.locator("raghub-provider-logo img")).to_have_attribute(
+                "src", "assets/providers/openai-compatible.svg"
+            )
+            card.get_by_role("button", name="Quản lý").click()
+            expect(
+                page.get_by_role("heading", name="OpenAI-compatible", exact=True)
+            ).to_be_visible()
+            page.get_by_role("button", name="Hủy", exact=True).click()
+        finally:
+            assert (
+                httpx.delete(
+                    args.base_url
+                    + f"/api/v1/provider-connections/{custom.json()['id']}",
+                    headers=api_headers,
+                    timeout=20,
+                ).status_code
+                == 204
+            )
+        print(
+            "PASS: custom identity survives create, logo rendering and edit with OpenAI endpoint",
+            flush=True,
+        )
         page.goto(args.base_url + "/system/ai/providers")
         page.get_by_role("button", name="+ Thêm provider", exact=True).click()
         expect(
@@ -139,7 +217,19 @@ def main():
                 "buffer": b"# Browser acceptance\n\nRagHub browser upload was successful.",
             }
         )
-        page.get_by_role("button", name="Tải lên & xử lý", exact=True).click()
+        page.get_by_role("button", name="Đổi", exact=True).click()
+        expect(page.get_by_role("dialog").get_by_role("radiogroup")).to_be_visible()
+        page.screenshot(
+            path=str(args.output / "embedding-model-picker.png"), full_page=True
+        )
+        page.locator(".embedding-picker").get_by_role(
+            "button", name="Hủy", exact=True
+        ).click()
+        expect(
+            page.get_by_role("dialog").filter(has=page.locator(".upload-content"))
+        ).to_contain_text(file_name)
+        page.screenshot(path=str(args.output / "upload-modal.png"), full_page=True)
+        page.get_by_role("button", name="Tải lên & lập chỉ mục", exact=True).click()
         expect(page.locator(".ant-modal")).to_have_count(0, timeout=30000)
         row = page.get_by_role("row").filter(
             has=page.get_by_role("button", name=file_name, exact=True)
@@ -148,6 +238,9 @@ def main():
         page.get_by_role("button", name=file_name, exact=True).click()
         expect(page.get_by_role("heading", name=file_name, exact=True)).to_be_visible()
         expect(page.get_by_text("450 tokens / overlap 80", exact=True)).to_be_visible()
+        page.get_by_role("tab", name="Nội dung", exact=True).click()
+        expect(page.locator(".document-text")).to_contain_text("# Browser acceptance")
+        page.get_by_role("tab", name="Thông tin", exact=True).click()
         assert page.locator(".ant-drawer-body").evaluate(
             "element => element.scrollWidth <= element.clientWidth + 1"
         ), "Document detail content overflows its drawer"
@@ -160,18 +253,21 @@ def main():
         )
         page.locator(".ant-drawer-close").click()
         page.get_by_role("button", name="Đổi model", exact=True).click()
-        select = page.get_by_role("dialog").get_by_role("combobox")
-        select.select_option(browser_model["id"])
-        page.get_by_role("button", name="Xem tác động", exact=True).click()
+        page.get_by_role(
+            "radio",
+            name=f"Chọn {browser_model['model']} từ {browser_model['provider_name']}",
+            exact=True,
+        ).check()
+        page.get_by_role("button", name="Chọn model", exact=True).click()
         expect(
-            page.get_by_role("button", name="Áp dụng & reindex", exact=True)
+            page.get_by_role("button", name="Đổi model & lập chỉ mục", exact=True)
         ).to_be_disabled(timeout=30000)
         assert page.locator(".ant-modal-body").evaluate(
             "element => element.scrollWidth <= element.clientWidth + 1"
         ), "Embedding impact content overflows its modal"
         page.screenshot(path=str(args.output / "embedding-impact.png"), full_page=True)
         page.get_by_role("checkbox").check()
-        page.get_by_role("button", name="Áp dụng & reindex", exact=True).click()
+        page.get_by_role("button", name="Đổi model & lập chỉ mục", exact=True).click()
         expect(page.locator(".ant-modal")).to_have_count(0, timeout=30000)
         expect(
             page.get_by_text(
@@ -213,7 +309,7 @@ def main():
             member_page.get_by_role("button", name="+ Tải tài liệu lên")
         ).to_have_count(0)
         expect(
-            member_page.locator("nz-sider").get_by_text("Cài đặt AI", exact=True)
+            member_page.locator("nz-sider").get_by_text("AI & Models", exact=True)
         ).to_have_count(0)
         expect(
             member_page.locator("nz-sider").get_by_text("AI Providers", exact=True)

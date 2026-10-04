@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   signal,
+  output,
   untracked,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
@@ -15,6 +16,7 @@ import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzModalModule } from "ng-zorro-antd/modal";
 import { NzProgressModule } from "ng-zorro-antd/progress";
 import { NzTagModule } from "ng-zorro-antd/tag";
+import { NzInputModule } from "ng-zorro-antd/input";
 import {
   EMPTY,
   Subscription,
@@ -22,6 +24,7 @@ import {
   exhaustMap,
   finalize,
   takeWhile,
+  switchMap,
   timer,
 } from "rxjs";
 import {
@@ -37,10 +40,14 @@ import {
 } from "../../core/api/workspace-api.service";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { apiError } from "../../core/api/api-error";
+import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { shortModelName } from "../../core/provider-brand/provider-brand.registry";
 
 @Component({
   selector: "raghub-embedding-profile",
   imports: [
+    NzInputModule,
+    ProviderLogoComponent,
     DatePipe,
     FormsModule,
     NzButtonModule,
@@ -50,9 +57,49 @@ import { apiError } from "../../core/api/api-error";
     NzTagModule,
   ],
   templateUrl: "./embedding-profile.component.html",
+  styleUrl: "./embedding-profile.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmbeddingProfileComponent {
+  readonly dialogClosed = output<void>();
+  protected readonly shortModelName = shortModelName;
+  protected readonly modelQuery = signal("");
+  protected readonly modelCategory = signal("");
+  protected readonly modelProvider = signal("");
+  protected filteredModels() {
+    return this.models().filter(
+      (model) =>
+        `${model.model} ${model.provider_name}`
+          .toLowerCase()
+          .includes(this.modelQuery().toLowerCase()) &&
+        (!this.modelProvider() ||
+          model.provider_catalog_id === this.modelProvider()) &&
+        (!this.modelCategory() ||
+          this.category(model.provider_catalog_id) === this.modelCategory()),
+    );
+  }
+  protected providerOptions() {
+    return this.models().filter(
+      (model, index, items) =>
+        items.findIndex(
+          (item) => item.provider_catalog_id === model.provider_catalog_id,
+        ) === index,
+    );
+  }
+  protected category(catalogId: string | null) {
+    return catalogId === "sentence-transformer" || catalogId === "ollama"
+      ? "Local"
+      : catalogId === "compatible" || !catalogId
+        ? "Custom"
+        : "Cloud";
+  }
+  protected selectedModel() {
+    return this.models().find((model) => model.id === this.selected);
+  }
+  protected close() {
+    if (this.busy()) return;
+    this.open.set(false);
+  }
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly open = signal(false);
   protected readonly busy = signal(false);
@@ -114,12 +161,15 @@ export class EmbeddingProfileComponent {
         });
     });
   }
-  protected choose() {
+  choose() {
     if (!this.context.can("ai.change_embedding") || this.busy()) return;
     this.selected = "";
     this.confirmed = false;
     this.preview.set(null);
     this.error.set("");
+    this.modelQuery.set("");
+    this.modelCategory.set("");
+    this.modelProvider.set("");
     this.open.set(true);
     this.loading.set(true);
     this.providers
@@ -167,13 +217,13 @@ export class EmbeddingProfileComponent {
     this.api
       .changeEmbedding(this.context.workspace()!.id, this.selected)
       .pipe(
+        switchMap(() => this.context.refresh()),
         finalize(() => this.busy.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: () => {
           this.open.set(false);
-          this.refresh();
         },
         error: (error) => this.error.set(apiError(error)),
       });
