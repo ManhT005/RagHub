@@ -9,9 +9,9 @@ and workspace isolation remains mandatory inside every data operation.
 ## Dependency direction
 
 ```text
-app delivery -> app composition -> raghub_core.application -> domain + ports
+app delivery -> app composition -> raghub_core.api -> application -> domain + ports
 app infrastructure / persistence / AI adapters -> raghub_core.domain + ports
-app composition roots -> concrete adapters + raghub_core.application
+app composition roots -> concrete adapters + raghub_core.api
 ```
 
 `backend/raghub_core/domain` is the engine's domain, algorithms, policies and contracts.
@@ -19,6 +19,11 @@ app composition roots -> concrete adapters + raghub_core.application
 The supported facade is `raghub_core.api`; see the [frozen public API](RAGHUB_CORE_PUBLIC_API.md).
 There are no remaining `app/core_domain`, `app/application`, or `app/ports` aliases.
 The engine must never import `app`, including its package root.
+Host composition must import public use cases from `raghub_core.api`, never
+`raghub_core.application` or its submodules. Architecture tests inspect all
+`app/composition/**/*.py`, including imports inside functions and type-checking
+blocks. Direct domain/port imports remain allowed for typed contracts and algorithm
+injection (such as `chunk_sections`); infrastructure implements ports directly.
 The existing `app/core` is legacy runtime support (FastAPI authentication, settings,
 database, logging and middleware), **not RagHub Core**. Keeping that distinction
 avoids moving runtime dependencies into the reusable engine.
@@ -29,7 +34,9 @@ such as tiktoken are allowed. PDF decoding with PyMuPDF is an adapter; text and
 Markdown parsing and section/chunk contracts belong to the core.
 
 The `raghub-backend` wheel contains both the host and engine packages. It is not
-a separately versioned `raghub-core` distribution. The `core-package-isolation`
+a separately versioned `raghub-core` distribution. Standalone distribution is
+intentionally **Deferred**, as recorded in [ADR-001](adr/ADR-001-core-package-boundary.md).
+The `core-package-isolation`
 CI job installs that wheel without host dependencies into a fresh venv, blocks
 every `app` import, imports every engine module, verifies bundled tokenizer data
 with an empty cache and runs the complete fake-port lifecycle. Docker copies both
@@ -178,6 +185,9 @@ Run backend checks from `backend/`:
 Core contract tests use fake ports and no Docker or network. Infrastructure
 integration tests remain marked `integration` and require the existing stack.
 Architecture tests enforce dependency direction, including transitive imports.
+Public API tests freeze the facade exports and identity and import it in a fresh
+subprocess with host/runtime libraries blocked. Fake-port ingestion, retrieval and
+RAG tests consume public use cases from the same facade as host composition.
 
 For a core-only environment, install `backend/requirements-core-test.lock` rather
 than the backend runtime dependencies, then run `python -m pytest -p

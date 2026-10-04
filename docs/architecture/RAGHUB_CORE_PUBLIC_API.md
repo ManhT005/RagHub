@@ -7,11 +7,31 @@ The canonical engine namespace is `raghub_core`; `app` owns hosts and adapters.
 
 ## Stable entry points
 
-Hosts may import the supported exports from `raghub_core.api`. Concrete adapters
+Host composition must import supported public use cases from `raghub_core.api`.
+Direct imports of `raghub_core.application` and its submodules in composition are
+forbidden by the architecture gate. Concrete adapters
 implement protocols in `raghub_core.ports`. Domain modules remain available for
 typed values used by these protocols; internal algorithm helpers are not facade
 exports. The initial backend wheel contains both packages and retains its existing
 `raghub-backend` distribution name/version.
+A standalone, independently versioned `raghub-core` distribution is intentionally
+**Deferred**; see [ADR-001](adr/ADR-001-core-package-boundary.md).
+
+The supported facade is exactly the following 27 exports. Adding or removing a
+symbol requires an intentional contract update in `tests/core/test_public_api.py`.
+The facade re-exports original symbols without wrappers or constructor changes.
+
+| Group | Facade exports |
+| --- | --- |
+| Documents | `UploadDocumentUseCase`, `RetryDocumentUseCase`, `UploadDocumentCommand`, `UploadReceipt` |
+| Ingestion | `BuildDocumentIndexUseCase`, `RunIngestionUseCase`, `ReindexWorkspaceUseCase` |
+| Retrieval | `RetrieveContextUseCase`, `RetrievalScope`, `RetrievedChunk`, `ContextBundle` |
+| RAG | `StreamRagChatUseCase`, `StreamChatCommand`, `RagEvent`, `ConversationStarted`, `CitationsResolved`, `TokenDelta`, `UsageReported`, `ChatCompleted`, `ChatFailed` |
+| Chatbots | `ManageChatbotUseCase`, `PublishChatbotUseCase`, `ChatbotConfig`, `ChatbotRecord`, `CreateChatbotCommand`, `PatchChatbotCommand` |
+| Errors | `CoreError` |
+
+Repository implementations, storage/search/queue adapters, routers, credentials,
+database sessions and concrete provider HTTP clients are excluded from the facade.
 
 | Entry point | Operation | Injected dependencies |
 | --- | --- | --- |
@@ -30,6 +50,9 @@ constructs a concrete adapter. Synchronous vector-index/task-queue protocol meth
 keep their existing signatures during this move. Object storage remains async.
 
 ## Commands and domain values
+
+Values listed below that are absent from the facade export table are domain/port
+contracts for adapters, imported from their canonical modules.
 
 - `UploadDocumentCommand`: organization/workspace UUIDs, filename, content type
   and bytes. `UploadReceipt` preserves document/version/job UUIDs, status and timestamp.

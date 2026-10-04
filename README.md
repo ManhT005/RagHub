@@ -70,16 +70,24 @@ Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành
 Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
 billing và quản trị enterprise thuộc roadmap sau.
 
-**RagHub Core** là engine tri thức và RAG độc lập với cách triển khai. Logic và
-contracts độc lập nằm trong `backend/raghub_core/domain`; workflow nằm trong
-`raghub_core/application`, giao tiếp hạ tầng qua `raghub_core/ports`. Các host dùng
-facade `raghub_core.api` hoặc các protocol canonical. Auth/RBAC và quản trị platform nằm
-ngoài engine. Playground và public widget dùng cùng typed RAG runtime; origin,
-rate limit và concurrency thuộc delivery. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
+**Core namespace — `backend/raghub_core`:** engine tri thức và RAG tái sử dụng,
+chứa domain rules, application workflows và dependency ports. Core không sở hữu
+HTTP delivery, persistence implementation, Redis admission, deployment mode hay
+quản trị sản phẩm. Host composition phải lấy public use case từ `raghub_core.api`;
+infrastructure được implement trực tiếp `raghub_core.ports` và dùng domain contracts.
+
+**Host runtime — `backend/app`:** composition, delivery, persistence adapters,
+auth/RBAC, Redis, provider clients, MinIO, Elasticsearch, Celery và quản trị sản phẩm.
+Playground và public widget dùng cùng typed RAG runtime; origin, rate limit và
+concurrency thuộc host. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
 và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
 Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
-Backend wheel chứa cả `app` và `raghub_core`; CI kiểm tra engine từ installed wheel
-trong venv tối thiểu, chặn import `app` và dùng cache tokenizer rỗng.
+**Backend distribution — `raghub-backend`:** hiện chứa cả `app` và `raghub_core`.
+Core đã tách namespace và dependency, nhưng chưa có release/version độc lập.
+Standalone `raghub-core` distribution được chủ động hoãn (**Deferred**), theo
+[ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md).
+CI kiểm tra engine từ installed wheel trong venv tối thiểu, chặn import `app`
+và dùng cache tokenizer rỗng.
 
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |

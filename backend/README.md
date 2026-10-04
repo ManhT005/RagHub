@@ -3,13 +3,21 @@
 The `raghub-backend` distribution contains two Python packages:
 
 - `raghub_core`: domain, application workflows, ports and the supported
-  `raghub_core.api` facade. It does not import the runtime host.
+  `raghub_core.api` facade. Host composition must import public use cases through
+  this facade. The engine does not own HTTP delivery, persistence implementation,
+  Redis admission, deployment mode or product administration.
 - `app`: self-host/public-chat/worker composition, delivery, adapters,
-  authentication and the control plane.
+  authentication, Redis, provider clients, MinIO, Elasticsearch, Celery and the
+  control plane. Infrastructure implements `raghub_core.ports` directly and may
+  use their domain contracts; the facade does not replace ports.
 
-This phase keeps one distribution and one version. It does not publish a separate
-`raghub-core` wheel. Installing normal backend dependencies supports the complete
-host; the engine contract suite uses the minimal test lock instead.
+`raghub_core` is physically and dependency isolated, but is currently distributed
+inside the `raghub-backend` Python distribution. A separately versioned
+`raghub-core` distribution is intentionally **Deferred**; namespace isolation is
+not an independent release package. See [ADR-001](../docs/architecture/adr/ADR-001-core-package-boundary.md)
+for the decision and future extraction triggers. Installing normal backend
+dependencies supports the complete host; the engine contract suite uses the
+minimal test lock instead.
 
 From this directory:
 
