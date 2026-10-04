@@ -22,9 +22,12 @@ import { WorkspaceApiService } from "../../core/api/workspace-api.service";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { apiError } from "../../core/api/api-error";
 import { EmbeddingProfileComponent } from "./embedding-profile.component";
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
+import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
 @Component({
   selector: "raghub-workspace-ai",
   imports: [
+    ProviderLogoComponent,
     FormsModule,
     NzButtonModule,
     NzAlertModule,
@@ -33,14 +36,16 @@ import { EmbeddingProfileComponent } from "./embedding-profile.component";
   template: `<header class="page-heading">
       <div>
         <span class="eyebrow">WORKSPACE / AI</span>
-        <h1>Cài đặt AI</h1>
+        <h1>AI &amp; Models</h1>
         <p>Chọn model cho tìm kiếm và hội thoại của workspace.</p>
       </div>
     </header>
     <raghub-embedding-profile />
     <section class="surface" style="margin-top:24px">
       <h2>Chat model</h2>
-      <p class="muted">{{ currentChat() }}</p>
+      @if (chatModel(); as model) {
+      <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" /><span><b>{{ model.provider_name }}</b><small class="block model-name" [title]="model.model">{{ shortModelName(model.model) }}</small><small class="block muted">{{ model.availability_status }} · {{ model.connection_status }}</small></span></div>
+      } @else { <p class="muted">{{ currentChat() }}</p> }
       @if (context.can("workspace.edit")) {
         <label
           >Model<select [(ngModel)]="selected" [disabled]="busy()">
@@ -72,6 +77,8 @@ import { EmbeddingProfileComponent } from "./embedding-profile.component";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceAiComponent {
+  protected readonly shortModelName = shortModelName;
+  protected readonly chatModel = computed(() => this.models().find(item => item.id === this.context.workspace()?.chat_provider_id));
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly models = signal<RegistryModel[]>([]);
   protected readonly error = signal("");

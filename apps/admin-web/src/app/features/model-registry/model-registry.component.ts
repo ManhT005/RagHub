@@ -24,10 +24,12 @@ import {
 import { RaghubApiService } from "../../core/raghub-api.service";
 import { session } from "../../core/api-auth.interceptor";
 import { apiError } from "../../core/api/api-error";
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
 
 @Component({
   selector: "raghub-model-registry",
   imports: [
+    ProviderLogoComponent,
     DatePipe,
     FormsModule,
     RouterLink,
@@ -105,8 +107,7 @@ import { apiError } from "../../core/api/api-error";
               ><small class="block muted">{{ model.model }}</small>
             </td>
             <td>
-              {{ model.provider_name
-              }}<small class="block muted">{{ model.connection_status }}</small>
+              <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" size="sm" /><span>{{ model.provider_name }}<small class="block muted">{{ model.connection_status }}</small></span></div>
             </td>
             <td>
               <nz-tag>{{ model.capability }}</nz-tag>

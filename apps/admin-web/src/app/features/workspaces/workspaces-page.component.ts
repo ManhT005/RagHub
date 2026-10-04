@@ -31,10 +31,13 @@ import {
 import { RaghubApiService, Organization } from "../../core/raghub-api.service";
 import { session } from "../../core/api-auth.interceptor";
 import { apiError } from "../../core/api/api-error";
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
+import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
 
 @Component({
   selector: "raghub-workspaces-page",
   imports: [
+    ProviderLogoComponent,
     DatePipe,
     FormsModule,
     RouterLink,
@@ -51,6 +54,7 @@ import { apiError } from "../../core/api/api-error";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspacesPageComponent {
+  protected readonly shortModelName = shortModelName;
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly selectedOrganization = signal(
     session.organizationId ?? "",

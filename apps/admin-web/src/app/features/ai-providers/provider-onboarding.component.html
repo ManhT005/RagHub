@@ -21,13 +21,16 @@
       </select></div>
     <div class="catalog">
       @for (item of filteredCatalog(); track item.id) {
-      <button type="button" [disabled]="item.status !== 'SUPPORTED'" (click)="choose(item)"><strong>{{ item.name
+      <button type="button" [disabled]="item.status !== 'SUPPORTED'" (click)="choose(item)"><raghub-provider-logo
+          [catalogId]="item.id" aria-hidden="true" /><strong>{{ item.name
           }}</strong><small>{{ item.status === 'SUPPORTED' ? item.capabilities.join(' · ') : 'Coming soon'
           }}</small></button>
       }
     </div>
     } @else if (step() === 1) {
-    <h2>{{ selected()?.name }}</h2>
+    <div class="card-heading"><raghub-provider-logo [catalogId]="selected()?.id" />
+      <h2>{{ selected()?.name }}</h2>
+    </div>
     <div class="links">@if (selected()?.docs_url) { <a [href]="selected()!.docs_url" target="_blank"
         rel="noopener noreferrer">Tài liệu ↗</a> } @if (selected()?.api_key_url) { <a [href]="selected()!.api_key_url"
         target="_blank" rel="noopener noreferrer">Lấy API key ↗</a> }</div>

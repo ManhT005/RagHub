@@ -4,6 +4,11 @@
   margin: 0 auto;
 }
 
+.provider-model { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.provider-model > span { min-width: 0; overflow-wrap: anywhere; }
+.model-name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-grid .model-name { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
 .selfhost-page h1 {
   font-size: 28px;
   font-weight: 700;

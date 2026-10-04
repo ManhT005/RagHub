@@ -13,10 +13,11 @@ import { RaghubApiService } from '../../core/raghub-api.service';
 import { session } from '../../core/api-auth.interceptor';
 import { apiError } from '../../core/api/api-error';
 import { ProviderOnboardingComponent } from './provider-onboarding.component';
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
 
 @Component({
   selector: 'raghub-ai-providers',
-  imports: [FormsModule, RouterLink, NzButtonModule, NzInputModule, NzTagModule, NzAlertModule, NzPopconfirmModule, ProviderOnboardingComponent],
+  imports: [FormsModule, RouterLink, NzButtonModule, NzInputModule, NzTagModule, NzAlertModule, NzPopconfirmModule, ProviderOnboardingComponent, ProviderLogoComponent],
   templateUrl: './ai-providers.component.html', changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AiProvidersComponent {

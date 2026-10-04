@@ -26,6 +26,7 @@ import {
 import { ProviderCapability } from "../../core/raghub-api.service";
 import { apiError } from "../../core/api/api-error";
 import { resolveLegacyCatalogId } from '../../core/api/provider-catalog-identity';
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
 
 interface Choice extends DiscoveredModel {
   selected: boolean;
@@ -34,6 +35,7 @@ interface Choice extends DiscoveredModel {
 @Component({
   selector: "raghub-provider-onboarding",
   imports: [
+    ProviderLogoComponent,
     FormsModule,
     NzDrawerModule,
     NzButtonModule,
@@ -86,8 +88,8 @@ export class ProviderOnboardingComponent {
       const catalog = untracked(() => this.catalog());
       const selected = existing
         ? (catalog.find(
-            (item) => item.id === (existing.catalog_id ?? resolveLegacyCatalogId(existing)),
-          ) ?? null)
+          (item) => item.id === (existing.catalog_id ?? resolveLegacyCatalogId(existing)),
+        ) ?? null)
         : null;
       this.selected.set(selected);
       this.manualCapability = selected?.capabilities[0] ?? "CHAT";
@@ -128,9 +130,9 @@ export class ProviderOnboardingComponent {
     const request = this.connectionId
       ? this.api.update(this.connectionId, payload)
       : this.api.create(this.organizationId(), {
-          ...payload,
-          provider_type: item.provider_type,
-        });
+        ...payload,
+        provider_type: item.provider_type,
+      });
     request
       .pipe(
         switchMap((connection) => {

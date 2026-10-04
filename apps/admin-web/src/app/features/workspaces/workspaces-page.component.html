@@ -97,10 +97,9 @@
             {{ workspace.document_count }} / {{ workspace.chunk_count ?? "—" }}
           </td>
           <td>
-            {{ workspace.embedding_model?.model || "Chưa cấu hình"
-            }}<small class="block muted">{{
-              workspace.embedding_model?.provider_name
-            }}</small>
+            @if (workspace.embedding_model; as model) {
+            <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" size="sm" /><span><b>{{ model.provider_name }}</b><small class="block muted model-name" [title]="model.model">{{ shortModelName(model.model) }}</small></span></div>
+            } @else { Chưa cấu hình }
           </td>
           <td>
             <nz-tag

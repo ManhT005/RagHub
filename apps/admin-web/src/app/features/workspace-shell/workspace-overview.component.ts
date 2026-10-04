@@ -17,9 +17,12 @@ import { finalize, switchMap } from "rxjs";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { WorkspaceApiService } from "../../core/api/workspace-api.service";
 import { apiError } from "../../core/api/api-error";
+import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
+import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
 @Component({
   selector: "raghub-workspace-overview",
   imports: [
+    ProviderLogoComponent,
     DatePipe,
     RouterLink,
     FormsModule,
@@ -50,16 +53,14 @@ import { apiError } from "../../core/api/api-error";
     @if (context.workspace(); as workspace) {
       <div class="summary-grid">
         <article class="surface">
-          <p class="muted">Embedding đang phục vụ</p>
-          <h2>{{ workspace.embedding_model?.model || "Chưa cấu hình" }}</h2>
-          <p>
-            {{ workspace.embedding_model?.provider_name }}
-            @if (workspace.embedding_model) {
-              · {{ workspace.embedding_model.dimension }} dims
-            }
-          </p>
+          <h2>Embedding model</h2>
+          @if (workspace.embedding_model; as model) {
+            <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" /><span><b>{{ model.provider_name }}</b><small class="block model-name" [title]="model.model">{{ shortModelName(model.model) }}</small></span></div>
+            <p class="muted">{{ model.provider_catalog_id === 'sentence-transformer' || model.provider_catalog_id === 'ollama' ? 'Local' : 'Cloud / Custom' }} · {{ model.dimension }} dimensions</p>
+            <p>{{ model.status === 'AVAILABLE' ? '● Healthy' : model.status }}</p>
+          } @else { <p>Chưa cấu hình</p> }
           @if (context.can("ai.view")) {
-            <a routerLink="../ai">Cài đặt AI →</a>
+            <a routerLink="../ai">AI &amp; Models →</a>
           }
         </article>
         <article class="surface">
@@ -117,6 +118,7 @@ import { apiError } from "../../core/api/api-error";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceOverviewComponent {
+  protected readonly shortModelName = shortModelName;
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly editorOpen = signal(false);
   protected readonly saving = signal(false);

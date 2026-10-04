@@ -22,8 +22,7 @@
   <div class="provider-grid">
     @for (connection of filtered(); track connection.id) {
     <article class="surface provider-card">
-      <div class="card-heading"><span class="provider-avatar" aria-hidden="true">{{ connection.name.slice(0, 1)
-          }}</span>
+      <div class="card-heading"><raghub-provider-logo [catalogId]="connection.catalog_id" />
         <h2>{{ connection.name }}</h2><nz-tag
           [nzColor]="connection.enabled && connection.status === 'CONNECTED' ? 'green' : 'default'">{{
           connection.enabled ? connection.status : 'DISABLED' }}</nz-tag>
