@@ -70,6 +70,10 @@ Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành
 Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
 billing và quản trị enterprise thuộc roadmap sau.
 
+Console Self-host UI v1 có AI Providers/Model Registry tại `/system/ai/` và
+workspace console tại `/app/workspaces`. Xem [phạm vi triển khai, migration và rollback](docs/ui/selfhost-v1/implementation.md)
+cùng [kết quả nghiệm thu và lệnh kiểm thử](docs/ui/selfhost-v1/verification.md).
+
 **Core namespace — `backend/raghub_core`:** engine tri thức và RAG tái sử dụng,
 chứa domain rules, application workflows và dependency ports. Core không sở hữu
 HTTP delivery, persistence implementation, Redis admission, deployment mode hay

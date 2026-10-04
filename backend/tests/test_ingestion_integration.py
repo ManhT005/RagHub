@@ -132,12 +132,12 @@ def test_upload_to_search_and_tenant_scope() -> None:
             headers=headers,
             files={"file": ("foreign.txt", b"secret", "text/plain")},
         )
-        assert foreign.status_code == 404
-        assert foreign.json()["error"]["code"] == "WORKSPACE_NOT_FOUND"
+        assert foreign.status_code == 403
+        assert foreign.json()["error"]["code"] == "WORKSPACE_ACCESS_DENIED"
         foreign_retry = client.post(
             f"/api/v1/workspaces/{workspace_id}/document-versions/"
             f"{invalid.json()['document_version_id']}/retry",
             headers=headers,
         )
-        assert foreign_retry.status_code == 404
-        assert foreign_retry.json()["error"]["code"] == "DOCUMENT_VERSION_NOT_FOUND"
+        assert foreign_retry.status_code == 403
+        assert foreign_retry.json()["error"]["code"] == "WORKSPACE_ACCESS_DENIED"
