@@ -23,21 +23,28 @@ def test_catalog_and_connection_validation():
     supported = [item for item in CATALOG if item.status == "SUPPORTED"]
     assert all(item.provider_type for item in supported)
     assert not any("RERANKER" in item.capabilities for item in CATALOG)
-    gemini = ConnectionInput(name="Google", provider_type="GOOGLE_GEMINI")
+    gemini = ConnectionInput(name="Google", provider_type="GOOGLE_GEMINI", catalog_id="gemini")
     assert gemini.base_url.endswith("/v1beta/openai")
     with pytest.raises(AppError):
-        ConnectionInput(name="unsupported", provider_type="ANTHROPIC")
+        ConnectionInput(name="unsupported", provider_type="ANTHROPIC", catalog_id="anthropic")
     with pytest.raises(ValidationError):
         ConnectionInput(
-            name="unsafe", provider_type="OPENAI_COMPATIBLE", base_url="http://127.0.0.1"
+            name="unsafe",
+            provider_type="OPENAI_COMPATIBLE",
+            catalog_id="compatible",
+            base_url="http://127.0.0.1",
         )
     with pytest.raises(ValidationError):
         ConnectionInput(
             name="unsafe",
             provider_type="GOOGLE_GEMINI",
+            catalog_id="gemini",
             config_json={"nested": {"api_key": "secret"}},
         )
-    assert ConnectionInput(name="local", provider_type="OLLAMA").base_url == "http://ollama:11434"
+    assert (
+        ConnectionInput(name="local", provider_type="OLLAMA", catalog_id="ollama").base_url
+        == "http://ollama:11434"
+    )
 
 
 def test_secrets_are_connection_owned_and_never_serialized():
@@ -154,7 +161,12 @@ def test_validation_errors_never_echo_credentials():
         with TestClient(app) as client:
             response = client.post(
                 f"/api/v1/organizations/{context.organization_id}/provider-connections",
-                json={"name": "local", "provider_type": "OLLAMA", "secret": "private-password"},
+                json={
+                    "name": "local",
+                    "provider_type": "OLLAMA",
+                    "catalog_id": "ollama",
+                    "secret": "private-password",
+                },
             )
             assert response.status_code == 422
             assert "private-password" not in response.text

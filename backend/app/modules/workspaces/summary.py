@@ -1,5 +1,6 @@
 from sqlalchemy import case, func, select
 
+from app.modules.ai_providers.catalog import connection_catalog_id
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
@@ -118,6 +119,9 @@ def summary_data(row):
             if config and config.connection
             else version.provider_type,
             "provider_type": version.provider_type,
+            "provider_catalog_id": connection_catalog_id(config.connection)
+            if config and config.connection
+            else None,
             "dimension": version.dimension,
             "status": config.availability_status if config else "UNTESTED",
         }

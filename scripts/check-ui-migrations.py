@@ -138,7 +138,7 @@ def main():
             WHERE m.organization_id = w.organization_id AND m.role = 'WORKSPACE_ADMIN'""")
         )
         migrate("head")
-        assert sql("SELECT version_num FROM alembic_version") == "20261004_0015"
+        assert sql("SELECT version_num FROM alembic_version") == "20261004_0016"
         moved = rows(
             "SELECT p.id, c.encrypted_secret FROM provider_configs p "
             "JOIN provider_connections c ON c.id=p.connection_id ORDER BY p.id"

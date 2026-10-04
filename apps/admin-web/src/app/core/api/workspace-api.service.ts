@@ -3,6 +3,7 @@ import { Injectable, inject } from "@angular/core";
 import { Workspace, WorkspaceProviderBinding } from "../raghub-api.service";
 
 export interface EmbeddingProfile {
+  provider_catalog_id: string | null;
   id: string;
   model: string;
   provider_name: string;

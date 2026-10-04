@@ -67,6 +67,7 @@ describe("Provider onboarding", () => {
       name: "Ollama",
       provider_type: "OLLAMA",
       base_url: "http://ollama:11434",
+      catalog_id: 'ollama',
     });
     expect(component["step"]()).toBe(2);
     view.componentRef.setInput("catalog", [...catalog]);
@@ -86,6 +87,25 @@ describe("Provider onboarding", () => {
     expect(component["step"]()).toBe(1);
     expect(api.discover).not.toHaveBeenCalled();
     expect(component["error"]()).toContain("API key");
+    view.destroy();
+  });
+
+  it('preserves custom brand identity when two catalog entries share a runtime adapter', () => {
+    const view = fixture();
+    const brands = ['openai', 'compatible'].map(id => ({ ...catalog[0], id, name: id, provider_type: 'OPENAI_COMPATIBLE' as const }));
+    view.componentRef.setInput('catalog', brands);
+    view.componentRef.setInput('connection', { id: 'custom', name: 'Private API', catalog_id: 'compatible', provider_type: 'OPENAI_COMPATIBLE', base_url: 'https://api.openai.com/v1' });
+    view.detectChanges();
+    expect(view.componentInstance['selected']()?.id).toBe('compatible');
+    view.destroy();
+  });
+
+  it('resolves legacy custom connections by base URL, independently of their name', () => {
+    const view = fixture();
+    view.componentRef.setInput('catalog', ['openai', 'compatible'].map(id => ({ ...catalog[0], id, provider_type: 'OPENAI_COMPATIBLE' })));
+    view.componentRef.setInput('connection', { id: 'legacy', name: 'OpenAI', catalog_id: null, provider_type: 'OPENAI_COMPATIBLE', base_url: 'https://custom.example/v1' });
+    view.detectChanges();
+    expect(view.componentInstance['selected']()?.id).toBe('compatible');
     view.destroy();
   });
   it("allows manual IDs when discovery is unsupported and validates registration through backend", () => {

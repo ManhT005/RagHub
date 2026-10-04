@@ -18,6 +18,7 @@ class ProviderConnection(Base):
     )
     name: Mapped[str] = mapped_column(String(200))
     provider_type: Mapped[str] = mapped_column(String(64))
+    catalog_id: Mapped[str | None] = mapped_column(String(100))
     base_url: Mapped[str | None] = mapped_column(String(1024))
     encrypted_secret: Mapped[str | None] = mapped_column(Text)
     config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

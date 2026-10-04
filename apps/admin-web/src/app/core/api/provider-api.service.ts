@@ -9,6 +9,7 @@ export interface ProviderCatalogItem {
   api_key_url: string | null; status: 'SUPPORTED' | 'COMING_SOON';
 }
 export interface ProviderConnection {
+  catalog_id: string | null;
   id: string; organization_id: string; name: string; provider_type: ProviderType;
   base_url: string | null; enabled: boolean; has_secret: boolean;
   status: 'UNTESTED' | 'CONNECTED' | 'DEGRADED' | 'ERROR';
@@ -16,9 +17,11 @@ export interface ProviderConnection {
   created_at: string; updated_at: string | null; model_count: number;
 }
 export interface ConnectionInput {
+  catalog_id: string;
   name: string; provider_type: ProviderType; base_url?: string | null; secret?: string; enabled?: boolean;
 }
 export interface RegistryModel {
+  provider_catalog_id: string | null;
   id: string; connection_id: string | null; model: string; display_name: string | null;
   provider_name: string; provider_type: ProviderType; capability: ProviderCapability;
   dimension: number | null; availability_status: 'AVAILABLE' | 'UNAVAILABLE' | 'UNTESTED' | 'DISABLED';

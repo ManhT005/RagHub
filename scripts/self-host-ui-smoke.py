@@ -113,6 +113,7 @@ def main():
             json={
                 "name": "Credential contract probe",
                 "provider_type": "OPENAI_COMPATIBLE",
+                "catalog_id": "openai",
                 "base_url": "https://api.openai.com/v1",
                 "secret": sentinel,
             },
@@ -132,6 +133,7 @@ def main():
                 json={
                     "name": name,
                     "provider_type": "LOCAL_SENTENCE_TRANSFORMER",
+                    "catalog_id": "sentence-transformer",
                 },
             )
             checked = request("POST", f"/provider-connections/{connection['id']}/test")

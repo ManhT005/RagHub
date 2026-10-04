@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.modules.ai_providers.catalog import supported_catalog
+from app.modules.ai_providers.catalog import supported_catalog_by_id
 from app.modules.ai_providers.schemas import (
     _validate_base_url,
     _validate_provider_options,
@@ -18,6 +18,7 @@ class ConnectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=200)
     provider_type: str
+    catalog_id: str
     base_url: str | None = Field(default=None, max_length=1024)
     secret: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool = True
@@ -25,7 +26,9 @@ class ConnectionInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_connection(self):
-        item = supported_catalog(self.provider_type)
+        item = supported_catalog_by_id(self.catalog_id)
+        if item.provider_type != self.provider_type:
+            raise ValueError("Catalog identity must match the runtime provider type")
         self.name = self.name.strip()
         if not self.name:
             raise ValueError("Connection name is required")
@@ -43,6 +46,7 @@ class ConnectionInput(BaseModel):
 class ConnectionPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    catalog_id: str | None = None
     base_url: str | None = Field(default=None, max_length=1024)
     secret: str | None = Field(default=None, min_length=1, max_length=4096)
     clear_secret: bool = False
@@ -56,6 +60,7 @@ class ConnectionResponse(BaseModel):
     organization_id: UUID
     name: str
     provider_type: str
+    catalog_id: str | None
     base_url: str | None
     enabled: bool
     has_secret: bool
@@ -94,6 +99,7 @@ class ModelResponse(BaseModel):
     display_name: str | None
     provider_name: str
     provider_type: str
+    provider_catalog_id: str | None = None
     capability: str
     dimension: int | None
     availability_status: str

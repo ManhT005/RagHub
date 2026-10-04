@@ -25,6 +25,7 @@ import {
 } from "../../core/api/provider-api.service";
 import { ProviderCapability } from "../../core/raghub-api.service";
 import { apiError } from "../../core/api/api-error";
+import { resolveLegacyCatalogId } from '../../core/api/provider-catalog-identity';
 
 interface Choice extends DiscoveredModel {
   selected: boolean;
@@ -85,7 +86,7 @@ export class ProviderOnboardingComponent {
       const catalog = untracked(() => this.catalog());
       const selected = existing
         ? (catalog.find(
-            (item) => item.provider_type === existing.provider_type,
+            (item) => item.id === (existing.catalog_id ?? resolveLegacyCatalogId(existing)),
           ) ?? null)
         : null;
       this.selected.set(selected);
@@ -119,6 +120,7 @@ export class ProviderOnboardingComponent {
     this.error.set("");
     this.notice.set("");
     const payload = {
+      catalog_id: item.id,
       name: this.name.trim(),
       base_url: this.baseUrl.trim() || null,
       ...(this.secret ? { secret: this.secret } : {}),

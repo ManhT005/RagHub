@@ -15,6 +15,7 @@ export const workspaceFixture: WorkspaceSummary = {
   chunk_count: 3,
   last_indexed_at: null,
   embedding_model: {
+    provider_catalog_id: 'sentence-transformer',
     id: "model-1",
     model: "current-model",
     provider_name: "Local",

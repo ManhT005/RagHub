@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.infrastructure.provider_credentials import resolve_provider_secret
-from app.modules.ai_providers.catalog import supported_catalog
+from app.modules.ai_providers.catalog import connection_catalog_id, supported_catalog_by_id
 from app.modules.ai_providers.control_schemas import (
     ConnectionInput,
     ConnectionPatch,
@@ -31,8 +31,9 @@ def connection_response(connection, model_count=0):
         **{
             key: getattr(connection, key)
             for key in ConnectionResponse.model_fields
-            if key not in {"has_secret", "model_count"}
+            if key not in {"has_secret", "model_count", "catalog_id"}
         },
+        catalog_id=connection_catalog_id(connection),
         has_secret=bool(connection.encrypted_secret),
         model_count=model_count,
     )
@@ -47,6 +48,7 @@ def model_response(config, used=0):
         display_name=config.display_name or config.name,
         provider_name=connection.name if connection else config.name,
         provider_type=config.provider_type,
+        provider_catalog_id=connection_catalog_id(connection) if connection else None,
         capability=config.capability,
         dimension=config.dimension,
         availability_status=config.availability_status,
@@ -106,6 +108,7 @@ class ProviderControlService:
             organization_id=organization_id,
             name=payload.name,
             provider_type=payload.provider_type,
+            catalog_id=payload.catalog_id,
             base_url=payload.base_url,
             config_json=payload.config_json,
             enabled=payload.enabled,
@@ -127,6 +130,7 @@ class ProviderControlService:
         proposed = ConnectionInput(
             name=changes.get("name", connection.name),
             provider_type=connection.provider_type,
+            catalog_id=changes.get("catalog_id", connection_catalog_id(connection)),
             base_url=changes.get("base_url", connection.base_url),
             config_json=changes.get("config_json", connection.config_json),
             enabled=changes.get("enabled", connection.enabled),
@@ -143,6 +147,7 @@ class ProviderControlService:
                         "PROVIDER_IN_USE", "Connection is used by a workspace.", status_code=409
                     )
         connection.name, connection.enabled = proposed.name, proposed.enabled
+        connection.catalog_id = proposed.catalog_id
         connection.base_url, connection.config_json = proposed.base_url, proposed.config_json
         if payload.secret:
             connection.encrypted_secret = self.cipher.encrypt(payload.secret)
@@ -183,7 +188,7 @@ class ProviderControlService:
         connection = await self.get(organization_id, connection_id)
         if not connection.enabled:
             raise AppError("PROVIDER_DISABLED", "Connection is disabled.", status_code=409)
-        item = supported_catalog(connection.provider_type)
+        item = supported_catalog_by_id(connection_catalog_id(connection))
         start = time.monotonic()
         error_code = None
         try:
@@ -218,7 +223,7 @@ class ProviderControlService:
 
     async def register(self, organization_id, connection_id, payload: ModelInput):
         connection = await self.get(organization_id, connection_id)
-        item = supported_catalog(connection.provider_type)
+        item = supported_catalog_by_id(connection_catalog_id(connection))
         if payload.capability not in item.capabilities:
             raise AppError("UNSUPPORTED_CAPABILITY", "Capability unavailable.", status_code=422)
         if not connection.enabled:

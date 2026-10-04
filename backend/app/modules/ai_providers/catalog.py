@@ -95,3 +95,30 @@ def supported_catalog(provider_type: str) -> CatalogItem:
     raise AppError(
         "UNSUPPORTED_PROVIDER", "Provider has no supported runtime adapter.", status_code=422
     )
+
+
+def supported_catalog_by_id(catalog_id: str) -> CatalogItem:
+    for item in CATALOG:
+        if item.id == catalog_id and item.status == "SUPPORTED":
+            return item
+    raise AppError("UNSUPPORTED_PROVIDER", "Provider catalog item is unavailable.", status_code=422)
+
+
+def resolve_legacy_catalog_id(provider_type: str, base_url: str | None) -> str | None:
+    if provider_type == "OPENAI_COMPATIBLE":
+        return (
+            "openai"
+            if (base_url or "").rstrip("/") == "https://api.openai.com/v1"
+            else "compatible"
+        )
+    return {
+        "GOOGLE_GEMINI": "gemini",
+        "OLLAMA": "ollama",
+        "LOCAL_SENTENCE_TRANSFORMER": "sentence-transformer",
+    }.get(provider_type)
+
+
+def connection_catalog_id(connection) -> str | None:
+    return getattr(connection, "catalog_id", None) or resolve_legacy_catalog_id(
+        connection.provider_type, connection.base_url
+    )
