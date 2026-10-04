@@ -121,6 +121,13 @@ class ProviderControlService:
 
     async def update(self, organization_id, connection_id, payload: ConnectionPatch):
         connection = await self.get(organization_id, connection_id)
+        catalog_id = payload.catalog_id or connection_catalog_id(connection)
+        if supported_catalog_by_id(catalog_id).provider_type != connection.provider_type:
+            raise AppError(
+                "UNSUPPORTED_PROVIDER",
+                "Catalog identity must match the runtime adapter.",
+                status_code=422,
+            )
         models = list(
             await self.session.scalars(
                 select(ProviderConfig).where(ProviderConfig.connection_id == connection_id)
@@ -130,7 +137,7 @@ class ProviderControlService:
         proposed = ConnectionInput(
             name=changes.get("name", connection.name),
             provider_type=connection.provider_type,
-            catalog_id=changes.get("catalog_id", connection_catalog_id(connection)),
+            catalog_id=catalog_id,
             base_url=changes.get("base_url", connection.base_url),
             config_json=changes.get("config_json", connection.config_json),
             enabled=changes.get("enabled", connection.enabled),

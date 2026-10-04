@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.modules.ai_providers.catalog import supported_catalog_by_id
 from app.modules.ai_providers.schemas import (
@@ -52,6 +52,14 @@ class ConnectionPatch(BaseModel):
     clear_secret: bool = False
     enabled: bool | None = None
     config_json: dict[str, Any] | None = None
+
+    @field_validator("catalog_id")
+    @classmethod
+    def validate_catalog_id(cls, value):
+        if value is None:
+            raise ValueError("Provider catalog identity cannot be cleared")
+        supported_catalog_by_id(value)
+        return value
 
 
 class ConnectionResponse(BaseModel):

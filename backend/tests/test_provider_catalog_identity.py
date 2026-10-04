@@ -10,8 +10,8 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from app.core.exceptions import AppError
 from app.modules.ai_providers.catalog import connection_catalog_id
-from app.modules.ai_providers.control_schemas import ConnectionInput
-from app.modules.ai_providers.control_service import model_response
+from app.modules.ai_providers.control_schemas import ConnectionInput, ConnectionPatch
+from app.modules.ai_providers.control_service import ProviderControlService, model_response
 from app.modules.workspaces.summary import summary_data
 
 
@@ -45,6 +45,30 @@ def test_catalog_validation_rejects_mismatch_unknown_and_coming_soon():
         ).base_url
         == "https://api.openai.com/v1"
     )
+
+
+def test_catalog_patch_cannot_clear_identity():
+    assert ConnectionPatch().catalog_id is None
+    with pytest.raises(ValidationError):
+        ConnectionPatch(catalog_id=None)
+    with pytest.raises(AppError):
+        ConnectionPatch(catalog_id="anthropic")
+
+
+async def test_mismatched_patch_returns_a_contract_error_before_any_mutation():
+    from unittest.mock import AsyncMock
+
+    service = object.__new__(ProviderControlService)
+    service.get = AsyncMock(
+        return_value=SimpleNamespace(
+            provider_type="OLLAMA",
+            catalog_id="ollama",
+            base_url="http://ollama:11434",
+        )
+    )
+    with pytest.raises(AppError) as error:
+        await service.update(None, None, ConnectionPatch(catalog_id="gemini"))
+    assert error.value.status_code == 422
 
 
 def test_identity_survives_model_and_workspace_serialization():
