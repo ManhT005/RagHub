@@ -12,6 +12,8 @@ import {
   RouterLinkActive,
   RouterOutlet,
 } from "@angular/router";
+import { CloudServerOutline } from "@ant-design/icons-angular/icons";
+import { provideNzIconsPatch } from "ng-zorro-antd/icon";
 import { NzIconModule } from "ng-zorro-antd/icon";
 import { NzLayoutModule } from "ng-zorro-antd/layout";
 import { NzMenuModule } from "ng-zorro-antd/menu";
@@ -33,6 +35,7 @@ import {
     NzLayoutModule,
     NzMenuModule,
   ],
+  providers: [provideNzIconsPatch([CloudServerOutline])],
   templateUrl: "./console-layout.component.html",
   styleUrl: "./console-layout.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,

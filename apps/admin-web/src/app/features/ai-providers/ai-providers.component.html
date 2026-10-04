@@ -1,0 +1,49 @@
+<main class="selfhost-page">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">AI & Models / System</p>
+      <h1>AI Providers</h1>
+      <p>Kết nối và quản lý provider dùng cho embedding và chat.</p>
+    </div><button nz-button nzType="primary" (click)="open()" [disabled]="!organizationId">+ Thêm provider</button>
+  </header>
+  @if (error()) { <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon /> }
+  @if (notice()) { <p role="status">{{ notice() }}</p> }
+  <div class="toolbar"><input nz-input aria-label="Tìm provider" placeholder="Tìm provider…" [ngModel]="query()"
+      (ngModelChange)="query.set($event)" /><select aria-label="Trạng thái provider" [ngModel]="status()"
+      (ngModelChange)="status.set($event)">
+      <option value="">Tất cả trạng thái</option>
+      <option>CONNECTED</option>
+      <option>UNTESTED</option>
+      <option>DEGRADED</option>
+      <option>ERROR</option>
+    </select><a routerLink="/system/ai/models">Model Registry →</a><button nz-button (click)="load()"
+      [nzLoading]="loading()">Làm mới</button></div>
+  @if (loading()) { <p role="status">Đang tải provider…</p> }
+  <div class="provider-grid">
+    @for (connection of filtered(); track connection.id) {
+    <article class="surface provider-card">
+      <div class="card-heading"><span class="provider-avatar" aria-hidden="true">{{ connection.name.slice(0, 1)
+          }}</span>
+        <h2>{{ connection.name }}</h2><nz-tag
+          [nzColor]="connection.enabled && connection.status === 'CONNECTED' ? 'green' : 'default'">{{
+          connection.enabled ? connection.status : 'DISABLED' }}</nz-tag>
+      </div>
+      <div>@for (cap of capabilities(connection); track cap) { <nz-tag>{{ cap }}</nz-tag> }</div>
+      <p class="muted endpoint">{{ connection.base_url || 'Model local trên instance' }}</p>
+      <p>{{ connection.model_count }} model đã đăng ký @if (connection.last_latency_ms !== null) { · {{
+        connection.last_latency_ms }} ms }</p>
+      <div class="card-actions"><button nz-button (click)="open(connection)" [disabled]="!!busy()">Quản lý
+          →</button><button nz-button (click)="test(connection)" [nzLoading]="busy() === connection.id"
+          [disabled]="!!busy() || !connection.enabled">Kiểm tra</button><button nz-button (click)="toggle(connection)"
+          [disabled]="!!busy()">{{ connection.enabled ? 'Tắt' : 'Bật' }}</button><button nz-button nzDanger
+          nz-popconfirm nzPopconfirmTitle="Xóa kết nối provider này?" (nzOnConfirm)="remove(connection)"
+          [disabled]="!!busy()">Xóa</button></div>
+    </article>
+    } @empty { @if (!loading()) { <section class="surface empty-state">
+      <h2>Chưa có provider phù hợp</h2>
+      <p>Kết nối provider để đăng ký model cho workspace.</p><button nz-button (click)="open()">Thêm provider</button>
+    </section> } }
+  </div>
+</main>
+<raghub-provider-onboarding [visible]="drawerOpen()" [organizationId]="organizationId" [catalog]="catalog()"
+  [connection]="editing()" (closed)="drawerOpen.set(false)" (changed)="load()" />

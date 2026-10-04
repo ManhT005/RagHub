@@ -1,4 +1,5 @@
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
+@import './app/features/selfhost.css';
 
 :root {
   --rh-bg: #f1f8ff;

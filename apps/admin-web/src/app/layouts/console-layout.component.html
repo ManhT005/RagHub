@@ -4,7 +4,8 @@
       <li nz-menu-item><a aria-label="Tổng quan" routerLink="/app/overview" routerLinkActive="active"><nz-icon nzType="dashboard" /><span>Tổng quan</span></a></li>
       <li nz-menu-item><a aria-label="Workspaces" routerLink="/app/workspaces" routerLinkActive="active"><nz-icon nzType="database" /><span>Workspace</span></a></li>
       @if (isAdmin()) {
-        <li nz-menu-item><a routerLink="/app/ai-settings" routerLinkActive="active" aria-label="Cấu hình AI"><nz-icon nzType="setting" /><span>Cấu hình AI</span></a></li>
+        <li nz-menu-item><a routerLink="/system/ai/providers" routerLinkActive="active" aria-label="AI Providers"><nz-icon nzType="cloud-server" /><span>AI Providers</span></a></li>
+        <li nz-menu-item><a routerLink="/system/ai/models" routerLinkActive="active" aria-label="Model Registry"><nz-icon nzType="setting" /><span>Model Registry</span></a></li>
       }
       <li nz-menu-item><a routerLink="/system" routerLinkActive="active" aria-label="Hệ thống"><nz-icon nzType="team" /><span>Hệ thống</span></a></li>
       <li nz-menu-item><a routerLink="/app/profile" routerLinkActive="active" aria-label="Tài khoản"><nz-icon nzType="setting" /><span>Tài khoản</span></a></li>

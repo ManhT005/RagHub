@@ -1,4 +1,3 @@
-import { AiSettingsComponent } from "./ai-settings/ai-settings.component";
 import { SystemComponent } from "./system/system.component";
 import { Routes } from "@angular/router";
 import { AuthComponent } from "./auth/auth.component";
@@ -53,7 +52,7 @@ export const routes: Routes = [
       { path: "overview", component: DashboardComponent },
       { path: "workspaces", component: WorkspacesComponent },
       { path: "users", pathMatch: "full", redirectTo: "/system/users" },
-      { path: "ai-settings", component: AiSettingsComponent, canActivate: [adminOnly] },
+      { path: "ai-settings", pathMatch: "full", redirectTo: "/system/ai/providers" },
       { path: "workspace-console/:workspaceId", component: WorkspaceConsoleComponent },
       { path: "workspace-console", component: WorkspaceConsoleComponent },
       { path: "documents", component: DocumentsComponent },
@@ -68,6 +67,8 @@ export const routes: Routes = [
     path: "system", component: ConsoleLayoutComponent,
     canActivate: [authenticated], canActivateChild: [authenticatedChild],
     children: [
+      { path: "ai/providers", loadComponent: () => import("./features/ai-providers/ai-providers.component").then(m => m.AiProvidersComponent), canActivate: [adminOnly] },
+      { path: "ai/models", loadComponent: () => import("./features/model-registry/model-registry.component").then(m => m.ModelRegistryComponent), canActivate: [adminOnly] },
       { path: "users", component: UsersComponent, canActivate: [adminOnly] },
       { path: "", pathMatch: "full", component: SystemComponent },
     ],
