@@ -1,4 +1,4 @@
-"""One engine lifecycle, joined through fake ports, without any runtime dependency."""
+"""Upload-to-chat through the public facade, with fake ports and no host runtime."""
 
 from uuid import uuid4
 
@@ -6,14 +6,17 @@ from raghub_core.api import (
     BuildDocumentIndexUseCase,
     ChatCompleted,
     CitationsResolved,
+    ConversationStarted,
     RetrievalScope,
     RetrieveContextUseCase,
     RetrievedChunk,
     RunIngestionUseCase,
     StreamChatCommand,
     StreamRagChatUseCase,
+    TokenDelta,
     UploadDocumentCommand,
     UploadDocumentUseCase,
+    UsageReported,
 )
 from raghub_core.domain.ingestion.models import IngestionDocument
 from raghub_core.domain.ingestion.parser import parse_document
@@ -100,9 +103,13 @@ async def test_upload_ingest_index_retrieve_chat_preserves_scope_and_source():
             usage,
         ).execute(StreamChatCommand(scope.organization_id, chatbots.config.id, "Recovery code?"))
     ]
+    assert isinstance(events[0], ConversationStarted)
+    assert isinstance(events[1], CitationsResolved)
+    assert events[2:-2] and all(isinstance(event, TokenDelta) for event in events[2:-2])
+    assert isinstance(events[-2], UsageReported)
+    assert isinstance(events[-1], ChatCompleted)
     citations = next(event for event in events if isinstance(event, CitationsResolved)).citations
     assert citations[0].document_id == receipt.document_id
     assert citations[0].chunk_id == indexed.chunks[0].chunk.chunk_id
     assert "ORCHID-729" in providers.chat.calls[0][0][0].content
-    assert isinstance(events[-1], ChatCompleted)
     assert usage.records[0].scope == scope and conversations.commits == 2

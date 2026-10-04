@@ -2,16 +2,18 @@ from uuid import uuid4
 
 import pytest
 
-from raghub_core.application.documents.upload_document import UploadDocumentUseCase
-from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
-from raghub_core.application.ingestion.run_ingestion import RunIngestionUseCase
-from raghub_core.domain.documents.upload import UploadDocumentCommand
-from raghub_core.domain.errors import CoreError
+from raghub_core.api import (
+    BuildDocumentIndexUseCase,
+    CoreError,
+    RetrievalScope,
+    RunIngestionUseCase,
+    UploadDocumentCommand,
+    UploadDocumentUseCase,
+)
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionDocument
 from raghub_core.domain.ingestion.parser import parse_document
 from raghub_core.domain.providers.errors import ProviderTimeoutError
-from raghub_core.domain.retrieval.models import RetrievalScope
 
 from .fakes import (
     FakeObjectStorage,

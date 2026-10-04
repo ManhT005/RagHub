@@ -3,22 +3,23 @@ from uuid import uuid4
 
 import pytest
 
-from raghub_core.application.rag.stream_chat import StreamRagChatUseCase
-from raghub_core.domain.chatbots.models import ChatbotConfig
-from raghub_core.domain.errors import CoreError
-from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
-from raghub_core.domain.providers.errors import ProviderUnavailableError
-from raghub_core.domain.rag.events import (
+from raghub_core.api import (
+    ChatbotConfig,
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
     ConversationStarted,
+    CoreError,
+    RetrievalScope,
+    RetrievedChunk,
+    StreamChatCommand,
+    StreamRagChatUseCase,
     TokenDelta,
     UsageReported,
 )
-from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
+from raghub_core.domain.providers.errors import ProviderUnavailableError
 from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER
-from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 from .fakes import FakeProviderResolver
 
