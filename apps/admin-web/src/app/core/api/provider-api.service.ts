@@ -55,4 +55,5 @@ export class ProviderApiService {
   workspaceModels(id: string, capability: ProviderCapability = 'EMBEDDING') { return this.http.get<RegistryModel[]>(`${this.base}/workspaces/${id}/models`, { params: { capability } }); }
   testModel(id: string) { return this.http.post<RegistryModel>(`${this.base}/models/${id}/test`, {}); }
   updateModel(id: string, enabled: boolean) { return this.http.patch<RegistryModel>(`${this.base}/models/${id}`, { enabled }); }
+  removeModel(id: string) { return this.http.delete(`${this.base}/models/${id}`); }
 }

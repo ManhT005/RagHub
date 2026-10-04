@@ -1,0 +1,168 @@
+@if (context.workspace(); as workspace) {
+  <section
+    class="surface embedding-profile"
+    aria-label="Embedding model của workspace"
+  >
+    <div class="card-heading">
+      <div>
+        <span class="eyebrow">WORKSPACE EMBEDDING MODEL</span>
+        <h2>{{ workspace.embedding_model?.model ?? "Chưa cấu hình model" }}</h2>
+      </div>
+      <nz-tag [nzColor]="workspace.embedding_model ? 'green' : 'orange'">{{
+        workspace.embedding_model
+          ? "Đang phục
+      vụ"
+          : "Cần cấu hình"
+      }}</nz-tag>
+      @if (context.can("ai.change_embedding")) {
+        <button nz-button [disabled]="migrating() || busy()" (click)="choose()">
+          {{ workspace.embedding_model ? "Đổi model" : "Chọn model" }}
+        </button>
+      }
+    </div>
+    @if (workspace.embedding_model; as model) {
+      <p class="muted">
+        {{ model.provider_name }} · {{ model.dimension }} chiều ·
+        {{ workspace.document_count }} tài liệu ·
+        {{ workspace.chunk_count ?? "—" }} chunks · Index gần nhất:
+        {{
+          workspace.last_indexed_at
+            ? (workspace.last_indexed_at | date: "dd/MM/yyyy HH:mm")
+            : "Chưa có dữ liệu"
+        }}
+      </p>
+    }
+    <p class="muted">
+      Tài liệu tải lên kế thừa model của workspace. Toàn bộ active index sử dụng
+      cùng một cấu hình embedding.
+    </p>
+    @if (migrating()) {
+      <nz-alert
+        nzType="info"
+        nzMessage="Đang xây dựng index mới. Index hiện tại tiếp tục phục vụ tìm kiếm và chat."
+        nzShowIcon
+      /><nz-progress [nzPercent]="progress()" />
+      <p class="muted">
+        {{ job()?.processed_documents ?? 0 }} /
+        {{ job()?.total_documents ?? 0 }} tài liệu · lỗi
+        {{ job()?.failed_documents ?? 0 }}
+      </p>
+    }
+    @if (retryable()) {
+      <nz-alert
+        nzType="error"
+        nzMessage="Reindex chưa hoàn tất. Index cũ vẫn được giữ lại."
+        nzShowIcon
+      />
+      @if (context.can("ai.change_embedding")) {
+        <button nz-button [nzLoading]="busy()" (click)="retry()">
+          Thử lại reindex
+        </button>
+      }
+    }
+    @if (error()) {
+      <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+    }
+  </section>
+}
+<nz-modal
+  [nzVisible]="open()"
+  nzTitle="Đổi embedding model"
+  [nzFooter]="null"
+  [nzClosable]="!busy()"
+  [nzMaskClosable]="false"
+  (nzOnCancel)="open.set(false)"
+>
+  <ng-container *nzModalContent>
+    <div class="selfhost-page">
+      <p>Chọn model đã đăng ký và kiểm tra kết nối thành công.</p>
+      <label
+        >Model<select
+          [(ngModel)]="selected"
+          (ngModelChange)="selectionChanged()"
+          [disabled]="busy() || loading()"
+        >
+          <option value="">
+            {{ loading() ? "Đang tải model…" : "Chọn model" }}
+          </option>
+          @for (model of models(); track model.id) {
+            <option [value]="model.id">
+              {{ model.display_name ?? model.model }} ·
+              {{ model.provider_name }} · {{ model.dimension }} chiều
+            </option>
+          }
+        </select></label
+      >
+      @if (!loading() && !models().length) {
+        <nz-alert
+          nzType="warning"
+          nzMessage="Chưa có embedding model khả dụng. Quản trị viên cần đăng ký và kiểm tra model trong Model Registry."
+        />
+      }
+      @if (preview(); as impact) {
+        <div class="surface">
+          <p>
+            Hiện tại:
+            <strong>{{
+              impact.current_model?.model ?? "Chưa cấu hình"
+            }}</strong>
+            · {{ impact.current_model?.dimension ?? "—" }} chiều
+          </p>
+          <p>
+            Model mới: <strong>{{ impact.target_model.model }}</strong> ·
+            {{ impact.target_model.dimension }} chiều
+          </p>
+          <p>
+            Ảnh hưởng: <strong>{{ impact.documents_affected }}</strong> tài liệu
+            đã sẵn sàng ·
+            {{ impact.chunks_affected ?? "Chưa có dữ liệu" }} chunks.
+          </p>
+        </div>
+        @if (impact.requires_reindex) {
+          <nz-alert
+            nzType="warning"
+            nzMessage="Thay đổi này xây dựng lại toàn bộ index. Tác vụ có thể mất thời gian và phát sinh chi phí provider. Index cũ chỉ được thay thế khi index mới hoàn tất."
+            nzShowIcon
+          />
+        }
+        <label class="confirmation"
+          ><span
+            ><input
+              type="checkbox"
+              [(ngModel)]="confirmed"
+              [disabled]="busy()"
+            />
+            Tôi xác nhận áp dụng cấu hình
+            {{
+              impact.requires_reindex
+                ? "và reindex toàn bộ tài liệu đã sẵn sàng"
+                : "này"
+            }}.</span
+          ></label
+        >
+        <button
+          nz-button
+          nzType="primary"
+          [nzLoading]="busy()"
+          [disabled]="!confirmed"
+          (click)="apply()"
+        >
+          {{ impact.requires_reindex ? "Áp dụng & reindex" : "Áp dụng" }}
+        </button>
+      } @else {
+        <button
+          nz-button
+          nzType="primary"
+          [disabled]="!selected || loading()"
+          [nzLoading]="busy()"
+          (click)="review()"
+        >
+          Xem tác động
+        </button>
+      }
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+      }
+    </div>
+  </ng-container>
+</nz-modal>

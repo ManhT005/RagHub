@@ -19,6 +19,7 @@ import { NzLayoutModule } from "ng-zorro-antd/layout";
 import { NzMenuModule } from "ng-zorro-antd/menu";
 
 import { session } from "../core/api-auth.interceptor";
+import { WorkspaceContextStore } from '../core/workspace-context/workspace-context.store';
 import {
   type Organization,
   type CurrentUser,
@@ -41,6 +42,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConsoleLayoutComponent {
+  protected readonly context = inject(WorkspaceContextStore);
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly isAdmin = computed(() => {
     const currentId = session.organizationId;

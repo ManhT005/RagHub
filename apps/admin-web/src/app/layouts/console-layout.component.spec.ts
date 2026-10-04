@@ -1,4 +1,5 @@
 import { TestBed } from "@angular/core/testing";
+import { provideHttpClient } from '@angular/common/http';
 import { Router, provideRouter } from "@angular/router";
 import {
   DashboardOutline,
@@ -29,6 +30,7 @@ describe("ConsoleLayoutComponent", () => {
     await TestBed.configureTestingModule({
       imports: [ConsoleLayoutComponent],
       providers: [
+        provideHttpClient(),
         provideRouter([]),
         provideNzIcons([
           DashboardOutline,

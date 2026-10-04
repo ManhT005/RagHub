@@ -1,8 +1,15 @@
-import { Directive, TemplateRef, ViewContainerRef, effect, inject, input } from '@angular/core';
-import { WorkspaceContextStore } from '../workspace-context/workspace-context.store';
-import { WorkspacePermission } from './permission.types';
+import {
+  Directive,
+  TemplateRef,
+  ViewContainerRef,
+  effect,
+  inject,
+  input,
+} from "@angular/core";
+import { WorkspaceContextStore } from "../workspace-context/workspace-context.store";
+import { WorkspacePermission } from "./permission.types";
 
-@Directive({ selector: '[appCan]' })
+@Directive({ selector: "[appCan]" })
 export class CanDirective {
   readonly appCan = input.required<WorkspacePermission>();
   private readonly context = inject(WorkspaceContextStore);

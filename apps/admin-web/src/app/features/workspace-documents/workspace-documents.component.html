@@ -1,0 +1,292 @@
+<header class="page-heading">
+  <div>
+    <span class="eyebrow">WORKSPACE / DOCUMENTS</span>
+    <h1>Tài liệu</h1>
+    <p>Quản lý nguồn kiến thức và trạng thái xử lý của workspace.</p>
+  </div>
+  @if (context.can("document.upload")) {
+    <button
+      nz-button
+      nzType="primary"
+      [disabled]="!uploadAllowed() || busy()"
+      (click)="files.set([]); error.set(''); uploadOpen.set(true)"
+    >
+      + Tải tài liệu lên
+    </button>
+  }
+</header>
+<raghub-embedding-profile />
+@if (error()) {
+  <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+}
+@if (notice()) {
+  <p role="status">{{ notice() }}</p>
+}
+<div class="toolbar">
+  <input
+    nz-input
+    placeholder="Tìm tên tài liệu…"
+    aria-label="Tìm tài liệu"
+    [ngModel]="search()"
+    (ngModelChange)="search.set($event)"
+  /><select
+    aria-label="Trạng thái tài liệu"
+    [ngModel]="status()"
+    (ngModelChange)="status.set($event)"
+  >
+    <option value="">Tất cả trạng thái</option>
+    @for (item of statuses; track item[0]) {
+      <option [value]="item[0]">
+        {{ item[1] }}
+      </option>
+    }</select
+  ><select
+    aria-label="Loại tệp"
+    [ngModel]="fileType()"
+    (ngModelChange)="fileType.set($event)"
+  >
+    <option value="">Tất cả loại tệp</option>
+    <option value="pdf">PDF</option>
+    <option value="txt">TXT</option>
+    <option value="md">Markdown</option></select
+  ><button nz-button [nzLoading]="loading()" (click)="load()">Làm mới</button>
+</div>
+<nz-table
+  #table
+  [nzData]="filtered()"
+  [nzLoading]="loading()"
+  [nzScroll]="{ x: '1000px' }"
+  nzNotFoundContent="Chưa có tài liệu phù hợp"
+>
+  <thead>
+    <tr>
+      <th>Tài liệu</th>
+      <th>Loại / Dung lượng</th>
+      <th>Chunks</th>
+      <th>Trạng thái</th>
+      <th>Index gần nhất</th>
+      <th>Ngày tải lên</th>
+      <th>Thao tác</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (doc of table.data; track doc.id) {
+      <tr>
+        <td>
+          <button class="menu-action" (click)="showDetail(doc)">
+            <strong>{{ doc.name }}</strong>
+          </button>
+          @if (doc.status === "FAILED") {
+            <small class="block danger">{{
+              ingestionError(doc.error_code)
+            }}</small>
+          }
+        </td>
+        <td>
+          {{ extension(doc.name).toUpperCase()
+          }}<small class="block muted">{{ size(doc.size_bytes) }}</small>
+        </td>
+        <td>{{ doc.chunk_count ?? "—" }}</td>
+        <td>
+          <nz-tag [nzColor]="statusColor(doc.status)">{{
+            statusLabel(doc.status)
+          }}</nz-tag>
+          @if (
+            doc.progress !== null &&
+            doc.status !== "READY" &&
+            doc.status !== "FAILED"
+          ) {
+            <small class="block muted">{{ doc.progress }}%</small>
+          }
+        </td>
+        <td>
+          {{
+            doc.indexed_at ? (doc.indexed_at | date: "dd/MM/yyyy HH:mm") : "—"
+          }}
+        </td>
+        <td>{{ doc.created_at | date: "dd/MM/yyyy HH:mm" }}</td>
+        <td>
+          <button
+            nz-button
+            nz-dropdown
+            [nzDropdownMenu]="menu"
+            nzTrigger="click"
+            [attr.aria-label]="'Thao tác với ' + doc.name"
+          >
+            •••</button
+          ><nz-dropdown-menu #menu="nzDropdownMenu">
+            <ul nz-menu>
+              <li nz-menu-item>
+                <button class="menu-action" (click)="showDetail(doc)">
+                  Chi tiết
+                </button>
+              </li>
+              <li nz-menu-item>
+                <button
+                  class="menu-action"
+                  [disabled]="busy()"
+                  (click)="download(doc)"
+                >
+                  Tải bản gốc
+                </button>
+              </li>
+              @if (context.can("document.reindex")) {
+                @if (doc.status === "READY") {
+                  <li nz-menu-item>
+                    <button
+                      class="menu-action"
+                      nz-popconfirm
+                      nzPopconfirmTitle="Reindex tài liệu này với embedding model hiện tại?"
+                      (nzOnConfirm)="reindex(doc)"
+                      [disabled]="
+                        busy() || context.workspace()?.status === 'REINDEXING'
+                      "
+                    >
+                      Reindex
+                    </button>
+                  </li>
+                }
+                @if (doc.status === "FAILED" && doc.retryable) {
+                  <li nz-menu-item>
+                    <button
+                      class="menu-action"
+                      (click)="reindex(doc, true)"
+                      [disabled]="busy()"
+                    >
+                      Thử lại xử lý
+                    </button>
+                  </li>
+                }
+              }
+              @if (context.can("document.delete")) {
+                <li nz-menu-divider></li>
+                <li nz-menu-item>
+                  <button
+                    class="menu-action danger"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Xóa tài liệu và dữ liệu tìm kiếm liên quan?"
+                    (nzOnConfirm)="remove(doc)"
+                    [disabled]="busy()"
+                  >
+                    Xóa tài liệu
+                  </button>
+                </li>
+              }
+            </ul>
+          </nz-dropdown-menu>
+        </td>
+      </tr>
+    }
+  </tbody>
+</nz-table>
+<nz-modal
+  [nzVisible]="uploadOpen()"
+  nzTitle="Tải tài liệu lên"
+  nzOkText="Tải lên & xử lý"
+  nzCancelText="Hủy"
+  [nzOkLoading]="busy()"
+  [nzOkDisabled]="!files().length || !uploadAllowed()"
+  [nzMaskClosable]="false"
+  [nzClosable]="!busy()"
+  (nzOnCancel)="!busy() && uploadOpen.set(false)"
+  (nzOnOk)="upload()"
+  ><ng-container *nzModalContent>
+    <div class="selfhost-page">
+      <p>
+        Tài liệu được tạo embedding bằng
+        <strong>{{ context.workspace()?.embedding_model?.model }}</strong> ·
+        {{ context.workspace()?.embedding_model?.dimension }} chiều.
+      </p>
+      <label class="upload-zone"
+        >Chọn tệp PDF, TXT hoặc Markdown<input
+          type="file"
+          multiple
+          accept=".pdf,.txt,.md"
+          [disabled]="busy()"
+          (change)="chooseFiles($event)"
+        /><small
+          >Tối đa 25 MB / tệp · PDF cần có văn bản · TXT/MD mã hóa UTF-8</small
+        ></label
+      >
+      @for (file of files(); track $index) {
+        <p>
+          {{ file.name }} <span class="muted">{{ size(file.size) }}</span>
+        </p>
+      }
+      <details>
+        <summary>Tùy chọn xử lý</summary>
+        <p class="muted">
+          Pipeline hiện tại chia 450 tokens / overlap 80. Cấu hình này áp dụng
+          thống nhất; chưa hỗ trợ tùy chỉnh theo tệp.
+        </p>
+      </details>
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+      }
+    </div> </ng-container
+></nz-modal>
+<nz-drawer
+  [nzVisible]="detailOpen()"
+  nzTitle="Chi tiết tài liệu"
+  [nzWidth]="520"
+  (nzOnClose)="detailOpen.set(false)"
+  ><ng-container *nzDrawerContent>
+    <div class="selfhost-page">
+      @if (detailLoading()) {
+        <div class="skeleton" aria-label="Đang tải chi tiết"></div>
+      }
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" />
+      }
+      @if (detail(); as doc) {
+        <h2>{{ doc.name }}</h2>
+        <nz-tag [nzColor]="statusColor(doc.status)">{{
+          statusLabel(doc.status)
+        }}</nz-tag>
+        <dl class="metadata-grid">
+          <dt>Document ID</dt>
+          <dd>{{ doc.id }}</dd>
+          <dt>Version ID</dt>
+          <dd>{{ doc.document_version_id ?? "—" }}</dd>
+          <dt>Loại tệp</dt>
+          <dd>{{ doc.mime_type ?? "—" }}</dd>
+          <dt>Dung lượng</dt>
+          <dd>{{ size(doc.size_bytes) }}</dd>
+          <dt>Chunks</dt>
+          <dd>{{ doc.chunk_count ?? "Chưa có dữ liệu" }}</dd>
+          <dt>Embedding model</dt>
+          <dd>{{ doc.embedding_model_name ?? "Chưa lập index" }}</dd>
+          <dt>Dimension</dt>
+          <dd>{{ doc.embedding_dimension ?? "—" }}</dd>
+          <dt>Chunk strategy</dt>
+          <dd>{{ doc.chunk_strategy }}</dd>
+          <dt>Index gần nhất</dt>
+          <dd>
+            {{
+              doc.indexed_at ? (doc.indexed_at | date: "dd/MM/yyyy HH:mm") : "—"
+            }}
+          </dd>
+          <dt>Tải lên</dt>
+          <dd>{{ doc.created_at | date: "dd/MM/yyyy HH:mm" }}</dd>
+          <dt>Job / Stage</dt>
+          <dd>{{ doc.job_id ?? "—" }} / {{ doc.stage ?? "—" }}</dd>
+          <dt>Tiến độ</dt>
+          <dd>{{ doc.progress ?? "—" }}%</dd>
+          <dt>Lượt thử</dt>
+          <dd>{{ doc.attempts ?? "—" }}</dd>
+          <dt>Checksum</dt>
+          <dd>{{ doc.checksum ?? "—" }}</dd>
+        </dl>
+        @if (doc.status === "FAILED") {
+          <nz-alert
+            nzType="error"
+            [nzMessage]="ingestionError(doc.error_code)"
+          />
+        }
+        <button nz-button [nzLoading]="busy()" (click)="download(doc)">
+          Tải bản gốc
+        </button>
+      }
+    </div>
+  </ng-container></nz-drawer
+>
