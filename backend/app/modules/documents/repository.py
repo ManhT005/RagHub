@@ -167,3 +167,31 @@ class DocumentRepository:
                 Document.deleted_at.is_(None),
             )
         )
+
+    async def embedding_snapshot(self, organization_id, workspace_id):
+        from app.modules.ai_providers.models import EmbeddingIndexVersion
+
+        return await self.session.scalar(
+            select(EmbeddingIndexVersion)
+            .join(
+                Workspace,
+                Workspace.active_embedding_index_version_id == EmbeddingIndexVersion.id,
+            )
+            .where(
+                Workspace.id == workspace_id,
+                Workspace.organization_id == organization_id,
+                Workspace.deleted_at.is_(None),
+            )
+        )
+
+    async def latest_version(self, organization_id, workspace_id, document_id):
+        return await self.session.scalar(
+            select(DocumentVersion)
+            .where(
+                DocumentVersion.document_id == document_id,
+                DocumentVersion.organization_id == organization_id,
+                DocumentVersion.workspace_id == workspace_id,
+            )
+            .order_by(DocumentVersion.created_at.desc(), DocumentVersion.id.desc())
+            .limit(1)
+        )

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.composition.self_host import SelfHostContainer
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
-from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.modules.documents.schemas import DocumentAccepted, DocumentDetail, DocumentResponse
 from raghub_core.domain.documents.upload import UploadDocumentCommand
 from raghub_core.domain.ingestion.errors import RETRYABLE_ERROR_CODES, ingestion_error_message
 from raghub_core.domain.retrieval.models import RetrievalScope
@@ -67,6 +67,7 @@ class DocumentService:
             )
         documents = await self.repository.list_documents(organization_id, workspace_id)
         jobs = await self.repository.list_document_jobs(organization_id, workspace_id)
+        snapshot = await self.repository.embedding_snapshot(organization_id, workspace_id)
         result = []
         for document in documents:
             response = DocumentResponse.model_validate(document, from_attributes=True)
@@ -82,8 +83,35 @@ class DocumentService:
                 response.retryable = (
                     version.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
                 )
+                response.mime_type = getattr(version, "mime_type", None)
+                response.size_bytes = getattr(version, "size_bytes", None)
+                response.chunk_count = getattr(version, "chunk_count", None)
+                response.indexed_at = getattr(version, "indexed_at", None)
+                if snapshot and response.indexed_at:
+                    response.embedding_model_id = snapshot.provider_config_id
+                    response.embedding_model_name = snapshot.model
+                    response.embedding_dimension = snapshot.dimension
             result.append(response)
         return result
+
+    async def detail(self, organization_id, workspace_id, document_id):
+        document = await self.repository.find_document(organization_id, workspace_id, document_id)
+        if document is None:
+            raise AppError("DOCUMENT_NOT_FOUND", "Document not found.", status_code=404)
+        # Uses the same bounded read model as list; no Elasticsearch requests.
+        rows = await self.list_documents(organization_id, workspace_id)
+        version = await self.repository.latest_version(organization_id, workspace_id, document_id)
+        item = next(row for row in rows if row.id == document_id)
+        return DocumentDetail(**item.model_dump(), checksum=version.checksum if version else None)
+
+    async def download(self, organization_id, workspace_id, document_id):
+        document = await self.repository.find_document(organization_id, workspace_id, document_id)
+        if document is None:
+            raise AppError("DOCUMENT_NOT_FOUND", "Document not found.", status_code=404)
+        version = await self.repository.latest_version(organization_id, workspace_id, document_id)
+        if version is None:
+            raise AppError("DOCUMENT_NOT_FOUND", "Document version not found.", status_code=404)
+        return document.name, version.mime_type, await self.storage.get(version.storage_key)
 
     async def delete_document(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, document_id: uuid.UUID

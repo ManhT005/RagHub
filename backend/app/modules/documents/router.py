@@ -1,7 +1,9 @@
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -11,7 +13,7 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.delivery.http.uploads import upload_from_http
-from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.modules.documents.schemas import DocumentAccepted, DocumentDetail, DocumentResponse
 from app.modules.documents.service import DocumentService
 
 router = APIRouter(prefix="/workspaces", tags=["documents"])
@@ -83,4 +85,37 @@ async def delete_document(
     await require_workspace_permission(context, workspace_id, "document.delete", session)
     await DocumentService(session).delete_document(
         context.organization_id, workspace_id, document_id
+    )
+
+
+@router.get("/{workspace_id}/documents/{document_id}", response_model=DocumentDetail)
+async def document_detail(
+    workspace_id: UUID,
+    document_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    await require_workspace_permission(context, workspace_id, "document.view", session)
+    return await DocumentService(session).detail(context.organization_id, workspace_id, document_id)
+
+
+@router.get("/{workspace_id}/documents/{document_id}/download")
+async def download_document(
+    workspace_id: UUID,
+    document_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    await require_workspace_permission(context, workspace_id, "document.view", session)
+    name, mime, content = await DocumentService(session).download(
+        context.organization_id, workspace_id, document_id
+    )
+    return Response(
+        content=content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name, safe='')}",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
     )

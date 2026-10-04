@@ -5,6 +5,7 @@ from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.parsing.documents import DocumentParser
+from app.infrastructure.persistence.index_metadata import MetadataIndexBuilder
 from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
@@ -25,10 +26,13 @@ class WorkerContainer:
         self.settings = settings or get_settings()
 
     def builder(self):
-        return BuildDocumentIndexUseCase(
-            MinioObjectStorage(self.settings),
-            parse_document,
-            chunker=chunk_sections,
+        return MetadataIndexBuilder(
+            BuildDocumentIndexUseCase(
+                MinioObjectStorage(self.settings),
+                parse_document,
+                chunker=chunk_sections,
+            ),
+            self.session,
         )
 
     def make_store(self, runtime):

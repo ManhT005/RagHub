@@ -8,7 +8,12 @@ from app.modules.ai_providers.models import (
 )
 from app.modules.auth.models import PasswordResetToken, UserIdentity, UserSession
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
-from app.modules.documents.models import Document, DocumentVersion, IngestionJob
+from app.modules.documents.models import (
+    Document,
+    DocumentIndexMetadata,
+    DocumentVersion,
+    IngestionJob,
+)
 from app.modules.memberships.models import (
     Membership,
     WorkspaceMembership,
@@ -21,6 +26,7 @@ from app.modules.workspaces.models import Workspace
 __all__ = [
     "Document",
     "DocumentVersion",
+    "DocumentIndexMetadata",
     "IngestionJob",
     "Membership",
     "WorkspaceMembership",

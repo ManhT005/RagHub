@@ -6,7 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
-from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
+from app.modules.documents.models import (
+    Document,
+    DocumentIndexMetadata,
+    DocumentStatus,
+    DocumentVersion,
+)
 from app.modules.workspaces.models import Workspace
 from raghub_core.domain.ingestion.models import IngestionDocument
 from raghub_core.domain.ingestion.reindex import ReindexTarget
@@ -119,6 +124,17 @@ class ReindexRepositoryAdapter:
         workspace.active_embedding_index_version_id = version.id
         workspace.embedding_provider_id = version.provider_config_id
         workspace.pending_embedding_index_version_id = None
+        metadata = await self.session.scalars(
+            select(DocumentIndexMetadata).where(
+                DocumentIndexMetadata.embedding_index_version_id == version.id,
+            )
+        )
+        for item in metadata:
+            document_version = await self.session.get(DocumentVersion, item.document_version_id)
+            document_version.chunk_count, document_version.indexed_at = (
+                item.chunk_count,
+                item.indexed_at,
+            )
         self.job.status = ReindexJobStatus.COMPLETED
         self.job.completed_at = datetime.now(UTC)
         await self.session.commit()

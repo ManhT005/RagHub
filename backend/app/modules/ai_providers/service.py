@@ -260,11 +260,14 @@ class ProviderConfigService:
         chat_provider_id: UUID | None,
     ) -> tuple[Workspace, EmbeddingReindexJob | None]:
         workspace = await self.session.scalar(
-            select(Workspace).where(
+            select(Workspace)
+            .where(
                 Workspace.id == workspace_id,
                 Workspace.organization_id == organization_id,
                 Workspace.deleted_at.is_(None),
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if workspace is None:
             raise AppError("WORKSPACE_NOT_FOUND", "Workspace was not found.", status_code=404)
