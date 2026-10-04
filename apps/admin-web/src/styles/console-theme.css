@@ -1,0 +1,369 @@
+/* Overlay content is mounted outside console-shell; theme it at the root. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.ant-modal-title,
+.ant-drawer-title,
+.ant-popover-title,
+.ant-descriptions-title,
+.ant-statistic-content {
+  color: var(--rh-text);
+}
+
+a {
+  color: var(--rh-indigo);
+}
+a:hover {
+  color: var(--rh-cyan);
+}
+
+.ant-modal-header,
+.ant-modal-footer,
+.ant-drawer-header,
+.ant-drawer-footer,
+.ant-popover-inner,
+.ant-popover-inner-content,
+.ant-dropdown-menu,
+.ant-menu-submenu-popup > .ant-menu,
+.ant-select-dropdown {
+  color: var(--rh-text);
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+}
+
+.ant-modal-close,
+.ant-drawer-close,
+.ant-modal-confirm-title,
+.ant-modal-confirm-content,
+.ant-popover-message,
+.ant-popover-message-title {
+  color: var(--rh-text);
+}
+
+.ant-popover-title,
+.ant-dropdown-menu-item-divider,
+.ant-drawer-header,
+.ant-menu-item-divider {
+  border-color: var(--rh-border);
+}
+.ant-dropdown-menu-item-divider,
+.ant-menu-item-divider {
+  background: var(--rh-border);
+}
+.ant-popover-arrow-content {
+  background: var(--rh-surface);
+}
+.ant-modal-mask,
+.ant-drawer-mask {
+  background: rgb(0 0 0 / 50%);
+}
+
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text) {
+  color: var(--rh-text);
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+}
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(.ant-btn-text):hover,
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-link):not(
+    .ant-btn-text
+  ):focus-visible {
+  color: var(--rh-indigo);
+  background: var(--rh-hover);
+  border-color: var(--rh-indigo);
+}
+.ant-btn-primary,
+.ant-btn-primary:focus {
+  color: var(--rh-on-primary);
+  background: var(--rh-primary);
+  border-color: var(--rh-primary);
+}
+.ant-btn-primary:hover,
+.ant-btn-primary:active {
+  color: var(--rh-on-primary);
+  background: var(--rh-primary-hover);
+  border-color: var(--rh-primary-hover);
+}
+.ant-btn-link,
+.ant-btn-text {
+  color: var(--rh-indigo);
+}
+.ant-btn.ant-btn-dangerous:not(.ant-btn-primary) {
+  color: var(--rh-danger);
+}
+.ant-btn.ant-btn-primary.ant-btn-dangerous {
+  color: var(--rh-on-primary);
+  background: #b42318;
+  border-color: #b42318;
+}
+.ant-btn.ant-btn-primary.ant-btn-dangerous:hover {
+  background: #981b13;
+  border-color: #981b13;
+}
+.ant-btn[disabled],
+.ant-btn[disabled]:hover {
+  color: var(--rh-disabled-text) !important;
+  background: var(--rh-disabled) !important;
+  border-color: var(--rh-border) !important;
+  box-shadow: none;
+}
+
+.ant-dropdown-menu-item,
+.ant-dropdown-menu-submenu-title,
+.ant-dropdown-menu-item > a,
+.ant-menu-item > a,
+.ant-select-item,
+.ant-tabs-tab,
+.ant-collapse-header,
+.ant-radio-wrapper,
+.ant-checkbox-wrapper {
+  color: var(--rh-text);
+}
+.ant-dropdown-menu-item:hover,
+.ant-dropdown-menu-item-active,
+.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  color: var(--rh-text);
+  background: var(--rh-hover);
+}
+.ant-dropdown-menu-item-disabled,
+.ant-select-item-option-disabled {
+  color: var(--rh-disabled-text);
+}
+
+.ant-table-tbody > tr.ant-table-row:hover > td,
+.ant-table-tbody > tr > td.ant-table-cell-row-hover,
+.ant-table-tbody > tr.ant-table-row-selected > td,
+.ant-table-thead > tr > th.ant-table-column-sort,
+.ant-table-tbody > tr > td.ant-table-column-sort {
+  background: var(--rh-hover);
+}
+.ant-table-thead > tr > th::before {
+  background: var(--rh-border) !important;
+}
+.ant-table-placeholder,
+.ant-table-empty .ant-table-tbody > tr > td {
+  background: var(--rh-surface);
+}
+.ant-table-cell-fix-left,
+.ant-table-cell-fix-right {
+  background: var(--rh-surface);
+}
+.ant-table-tbody > tr > td {
+  transition: background-color 150ms ease;
+}
+
+.ant-pagination-item,
+.ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination-next .ant-pagination-item-link,
+.ant-pagination-options-quick-jumper input {
+  color: var(--rh-text);
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+}
+.ant-pagination-item a,
+.ant-pagination-total-text {
+  color: var(--rh-text);
+}
+.ant-pagination-item-active,
+.ant-pagination-item:hover {
+  border-color: var(--rh-indigo);
+  background: var(--rh-hover);
+}
+.ant-pagination-item-active a,
+.ant-pagination-item:hover a {
+  color: var(--rh-indigo);
+}
+.ant-pagination-disabled .ant-pagination-item-link,
+.ant-pagination-disabled:hover .ant-pagination-item-link {
+  color: var(--rh-disabled-text);
+  border-color: var(--rh-border);
+}
+.ant-pagination-jump-prev
+  .ant-pagination-item-container
+  .ant-pagination-item-ellipsis,
+.ant-pagination-jump-next
+  .ant-pagination-item-container
+  .ant-pagination-item-ellipsis {
+  color: var(--rh-muted);
+}
+
+.ant-tag {
+  color: var(--rh-text);
+  background: var(--rh-surface-soft);
+  border-color: var(--rh-border);
+}
+.ant-tag-green,
+.ant-tag-success {
+  color: var(--rh-success);
+  background: var(--rh-success-bg);
+  border-color: var(--rh-success);
+}
+.ant-tag-blue,
+.ant-tag-processing {
+  color: var(--rh-indigo);
+  background: var(--rh-info-bg);
+  border-color: var(--rh-indigo);
+}
+.ant-tag-red,
+.ant-tag-error {
+  color: var(--rh-danger);
+  background: var(--rh-danger-bg);
+  border-color: var(--rh-danger);
+}
+.ant-tag-orange,
+.ant-tag-warning {
+  color: var(--rh-warning);
+  background: var(--rh-warning-bg);
+  border-color: var(--rh-warning);
+}
+
+.ant-alert-info {
+  background: var(--rh-info-bg);
+  border-color: var(--rh-indigo);
+}
+.ant-alert-success {
+  background: var(--rh-success-bg);
+  border-color: var(--rh-success);
+}
+.ant-alert-warning {
+  background: var(--rh-warning-bg);
+  border-color: var(--rh-warning);
+}
+.ant-alert-error {
+  background: var(--rh-danger-bg);
+  border-color: var(--rh-danger);
+}
+.ant-alert-message,
+.ant-alert-description {
+  color: var(--rh-text);
+}
+.ant-alert-info .ant-alert-icon {
+  color: var(--rh-indigo);
+}
+.ant-alert-success .ant-alert-icon {
+  color: var(--rh-success);
+}
+.ant-alert-warning .ant-alert-icon {
+  color: var(--rh-warning);
+}
+.ant-alert-error .ant-alert-icon {
+  color: var(--rh-danger);
+}
+
+.ant-radio-inner,
+.ant-checkbox-inner {
+  background: var(--rh-surface);
+  border-color: var(--rh-muted);
+}
+.ant-radio-checked .ant-radio-inner {
+  border-color: var(--rh-indigo);
+}
+.ant-radio-inner::after {
+  background: var(--rh-indigo);
+}
+.ant-checkbox-checked .ant-checkbox-inner {
+  background: var(--rh-primary);
+  border-color: var(--rh-primary);
+}
+.ant-input[disabled],
+.ant-input-affix-wrapper-disabled,
+select:disabled {
+  color: var(--rh-disabled-text) !important;
+  background: var(--rh-disabled) !important;
+}
+.ant-progress-inner {
+  background: var(--rh-border);
+}
+.ant-progress-bg {
+  background: var(--rh-primary);
+}
+.ant-progress-text {
+  color: var(--rh-text);
+}
+.ant-empty-description {
+  color: var(--rh-muted);
+}
+.ant-empty-img-simple-path,
+.ant-empty-img-simple-ellipse {
+  fill: var(--rh-surface-soft);
+}
+.ant-empty-img-simple-g {
+  stroke: var(--rh-border);
+}
+
+.ant-steps-item-title,
+.ant-steps-item-description {
+  color: var(--rh-text) !important;
+}
+.ant-steps-item-wait .ant-steps-item-icon {
+  background: var(--rh-surface);
+  border-color: var(--rh-muted);
+}
+.ant-steps-item-wait .ant-steps-item-icon > .ant-steps-icon {
+  color: var(--rh-muted);
+}
+.ant-steps-item-finish .ant-steps-item-icon {
+  background: var(--rh-info-bg);
+  border-color: var(--rh-indigo);
+}
+.ant-steps-item-finish .ant-steps-item-icon > .ant-steps-icon {
+  color: var(--rh-indigo);
+}
+.ant-steps-item-process .ant-steps-item-icon {
+  background: var(--rh-primary);
+  border-color: var(--rh-primary);
+}
+.ant-tabs-content,
+.ant-collapse-content,
+.ant-descriptions-item-content {
+  color: var(--rh-text);
+  background: var(--rh-surface);
+}
+.ant-descriptions-item-label,
+.ant-tabs-tab {
+  color: var(--rh-muted);
+}
+
+.ant-picker-panel-container,
+.ant-picker-panel,
+.ant-picker-panel-content,
+.ant-picker-header,
+.ant-picker-footer {
+  color: var(--rh-text);
+  background: var(--rh-surface);
+  border-color: var(--rh-border);
+}
+.ant-picker-content th,
+.ant-picker-header button,
+.ant-picker-cell {
+  color: var(--rh-muted);
+}
+.ant-picker-header-view,
+.ant-picker-header button:hover,
+.ant-picker-cell-in-view {
+  color: var(--rh-text);
+}
+.ant-picker-cell:not(.ant-picker-cell-disabled):not(
+    .ant-picker-cell-selected
+  ):not(.ant-picker-cell-range-start):not(.ant-picker-cell-range-end):hover
+  .ant-picker-cell-inner {
+  background: var(--rh-hover);
+}
+.ant-picker-cell-in-view.ant-picker-cell-in-range::before {
+  background: var(--rh-info-bg);
+}
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+  color: var(--rh-on-primary);
+  background: var(--rh-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-table-tbody > tr > td {
+    transition: none;
+  }
+}

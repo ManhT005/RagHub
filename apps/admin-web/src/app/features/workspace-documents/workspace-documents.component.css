@@ -37,8 +37,8 @@
 
 .file-icon[data-type="pdf"] {
   color: var(--rh-danger);
-  border-color: #f5a3aa;
-  background: #fff1f2;
+  border-color: var(--rh-danger);
+  background: var(--rh-danger-bg);
 }
 
 .file-icon[data-type="md"] {

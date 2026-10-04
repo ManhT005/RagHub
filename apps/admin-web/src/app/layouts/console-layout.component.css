@@ -10,11 +10,11 @@
   min-height: 44px;
   margin: 12px;
   padding: 0 14px;
-  color: var(--text-secondary, #405a7d);
+  color: var(--rh-muted);
   border-radius: 8px;
 }
 .workspace-back:hover {
-  background: var(--surface-muted, #edf5ff);
+  background: var(--rh-hover);
 }
 .workspace-back:focus-visible {
   outline: 2px solid #315eff;
@@ -23,7 +23,7 @@
 .workspace-identity {
   margin: 0 24px;
   padding: 4px 0 20px;
-  border-bottom: 1px solid var(--border, #d8e7f8);
+  border-bottom: 1px solid var(--rh-border);
 }
 .workspace-identity strong,
 .workspace-identity small {
@@ -31,17 +31,17 @@
   overflow-wrap: anywhere;
 }
 .workspace-identity strong {
-  color: var(--text-primary, #0a2050);
+  color: var(--rh-text);
   font-size: 15px;
 }
 .workspace-identity small {
   margin-top: 4px;
-  color: var(--text-secondary, #405a7d);
+  color: var(--rh-muted);
 }
 .console-shell li.workspace-admin-label {
   height: auto !important;
   margin: 20px 14px 8px !important;
-  color: var(--text-secondary, #405a7d);
+  color: var(--rh-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -145,7 +145,7 @@
 .brand small,
 .topbar-brand small {
   margin-top: 3px;
-  color: #7185a2;
+  color: var(--rh-muted);
   font-size: 10px;
   font-weight: 500;
 }
@@ -381,8 +381,8 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: #0866ff;
-  background: #dcecff;
+  color: var(--rh-indigo);
+  background: var(--rh-info-bg);
   font-size: 12px;
   font-weight: 750;
 }
@@ -402,7 +402,7 @@
 
 .account-identity small {
   margin-top: 2px;
-  color: #7185a2;
+  color: var(--rh-muted);
   font-size: 10px;
 }
 
@@ -457,7 +457,7 @@
 .account-menu__header small,
 .account-menu a small {
   margin-top: 2px;
-  color: #7185a2;
+  color: var(--rh-muted);
   font-size: 10px;
   font-weight: 500;
 }
