@@ -3,10 +3,33 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from raghub_core.domain.providers.enums import IndexVersionStatus, ReindexJobStatus
+
+
+class ProviderConnection(Base):
+    __tablename__ = "provider_connections"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    provider_type: Mapped[str] = mapped_column(String(64))
+    base_url: Mapped[str | None] = mapped_column(String(1024))
+    encrypted_secret: Mapped[str | None] = mapped_column(Text)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    status: Mapped[str] = mapped_column(String(32), default="UNTESTED", server_default="UNTESTED")
+    last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_latency_ms: Mapped[int | None] = mapped_column(Integer)
+    last_error_code: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class ProviderConfig(Base):
@@ -14,6 +37,16 @@ class ProviderConfig(Base):
     __table_args__ = (Index("ix_provider_configs_org_capability", "organization_id", "capability"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("provider_connections.id", ondelete="RESTRICT"), index=True
+    )
+    connection: Mapped[ProviderConnection | None] = relationship(lazy="joined")
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    availability_status: Mapped[str] = mapped_column(
+        String(32), default="UNTESTED", server_default="UNTESTED"
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
+    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )

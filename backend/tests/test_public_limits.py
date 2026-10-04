@@ -129,7 +129,9 @@ async def test_http_rate_limit_and_admin_isolation(monkeypatch):
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router.router)
-    app.dependency_overrides[get_session] = lambda: None
+    app.dependency_overrides[get_session] = lambda: SimpleNamespace(
+        scalar=AsyncMock(return_value=bot.workspace_id)
+    )
     limits = AsyncMock()
     limits.settings = Settings()
     app.dependency_overrides[get_public_limits] = lambda: limits

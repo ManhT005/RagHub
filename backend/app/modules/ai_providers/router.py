@@ -35,7 +35,11 @@ def provider_response(config: ProviderConfig) -> ProviderConfigResponse:
         dimension=config.dimension,
         config_json=config.config_json or {},
         enabled=config.enabled,
-        has_secret=bool(config.encrypted_secret),
+        has_secret=bool(
+            config.connection.encrypted_secret
+            if getattr(config, "connection", None)
+            else config.encrypted_secret
+        ),
         created_at=config.created_at,
         updated_at=config.updated_at,
     )

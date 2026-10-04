@@ -65,7 +65,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=422,
             code="VALIDATION_ERROR",
             message="Request validation failed.",
-            details={"errors": exc.errors()},
+            details={
+                "errors": [
+                    {"loc": error["loc"], "type": error["type"], "msg": "Invalid field value"}
+                    for error in exc.errors()
+                ]
+            },
         )
 
     @app.exception_handler(Exception)

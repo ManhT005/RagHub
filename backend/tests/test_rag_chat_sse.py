@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -43,7 +44,7 @@ async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -
         ChatRequest(message="Xin chào"),
         SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
-        object(),
+        SimpleNamespace(scalar=AsyncMock(return_value=uuid4())),
     )
     body = "".join([chunk async for chunk in response.body_iterator])
     assert response.media_type == "text/event-stream"
@@ -75,7 +76,7 @@ async def test_chat_sse_converts_service_error_to_event(monkeypatch: pytest.Monk
         ChatRequest(message="Xin chào"),
         SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
-        object(),
+        SimpleNamespace(scalar=AsyncMock(return_value=uuid4())),
     )
     body = "".join([chunk async for chunk in response.body_iterator])
     assert "event: error" in body
@@ -107,7 +108,7 @@ async def test_stream_error_after_token_does_not_emit_done(
         ChatRequest(message="Xin chĂ o"),
         SimpleNamespace(organization_id=uuid4(), membership=SimpleNamespace(role="ADMIN")),
         SimpleNamespace(id=uuid4()),
-        object(),
+        SimpleNamespace(scalar=AsyncMock(return_value=uuid4())),
     )
 
     body = "".join([chunk async for chunk in response.body_iterator])

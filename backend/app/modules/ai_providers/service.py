@@ -18,6 +18,7 @@ from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
     ProviderConfig,
+    ProviderConnection,
 )
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.repository import ProviderConfigRepository
@@ -75,7 +76,17 @@ class ProviderConfigService:
         return config
 
     async def create(self, organization_id: UUID, payload: ProviderConfigInput) -> ProviderConfig:
+        connection = ProviderConnection(
+            organization_id=organization_id,
+            name=payload.name.strip(),
+            provider_type=payload.provider_type,
+            base_url=payload.base_url,
+            config_json=payload.config_json,
+            enabled=payload.enabled,
+            encrypted_secret=self.cipher.encrypt(payload.secret) if payload.secret else None,
+        )
         config = ProviderConfig(
+            connection=connection,
             organization_id=organization_id,
             name=payload.name.strip(),
             provider_type=payload.provider_type,
@@ -83,7 +94,7 @@ class ProviderConfigService:
             base_url=payload.base_url.rstrip("/") if payload.base_url else None,
             model=payload.model.strip(),
             dimension=payload.dimension,
-            encrypted_secret=self.cipher.encrypt(payload.secret) if payload.secret else None,
+            encrypted_secret=None,
             config_json=payload.config_json,
             enabled=payload.enabled,
         )
@@ -96,8 +107,10 @@ class ProviderConfigService:
         self, organization_id: UUID, provider_id: UUID, payload: ProviderConfigPatch
     ) -> ProviderConfig:
         config = await self.get(organization_id, provider_id)
-        if payload.enabled is False and config.enabled and await self._is_bound(
-            organization_id, provider_id
+        if (
+            payload.enabled is False
+            and config.enabled
+            and await self._is_bound(organization_id, provider_id)
         ):
             raise AppError(
                 "PROVIDER_IN_USE",
@@ -106,8 +119,7 @@ class ProviderConfigService:
             )
         if (
             payload.clear_secret
-            and config.provider_type
-            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
+            and config.provider_type in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
             and await self._is_bound(organization_id, provider_id)
         ):
             raise AppError(
@@ -115,11 +127,10 @@ class ProviderConfigService:
                 "Credentials cannot be cleared while the provider is bound.",
                 status_code=409,
             )
-        if (
-            payload.base_url is not None
-            and config.provider_type
-            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
-        ):
+        if payload.base_url is not None and config.provider_type in {
+            ProviderType.OPENAI_COMPATIBLE,
+            ProviderType.GOOGLE_GEMINI,
+        }:
             validate_public_provider_url(payload.base_url)
         old_fingerprint = embedding_fingerprint(config) if config.dimension else None
         reindex_jobs: list[EmbeddingReindexJob] = []
@@ -130,10 +141,11 @@ class ProviderConfigService:
             if isinstance(value, str):
                 value = value.strip()
             setattr(config, field, value)
+        credential_owner = config.connection or config
         if payload.secret is not None:
-            config.encrypted_secret = self.cipher.encrypt(payload.secret)
+            credential_owner.encrypted_secret = self.cipher.encrypt(payload.secret)
         elif payload.clear_secret:
-            config.encrypted_secret = None
+            credential_owner.encrypted_secret = None
         if config.capability == ProviderCapability.EMBEDDING and not config.dimension:
             raise ProviderConfigurationError("Embedding providers require dimension.")
         await self.session.flush()
@@ -195,6 +207,8 @@ class ProviderConfigService:
         config = await self.get(organization_id, provider_id)
         if not config.enabled:
             raise AppError("PROVIDER_DISABLED", "Provider is disabled.", status_code=409)
+        if config.connection is not None and not config.connection.enabled:
+            raise AppError("PROVIDER_DISABLED", "Connection is disabled.", status_code=409)
         from app.infrastructure.provider_credentials import resolve_provider_secret
 
         secret = resolve_provider_secret(config, self.cipher)
@@ -220,6 +234,14 @@ class ProviderConfigService:
                     break
             if not received:
                 raise ProviderConfigurationError("Provider returned an empty chat stream.")
+        config.availability_status = "AVAILABLE"
+        config.last_health_check_at = datetime.now(UTC)
+        if config.connection is not None:
+            config.connection.status = "CONNECTED"
+            config.connection.last_tested_at = datetime.now(UTC)
+            config.connection.last_latency_ms = int((time.monotonic() - started) * 1000)
+            config.connection.last_error_code = None
+        await self.session.commit()
         return {
             "status": "OK",
             "capability": config.capability,

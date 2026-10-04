@@ -52,6 +52,8 @@ class ProviderResolver:
             raise ProviderConfigurationError()
         if not config.enabled:
             raise ProviderDisabledError()
+        if config.connection is not None and not config.connection.enabled:
+            raise ProviderDisabledError()
         if config.capability != capability:
             raise ProviderConfigurationError("Provider capability does not match the binding.")
         return config
