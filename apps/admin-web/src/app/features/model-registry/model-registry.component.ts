@@ -23,8 +23,9 @@ import {
 } from "../../core/api/provider-api.service";
 import { RaghubApiService } from "../../core/raghub-api.service";
 import { session } from "../../core/api-auth.interceptor";
+import { consoleOrganization } from "../../core/console-organization";
 import { apiError } from "../../core/api/api-error";
-import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
+import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
 
 @Component({
   selector: "raghub-model-registry",
@@ -107,7 +108,17 @@ import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.
               ><small class="block muted">{{ model.model }}</small>
             </td>
             <td>
-              <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" size="sm" /><span>{{ model.provider_name }}<small class="block muted">{{ model.connection_status }}</small></span></div>
+              <div class="provider-model">
+                <raghub-provider-logo
+                  [catalogId]="model.provider_catalog_id"
+                  size="sm"
+                /><span
+                  >{{ model.provider_name
+                  }}<small class="block muted">{{
+                    model.connection_status
+                  }}</small></span
+                >
+              </div>
             </td>
             <td>
               <nz-tag>{{ model.capability }}</nz-tag>
@@ -187,10 +198,7 @@ export class ModelRegistryComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => {
-          this.organizationId =
-            items.find((item) => item.id === session.organizationId)?.id ??
-            items[0]?.id ??
-            "";
+          this.organizationId = consoleOrganization(items)?.id ?? "";
           session.organizationId = this.organizationId || null;
           this.load();
         },

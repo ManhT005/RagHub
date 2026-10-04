@@ -19,7 +19,8 @@ import { NzLayoutModule } from "ng-zorro-antd/layout";
 import { NzMenuModule } from "ng-zorro-antd/menu";
 
 import { session } from "../core/api-auth.interceptor";
-import { WorkspaceContextStore } from '../core/workspace-context/workspace-context.store';
+import { consoleOrganization } from "../core/console-organization";
+import { WorkspaceContextStore } from "../core/workspace-context/workspace-context.store";
 import {
   type Organization,
   type CurrentUser,
@@ -45,9 +46,7 @@ export class ConsoleLayoutComponent {
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly isAdmin = computed(() => {
-    const currentId = session.organizationId;
-    const current = this.organizations().find((item) => item.id === currentId)
-      ?? this.organizations()[0];
+    const current = consoleOrganization(this.organizations());
     return current?.role === "ADMIN";
   });
 
@@ -89,7 +88,9 @@ export class ConsoleLayoutComponent {
   }
 
   private applyTheme(): void {
-    document.documentElement.dataset["theme"] = this.darkMode() ? "dark" : "light";
+    document.documentElement.dataset["theme"] = this.darkMode()
+      ? "dark"
+      : "light";
   }
 
   protected toggleAccountMenu(): void {

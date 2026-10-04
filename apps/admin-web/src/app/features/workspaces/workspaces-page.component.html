@@ -5,7 +5,7 @@
       <p>
         {{
           isAdmin()
-            ? "Quản lý toàn bộ workspace trong tổ chức trên RagHub Self-host."
+            ? "Quản lý workspace trên RagHub Self-host. Tạo, chỉnh sửa và phân quyền tại đây."
             : "Workspace được gán cho bạn và
         các chức năng được cấp quyền."
         }}
@@ -50,17 +50,6 @@
       <option value="newest">Cập nhật gần nhất</option>
       <option value="name">Tên A–Z</option>
     </select>
-    @if (organizations().length > 1) {
-      <select
-        aria-label="Chọn tổ chức"
-        [ngModel]="selectedOrganization()"
-        (ngModelChange)="selectedOrganization.set($event); changeOrganization()"
-      >
-        @for (org of organizations(); track org.id) {
-          <option [value]="org.id">{{ org.name }}</option>
-        }
-      </select>
-    }
     <button nz-button (click)="load()" [nzLoading]="loading()">Làm mới</button>
   </div>
   <nz-table
@@ -74,7 +63,6 @@
     <thead>
       <tr>
         <th>Workspace</th>
-        <th>Phạm vi quản trị</th>
         <th>Thành viên</th>
         <th>Tài liệu / Chunks</th>
         <th>Embedding model</th>
@@ -91,15 +79,28 @@
               ><strong>{{ workspace.name }}</strong></a
             ><small class="block muted">{{ workspace.slug }}</small>
           </td>
-          <td>System admin</td>
           <td>{{ workspace.member_count }}</td>
           <td>
             {{ workspace.document_count }} / {{ workspace.chunk_count ?? "—" }}
           </td>
           <td>
             @if (workspace.embedding_model; as model) {
-            <div class="provider-model"><raghub-provider-logo [catalogId]="model.provider_catalog_id" size="sm" /><span><b>{{ model.provider_name }}</b><small class="block muted model-name" [title]="model.model">{{ shortModelName(model.model) }}</small></span></div>
-            } @else { Chưa cấu hình }
+              <div class="provider-model">
+                <raghub-provider-logo
+                  [catalogId]="model.provider_catalog_id"
+                  size="sm"
+                /><span
+                  ><b>{{ model.provider_name }}</b
+                  ><small
+                    class="block muted model-name"
+                    [title]="model.model"
+                    >{{ shortModelName(model.model) }}</small
+                  ></span
+                >
+              </div>
+            } @else {
+              Chưa cấu hình
+            }
           </td>
           <td>
             <nz-tag

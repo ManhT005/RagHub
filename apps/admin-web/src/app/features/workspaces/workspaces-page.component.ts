@@ -30,9 +30,10 @@ import {
 } from "../../core/api/provider-api.service";
 import { RaghubApiService, Organization } from "../../core/raghub-api.service";
 import { session } from "../../core/api-auth.interceptor";
+import { consoleOrganization } from "../../core/console-organization";
 import { apiError } from "../../core/api/api-error";
-import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
-import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
+import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { shortModelName } from "../../core/provider-brand/provider-brand.registry";
 
 @Component({
   selector: "raghub-workspaces-page",
@@ -55,10 +56,8 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
 })
 export class WorkspacesPageComponent {
   protected readonly shortModelName = shortModelName;
-  protected readonly organizations = signal<Organization[]>([]);
-  protected readonly selectedOrganization = signal(
-    session.organizationId ?? "",
-  );
+  private readonly organizations = signal<Organization[]>([]);
+  private readonly selectedOrganization = signal(session.organizationId ?? "");
   protected readonly isAdmin = computed(
     () =>
       this.organizations().find(
@@ -89,8 +88,8 @@ export class WorkspacesPageComponent {
         this.sort() === "name"
           ? a.name.localeCompare(b.name)
           : (b.updated_at ?? b.created_at).localeCompare(
-            a.updated_at ?? a.created_at,
-          ),
+              a.updated_at ?? a.created_at,
+            ),
       ),
   );
   protected name = "";
@@ -109,14 +108,13 @@ export class WorkspacesPageComponent {
       .subscribe({
         next: (items) => {
           this.organizations.set(items);
-          if (!items.some((item) => item.id === this.selectedOrganization()))
-            this.selectedOrganization.set(items[0]?.id ?? "");
-          this.changeOrganization();
+          this.selectedOrganization.set(consoleOrganization(items)?.id ?? "");
+          this.initializeScope();
         },
         error: (error) => this.error.set(apiError(error)),
       });
   }
-  protected changeOrganization() {
+  private initializeScope() {
     session.organizationId = this.selectedOrganization() || null;
     this.workspaces.set([]);
     this.models.set([]);
@@ -151,6 +149,7 @@ export class WorkspacesPageComponent {
       });
   }
   protected open(item: WorkspaceSummary | null = null) {
+    if (!this.isAdmin() || this.saving()) return;
     this.editing.set(item);
     this.name = item?.name ?? "";
     this.slug = item?.slug ?? "";
@@ -158,7 +157,7 @@ export class WorkspacesPageComponent {
     this.editorOpen.set(true);
   }
   protected save() {
-    if (this.saving() || !this.name.trim()) return;
+    if (!this.isAdmin() || this.saving() || !this.name.trim()) return;
     const slug =
       this.slug.trim() ||
       this.name
@@ -185,14 +184,14 @@ export class WorkspacesPageComponent {
         switchMap((workspace) =>
           !editing && this.initialModel
             ? this.api.changeEmbedding(workspace.id, this.initialModel).pipe(
-              map(() => workspace),
-              catchError((error) => {
-                this.notice.set(
-                  `Workspace đã tạo. ${apiError(error)} Cấu hình model trong cài đặt AI.`,
-                );
-                return of(workspace);
-              }),
-            )
+                map(() => workspace),
+                catchError((error) => {
+                  this.notice.set(
+                    `Workspace đã tạo. ${apiError(error)} Cấu hình model trong cài đặt AI.`,
+                  );
+                  return of(workspace);
+                }),
+              )
             : of(workspace),
         ),
         finalize(() => this.saving.set(false)),
@@ -207,7 +206,7 @@ export class WorkspacesPageComponent {
       });
   }
   protected remove(item: WorkspaceSummary) {
-    if (this.saving()) return;
+    if (!this.isAdmin() || this.saving()) return;
     this.saving.set(true);
     this.api
       .remove(item.id)
@@ -220,5 +219,4 @@ export class WorkspacesPageComponent {
         error: (error) => this.error.set(apiError(error)),
       });
   }
-
 }
