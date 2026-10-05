@@ -13,6 +13,8 @@ Widget lấy config rồi POST chat qua `/api/v1/public/chatbots/{key}` trên or
 
 Authenticated Admin/Workspace chat có quyền `chat.use` được preview cả Draft. Publication chỉ kiểm soát public widget/API. Lỗi runtime được hiển thị bằng thông báo an toàn và mã provider/search; không hiển thị raw upstream response.
 
+Settings có live preview Desktop/Mobile chạy hoàn toàn tại browser; thay đổi theme không gọi public chat. Hex phải đúng 6 ký tự; origins được normalize và giới hạn 20. Nút Copy chỉ bật khi có script đầy đủ. Khi tạo key mới, UI yêu cầu xác nhận vì script cũ sẽ mất hiệu lực. Link demo dùng fragment `#key=...&api=...` để key không xuất hiện trong request/access log; trang demo xóa key khỏi URL khi tải widget. Demo vẫn yêu cầu origin của RagHub trong allowlist.
+
 Key công khai và Origin có thể bị giả bởi client ngoài trình duyệt. Rate limit theo IP và chatbot cùng concurrent limit bảo vệ tài nguyên; chúng không xác thực danh tính khách truy cập. Không đưa tài liệu riêng tư vào chatbot public nếu người ngoài không được phép xem.
 
 | Biến môi trường | Mặc định | Phạm vi |

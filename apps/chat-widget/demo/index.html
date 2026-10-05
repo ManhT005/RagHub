@@ -44,7 +44,7 @@
     <script>
       const keyInput = document.querySelector("#key"),
         status = document.querySelector("#status");
-      const params = new URLSearchParams(location.search);
+      const params = new URLSearchParams(location.hash?.slice(1) || location.search);
       keyInput.value = params.get("key") || "";
       const apiBase = params.get("api") ||
         (location.pathname.startsWith("/demo/") ? location.origin : "http://localhost:8080");
@@ -62,7 +62,7 @@
         script.dataset.chatbotKey = key;
         script.async = true;
         document.body.append(script);
-        params.set("key", key);
+        params.delete("key");
         history.replaceState({}, "", `?${params}`);
         status.textContent = "Đã nhúng chatbot. Xem nút ở góc phải dưới.";
       };
