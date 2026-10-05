@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from raghub_core.domain.rag.models import StreamChatCommand
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.public_chat import PublicChatContainer
@@ -29,7 +30,6 @@ from app.modules.chatbots.schemas import (
 )
 from app.modules.chatbots.service import ChatbotService
 from app.modules.users.models import User
-from raghub_core.domain.rag.models import StreamChatCommand
 
 router = APIRouter(tags=["chatbots"])
 

@@ -74,22 +74,23 @@ Console Self-host UI v1 có AI Providers/Model Registry tại `/system/ai/` và
 workspace console tại `/app/workspaces`. Xem [phạm vi triển khai, migration và rollback](docs/ui/selfhost-v1/implementation.md)
 cùng [kết quả nghiệm thu và lệnh kiểm thử](docs/ui/selfhost-v1/verification.md).
 
-**Core namespace — `backend/raghub_core`:** engine tri thức và RAG tái sử dụng,
+**Core package — `raghub-core/src/raghub_core`:** engine tri thức và RAG tái sử dụng,
 chứa domain rules, application workflows và dependency ports. Core không sở hữu
 HTTP delivery, persistence implementation, Redis admission, deployment mode hay
 quản trị sản phẩm. Host composition phải lấy public use case từ `raghub_core.api`;
 infrastructure được implement trực tiếp `raghub_core.ports` và dùng domain contracts.
 
-**Host runtime — `backend/app`:** composition, delivery, persistence adapters,
+**Self-host host và adapters — `backend/app`:** composition, delivery, persistence adapters,
 auth/RBAC, Redis, provider clients, MinIO, Elasticsearch, Celery và quản trị sản phẩm.
 Playground và public widget dùng cùng typed RAG runtime; origin, rate limit và
 concurrency thuộc host. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
 và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
 Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
-**Backend distribution — `raghub-backend`:** hiện chứa cả `app` và `raghub_core`.
-Core đã tách namespace và dependency, nhưng chưa có release/version độc lập.
-Standalone `raghub-core` distribution được chủ động hoãn (**Deferred**), theo
-[ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md).
+**Hai Python package:** `raghub-core` chứa engine; `raghub-backend` chỉ chứa `app`
+và phụ thuộc `raghub-core==0.1.0`. Hai project nằm ngang hàng, giữ nguyên namespace
+`raghub_core` và public API. Xem [ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md)
+và [hướng dẫn core](raghub-core/README.md). Package được build/cài từ source local;
+refactor này chưa publish lên package registry.
 CI kiểm tra engine từ installed wheel trong venv tối thiểu, chặn import `app`
 và dùng cache tokenizer rỗng.
 
@@ -245,9 +246,19 @@ Chạy các lệnh sau từ `backend/`:
 cd backend
 python -m venv ..\.venv
 ..\.venv\Scripts\python.exe -m pip install -r requirements.lock
+..\.venv\Scripts\python.exe -m pip install --no-deps -e ../raghub-core -e .
 ..\.venv\Scripts\python.exe -m alembic upgrade head
+$env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
 ..\.venv\Scripts\python.exe -m pytest -p no:cacheprovider
-..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m ruff check . ../raghub-core
+```
+
+Core có bộ kiểm thử riêng, không cần backend hay Docker. Chạy từ root repository:
+
+```powershell
+Push-Location raghub-core
+../.venv/Scripts/python.exe -m pytest -p no:cacheprovider
+Pop-Location
 ```
 
 ### Frontend
@@ -271,11 +282,13 @@ CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile T
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
 apps/chat-widget/     Widget Web Component và website demo
-backend/raghub_core/  Engine RAG độc lập, không import app
-  domain/             Domain, thuật toán, policy và AI contracts
-  application/        Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
-  ports/              Hợp đồng storage, search, queue, provider và persistence
-  api.py              Facade public cho các host
+raghub-core/          Package engine độc lập, không import app
+  src/raghub_core/
+    domain/           Domain, thuật toán, policy và AI contracts
+    application/      Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
+    ports/            Hợp đồng storage, search, queue, provider và persistence
+    api.py            Facade public cho các host
+  tests/              Core contracts và fake ports, không cần hạ tầng
 backend/app/          API, control plane, adapter hạ tầng và worker
   composition/        Ghép use cases với adapter của từng runtime
   delivery/           Upload/SSE HTTP adapter và worker bootstrap

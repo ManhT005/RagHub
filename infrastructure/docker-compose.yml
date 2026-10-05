@@ -44,7 +44,8 @@ services:
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: build
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       target: ${BACKEND_IMAGE_TARGET:-runtime}
     command:
       - uvicorn
@@ -62,7 +63,7 @@ services:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
-      - ../backend/raghub_core:/app/raghub_core
+      - ../raghub-core/src/raghub_core:/app/raghub_core
   worker:
     extends:
       file: docker-compose.base.yml
@@ -80,7 +81,7 @@ services:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
-      - ../backend/raghub_core:/app/raghub_core
+      - ../raghub-core/src/raghub_core:/app/raghub_core
   admin-web:
     extends:
       file: docker-compose.base.yml

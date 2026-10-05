@@ -1,6 +1,12 @@
 import logging
 import uuid
 
+from raghub_core.domain.ingestion.reindex import is_transient_failure
+from raghub_core.domain.providers.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -9,12 +15,6 @@ from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
 from app.modules.workspaces.models import Workspace
-from raghub_core.domain.ingestion.reindex import is_transient_failure
-from raghub_core.domain.providers.errors import (
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-    ProviderUnavailableError,
-)
 
 logger = logging.getLogger(__name__)
 

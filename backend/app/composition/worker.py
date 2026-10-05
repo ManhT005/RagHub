@@ -1,5 +1,12 @@
 """Worker host wiring for the same ingestion and reindex business pipeline."""
 
+from raghub_core.api import (
+    BuildDocumentIndexUseCase,
+    ReindexWorkspaceUseCase,
+    RunIngestionUseCase,
+)
+from raghub_core.domain.ingestion.chunker import chunk_sections
+
 from app.core.config import get_settings
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer
 from app.infrastructure.elasticsearch.vector_store import LegacyVectorStoreAdapter
@@ -10,12 +17,6 @@ from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.modules.ai_providers.resolver import ProviderResolver
-from raghub_core.api import (
-    BuildDocumentIndexUseCase,
-    ReindexWorkspaceUseCase,
-    RunIngestionUseCase,
-)
-from raghub_core.domain.ingestion.chunker import chunk_sections
 
 parse_document = DocumentParser().parse
 

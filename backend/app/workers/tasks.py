@@ -2,6 +2,7 @@ import asyncio
 import uuid
 
 from celery import Task
+from raghub_core.domain.ingestion.errors import IngestionError as IngestionError
 
 from app.delivery.workers.ingestion import (
     _process_document_version as _process_document_version,
@@ -19,7 +20,6 @@ from app.delivery.workers.ingestion import (
     _set_stage as _set_stage,
 )
 from app.infrastructure.task_queue.celery_app import celery_app
-from raghub_core.domain.ingestion.errors import IngestionError as IngestionError
 
 
 @celery_app.task(bind=True, max_retries=3, name="documents.ingest_version")

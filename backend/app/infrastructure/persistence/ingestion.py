@@ -2,13 +2,13 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 
+from raghub_core.domain.ingestion.errors import IngestionError, ingestion_error_message
+from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionDocument, IngestionStage
+from raghub_core.domain.retrieval.models import RetrievalScope
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
-from raghub_core.domain.ingestion.errors import IngestionError, ingestion_error_message
-from raghub_core.domain.ingestion.models import IngestionAttempt, IngestionDocument, IngestionStage
-from raghub_core.domain.retrieval.models import RetrievalScope
 
 logger = logging.getLogger(__name__)
 

@@ -3,11 +3,11 @@
 import hashlib
 from uuid import uuid4
 
+from raghub_core.domain.errors import CoreError
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import Settings
-from raghub_core.domain.errors import CoreError
 
 RATE_SCRIPT = """
 for i, key in ipairs(KEYS) do

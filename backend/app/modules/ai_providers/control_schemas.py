@@ -3,6 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from raghub_core.domain.providers.enums import ProviderCapability
 
 from app.modules.ai_providers.catalog import supported_catalog_by_id
 from app.modules.ai_providers.schemas import (
@@ -11,7 +12,6 @@ from app.modules.ai_providers.schemas import (
     _validate_safe_config,
     validate_public_provider_url,
 )
-from raghub_core.domain.providers.enums import ProviderCapability
 
 
 class ConnectionInput(BaseModel):

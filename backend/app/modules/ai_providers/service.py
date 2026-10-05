@@ -6,6 +6,15 @@ import uuid
 from datetime import UTC, datetime
 from uuid import UUID
 
+from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions
+from raghub_core.domain.providers.enums import (
+    IndexVersionStatus,
+    ProviderCapability,
+    ProviderType,
+    ReindexJobStatus,
+)
+from raghub_core.domain.providers.errors import ProviderConfigurationError
+from raghub_core.ports.task_queue import TaskQueuePort
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,15 +38,6 @@ from app.modules.ai_providers.schemas import (
 )
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.workspaces.models import Workspace
-from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions
-from raghub_core.domain.providers.enums import (
-    IndexVersionStatus,
-    ProviderCapability,
-    ProviderType,
-    ReindexJobStatus,
-)
-from raghub_core.domain.providers.errors import ProviderConfigurationError
-from raghub_core.ports.task_queue import TaskQueuePort
 
 
 def embedding_fingerprint(config: ProviderConfig) -> str:

@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 
-from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
 from raghub_core.domain.retrieval.hybrid import MAX_CONTEXT_TOKENS
 from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES as RETRIEVAL_CANDIDATES
 from raghub_core.domain.retrieval.hybrid import RRF_K as RRF_K
 from raghub_core.domain.retrieval.hybrid import build_context_bundle as typed_context
 from raghub_core.domain.retrieval.hybrid import fuse_rrf as typed_rrf
+
+from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
 
 
 @dataclass(frozen=True)

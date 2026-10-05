@@ -5,12 +5,12 @@ import os
 from uuid import uuid4
 
 import pytest
+from raghub_core.domain.errors import CoreError
 from redis.asyncio import Redis
 
 from app.core.config import Settings
 from app.delivery.http.error_mapping import http_status
 from app.infrastructure.redis.public_chat_admission import PublicChatLimits
-from raghub_core.domain.errors import CoreError
 
 pytestmark = pytest.mark.integration
 

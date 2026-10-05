@@ -1,11 +1,11 @@
 from uuid import UUID
 
+from raghub_core.domain.retrieval.models import RetrievalScope
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.self_host import SelfHostContainer
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.retrieval_mapping import chunk_to_hit
-from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class SearchService:

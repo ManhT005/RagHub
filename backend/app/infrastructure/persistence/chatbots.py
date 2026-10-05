@@ -1,10 +1,10 @@
+from raghub_core.domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
+from raghub_core.domain.retrieval.models import RetrievalScope
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.chatbots.models import Chatbot
 from app.modules.workspaces.models import Workspace
-from raghub_core.domain.chatbots.models import ChatbotRecord, CreateChatbotCommand
-from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 def chatbot_record(chatbot: Chatbot) -> ChatbotRecord:

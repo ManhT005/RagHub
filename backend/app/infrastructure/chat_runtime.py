@@ -1,7 +1,8 @@
-from app.infrastructure.providers import ProviderResolverAdapter
-from app.infrastructure.retrieval_mapping import chunk_from_hit
 from raghub_core.domain.chatbots.models import ChatbotConfig
 from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
+
+from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.retrieval_mapping import chunk_from_hit
 
 
 class ChatbotRuntimeReader:

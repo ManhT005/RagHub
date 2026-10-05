@@ -79,7 +79,7 @@ assert not any(name == 'app' or name.startswith('app.') for name in sys.modules)
 """
     result = subprocess.run(
         [sys.executable, "-c", script],
-        cwd=Path(__file__).resolve().parents[2],
+        cwd=Path(__file__).resolve().parents[1],
         capture_output=True,
         text=True,
         timeout=30,

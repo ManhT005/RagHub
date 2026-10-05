@@ -2,12 +2,12 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from raghub_core.domain.rag.models import StreamChatCommand
 
 from app.delivery.http.sse import event_payload
 from app.modules.ai_providers.contracts import ChatStreamDelta, ChatUsage
 from app.modules.chatbots.models import Message, MessageCitation, UsageEvent
 from app.modules.chatbots.service import ChatbotService
-from raghub_core.domain.rag.models import StreamChatCommand
 
 
 class SessionStub:

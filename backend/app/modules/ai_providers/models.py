@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from raghub_core.domain.providers.enums import IndexVersionStatus, ReindexJobStatus
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from raghub_core.domain.providers.enums import IndexVersionStatus, ReindexJobStatus
 
 
 class ProviderConnection(Base):

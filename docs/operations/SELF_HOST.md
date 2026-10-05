@@ -1,10 +1,20 @@
 # RagHub Self-host
 
-The self-host API, public chat host and Celery worker consume the same engine:
-`raghub_core.domain`, `raghub_core.application`, and `raghub_core.ports`.
+The self-host API, public chat host and Celery worker consume the standalone
+`raghub-core` package from `raghub-core/src/raghub_core`. The `backend` project is
+the self-host host and its infrastructure adapters; composition consumes public
+use cases through `raghub_core.api`, while adapters implement `raghub_core.ports`.
 Configuration and concrete adapter wiring
 belong to `composition/self_host.py`, `public_chat.py`, and `worker.py`.
 The engine does not read environment variables or contain deployment/role checks.
+
+Source builds use the repository root as Docker context and `backend/Dockerfile`
+so the image can install the sibling core package. The existing image names,
+Compose service names, bootstrap, migrations and backup/restore commands remain
+the same. Development Compose mounts `backend/app` and `raghub-core/src/raghub_core`;
+the self-host build override installs core into the production image without source
+mounts. See the [backend development guide](../../backend/README.md) and
+[package verification](../architecture/RAGHUB_CORE_SIBLING_VERIFICATION.md).
 
 ## Installation from images
 

@@ -1272,9 +1272,9 @@ dependencies = [
     { name = "pyjwt" },
     { name = "pymupdf" },
     { name = "python-multipart" },
+    { name = "raghub-core" },
     { name = "redis" },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "tiktoken" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1308,14 +1308,31 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.5" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.26.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
+    { name = "raghub-core", editable = "../raghub-core" },
     { name = "redis", specifier = "==6.4.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.12.9" },
     { name = "sentence-transformers", marker = "extra == 'local-ai'", specifier = "==5.1.1" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.40" },
-    { name = "tiktoken", specifier = "==0.9.0" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.34.2" },
 ]
 provides-extras = ["dev", "local-ai"]
+
+[[package]]
+name = "raghub-core"
+version = "0.1.0"
+source = { editable = "../raghub-core" }
+dependencies = [
+    { name = "tiktoken" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.5" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.26.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.12.9" },
+    { name = "tiktoken", specifier = "==0.9.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "redis"

@@ -1,11 +1,11 @@
 from uuid import UUID
 
+from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.retrieval_mapping import chunk_to_hit
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion
-from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 
 
 class DocumentReadinessAdapter:

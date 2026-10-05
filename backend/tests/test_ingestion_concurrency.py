@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 import pytest_asyncio
+from raghub_core.domain.errors import CoreError as AppError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -22,7 +23,6 @@ from app.modules.documents.service import DocumentService
 from app.modules.organizations.models import Organization
 from app.modules.workspaces.models import Workspace
 from app.workers import tasks
-from raghub_core.domain.errors import CoreError as AppError
 
 pytestmark = pytest.mark.integration
 

@@ -4,8 +4,6 @@ import math
 from collections.abc import AsyncIterator
 
 import httpx
-
-from app.modules.ai_providers.policy import ProviderRequestPolicy
 from raghub_core.domain.providers.contracts import (
     ChatMessage,
     ChatOptions,
@@ -21,6 +19,8 @@ from raghub_core.domain.providers.errors import (
     ProviderUnavailableError,
 )
 from raghub_core.domain.providers.usage import estimate_chat_usage
+
+from app.modules.ai_providers.policy import ProviderRequestPolicy
 
 
 class _OpenAICompatibleBase:

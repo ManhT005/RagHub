@@ -3,7 +3,8 @@ services:
   api:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       target: local-ai
   worker:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}

@@ -1,11 +1,11 @@
 from elasticsearch import NotFoundError
-
-from app.infrastructure.elasticsearch.chunks import ChunkIndexer, ChunkSearch
-from app.infrastructure.retrieval_mapping import chunk_from_hit
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.providers.errors import ProviderError
 from raghub_core.domain.retrieval.models import DocumentIndex, RetrievalScope, RetrievedChunk
+
+from app.infrastructure.elasticsearch.chunks import ChunkIndexer, ChunkSearch
+from app.infrastructure.retrieval_mapping import chunk_from_hit
 
 
 class ElasticsearchVectorStore(ChunkIndexer):

@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
+from raghub_core.domain.errors import CoreError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -31,7 +32,6 @@ from app.modules.ai_providers.control_service import (
 )
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.memberships.models import MembershipRole
-from raghub_core.domain.errors import CoreError
 
 router = APIRouter(tags=["provider control plane"])
 Context = Annotated[OrganizationContext, Depends(get_organization_context)]

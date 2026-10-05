@@ -32,6 +32,12 @@ with Redis available.
 From the repository root, using an installed backend test environment:
 
 ```powershell
+.venv/Scripts/python.exe -m pip install -r backend/requirements.lock
+.venv/Scripts/python.exe -m pip install --no-deps -e ./raghub-core -e ./backend
+Push-Location raghub-core
+../.venv/Scripts/python.exe -m pytest -p no:cacheprovider
+Pop-Location
+$env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
 Push-Location backend
 ../.venv/Scripts/python.exe -m pytest -m "not integration" -q
 Pop-Location
@@ -40,8 +46,9 @@ npm test
 npm run build
 Pop-Location
 node --test apps/chat-widget/tests/loader.test.cjs apps/chat-widget/tests/demo.test.cjs
-.venv/Scripts/python.exe -m build backend --wheel --no-isolation --outdir .backups/ui-validation/wheels
-.venv/Scripts/python.exe scripts/check-core-package.py --wheel .backups/ui-validation/wheels/raghub_backend-0.1.0-py3-none-any.whl
+.venv/Scripts/python.exe -m build raghub-core --outdir .backups/ui-validation/wheels
+.venv/Scripts/python.exe -m build backend --outdir .backups/ui-validation/wheels
+.venv/Scripts/python.exe scripts/check-core-package.py --wheel .backups/ui-validation/wheels/raghub_core-0.1.0-py3-none-any.whl --backend-wheel .backups/ui-validation/wheels/raghub_backend-0.1.0-py3-none-any.whl
 ```
 
 Local Compose acceptance commands use the existing test environment and ignored

@@ -1,5 +1,10 @@
 # Physical Core package verification
 
+This is the historical combined-wheel verification from 2026-10-04. The current
+layout uses standalone `raghub-core` alongside `backend`; see the
+[sibling package verification](RAGHUB_CORE_SIBLING_VERIFICATION.md) and
+[ADR-001](adr/ADR-001-core-package-boundary.md) for the superseding package decision.
+
 Verified locally on **2026-10-04**, branch `refactor/core-package`. The work starts
 at `d82e5ba` and merges `origin/develop` at `854dcaf` before moving engine code.
 The merge preserves Console navigation and incorporates the new provider-select,

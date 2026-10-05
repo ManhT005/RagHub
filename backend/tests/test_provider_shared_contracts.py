@@ -6,11 +6,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
-from app.infrastructure.persistence.provider_descriptors import provider_descriptor
-from app.modules.ai_providers.adapters.sentence_transformer import SentenceTransformerModelRegistry
-from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
-from app.modules.ai_providers.registry import ProviderRegistry
 from raghub_core.domain.providers.contracts import (
     ChatMessage,
     ChatOptions,
@@ -24,6 +19,11 @@ from raghub_core.domain.providers.errors import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
+
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+from app.modules.ai_providers.adapters.sentence_transformer import SentenceTransformerModelRegistry
+from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
+from app.modules.ai_providers.registry import ProviderRegistry
 
 EXTERNAL_EMBEDDING = ["OPENAI_COMPATIBLE", "GOOGLE_GEMINI"]
 EMBEDDING_TYPES = [*EXTERNAL_EMBEDDING, "LOCAL_SENTENCE_TRANSFORMER", "LOCAL_TOKEN_HASH"]

@@ -14,7 +14,7 @@ app infrastructure / persistence / AI adapters -> raghub_core.domain + ports
 app composition roots -> concrete adapters + raghub_core.api
 ```
 
-`backend/raghub_core/domain` is the engine's domain, algorithms, policies and contracts.
+`raghub-core/src/raghub_core/domain` is the engine's domain, algorithms, policies and contracts.
 `raghub_core/application` owns workflows. `raghub_core/ports` defines their dependencies.
 The supported facade is `raghub_core.api`; see the [frozen public API](RAGHUB_CORE_PUBLIC_API.md).
 There are no remaining `app/core_domain`, `app/application`, or `app/ports` aliases.
@@ -33,14 +33,15 @@ Elasticsearch, vendor HTTP clients, settings or concrete adapters. CPU libraries
 such as tiktoken are allowed. PDF decoding with PyMuPDF is an adapter; text and
 Markdown parsing and section/chunk contracts belong to the core.
 
-The `raghub-backend` wheel contains both the host and engine packages. It is not
-a separately versioned `raghub-core` distribution. Standalone distribution is
-intentionally **Deferred**, as recorded in [ADR-001](adr/ADR-001-core-package-boundary.md).
-The `core-package-isolation`
-CI job installs that wheel without host dependencies into a fresh venv, blocks
-every `app` import, imports every engine module, verifies bundled tokenizer data
-with an empty cache and runs the complete fake-port lifecycle. Docker copies both
-packages; development reload/watch configuration watches both source trees.
+`raghub-core` is a standalone package alongside `backend`. The `raghub-backend`
+wheel contains only the self-host `app` package and declares its core dependency,
+as recorded in [ADR-001](adr/ADR-001-core-package-boundary.md). The
+`core-package-isolation` CI job installs the core wheel in a fresh minimal venv,
+blocks every `app` import, imports every engine module, verifies bundled tokenizer
+data with an empty cache and runs the complete fake-port lifecycle. It also checks
+that the backend wheel declares core as a dependency without bundling its source.
+Docker installs core and copies the self-host app from the repository root context;
+development reload/watch configuration watches both source trees.
 
 ## Baseline inventory
 
@@ -179,6 +180,7 @@ Run backend checks from `backend/`:
 
 ```powershell
 ../.venv/Scripts/python.exe -m ruff check .
+$env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
 ../.venv/Scripts/python.exe -m pytest -p no:cacheprovider -m 'not integration'
 ```
 
@@ -189,10 +191,19 @@ Public API tests freeze the facade exports and identity and import it in a fresh
 subprocess with host/runtime libraries blocked. Fake-port ingestion, retrieval and
 RAG tests consume public use cases from the same facade as host composition.
 
-For a core-only environment, install `backend/requirements-core-test.lock` rather
-than the backend runtime dependencies, then run `python -m pytest -p
-no:cacheprovider tests/core` from `backend/`. CI has a separate job using that
-minimal dependency set. Adapter tests stay outside `tests/core`.
+For a core-only environment, run from `raghub-core/`:
+
+```sh
+python -m pip install -r requirements-test.lock
+python -m pip install --no-deps -e .
+python -m pytest -p no:cacheprovider
+```
+
+CI has a separate job using this minimal dependency set. Core architecture checks
+live in `raghub-core/tests/test_architecture.py`; host composition checks and
+adapter tests stay in `backend/tests`. Install both projects into the backend
+environment with `python -m pip install --no-deps -e ../raghub-core -e .` after
+installing the backend runtime lock. Run both suites to cover the full regression.
 
 ## Extraction status and verified limits
 
@@ -211,8 +222,9 @@ minimal dependency set. Adapter tests stay outside `tests/core`.
 
 The [original self-host verification report](../operations/SELF_HOST_VERIFICATION.md)
 records the previous extraction and operations evidence. The
-[package consolidation report](RAGHUB_CORE_PACKAGE_VERIFICATION.md) records current
-core-only, installed-wheel, backend, UI, migration and self-host evidence. The isolated
+[package consolidation report](RAGHUB_CORE_PACKAGE_VERIFICATION.md) records the
+earlier combined-wheel verification. The [sibling package refactor report](RAGHUB_CORE_SIBLING_VERIFICATION.md)
+records verification of the standalone core and self-host host. The isolated
 adapter suite includes PostgreSQL concurrency, conversation persistence, public
 SSE, Redis admission and workspace rebuilds. A separate CPU self-host installation
 exercises actual Sentence Transformer and Ollama models, restart persistence and

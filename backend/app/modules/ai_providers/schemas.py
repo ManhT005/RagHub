@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from raghub_core.domain.providers.enums import ProviderCapability, ProviderType
 
 _SENSITIVE_CONFIG_KEYS = {

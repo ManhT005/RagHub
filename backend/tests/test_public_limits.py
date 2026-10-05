@@ -5,6 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from fastapi import FastAPI
+from raghub_core.domain.errors import CoreError as AppError
 from redis.exceptions import ConnectionError
 
 from app.core.config import Settings
@@ -13,7 +14,6 @@ from app.core.exceptions import register_exception_handlers
 from app.delivery.http.error_mapping import http_status
 from app.modules.chatbots import router
 from app.modules.chatbots.public_limits import PublicChatLimits, get_public_limits
-from raghub_core.domain.errors import CoreError as AppError
 
 
 @pytest.mark.asyncio
