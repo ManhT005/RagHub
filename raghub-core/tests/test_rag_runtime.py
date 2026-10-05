@@ -143,6 +143,23 @@ async def test_runtime_estimates_missing_provider_usage():
     assert usage.records[0].usage == events[3].usage
 
 
+async def test_citations_are_limited_to_five_final_context_chunks_in_relevance_order():
+    command, chatbots, retrieval, providers, conversations, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, retrieval_limit=8)
+    retrieval.hits = [
+        replace(retrieval.hits[0], chunk_id=uuid4(), content=f"context {i}") for i in range(10)
+    ]
+    events = [event async for event in use_case.execute(command)]
+    citations = events[1].citations
+    assert len(citations) == 5 and citations == conversations.citations
+    assert [citation.chunk_id for citation in citations] == [
+        hit.chunk_id for hit in retrieval.hits[:5]
+    ]
+    prompt = providers.chat.calls[0][0][0].content
+    assert all(citation.excerpt in prompt for citation in citations)
+    assert "context 7" in prompt and "context 8" not in prompt
+
+
 async def test_current_question_is_appended_once_after_previous_history():
     command, _, _, providers, conversations, _, use_case = runtime()
     conversations.messages = [("user", "earlier"), ("assistant", "previous answer")]
