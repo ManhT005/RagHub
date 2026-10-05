@@ -300,6 +300,19 @@ class WorkspaceProviderBindingInput(BaseModel):
     chat_provider_id: UUID | None = None
 
 
+class RerankOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    candidate_limit: int = Field(default=40, strict=True, ge=1, le=200)
+    top_n: int = Field(default=8, strict=True, ge=1, le=100)
+    timeout_seconds: float = Field(default=5, strict=True, ge=0.1, le=30)
+
+    @model_validator(mode="after")
+    def validate_top_n(self):
+        if self.top_n > self.candidate_limit:
+            raise ValueError("top_n cannot exceed candidate_limit")
+        return self
+
+
 class WorkspaceProviderBindingResponse(BaseModel):
     workspace_id: UUID
     embedding_provider_id: UUID | None

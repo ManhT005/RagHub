@@ -184,6 +184,7 @@ class ProviderConfigService:
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
                     | (Workspace.chat_provider_id == provider_id)
+                    | (Workspace.rerank_provider_id == provider_id)
                     | Workspace.active_embedding_index_version_id.in_(indexes)
                     | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )

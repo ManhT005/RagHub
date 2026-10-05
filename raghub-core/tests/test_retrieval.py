@@ -91,3 +91,72 @@ async def test_readiness_failure_closes_search_and_maps_error():
             5,
         )
     assert error.value.code == "SEARCH_UNAVAILABLE" and store.closed == 1
+
+
+@pytest.mark.parametrize("failure", [None, "timeout", "duplicate", "authentication"])
+async def test_optional_rerank_preserves_scope_readiness_sources_and_fallback(failure):
+    import asyncio
+    from types import SimpleNamespace
+    from raghub_core.domain.providers.contracts import RerankItem, RerankResult
+    from raghub_core.domain.providers.errors import ProviderAuthenticationError
+    from raghub_core.ports.rerank import RerankRuntime
+
+    providers, store, readiness = FakeProviderResolver(), Search(), Readiness()
+    scope = RetrievalScope(uuid4(), uuid4())
+    first, second, stale = hit(), hit(), hit()
+    store.hits = [stale, first, second]
+    readiness.ready_pairs = {(c.document_id, c.document_version_id) for c in [first, second]}
+    calls, scopes, statuses = [], [], []
+
+    async def rerank(**kwargs):
+        calls.append(kwargs)
+        if failure == "timeout":
+            await asyncio.sleep(1)
+        if failure == "authentication":
+            raise ProviderAuthenticationError()
+        return RerankResult(
+            [RerankItem(1, 0.9), RerankItem(1 if failure == "duplicate" else 0, 0.1)], "m", "p"
+        )
+
+    async def resolve(given_scope):
+        scopes.append(given_scope)
+        return RerankRuntime(SimpleNamespace(rerank=rerank), 40, 2, 0.1)
+
+    use_case = RetrieveContextUseCase(
+        providers,
+        readiness,
+        lambda _: store,
+        SimpleNamespace(resolve_rerank=resolve),
+        statuses.append,
+    )
+    context = await use_case.execute(scope, "question", 2)
+    assert context.hits == ([second, first] if failure is None else [first, second])
+    assert scopes == readiness.calls == providers.scopes == [scope]
+    assert calls == [
+        {"query": "question", "documents": [first.content, second.content], "top_n": 2}
+    ]
+    assert store.searches[0][-1] == 40 and store.closed == 1
+    assert statuses == ["OK" if failure is None else "DEGRADED_REQUEST"]
+
+
+async def test_optional_rerank_resolution_failure_uses_original_ready_order():
+    from types import SimpleNamespace
+
+    providers, store, readiness = FakeProviderResolver(), Search(), Readiness()
+    ready = hit()
+    store.hits = [ready]
+    readiness.ready_pairs = {(ready.document_id, ready.document_version_id)}
+
+    async def resolve(_):
+        raise ConnectionError("Cannot resolve optional configuration")
+
+    statuses = []
+    use_case = RetrieveContextUseCase(
+        providers,
+        readiness,
+        lambda _: store,
+        SimpleNamespace(resolve_rerank=resolve),
+        statuses.append,
+    )
+    assert await use_case.retrieve(RetrievalScope(uuid4(), uuid4()), "q", 1) == [ready]
+    assert statuses == ["DEGRADED_RESOLUTION"]

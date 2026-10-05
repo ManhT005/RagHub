@@ -342,6 +342,7 @@ class ProviderControlService:
                 (
                     (Workspace.embedding_provider_id == ProviderConfig.id)
                     | (Workspace.chat_provider_id == ProviderConfig.id)
+                    | (Workspace.rerank_provider_id == ProviderConfig.id)
                 )
                 & Workspace.deleted_at.is_(None),
             )

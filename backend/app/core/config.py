@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
     trusted_local_provider_hosts: str = ""
+    ai_rerank_enabled: bool = True
 
     frontend_url: str = "http://localhost:8080"
     smtp_host: str = ""
