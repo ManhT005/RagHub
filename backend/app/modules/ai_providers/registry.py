@@ -167,6 +167,7 @@ class ProviderRegistry:
             model=config.model,
             dimension=config.dimension or 0,
             secret=secret,
+            provider_name=cls._vendor_name(config),
             policy=cls._policy(config),
             endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
             request_profile=(config.options or {}).get("request_profile", "OPENAI_STANDARD"),
@@ -181,12 +182,22 @@ class ProviderRegistry:
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,
             secret=secret,
+            provider_name=cls._vendor_name(config),
             policy=cls._policy(config),
             include_stream_usage=cls._include_stream_usage(config),
             endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
             static_headers=vendor_headers(
                 (config.options or {}).get("request_profile"), config.options or {}
             ),
+        )
+
+    @staticmethod
+    def _vendor_name(config):
+        profile = (config.options or {}).get("request_profile")
+        return (
+            profile
+            if profile in {"GROQ", "OPENROUTER", "CEREBRAS", "SILICONFLOW"}
+            else "OPENAI_COMPATIBLE"
         )
 
     @classmethod

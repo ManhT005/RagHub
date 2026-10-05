@@ -50,6 +50,7 @@ class CatalogItem(BaseModel):
 CATALOG = [
     CatalogItem(
         id="gemini",
+        locked_base_url=True,
         name="Google Gemini",
         category="Cloud",
         provider_type="GOOGLE_GEMINI",
@@ -74,6 +75,11 @@ CATALOG = [
     ),
     CatalogItem(
         id="openai",
+        locked_base_url=True,
+        access_tier="PAID",
+        docs_url="https://platform.openai.com/docs",
+        api_key_url="https://platform.openai.com/api-keys",
+        pricing_url="https://openai.com/api/pricing/",
         name="OpenAI",
         category="Cloud",
         provider_type="OPENAI_COMPATIBLE",
@@ -91,6 +97,7 @@ CATALOG = [
     ),
     CatalogItem(
         id="ollama",
+        access_tier="LOCAL",
         name="Ollama",
         category="Local",
         provider_type="OLLAMA",
@@ -105,6 +112,7 @@ CATALOG = [
     ),
     CatalogItem(
         id="sentence-transformer",
+        access_tier="LOCAL",
         name="Sentence Transformer",
         category="Local",
         provider_type="LOCAL_SENTENCE_TRANSFORMER",
@@ -116,6 +124,8 @@ CATALOG = [
     ),
     CatalogItem(
         id="nvidia-nim",
+        locked_base_url=True,
+        access_tier="FREE_TRIAL",
         name="NVIDIA NIM",
         category="Cloud",
         provider_type="OPENAI_COMPATIBLE",

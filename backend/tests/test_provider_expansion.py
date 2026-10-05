@@ -289,3 +289,90 @@ def test_siliconflow_rerank_cannot_be_used_with_custom_brand():
     )
     with pytest.raises(ProviderConfigurationError):
         ProviderRegistry().create(descriptor, "key")
+
+
+async def test_siliconflow_capabilities_come_from_typed_upstream_lists():
+    calls = []
+
+    def handle(request):
+        sub_type = request.url.params["sub_type"]
+        calls.append(sub_type)
+        return httpx.Response(200, json={"data": [{"id": "served/" + sub_type}]})
+
+    connection = SimpleNamespace(
+        provider_type="OPENAI_COMPATIBLE",
+        catalog_id="siliconflow",
+        base_url="https://api.siliconflow.com/v1",
+        config_json={},
+    )
+    models = await discover_models(connection, "key", transport=httpx.MockTransport(handle))
+    assert calls == ["chat", "embedding", "reranker"]
+    assert [model.capabilities for model in models] == [["CHAT"], ["EMBEDDING"], ["RERANK"]]
+
+
+async def test_cloud_legacy_api_cannot_mutate_connections_or_credentials(monkeypatch):
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    from app.core.auth import OrganizationContext
+    from app.core.exceptions import AppError
+    from app.modules.ai_providers.router import create_provider, update_provider
+    from app.modules.ai_providers.schemas import ProviderConfigInput, ProviderConfigPatch
+    from app.modules.ai_providers.service import ProviderConfigService
+    from app.modules.memberships.models import Membership, MembershipRole
+
+    org = uuid4()
+    context = OrganizationContext(org, Membership(role=MembershipRole.ADMIN, status="ACTIVE"))
+    payload = ProviderConfigInput(
+        name="cloud", provider_type="GOOGLE_GEMINI", capability="CHAT", model="gemini", secret="key"
+    )
+    with pytest.raises(AppError) as error:
+        await create_provider(org, payload, context, None)
+    assert error.value.code == "DEPRECATED_PROVIDER_API" and error.value.status_code == 410
+    monkeypatch.setattr(
+        ProviderConfigService,
+        "get",
+        AsyncMock(return_value=SimpleNamespace(provider_type="OPENAI_COMPATIBLE")),
+    )
+    with pytest.raises(AppError) as error:
+        await update_provider(
+            uuid4(),
+            ProviderConfigPatch(base_url="https://other.example/v1", secret="other-key"),
+            context,
+            None,
+        )
+    assert error.value.code == "DEPRECATED_PROVIDER_API"
+
+
+def test_snapshot_endpoint_cannot_exfiltrate_brand_credentials():
+    from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+    from app.modules.ai_providers.models import (
+        EmbeddingIndexVersion,
+        ProviderConfig,
+        ProviderConnection,
+    )
+
+    connection = ProviderConnection(
+        catalog_id="openai",
+        provider_type="OPENAI_COMPATIBLE",
+        base_url="https://api.openai.com/v1",
+        config_json={},
+    )
+    config = ProviderConfig(
+        connection=connection,
+        provider_type="OPENAI_COMPATIBLE",
+        capability="EMBEDDING",
+        model="m",
+        dimension=2,
+        base_url=connection.base_url,
+        config_json={},
+    )
+    snapshot = EmbeddingIndexVersion(
+        provider_type="OPENAI_COMPATIBLE",
+        model="m",
+        dimension=2,
+        base_url="https://other.example/v1",
+        config_json={},
+    )
+    with pytest.raises(ProviderConfigurationError):
+        provider_descriptor(config, snapshot)

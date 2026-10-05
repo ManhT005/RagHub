@@ -33,6 +33,7 @@ def test_gemini_adapters_expose_normalized_provider_identity() -> None:
 
 async def test_embedding_2_uses_native_per_chunk_requests_without_task_type(monkeypatch):
     import json
+
     import httpx
 
     captured = []

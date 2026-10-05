@@ -97,6 +97,7 @@ async def test_readiness_failure_closes_search_and_maps_error():
 async def test_optional_rerank_preserves_scope_readiness_sources_and_fallback(failure):
     import asyncio
     from types import SimpleNamespace
+
     from raghub_core.domain.providers.contracts import RerankItem, RerankResult
     from raghub_core.domain.providers.errors import ProviderAuthenticationError
     from raghub_core.ports.rerank import RerankRuntime

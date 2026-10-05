@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 REQUESTS = Counter()
 
 
+def record_request(provider, code, started):
+    REQUESTS[(provider, code)] += 1
+    logger.info(
+        "provider_request provider=%s status=%s latency_ms=%d",
+        provider,
+        code,
+        (time.monotonic() - started) * 1000,
+    )
+
+
 def response_error(status, headers=None):
     if status in {401, 403}:
         return ProviderAuthenticationError()
@@ -126,10 +136,4 @@ class ProviderHttp:
             code = exc.code
             raise
         finally:
-            REQUESTS[(self.provider_name, code)] += 1
-            logger.info(
-                "provider_request provider=%s status=%s latency_ms=%d",
-                self.provider_name,
-                code,
-                (time.monotonic() - started) * 1000,
-            )
+            record_request(self.provider_name, code, started)

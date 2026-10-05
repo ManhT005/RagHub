@@ -19,8 +19,21 @@ async def discover_native(connection, secret, base, transport):
         base_url=base, secret=secret, provider_name=connection.provider_type, transport=transport
     )
     try:
+        if item.id == "siliconflow":
+            models = []
+            for sub_type, capability in (
+                ("chat", "CHAT"),
+                ("embedding", "EMBEDDING"),
+                ("reranker", "RERANK"),
+            ):
+                data = await client.request("/models", method="GET", params={"sub_type": sub_type})
+                for row in data.get("data", []):
+                    name = row.get("id")
+                    if isinstance(name, str) and 0 < len(name) <= 255:
+                        models.append(DiscoveredModel(model=name, capabilities=[capability]))
+            return models
         if connection.provider_type == "CLOUDFLARE_WORKERS_AI":
-            data = await client.request("/models/search", method="GET", params={"per_page": 1000})
+            data = await client.request("/models/search", method="GET", params={"per_page": 100})
             if not isinstance(data, dict) or data.get("success") is False:
                 raise ValueError("Invalid catalog")
             models = []
@@ -86,7 +99,10 @@ async def discover_models(
         ) from exc
     headers = {"Authorization": f"Bearer {secret}"} if secret else {}
     catalog = supported_catalog_by_id(connection_catalog_id(connection))
-    if provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"}:
+    if (
+        provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"}
+        or catalog.id == "siliconflow"
+    ):
         return await discover_native(connection, secret, base, transport)
     if provider_type == "GOOGLE_GEMINI":
         # Native metadata is adjacent to the OpenAI-compatible runtime endpoint.
@@ -147,7 +163,14 @@ async def discover_models(
                     pricing = item.get("pricing") or {}
                     free = None
                     if catalog.id == "openrouter" and pricing:
-                        free = all(str(pricing.get(k)) == "0" for k in ("prompt", "completion"))
+                        from decimal import Decimal, InvalidOperation
+
+                        try:
+                            free = all(
+                                Decimal(str(pricing.get(k))) == 0 for k in ("prompt", "completion")
+                            )
+                        except InvalidOperation:
+                            free = None
                     # OpenAI-compatible /models does not advertise capability or dimension.
                     models.append(
                         DiscoveredModel(

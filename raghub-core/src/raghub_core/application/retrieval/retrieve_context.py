@@ -11,8 +11,8 @@ from raghub_core.domain.retrieval.hybrid import (
 )
 from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 from raghub_core.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
-from raghub_core.ports.retrieval import DocumentReadinessPort
 from raghub_core.ports.rerank import RerankResolverPort
+from raghub_core.ports.retrieval import DocumentReadinessPort
 from raghub_core.ports.vector_store import VectorSearchPort
 
 
