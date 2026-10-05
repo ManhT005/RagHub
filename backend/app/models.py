@@ -1,5 +1,6 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.ai_providers.local_models import LocalModelDownload
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
@@ -26,6 +27,7 @@ from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
 __all__ = [
+    "LocalModelDownload",
     "InstallationState",
     "Document",
     "DocumentVersion",

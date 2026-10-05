@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     trusted_local_provider_hosts: str = ""
     ai_rerank_enabled: bool = True
+    local_ai_download_enabled: bool = True
+    local_ai_model_dir: str = ".cache/huggingface/local-ai"
 
     frontend_url: str = "http://localhost:8080"
     smtp_host: str = ""

@@ -57,6 +57,12 @@ export interface ConnectionTest {
 export interface RerankBinding {
   model_id: string | null; candidate_limit: number; top_n: number; timeout_seconds: number;
 }
+export interface LocalAiModel {
+  id: string; repo: string; revision: string; dimension: number; languages: string;
+  approximate_bytes: number; docs_url: string;
+  status: 'AVAILABLE' | 'QUEUED' | 'DOWNLOADING' | 'VERIFYING' | 'INSTALLED' | 'FAILED';
+  completed_bytes: number; total_bytes: number; error_code: string | null;
+}
 export function selectableModel(model: RegistryModel): boolean {
   return model.enabled && model.connection_enabled && model.connection_status === 'CONNECTED'
     && model.availability_status === 'AVAILABLE';
@@ -84,4 +90,6 @@ export class ProviderApiService {
   removeModel(id: string) { return this.http.delete(`${this.base}/models/${id}`); }
   rerankBinding(id: string) { return this.http.get<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`); }
   bindRerank(id: string, payload: RerankBinding) { return this.http.put<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`, payload); }
+  localModels(org: string) { return this.http.get<LocalAiModel[]>(`${this.base}/organizations/${org}/local-ai/models`); }
+  downloadLocal(org: string, id: string) { return this.http.post<{status: string}>(`${this.base}/organizations/${org}/local-ai/models/${id}/download`, {}); }
 }
