@@ -67,4 +67,12 @@ describe('AuthSessionService', () => {
     http.expectOne('/api/v1/auth/logout').flush(null);
     expect(auth.accessToken()).toBeNull();
   });
+  it('does not refresh a delayed request after explicit logout', () => {
+    auth.acceptToken('old');
+    auth.logout().subscribe();
+    auth.refresh().subscribe({ error: error => expect(error.status).toBe(401) });
+    http.expectNone('/api/v1/auth/refresh');
+    http.expectOne('/api/v1/auth/logout').flush(null);
+    expect(auth.accessToken()).toBeNull();
+  });
 });

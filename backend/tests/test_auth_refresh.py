@@ -60,7 +60,7 @@ async def test_login_rotation_reuse_and_persistence(isolated_sessions):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("state", ["expired", "revoked", "disabled"])
+@pytest.mark.parametrize("state", ["expired", "revoked", "disabled", "auth_version"])
 async def test_rejects_invalid_sessions(isolated_sessions, state):
     user_id = await create_user(isolated_sessions)
     async with isolated_sessions() as session:
@@ -70,8 +70,10 @@ async def test_rejects_invalid_sessions(isolated_sessions, state):
             current.expires_at = datetime.now(UTC) - timedelta(seconds=1)
         elif state == "revoked":
             current.revoked_at = datetime.now(UTC)
-        else:
+        elif state == "disabled":
             (await session.get(User, user_id)).status = "DISABLED"
+        else:
+            (await session.get(User, user_id)).auth_version += 1
         await session.commit()
         with pytest.raises(AppError):
             await service(session).refresh(initial.refresh_token)

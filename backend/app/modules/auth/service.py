@@ -185,7 +185,7 @@ class AuthService:
                 "INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired.", status_code=401
             )
         user = await self.session.get(User, current.user_id)
-        if user is None or user.status != "ACTIVE":
+        if user is None or user.status != "ACTIVE" or current.auth_version != user.auth_version:
             raise AppError(
                 "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
             )
@@ -216,6 +216,7 @@ class AuthService:
                 id=session_id,
                 user_id=user.id,
                 refresh_token_hash=hash_token(raw_refresh),
+                auth_version=user.auth_version,
                 expires_at=datetime.now(UTC) + timedelta(days=self.settings.refresh_token_ttl_days),
             )
         )

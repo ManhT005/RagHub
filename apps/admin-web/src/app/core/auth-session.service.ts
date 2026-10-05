@@ -11,6 +11,11 @@ export class AuthSessionService {
   private generation = 0;
   readonly restoreError = signal(false);
   accessToken(): string | null { return session.accessToken; }
+  private withCookieLock<T>(send: () => Observable<T>): Observable<T> {
+    return defer(() => navigator.locks
+      ? from((async (): Promise<T> => await navigator.locks.request('raghub.session', () => firstValueFrom(send())))())
+      : send());
+  }
   acceptToken(token: string): void {
     this.generation++;
     session.accessToken = token;
@@ -18,18 +23,16 @@ export class AuthSessionService {
     this.restoreError.set(false);
   }
   login(email: string, password: string): Observable<void> {
-    return this.http.post<{ access_token: string }>('/api/v1/auth/login', { email, password }, { withCredentials: true }).pipe(
+    return this.withCookieLock(() => this.http.post<{ access_token: string }>('/api/v1/auth/login', { email, password }, { withCredentials: true })).pipe(
       tap(result => this.acceptToken(result.access_token)), map(() => undefined),
     );
   }
   refresh(): Observable<string> {
+    if (this.knownUnauthenticated) return throwError(() => new HttpErrorResponse({ status: 401, statusText: 'Unauthenticated' }));
     if (!this.refreshInFlight$) {
       const generation = this.generation;
-      this.refreshInFlight$ = defer(() => {
-        const send = () => this.http.post<{ access_token: string }>('/api/v1/auth/refresh', {}, { withCredentials: true }).pipe(timeout(15000));
-        // Browser tabs share the cookie. Serialize rotation across tabs when Web Locks is available.
-        return navigator.locks ? from((async () => await navigator.locks.request('raghub.refresh', () => firstValueFrom(send())))()) : send();
-      }).pipe(
+      // Browser tabs share the cookie: serialize cookie mutations across tabs.
+      this.refreshInFlight$ = this.withCookieLock(() => this.http.post<{ access_token: string }>('/api/v1/auth/refresh', {}, { withCredentials: true }).pipe(timeout(15000))).pipe(
         map(result => {
           if (generation !== this.generation) throw new Error('Session changed during refresh');
           session.accessToken = result.access_token;
@@ -64,7 +67,7 @@ export class AuthSessionService {
     this.clearLocalSession();
     // Wait for cookie rotation before revoking, so logout cannot leave a new session behind.
     return (pending ? pending.pipe(catchError(() => of(null))) : of(null)).pipe(
-      switchMap(() => this.http.post<void>('/api/v1/auth/logout', {}, { withCredentials: true }).pipe(timeout(5000))),
+      switchMap(() => this.withCookieLock(() => this.http.post<void>('/api/v1/auth/logout', {}, { withCredentials: true }).pipe(timeout(5000)))),
       catchError(() => of(undefined)),
     );
   }
