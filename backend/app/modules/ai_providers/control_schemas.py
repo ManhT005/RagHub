@@ -101,6 +101,7 @@ class ConnectionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
     model_count: int = 0
+    config_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class DiscoveredModel(BaseModel):

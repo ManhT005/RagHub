@@ -73,6 +73,8 @@ export class ProviderOnboardingComponent {
   private pullPolling?: Subscription;
   protected search = "";
   protected category = "";
+  protected accessTier = "";
+  protected configFields: Record<string, string> = {};
   protected name = "";
   protected baseUrl = "";
   protected secret = "";
@@ -98,6 +100,8 @@ export class ProviderOnboardingComponent {
       this.name = existing?.name ?? "";
       this.baseUrl = existing?.base_url ?? "";
       this.secret = "";
+      this.configFields = Object.fromEntries(Object.entries(existing?.config_json ?? {})
+        .filter(([, value]) => typeof value === 'string').map(([key, value]) => [key, String(value)]));
       this.search = "";
       this.manualId = "";
       this.modelSearch = "";
@@ -124,21 +128,27 @@ export class ProviderOnboardingComponent {
     return this.catalog().filter(
       (item) =>
         item.name.toLowerCase().includes(this.search.toLowerCase()) &&
-        (!this.category || item.category === this.category),
+        (!this.category || item.category === this.category) &&
+        (!this.accessTier || item.access_tier === this.accessTier),
     );
   }
   protected choose(item: ProviderCatalogItem) {
-    if (item.status !== "SUPPORTED" || this.busy()) return;
+    if (!['SUPPORTED', 'BETA'].includes(item.status) || this.busy()) return;
     this.selected.set(item);
     this.name = item.name;
     this.baseUrl = item.default_base_url ?? "";
     this.secret = "";
+    this.configFields = {};
     this.manualCapability = item.capabilities.length === 1 ? item.capabilities[0] : "UNKNOWN";
     this.step.set(1);
   }
   protected test() {
     const item = this.selected();
     if (!item?.provider_type || !this.name.trim() || this.busy()) return;
+    if (item.fields?.some(field => field.required && !this.configFields[field.key]?.trim())) {
+      this.error.set('Điền các trường bắt buộc của provider.');
+      return;
+    }
     if (item.id === "compatible" && !this.baseUrl.trim()) {
       this.error.set("Nhập Base URL của provider OpenAI-compatible.");
       return;
@@ -151,6 +161,10 @@ export class ProviderOnboardingComponent {
       name: this.name.trim(),
       base_url: this.baseUrl.trim() || null,
       ...(this.secret ? { secret: this.secret } : {}),
+      ...(item.fields?.length ? { config_json: {
+        ...(this.connection()?.config_json ?? {}),
+        ...Object.fromEntries(Object.entries(this.configFields).filter(([, value]) => value.trim()))
+      } } : {}),
     };
     const request = this.connectionId
       ? this.api.update(this.connectionId, payload)

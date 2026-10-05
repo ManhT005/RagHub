@@ -22,6 +22,7 @@ import { WorkspaceApiService } from "../../core/api/workspace-api.service";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { apiError } from "../../core/api/api-error";
 import { EmbeddingProfileComponent } from "./embedding-profile.component";
+import { RerankProfileComponent } from "./rerank-profile.component";
 import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
 import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
 @Component({
@@ -32,6 +33,7 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
     NzButtonModule,
     NzAlertModule,
     EmbeddingProfileComponent,
+    RerankProfileComponent,
   ],
   template: `<header class="page-heading">
       <div>
@@ -73,7 +75,7 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
       @if (notice()) {
         <nz-alert nzType="success" [nzMessage]="notice()" nzShowIcon />
       }
-    </section>`,
+    </section><raghub-rerank-profile />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceAiComponent {

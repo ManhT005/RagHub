@@ -64,6 +64,34 @@ describe("Provider onboarding", () => {
     fixture.detectChanges();
     return fixture;
   }
+  it('accepts Beta providers and requires catalog credential fields before saving', () => {
+    const view = fixture();
+    const cloudflare: ProviderCatalogItem = {
+      ...catalog[0], id: 'cloudflare-workers-ai', name: 'Cloudflare', category: 'Cloud',
+      provider_type: 'CLOUDFLARE_WORKERS_AI', status: 'BETA', auth_type: 'API_KEY',
+      default_base_url: 'https://api.cloudflare.com/client/v4', locked_base_url: true,
+      capabilities: ['CHAT', 'EMBEDDING', 'RERANK'],
+      fields: [{ key: 'account_id', label: 'Account ID', required: true, type: 'text' }],
+    };
+    const component = view.componentInstance;
+    component['choose'](cloudflare);
+    component['test']();
+    expect(api.create).not.toHaveBeenCalled();
+    component['configFields'] = { account_id: 'a'.repeat(32) };
+    component['secret'] = 'personal-cf-token';
+    component['test']();
+    expect(api.create).toHaveBeenCalledWith('org-1', expect.objectContaining({
+      catalog_id: 'cloudflare-workers-ai', secret: 'personal-cf-token',
+      config_json: { account_id: 'a'.repeat(32) },
+    }));
+    expect(component['secret']).toBe('');
+  });
+  it('prevents retired providers from entering connection setup', () => {
+    const view = fixture();
+    view.componentInstance['choose']({ ...catalog[0], id: 'github-models', status: 'RETIRED' });
+    expect(view.componentInstance['step']()).toBe(0);
+    expect(api.create).not.toHaveBeenCalled();
+  });
   it("tests a real connection before entering model selection and survives catalog refresh", () => {
     const view = fixture();
     const component = view.componentInstance;

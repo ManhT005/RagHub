@@ -16,7 +16,7 @@
       <option>UNTESTED</option>
       <option>DEGRADED</option>
       <option>ERROR</option>
-    </select><a routerLink="/system/ai/models">Model Registry →</a><button nz-button (click)="load()"
+    </select><a routerLink="/system/ai/models">Model Registry →</a><a routerLink="/system/ai/local">Local AI →</a><button nz-button (click)="load()"
       [nzLoading]="loading()">Làm mới</button></div>
   @if (loading()) { <p role="status">Đang tải provider…</p> }
   <div class="provider-grid">

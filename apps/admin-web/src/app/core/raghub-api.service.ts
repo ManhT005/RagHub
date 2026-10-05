@@ -59,13 +59,16 @@ export interface DocumentItem {
   error_message: string | null;
   retryable: boolean;
 }
-export type ProviderCapability = "EMBEDDING" | "CHAT";
+export type ProviderCapability = "EMBEDDING" | "CHAT" | "RERANK";
 export type ProviderType =
   | "OPENAI_COMPATIBLE"
   | "GOOGLE_GEMINI"
   | "LOCAL_TOKEN_HASH"
   | "LOCAL_SENTENCE_TRANSFORMER"
-  | "OLLAMA";
+  | "OLLAMA"
+  | "VOYAGE"
+  | "CLOUDFLARE_WORKERS_AI"
+  | "HUGGINGFACE_INFERENCE";
 export interface ProviderConfig {
   id: string;
   organization_id: string;

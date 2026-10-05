@@ -6,7 +6,10 @@ export interface ProviderCatalogItem {
   id: string; name: string; category: string; provider_type: ProviderType | null;
   default_base_url: string | null; capabilities: ProviderCapability[];
   supports_model_discovery: boolean; auth_type: string; docs_url: string | null;
-  api_key_url: string | null; status: 'SUPPORTED' | 'COMING_SOON';
+  api_key_url: string | null; status: 'SUPPORTED' | 'BETA' | 'COMING_SOON' | 'RETIRED';
+  access_tier?: string; free_tier_note?: string | null; pricing_url?: string | null;
+  last_verified_at?: string; locked_base_url?: boolean; migration_guidance?: string | null;
+  fields?: { key: string; label: string; required: boolean; type: string }[];
 }
 export interface ProviderConnection {
   catalog_id: string | null;
@@ -15,10 +18,12 @@ export interface ProviderConnection {
   status: 'UNTESTED' | 'CONNECTED' | 'DEGRADED' | 'ERROR';
   last_tested_at: string | null; last_latency_ms: number | null; last_error_code: string | null;
   created_at: string; updated_at: string | null; model_count: number;
+  config_json?: Record<string, unknown>;
 }
 export interface ConnectionInput {
   catalog_id: string;
   name: string; provider_type: ProviderType; base_url?: string | null; secret?: string; enabled?: boolean;
+  config_json?: Record<string, unknown>;
 }
 export interface RegistryModel {
   provider_catalog_id: string | null;
@@ -34,6 +39,8 @@ export interface ModelInput {
 export interface DiscoveredModel {
   model: string; display_name: string | null; capabilities: ProviderCapability[]; dimension: number | null;
   size_bytes?: number | null;
+  context_tokens?: number | null; free?: boolean | null; reasoning?: boolean | null;
+  deprecated?: boolean; recommended?: boolean; output_dimensions?: number[];
 }
 export interface OllamaRecommendation {
   model: string; display_name: string; tier: string; size_bytes: number; description: string; highlighted: boolean;
@@ -46,6 +53,9 @@ export interface OllamaPullJob {
 export interface ConnectionTest {
   status: string; latency_ms: number; capabilities: ProviderCapability[];
   discovery_supported: boolean; error_code: string | null;
+}
+export interface RerankBinding {
+  model_id: string | null; candidate_limit: number; top_n: number; timeout_seconds: number;
 }
 export function selectableModel(model: RegistryModel): boolean {
   return model.enabled && model.connection_enabled && model.connection_status === 'CONNECTED'
@@ -72,4 +82,6 @@ export class ProviderApiService {
   testModel(id: string) { return this.http.post<RegistryModel>(`${this.base}/models/${id}/test`, {}); }
   updateModel(id: string, enabled: boolean) { return this.http.patch<RegistryModel>(`${this.base}/models/${id}`, { enabled }); }
   removeModel(id: string) { return this.http.delete(`${this.base}/models/${id}`); }
+  rerankBinding(id: string) { return this.http.get<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`); }
+  bindRerank(id: string, payload: RerankBinding) { return this.http.put<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`, payload); }
 }
