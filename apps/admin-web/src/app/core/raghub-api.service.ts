@@ -116,6 +116,9 @@ export interface Chatbot {
   embed_primary_color: string;
   embed_title: string;
   embed_greeting: string;
+  clarification_mode: "off" | "conservative" | "proactive";
+  max_clarifying_turns: number;
+  domain_profile: string;
 }
 export interface ChatbotInput {
   name: string;
@@ -123,6 +126,9 @@ export interface ChatbotInput {
   model?: string | null;
   retrieval_limit: number;
   published: boolean;
+  clarification_mode?: "off" | "conservative" | "proactive";
+  max_clarifying_turns?: number;
+  domain_profile?: string;
 }
 export interface ChatRequest {
   message: string;
@@ -142,6 +148,7 @@ export interface EmbedCode {
 export type ChatStreamEventName =
   | "conversation"
   | "citations"
+  | "clarification"
   | "token"
   | "usage"
   | "done"

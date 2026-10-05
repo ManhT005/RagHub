@@ -133,6 +133,14 @@ export class WorkspaceChatComponent implements OnDestroy {
         typeof event.data["conversation_id"] === "string"
           ? event.data["conversation_id"]
           : null;
+    if (event.event === "clarification" && typeof event.data["message"] === "string")
+      this.messages.update((items) =>
+        items.map((item, index) =>
+          index === items.length - 1
+            ? { ...item, text: event.data["message"] as string }
+            : item,
+        ),
+      );
     if (event.event === "token" && typeof event.data["text"] === "string")
       this.messages.update((items) =>
         items.map((item, index) =>

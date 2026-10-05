@@ -113,6 +113,26 @@ describe('SseEventParser', () => {
       { event: 'done', data: {} },
     ]);
   });
+
+  it('parses clarification events', () => {
+    const parser = new SseEventParser();
+
+    expect(
+      parser.push(
+        'event: clarification\ndata: {"message":"Ban muon hoi nganh nao?","missing_slots":["major"],"suggestions":["CNTT"],"reason":"missing_required_slot"}\n\n',
+      ),
+    ).toEqual([
+      {
+        event: 'clarification',
+        data: {
+          message: 'Ban muon hoi nganh nao?',
+          missing_slots: ['major'],
+          suggestions: ['CNTT'],
+          reason: 'missing_required_slot',
+        },
+      },
+    ]);
+  });
 });
 
 describe('RaghubApiService authentication endpoints', () => {

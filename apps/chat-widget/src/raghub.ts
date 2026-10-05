@@ -121,6 +121,8 @@ type EventPayload = Record<string, unknown>;
             const data = JSON.parse(raw) as EventPayload;
             if (event === "token")
               answer.textContent += String(data.text || "");
+            if (event === "clarification" && typeof data.message === "string")
+              answer.textContent = data.message;
             if (event === "conversation")
               this.conversationId = String(data.conversation_id);
             if (event === "citations")
