@@ -5,13 +5,13 @@ import { AppComponent } from './app.component';
 import { appConfig } from './app.config';
 
 describe('AppComponent', () => {
-  it('redirects legacy documents to the app documents route', async () => {
+  it('redirects legacy documents without a workspace to the workspace selector', async () => {
     sessionStorage.setItem('raghub.access-token', 'test-token');
     await TestBed.configureTestingModule({ providers: appConfig.providers }).compileComponents();
     const router = TestBed.inject(Router);
     const location = TestBed.inject(Location);
     await router.navigateByUrl('/documents');
-    expect(location.path()).toBe('/app/documents');
+    expect(location.path()).toBe('/app/workspaces');
   });
 
   it('redirects an unauthenticated profile visit to login', async () => {

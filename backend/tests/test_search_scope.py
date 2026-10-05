@@ -1,8 +1,11 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
 from app.core.auth import OrganizationContext, get_organization_context
+from app.core.database import get_session
 from app.main import app
 from app.modules.memberships.models import MembershipRole
 
@@ -34,12 +37,15 @@ def test_search_passes_both_tenant_filters(monkeypatch: object) -> None:
     workspace_id = UUID("00000000-0000-0000-0000-000000000002")
 
     class MembershipStub:
-        role = MembershipRole.VIEWER
+        role = MembershipRole.ADMIN
 
     async def organization_context_override() -> OrganizationContext:
         return OrganizationContext(organization_id=organization_id, membership=MembershipStub())  # type: ignore[arg-type]
 
     app.dependency_overrides[get_organization_context] = organization_context_override
+    app.dependency_overrides[get_session] = lambda: SimpleNamespace(
+        scalar=AsyncMock(return_value=workspace_id)
+    )
 
     try:
         response = client.get(

@@ -1,0 +1,111 @@
+<section class="selfhost-page">
+  <header class="page-heading">
+    <div>
+      <h1>Thành viên & quyền</h1>
+      <p>Quyền chỉ áp dụng trong workspace hiện tại.</p>
+    </div>
+    @if (context.can("member.manage")) {
+      <button nz-button nzType="primary" (click)="open()">
+        + Gán thành viên
+      </button>
+    }
+  </header>
+  @if (error()) {
+    <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+  }
+  <nz-table
+    #table
+    [nzData]="members()"
+    [nzLoading]="loading()"
+    [nzScroll]="{ x: '700px' }"
+  >
+    <thead>
+      <tr>
+        <th>Thành viên</th>
+        <th>Trạng thái</th>
+        <th>Quyền workspace</th>
+        <th>Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (member of table.data; track member.user_id) {
+        <tr>
+          <td>
+            <strong>{{ member.display_name || member.email }}</strong
+            ><small class="block muted">{{ member.email }}</small>
+          </td>
+          <td>{{ member.status }}</td>
+          <td>{{ member.permissions.join(", ") }}</td>
+          <td>
+            @if (context.can("member.manage")) {
+              <div class="card-actions">
+                <button nz-button (click)="open(member)" [disabled]="saving()">
+                  Sửa quyền</button
+                ><button
+                  nz-button
+                  nzDanger
+                  nz-popconfirm
+                  nzPopconfirmTitle="Gỡ thành viên khỏi workspace này?"
+                  (nzOnConfirm)="remove(member)"
+                  [disabled]="saving()"
+                >
+                  Gỡ
+                </button>
+              </div>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </nz-table>
+</section>
+<nz-modal
+  [nzVisible]="editorOpen()"
+  nzTitle="Gán thành viên & quyền workspace"
+  [nzWidth]="720"
+  nzOkText="Lưu phân quyền"
+  nzCancelText="Hủy"
+  [nzOkLoading]="saving()"
+  [nzOkDisabled]="!selectedUserId"
+  [nzMaskClosable]="!saving()"
+  (nzOnCancel)="!saving() && editorOpen.set(false)"
+  (nzOnOk)="save()"
+  ><ng-container *nzModalContent>
+    <div class="selfhost-page">
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+      }
+      <label
+        >Người dùng<select
+          [(ngModel)]="selectedUserId"
+          (ngModelChange)="selectUser()"
+          [disabled]="saving()"
+        >
+          <option value="">Chọn thành viên của tổ chức</option>
+          @for (user of candidates(); track user.user_id) {
+            <option [value]="user.user_id">
+              {{ user.display_name || user.email }} · {{ user.email }}
+            </option>
+          }
+        </select></label
+      >
+      <p><strong>Workspace:</strong> {{ context.workspace()?.name }}</p>
+      <p class="muted">
+        Phân quyền này không cấp quyền quản trị hệ thống hay quyền xem API key.
+      </p>
+      <fieldset class="permission-grid" [disabled]="saving()">
+        <legend>Quyền trong workspace</legend>
+        @for (permission of permissions; track permission[0]) {
+          <label class="permission-choice"
+            ><input
+              type="checkbox"
+              [checked]="grants.includes(permission[0])"
+              [disabled]="permission[0] === 'workspace.view'"
+              (change)="toggle(permission[0], $any($event.target).checked)"
+            />{{ permission[1] }}</label
+          >
+        }
+      </fieldset>
+    </div>
+  </ng-container></nz-modal
+>

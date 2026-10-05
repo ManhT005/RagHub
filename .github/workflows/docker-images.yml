@@ -22,27 +22,33 @@ jobs:
       matrix:
         include:
           - image: backend
-            context: backend
+            context: .
+            dockerfile: backend/Dockerfile
             target: runtime
             suffix: ""
           - image: backend
-            context: backend
+            context: .
+            dockerfile: backend/Dockerfile
             target: local-ai
             suffix: -local-ai
           - image: admin-web
-            context: apps/admin-web
+            context: .
+            dockerfile: apps/admin-web/Dockerfile
             target: runtime
             suffix: ""
           - image: chat-widget
             context: apps/chat-widget
+            dockerfile: apps/chat-widget/Dockerfile
             target: runtime
             suffix: ""
           - image: widget-demo
             context: apps/chat-widget/demo
+            dockerfile: apps/chat-widget/demo/Dockerfile
             target: runtime
             suffix: ""
           - image: gateway
             context: infrastructure/nginx
+            dockerfile: infrastructure/nginx/Dockerfile
             target: runtime
             suffix: ""
     steps:
@@ -91,6 +97,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
           platforms: linux/amd64
           push: ${{ inputs.publish }}

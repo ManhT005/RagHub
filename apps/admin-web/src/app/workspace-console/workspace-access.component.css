@@ -1,0 +1,96 @@
+:host {
+  display: block;
+  margin-top: 16px;
+}
+
+.access-card {
+  padding: 20px;
+  border: 1px solid var(--rh-border);
+  border-radius: 16px;
+  background: var(--rh-surface);
+}
+
+.access-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--rh-cyan);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+h2 {
+  margin: 0;
+  color: var(--rh-text);
+}
+
+.access-heading p:last-child {
+  margin: 6px 0 0;
+  color: var(--rh-muted);
+}
+
+.add-admin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  max-width: 700px;
+  margin-bottom: 14px;
+}
+
+.add-admin label {
+  display: grid;
+  gap: 7px;
+  color: var(--rh-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.add-admin input,
+.add-admin button {
+  min-height: 42px;
+}
+
+nz-alert {
+  display: block;
+  margin-bottom: 12px;
+}
+
+strong {
+  color: var(--rh-text);
+}
+
+.actions {
+  text-align: right;
+}
+
+.empty {
+  margin: 0;
+  padding: 28px 12px;
+  color: var(--rh-muted);
+  text-align: center;
+}
+
+:host ::ng-deep .ant-input,
+:host ::ng-deep .ant-btn {
+  border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+  .access-heading,
+  .add-admin {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .add-admin button {
+    width: 100%;
+  }
+}

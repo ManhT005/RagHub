@@ -36,7 +36,7 @@ Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) v�
 
 | Nhóm | Khả năng hiện có | Giao diện web |
 | --- | --- | --- |
-| Tài khoản và phân quyền | Đăng ký, đăng nhập, JWT; tổ chức, thành viên và vai trò `OWNER` / `ADMIN` / `EDITOR` / `VIEWER` | Có |
+| Tài khoản và phân quyền | Đăng ký, đăng nhập, JWT; tổ chức, thành viên và vai trò `ADMIN` / `WORKSPACE_ADMIN` theo từng workspace | Có |
 | Không gian làm việc | Tạo, xem, cập nhật và xóa mềm trong phạm vi tổ chức | Một phần: tạo và xem |
 | Tài liệu | Upload PDF/TXT/Markdown, xử lý bất đồng bộ, theo dõi tiến độ, retry và lập chỉ mục lại | Có |
 | Tìm kiếm | BM25 kết hợp vector, lọc theo tổ chức và không gian làm việc | API |
@@ -65,6 +65,34 @@ Tài liệu thiết kế phiên bản 1.0 đặt mốc MVP ngày **08/10/2026**.
 Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tuyên bố MVP đã hoàn thành. [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) mô tả chi tiết kiến trúc, backlog, tiêu chí nghiệm thu và kịch bản demo dự kiến.
 
 ## Công nghệ và kiến trúc
+
+Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành instance quản lý**.
+Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
+billing và quản trị enterprise thuộc roadmap sau.
+
+Console Self-host UI v1 có AI Providers/Model Registry tại `/system/ai/` và
+workspace console tại `/app/workspaces`. Xem [phạm vi triển khai, migration và rollback](docs/ui/selfhost-v1/implementation.md)
+cùng [kết quả nghiệm thu và lệnh kiểm thử](docs/ui/selfhost-v1/verification.md).
+
+**Core package — `raghub-core/src/raghub_core`:** engine tri thức và RAG tái sử dụng,
+chứa domain rules, application workflows và dependency ports. Core không sở hữu
+HTTP delivery, persistence implementation, Redis admission, deployment mode hay
+quản trị sản phẩm. Host composition phải lấy public use case từ `raghub_core.api`;
+infrastructure được implement trực tiếp `raghub_core.ports` và dùng domain contracts.
+
+**Self-host host và adapters — `backend/app`:** composition, delivery, persistence adapters,
+auth/RBAC, Redis, provider clients, MinIO, Elasticsearch, Celery và quản trị sản phẩm.
+Playground và public widget dùng cùng typed RAG runtime; origin, rate limit và
+concurrency thuộc host. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
+và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
+Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
+**Hai Python package:** `raghub-core` chứa engine; `raghub-backend` chỉ chứa `app`
+và phụ thuộc `raghub-core==0.1.0`. Hai project nằm ngang hàng, giữ nguyên namespace
+`raghub_core` và public API. Xem [ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md)
+và [hướng dẫn core](raghub-core/README.md). Package được build/cài từ source local;
+refactor này chưa publish lên package registry.
+CI kiểm tra engine từ installed wheel trong venv tối thiểu, chặn import `app`
+và dùng cache tokenizer rỗng.
 
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |
@@ -123,6 +151,24 @@ docker compose -f infrastructure/docker-compose.yml ps
 ```
 
 Service `migrate` chạy Alembic trước khi API khởi động. Local ports mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
+
+Ở local, frontend và backend đều chạy với source bind mount:
+
+- `admin-web`: Angular dev server tự hot reload thay đổi trong `apps/admin-web/src`.
+- `api`: Uvicorn tự reload thay đổi trong `backend/app`.
+- `worker`: Watchfiles tự restart Celery khi source Python thay đổi.
+
+Không cần build lại Docker khi sửa HTML/CSS/TypeScript/Python. Chỉ build lại image tương ứng khi thay đổi dependency hoặc Dockerfile:
+
+```powershell
+docker compose -f infrastructure/docker-compose.yml build admin-web
+docker compose -f infrastructure/docker-compose.yml up -d --no-deps admin-web
+
+docker compose -f infrastructure/docker-compose.yml build api
+docker compose -f infrastructure/docker-compose.yml up -d --no-deps api worker
+```
+
+Compose deploy/GHCR vẫn dùng production build tĩnh qua Nginx.
 
 | Địa chỉ | Dịch vụ |
 | --- | --- |
@@ -200,9 +246,19 @@ Chạy các lệnh sau từ `backend/`:
 cd backend
 python -m venv ..\.venv
 ..\.venv\Scripts\python.exe -m pip install -r requirements.lock
+..\.venv\Scripts\python.exe -m pip install --no-deps -e ../raghub-core -e .
 ..\.venv\Scripts\python.exe -m alembic upgrade head
+$env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
 ..\.venv\Scripts\python.exe -m pytest -p no:cacheprovider
-..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m ruff check . ../raghub-core
+```
+
+Core có bộ kiểm thử riêng, không cần backend hay Docker. Chạy từ root repository:
+
+```powershell
+Push-Location raghub-core
+../.venv/Scripts/python.exe -m pytest -p no:cacheprovider
+Pop-Location
 ```
 
 ### Frontend
@@ -226,7 +282,16 @@ CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile T
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
 apps/chat-widget/     Widget Web Component và website demo
-backend/app/          API, nghiệp vụ, adapter hạ tầng và worker
+raghub-core/          Package engine độc lập, không import app
+  src/raghub_core/
+    domain/           Domain, thuật toán, policy và AI contracts
+    application/      Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
+    ports/            Hợp đồng storage, search, queue, provider và persistence
+    api.py            Facade public cho các host
+  tests/              Core contracts và fake ports, không cần hạ tầng
+backend/app/          API, control plane, adapter hạ tầng và worker
+  composition/        Ghép use cases với adapter của từng runtime
+  delivery/           Upload/SSE HTTP adapter và worker bootstrap
 backend/alembic/      Migration cơ sở dữ liệu
 backend/tests/        Kiểm thử backend
 infrastructure/       Docker Compose và cấu hình Nginx
@@ -235,6 +300,9 @@ docs/                 Tài liệu thiết kế, API và hướng dẫn tích h�
 ```
 
 ## Xử lý sự cố và tài liệu
+
+Self-host: [cài đặt Console và AI local](docs/operations/SELF_HOST.md) ·
+[backup, restore và nâng cấp](docs/operations/SELF_HOST_OPERATIONS.md).
 
 - **`502 Bad Gateway` sau khi build lại web:** Nginx có thể vẫn giữ địa chỉ container cũ. Chạy `docker compose -f infrastructure/docker-compose.yml restart nginx` rồi tải lại trang.
 - **Tài liệu không đến trạng thái Sẵn sàng:** xem `docker compose -f infrastructure/docker-compose.yml logs -f worker api`; tra mã lỗi xử lý trong [hướng dẫn ingestion](docs/ingestion-qa.md).

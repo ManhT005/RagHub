@@ -1,0 +1,151 @@
+:host {
+  display: block;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 24px 0 12px;
+}
+
+.muted,
+small {
+  color: var(--rh-muted);
+}
+
+.steps {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--rh-muted);
+}
+
+.steps span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--rh-surface-soft);
+}
+
+.steps .current {
+  color: var(--rh-indigo);
+  font-weight: 600;
+}
+
+.current span {
+  background: var(--rh-primary);
+  color: var(--rh-on-primary);
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+input,
+select {
+  min-height: 40px;
+}
+
+select {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border: 1px solid var(--rh-border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.filters,
+.links {
+  display: flex;
+  gap: 12px;
+}
+
+.catalog {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.catalog button {
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  border: 1px solid var(--rh-border);
+  border-radius: 10px;
+  min-height: 90px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+.catalog button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.catalog button:hover:not(:disabled) {
+  border-color: var(--rh-indigo);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.model-list article,
+fieldset {
+  border: 1px solid var(--rh-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.model-list article label {
+  margin: 8px 0;
+}
+
+.choice {
+  flex-direction: row;
+  align-items: center;
+}
+
+.choice input {
+  min-height: 20px;
+}
+
+.notice {
+  color: var(--rh-success);
+}
+
+@media (max-width: 600px) {
+  .catalog {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .steps {
+    gap: 8px;
+  }
+
+  .filters {
+    flex-wrap: wrap;
+  }
+}

@@ -1,5 +1,6 @@
 import pytest
 
+from app.delivery.http.error_mapping import http_status
 from app.modules.ai_providers.errors import (
     ProviderAuthenticationError,
     ProviderDisabledError,
@@ -25,5 +26,6 @@ from app.modules.ai_providers.errors import (
 def test_provider_errors_have_stable_http_mapping(
     error: ProviderError, status: int, code: str
 ) -> None:
-    assert error.status_code == status
+    assert not hasattr(error, "status_code")
+    assert http_status(error) == status
     assert error.code == code

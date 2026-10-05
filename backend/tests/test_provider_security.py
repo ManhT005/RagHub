@@ -85,6 +85,7 @@ def test_production_accepts_dedicated_provider_master_key() -> None:
     settings = Settings(
         _env_file=None,
         app_env="production",
+        app_secret_key="a-unique-production-app-key-with-randomness",
         provider_master_key="a-unique-production-key-with-sufficient-randomness",
         smtp_host="smtp.gmail.com",
         smtp_username="sender@example.com",

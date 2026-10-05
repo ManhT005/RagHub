@@ -4,7 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import OrganizationContext, get_organization_context, require_role
+from app.core.auth import (
+    OrganizationContext,
+    get_organization_context,
+    require_role,
+    require_workspace_permission,
+)
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.modules.ai_providers.models import EmbeddingReindexJob, ProviderConfig
@@ -35,7 +40,11 @@ def provider_response(config: ProviderConfig) -> ProviderConfigResponse:
         dimension=config.dimension,
         config_json=config.config_json or {},
         enabled=config.enabled,
-        has_secret=bool(config.encrypted_secret),
+        has_secret=bool(
+            config.connection.encrypted_secret
+            if getattr(config, "connection", None)
+            else config.encrypted_secret
+        ),
         created_at=config.created_at,
         updated_at=config.updated_at,
     )
@@ -59,7 +68,7 @@ def reindex_job_response(job: EmbeddingReindexJob) -> EmbeddingReindexJobRespons
 
 
 def _manage(context: OrganizationContext) -> None:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    require_role(context, MembershipRole.ADMIN)
 
 
 @router.get(
@@ -163,7 +172,17 @@ async def retry_embedding_reindex(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, object]:
-    _manage(context)
+    from sqlalchemy import select
+
+    job = await session.scalar(
+        select(EmbeddingReindexJob).where(
+            EmbeddingReindexJob.id == job_id,
+            EmbeddingReindexJob.organization_id == context.organization_id,
+        )
+    )
+    if job is None:
+        raise AppError("REINDEX_JOB_NOT_FOUND", "Re-index job not found.", status_code=404)
+    await require_workspace_permission(context, job.workspace_id, "ai.change_embedding", session)
     job = await ProviderConfigService(session).retry_reindex(context.organization_id, job_id)
     return {"job_id": job.id, "status": job.status}
 
@@ -178,7 +197,7 @@ async def get_embedding_reindex_job(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbeddingReindexJobResponse:
-    _manage(context)
+    await require_workspace_permission(context, workspace_id, "workspace.view", session)
     job = await ProviderConfigService(session).get_reindex_job(
         context.organization_id, workspace_id, job_id
     )

@@ -44,14 +44,44 @@ services:
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: build
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       target: ${BACKEND_IMAGE_TARGET:-runtime}
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+      - --reload
+      - --reload-dir
+      - /app/app
+      - --reload-dir
+      - /app/raghub_core
+    environment:
+      WATCHFILES_FORCE_POLLING: 'true'
+    volumes:
+      - ../backend/app:/app/app
+      - ../raghub-core/src/raghub_core:/app/raghub_core
   worker:
     extends:
       file: docker-compose.base.yml
       service: worker
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: never
+    command:
+      - watchfiles
+      - --filter
+      - python
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1
+      - /app/app
+      - /app/raghub_core
+    environment:
+      WATCHFILES_FORCE_POLLING: 'true'
+    volumes:
+      - ../backend/app:/app/app
+      - ../raghub-core/src/raghub_core:/app/raghub_core
   admin-web:
     extends:
       file: docker-compose.base.yml
@@ -59,7 +89,24 @@ services:
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/admin-web:${LOCAL_IMAGE_TAG:-local}
     pull_policy: build
     build:
-      context: ../apps/admin-web
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
+      target: development
+    volumes:
+      - ../apps/admin-web/src:/repo/apps/admin-web/src
+      - ../assets/providers:/repo/assets/providers:ro
+      - ../apps/admin-web/angular.json:/repo/apps/admin-web/angular.json:ro
+      - ../apps/admin-web/proxy.json:/repo/apps/admin-web/proxy.json:ro
+      - ../apps/admin-web/tsconfig.json:/repo/apps/admin-web/tsconfig.json:ro
+      - ../apps/admin-web/tsconfig.app.json:/repo/apps/admin-web/tsconfig.app.json:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:4200/ || exit 1
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
   chat-widget:
     extends:
       file: docker-compose.base.yml
@@ -89,13 +136,17 @@ services:
     build:
       context: ./nginx
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/default.dev.conf:/etc/nginx/conf.d/default.conf:ro
   migrate:
     extends:
       file: docker-compose.base.yml
       service: migrate
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: never
+    volumes:
+      - ../backend/app:/app/app
+      - ../backend/alembic:/app/alembic
+      - ../backend/alembic.ini:/app/alembic.ini:ro
 volumes:
   postgres-data: {}
   redis-data: {}

@@ -1,0 +1,233 @@
+<main class="selfhost-page">
+  <header class="page-heading">
+    <div>
+      <h1>Workspaces</h1>
+      <p>
+        {{
+          isAdmin()
+            ? "Quản lý workspace trên RagHub Self-host. Tạo, chỉnh sửa và phân quyền tại đây."
+            : "Workspace được gán cho bạn và
+        các chức năng được cấp quyền."
+        }}
+      </p>
+    </div>
+    @if (isAdmin()) {
+      <button nz-button nzType="primary" (click)="open()">
+        + Tạo workspace
+      </button>
+    }
+  </header>
+  @if (error()) {
+    <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+  }
+  @if (notice()) {
+    <p role="status">
+      {{ notice() }}
+    </p>
+  }
+  <div class="toolbar">
+    <input
+      nz-input
+      aria-label="Tìm workspace"
+      placeholder="Tìm workspace…"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+    /><select
+      aria-label="Trạng thái workspace"
+      [ngModel]="status()"
+      (ngModelChange)="status.set($event)"
+    >
+      <option value="">Tất cả trạng thái</option>
+      <option value="ACTIVE">Hoạt động</option>
+      <option value="AI_NOT_CONFIGURED">AI chưa cấu hình</option>
+      <option value="REINDEXING">Đang re-index</option>
+      <option value="WARNING">Cần kiểm tra</option></select
+    ><select
+      aria-label="Sắp xếp workspace"
+      [ngModel]="sort()"
+      (ngModelChange)="sort.set($event)"
+    >
+      <option value="newest">Cập nhật gần nhất</option>
+      <option value="name">Tên A–Z</option>
+    </select>
+    <button nz-button (click)="load()" [nzLoading]="loading()">Làm mới</button>
+  </div>
+  <nz-table
+    #table
+    [nzData]="filtered()"
+    [nzLoading]="loading()"
+    [nzPageSize]="10"
+    [nzScroll]="{ x: '1080px' }"
+    nzNotFoundContent="Chưa có workspace trong phạm vi của bạn"
+  >
+    <thead>
+      <tr>
+        <th>Workspace</th>
+        <th>Thành viên</th>
+        <th>Tài liệu / Chunks</th>
+        <th>Embedding model</th>
+        <th>Trạng thái</th>
+        <th>Cập nhật</th>
+        <th>Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (workspace of table.data; track workspace.id) {
+        <tr>
+          <td>
+            <a [routerLink]="['/app/workspaces', workspace.id, 'overview']"
+              ><strong>{{ workspace.name }}</strong></a
+            ><small class="block muted">{{ workspace.slug }}</small>
+          </td>
+          <td>{{ workspace.member_count }}</td>
+          <td>
+            {{ workspace.document_count }} / {{ workspace.chunk_count ?? "—" }}
+          </td>
+          <td>
+            @if (workspace.embedding_model; as model) {
+              <div class="provider-model">
+                <raghub-provider-logo
+                  [catalogId]="model.provider_catalog_id"
+                  size="sm"
+                /><span
+                  ><b>{{ model.provider_name }}</b
+                  ><small
+                    class="block muted model-name"
+                    [title]="model.model"
+                    >{{ shortModelName(model.model) }}</small
+                  ></span
+                >
+              </div>
+            } @else {
+              Chưa cấu hình
+            }
+          </td>
+          <td>
+            <nz-tag
+              [nzColor]="workspace.status === 'ACTIVE' ? 'green' : 'default'"
+              >{{
+                workspace.status === "ACTIVE"
+                  ? "Hoạt động"
+                  : workspace.status === "AI_NOT_CONFIGURED"
+                    ? "AI chưa cấu hình"
+                    : workspace.status === "REINDEXING"
+                      ? "Đang re-index"
+                      : "Cần kiểm tra"
+              }}</nz-tag
+            >
+          </td>
+          <td>
+            {{
+              workspace.updated_at || workspace.created_at
+                | date: "dd/MM/yyyy HH:mm"
+            }}
+          </td>
+          <td>
+            <button
+              nz-button
+              nz-dropdown
+              [nzDropdownMenu]="menu"
+              nzTrigger="click"
+              [attr.aria-label]="'Thao tác với ' + workspace.name"
+            >
+              •••</button
+            ><nz-dropdown-menu #menu="nzDropdownMenu">
+              <ul nz-menu>
+                <li nz-menu-item>
+                  <a
+                    [routerLink]="['/app/workspaces', workspace.id, 'overview']"
+                    >Mở workspace</a
+                  >
+                </li>
+                @if (isAdmin()) {
+                  <li nz-menu-item>
+                    <button class="menu-action" (click)="open(workspace)">
+                      Chỉnh sửa
+                    </button>
+                  </li>
+                  <li nz-menu-item>
+                    <a
+                      [routerLink]="[
+                        '/app/workspaces',
+                        workspace.id,
+                        'members',
+                      ]"
+                      >Thành viên & quyền</a
+                    >
+                  </li>
+                  <li nz-menu-divider></li>
+                  <li nz-menu-item>
+                    <button
+                      class="menu-action danger"
+                      nz-popconfirm
+                      nzPopconfirmTitle="Xóa workspace này?"
+                      (nzOnConfirm)="remove(workspace)"
+                      [disabled]="saving()"
+                    >
+                      Xóa workspace
+                    </button>
+                  </li>
+                }
+              </ul>
+            </nz-dropdown-menu>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </nz-table>
+</main>
+<nz-modal
+  [nzVisible]="editorOpen()"
+  [nzTitle]="editing() ? 'Chỉnh sửa workspace' : 'Tạo workspace'"
+  nzOkText="Lưu workspace"
+  nzCancelText="Hủy"
+  [nzOkLoading]="saving()"
+  [nzOkDisabled]="!name.trim()"
+  [nzMaskClosable]="!saving()"
+  (nzOnOk)="save()"
+  (nzOnCancel)="!saving() && editorOpen.set(false)"
+  ><ng-container *nzModalContent>
+    <div class="selfhost-page">
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" />
+      }
+      <label
+        >Tên workspace<input
+          nz-input
+          [(ngModel)]="name"
+          maxlength="200"
+          [disabled]="saving()" /></label
+      ><label
+        >Mã định danh<input
+          nz-input
+          [(ngModel)]="slug"
+          maxlength="100"
+          placeholder="Tự tạo từ tên nếu để trống"
+          [disabled]="saving()"
+      /></label>
+      @if (!editing()) {
+        <label
+          >Embedding model ban đầu<select
+            [(ngModel)]="initialModel"
+            [disabled]="saving()"
+          >
+            <option value="">Cấu hình sau</option>
+            @for (model of models(); track model.id) {
+              <option [value]="model.id">
+                {{ model.provider_name }} / {{ model.model }} ·
+                {{ model.dimension }} dims
+              </option>
+            }
+          </select></label
+        >
+        @if (!models().length) {
+          <p class="muted">
+            Bạn vẫn có thể tạo workspace. Đăng ký model trong
+            <a routerLink="/system/ai/providers">AI Providers</a> rồi cấu hình
+            sau.
+          </p>
+        }
+      }
+    </div>
+  </ng-container></nz-modal
+>

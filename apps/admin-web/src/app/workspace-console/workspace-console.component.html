@@ -1,21 +1,22 @@
 <main class="workspace-console">
   <header class="console-header">
     <div>
-      <p class="eyebrow">KHÔNG GIAN TRI THỨC</p>
       <h1>Workspace Console</h1>
       <p>Quản lý tài liệu và thử câu trả lời RAG trong cùng một nơi.</p>
     </div>
-    <label
-      >Tổ chức
-      <select
-        [(ngModel)]="selectedOrganization"
-        (change)="changeOrganization()"
-      >
-        @for (organization of organizations(); track organization.id) {
-          <option [value]="organization.id">{{ organization.name }}</option>
-        }
-      </select>
-    </label>
+    @if (organizations().length > 1) {
+      <label
+        >Tổ chức
+        <select
+          [(ngModel)]="selectedOrganization"
+          (change)="changeOrganization()"
+        >
+          @for (organization of organizations(); track organization.id) {
+            <option [value]="organization.id">{{ organization.name }}</option>
+          }
+        </select>
+      </label>
+    }
   </header>
   @if (error()) {
     <p class="message error">{{ error() }}</p>
@@ -42,7 +43,22 @@
           : "Cần hoàn tất thiết lập"
       }}</span>
     </section>
-    <section class="readiness" aria-label="Các bước sẵn sàng cho RAG chat">
+    <nav class="workspace-nav" aria-label="Điều hướng workspace">
+      @for (item of sections; track item.key) {
+        <a [routerLink]="['/app/workspace-console', selectedWorkspace]"
+           [queryParams]="{section: item.key}" [class.active]="section() === item.key"
+           [attr.aria-current]="section() === item.key ? 'page' : null">{{ item.label }}</a>
+      }
+    </nav>
+    @if (section() === 'integration') {
+      <section class="integration-panel">
+        <h2>Tích hợp chatbot</h2><p>Xuất bản chatbot, chọn website được phép và lấy mã nhúng.</p>
+        @for (bot of bots(); track bot.id) {
+          <p><a [routerLink]="['/app/chatbots', bot.id, 'settings']">{{ bot.name }} · Cấu hình mã nhúng</a></p>
+        } @empty { <p>Tạo chatbot trong workspace trước khi thiết lập tích hợp.</p> }
+      </section>
+    }
+    <section [hidden]="section() !== 'overview'" class="readiness" aria-label="Các bước sẵn sàng cho RAG chat">
       <button type="button" [class.ready]="hasChatProvider()">
         AI provider: {{ hasChatProvider() ? "Sẵn sàng" : "Cần thiết lập"
         }}<strong>Thiết lập AI</strong>
@@ -57,7 +73,7 @@
       </button>
     </section>
     <section class="console-grid">
-      <article class="document-panel">
+      <article class="document-panel" [hidden]="!['overview', 'documents'].includes(section())">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">NGUỒN TRI THỨC</p>
@@ -130,17 +146,19 @@
           }
         </div>
       </article>
-      <article class="assistant-placeholder">
+      <article class="assistant-placeholder" [hidden]="!['overview', 'playground', 'settings', 'chatbot'].includes(section())">
         <div class="assistant-heading">
           <div>
             <p class="eyebrow">TRỢ LÝ RAG</p>
             <h2>Hỏi tài liệu</h2>
           </div>
-          <button type="button" class="secondary" (click)="toggleSetup()">
-            {{ setupOpen() ? "Đóng thiết lập" : "Thiết lập" }}
-          </button>
+          @if (isAdmin()) {
+            <button type="button" class="secondary" (click)="toggleSetup()">
+              {{ setupOpen() ? "Đóng thiết lập" : "Thiết lập" }}
+            </button>
+          }
         </div>
-        @if (setupOpen()) {
+        @if (isAdmin() && setupOpen()) {
           <section class="setup-panel">
             <h3>Kết nối AI</h3>
             <label
@@ -219,7 +237,7 @@
             hoàn tất thiết lập ở đây.
           </p>
         }
-        <div class="transcript" aria-live="polite">
+        <div [hidden]="['settings', 'chatbot'].includes(section())" class="transcript" aria-live="polite">
           @for (message of messages(); track $index) {
             <div class="bubble" [class.user]="message.role === 'user'">
               <strong>{{ message.role === "user" ? "Bạn" : "RagHub" }}</strong>
@@ -241,8 +259,9 @@
             <p>Đặt câu hỏi cụ thể sau khi tài liệu sẵn sàng.</p>
           }
         </div>
-        <form class="composer" (ngSubmit)="send()">
+        <form [hidden]="['settings', 'chatbot'].includes(section())" class="composer" (ngSubmit)="send()">
           <textarea
+            aria-label="Câu hỏi cho chatbot"
             [(ngModel)]="chatInput"
             name="chatInput"
             [disabled]="!selectedBot()?.published || isStreaming()"
@@ -258,7 +277,7 @@
         </form>
       </article>
     </section>
-    <section class="bot-panel">
+    <section class="bot-panel" [hidden]="!['overview', 'chatbot'].includes(section())">
       <div class="panel-heading">
         <div>
           <p class="eyebrow">CHATBOT ĐÃ CẤU HÌNH</p>
@@ -297,5 +316,13 @@
         }
       </div>
     </section>
+    @if (selectedWorkspaceData() && section() === "settings") {
+      <raghub-workspace-access
+        [organizationId]="selectedOrganization"
+        [workspaceId]="selectedWorkspace"
+        [workspaceName]="selectedWorkspaceData()!.name"
+        [isAdmin]="isAdmin()"
+      />
+    }
   }
 </main>

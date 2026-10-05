@@ -9,7 +9,7 @@ import {
   viewChild,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { RouterLink } from "@angular/router";
+import { ActivatedRoute, RouterLink } from "@angular/router";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { forkJoin, of, timer } from "rxjs";
 
@@ -25,6 +25,7 @@ import {
   Workspace,
 } from "../core/raghub-api.service";
 import { ingestionErrorMessage } from "../documents/ingestion-errors";
+import { WorkspaceAccessComponent } from "./workspace-access.component";
 
 interface Citation {
   document_id?: string;
@@ -41,12 +42,18 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-workspace-console",
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, WorkspaceAccessComponent],
   templateUrl: "./workspace-console.component.html",
   styleUrl: "./workspace-console.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceConsoleComponent {
+  protected readonly section = signal("overview");
+  protected readonly sections = [
+    { key: "overview", label: "Tổng quan" }, { key: "documents", label: "Tài liệu" },
+    { key: "chatbot", label: "Chatbot" }, { key: "playground", label: "Playground" },
+    { key: "integration", label: "Tích hợp" }, { key: "settings", label: "Cài đặt" },
+  ];
   protected readonly ingestionErrorMessage = ingestionErrorMessage;
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
@@ -78,6 +85,12 @@ export class WorkspaceConsoleComponent {
   protected readonly hasPublishedBot = computed(() =>
     Boolean(this.selectedBot()?.published),
   );
+  protected readonly selectedWorkspaceData = computed(() =>
+    this.workspaces().find((item) => item.id === this.selectedWorkspace),
+  );
+  protected readonly isAdmin = computed(() =>
+    this.organizations().find((item) => item.id === this.selectedOrganization)?.role === "ADMIN",
+  );
   protected readonly error = signal("");
   protected selectedOrganization = session.organizationId ?? "";
   protected selectedWorkspace = "";
@@ -92,10 +105,28 @@ export class WorkspaceConsoleComponent {
   protected readonly fileInput =
     viewChild<ElementRef<HTMLInputElement>>("fileInput");
   private readonly api = inject(RaghubApiService);
+  private readonly route = inject(ActivatedRoute);
+  private requestedWorkspaceId = this.route.snapshot.paramMap.get("workspaceId");
   private readonly destroyRef = inject(DestroyRef);
   private conversationId: string | null = null;
 
   constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      this.requestedWorkspaceId = params.get("workspaceId");
+      if (
+        this.requestedWorkspaceId &&
+        this.requestedWorkspaceId !== this.selectedWorkspace &&
+        this.workspaces().some((item) => item.id === this.requestedWorkspaceId)
+      ) {
+        this.selectedWorkspace = this.requestedWorkspaceId;
+        this.changeWorkspace();
+      }
+    });
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const section = params.get("section") ?? "overview";
+      this.section.set(this.sections.some((item) => item.key === section) ? section : "overview");
+      this.setupOpen.set(["settings", "chatbot"].includes(this.section()));
+    });
     this.api.organizations().subscribe({
       next: (items) => {
         this.organizations.set(items);
@@ -128,7 +159,10 @@ export class WorkspaceConsoleComponent {
     this.api.workspaces().subscribe({
       next: (items) => {
         this.workspaces.set(items);
-        this.selectedWorkspace = items[0]?.id ?? "";
+        this.selectedWorkspace =
+          items.find((item) => item.id === this.requestedWorkspaceId)?.id ??
+          items[0]?.id ??
+          "";
         this.changeWorkspace();
       },
       error: () =>

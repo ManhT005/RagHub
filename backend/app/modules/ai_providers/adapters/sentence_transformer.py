@@ -4,8 +4,8 @@ from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
-from app.modules.ai_providers.contracts import EmbeddingMetadata
-from app.modules.ai_providers.errors import (
+from raghub_core.domain.providers.contracts import EmbeddingMetadata
+from raghub_core.domain.providers.errors import (
     ProviderConfigurationError,
     ProviderInvalidResponseError,
 )
@@ -62,6 +62,8 @@ class LocalSentenceTransformerProvider:
         )
         vectors = encoded.tolist() if hasattr(encoded, "tolist") else list(encoded)
         result = [[float(value) for value in vector] for vector in vectors]
+        if len(result) != len(texts):
+            raise ProviderInvalidResponseError("Embedding response count does not match input.")
         for vector in result:
             if len(vector) != self.metadata.dimension or not all(map(math.isfinite, vector)):
                 raise ProviderInvalidResponseError(

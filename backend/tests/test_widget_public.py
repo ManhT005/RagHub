@@ -50,14 +50,14 @@ async def test_public_config_rejects_wrong_origin(monkeypatch: pytest.MonkeyPatc
         def __init__(self, session: object) -> None:
             pass
 
-        async def public_config(self, key: str, origin: str | None):
+        async def config(self, key: str, origin: str | None):
             raise AppError(
                 "EMBED_ORIGIN_NOT_ALLOWED", "This website is not allowed.", status_code=403
             )
 
     import app.modules.chatbots.router as router
 
-    monkeypatch.setattr(router, "ChatbotService", FakeService)
+    monkeypatch.setattr(router, "PublicChatContainer", FakeService)
     with pytest.raises(AppError, match="not allowed"):
         await public_config("rgh_bad", "https://evil.example", object())
 
@@ -85,14 +85,16 @@ async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.Mo
         def __init__(self, session: object) -> None:
             pass
 
-        async def public_chatbot(self, key: str, origin: str | None):
+        async def resolve(self, key: str, origin: str | None):
             return SimpleNamespace(id=uuid4(), organization_id=uuid4())
 
-        async def stream(self, *args):
-            yield "token", {"text": "Xin chào"}
+        async def stream_events(self, command):
+            from raghub_core.domain.rag.events import TokenDelta
+
+            yield TokenDelta("Xin chào")
             raise AppError("TEST_ERROR", "Try again", status_code=503)
 
-    monkeypatch.setattr(router, "ChatbotService", FakeService)
+    monkeypatch.setattr(router, "PublicChatContainer", FakeService)
     limits = AsyncMock()
     from app.core.config import Settings
 

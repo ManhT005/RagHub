@@ -1,0 +1,232 @@
+# RagHub Core boundaries
+
+RagHub Core is the reusable knowledge and RAG engine. The current product is an
+owner-operated, self-hosted RagHub instance. Cloud/SaaS and enterprise governance
+remain future work; no deployment mode, platform role or billing policy enters the
+engine. Instance authorization belongs at the delivery boundary; organization
+and workspace isolation remains mandatory inside every data operation.
+
+## Dependency direction
+
+```text
+app delivery -> app composition -> raghub_core.api -> application -> domain + ports
+app infrastructure / persistence / AI adapters -> raghub_core.domain + ports
+app composition roots -> concrete adapters + raghub_core.api
+```
+
+`raghub-core/src/raghub_core/domain` is the engine's domain, algorithms, policies and contracts.
+`raghub_core/application` owns workflows. `raghub_core/ports` defines their dependencies.
+The supported facade is `raghub_core.api`; see the [frozen public API](RAGHUB_CORE_PUBLIC_API.md).
+There are no remaining `app/core_domain`, `app/application`, or `app/ports` aliases.
+The engine must never import `app`, including its package root.
+Host composition must import public use cases from `raghub_core.api`, never
+`raghub_core.application` or its submodules. Architecture tests inspect all
+`app/composition/**/*.py`, including imports inside functions and type-checking
+blocks. Direct domain/port imports remain allowed for typed contracts and algorithm
+injection (such as `chunk_sections`); infrastructure implements ports directly.
+The existing `app/core` is legacy runtime support (FastAPI authentication, settings,
+database, logging and middleware), **not RagHub Core**. Keeping that distinction
+avoids moving runtime dependencies into the reusable engine.
+
+Core and application must not import FastAPI, Celery, SQLAlchemy, Redis, MinIO,
+Elasticsearch, vendor HTTP clients, settings or concrete adapters. CPU libraries
+such as tiktoken are allowed. PDF decoding with PyMuPDF is an adapter; text and
+Markdown parsing and section/chunk contracts belong to the core.
+
+`raghub-core` is a standalone package alongside `backend`. The `raghub-backend`
+wheel contains only the self-host `app` package and declares its core dependency,
+as recorded in [ADR-001](adr/ADR-001-core-package-boundary.md). The
+`core-package-isolation` CI job installs the core wheel in a fresh minimal venv,
+blocks every `app` import, imports every engine module, verifies bundled tokenizer
+data with an empty cache and runs the complete fake-port lifecycle. It also checks
+that the backend wheel declares core as a dependency without bundling its source.
+Docker installs core and copies the self-host app from the repository root context;
+development reload/watch configuration watches both source trees.
+
+## Baseline inventory
+
+This refactor was rebuilt from current `origin/develop` (`8c1c5ef`) on
+`refactor/core-selfhost-v1`, porting the earlier core commits individually. This
+baseline includes workspace RBAC, public chat, embed keys, origin policy, Redis
+admission, the widget, and current GHCR/CI workflows.
+
+| Existing location | Classification | Extraction |
+| --- | --- | --- |
+| `modules/ingestion/parser.py` | CORE + PDF ADAPTER | Pure TXT/Markdown parser; PDF adapter |
+| `modules/ingestion/chunker.py`, `tokenizer.py`, `errors.py` | CORE | Ingestion primitives and errors |
+| `modules/ingestion/embedder.py` | Compatibility stub | Removed production entry point |
+| `modules/search/hybrid.py` | CORE | RRF, token budget, context bundle |
+| `modules/chatbots/citations.py`, `timing.py` | CORE | Trusted citations and timing |
+| `modules/ai_providers/contracts.py`, `errors.py`, `enums.py`, `usage.py` | CORE | Provider contracts, errors, usage |
+| `modules/ai_providers/adapters/*`, `policy.py` | ADAPTER | Provider I/O, retry, timeouts |
+| `modules/ai_providers/registry.py` | ADAPTER / composition | Construct from an ORM-free descriptor |
+| `modules/ai_providers/resolver.py` | PERSISTENCE ADAPTER | Resolve bindings and index snapshots |
+| `modules/ai_providers/crypto.py` | ADAPTER | Credential encryption |
+| `modules/documents/service.py` | APPLICATION + DELIVERY + ADAPTER | Upload command, storage and queue ports |
+| `modules/documents/repository.py` | PERSISTENCE ADAPTER | Document and ingestion persistence |
+| `modules/search/service.py` | APPLICATION + ADAPTER | Retrieval use case and readiness adapter |
+| `modules/chatbots/service.py` | APPLICATION + ADAPTER + DELIVERY | CRUD, publication, RAG runtime, persistence |
+| `modules/chatbots/provider.py` | ADAPTER / compatibility | Legacy Gemini provider wrapper |
+| `modules/ai_providers/service.py` | CONTROL PLANE + ADAPTER | Provider management and index bindings |
+| `modules/*/models.py`, `app/models.py` | PERSISTENCE ADAPTER | SQLAlchemy entities and registration |
+| `modules/*/schemas.py` | DELIVERY | HTTP validation and response contracts |
+| `modules/*/router.py`, `app/main.py` | DELIVERY / composition | HTTP auth, command/result mapping |
+| `modules/auth`, `users`, `memberships`, `organizations`, `workspaces` | CONTROL PLANE | Identity, roles, tenant provisioning |
+| `modules/health/router.py` | DELIVERY + ADAPTER | Runtime dependency health checks |
+| `infrastructure/object_storage/minio.py` | ADAPTER | ObjectStoragePort |
+| `infrastructure/elasticsearch/chunks.py` | ADAPTER | Vector search and indexing ports |
+| `infrastructure/task_queue/celery_app.py` | ADAPTER / composition | Broker configuration |
+| `infrastructure/ingestion_lock.py` | ADAPTER | Pinned PostgreSQL ingestion lock |
+| `workers/tasks.py`, `workers/reindex_tasks.py` | DELIVERY + APPLICATION + ADAPTER | Move pipeline ownership to use cases |
+| `core/*` | Runtime support / DELIVERY / ADAPTER | Keep outside engine boundary |
+| `apps/admin-web`, `infrastructure/docker*`, `.github` | CONTROL PLANE / deployment | Outside the engine |
+
+Package `__init__.py` files are namespace markers and take the classification of
+their containing package. Alembic is persistence/deployment tooling.
+
+The baseline dependency map was:
+
+```text
+DocumentService -> UploadFile + MinIO + SQLAlchemy repository + Celery task
+workers -> parsing/chunking + ProviderResolver + MinIO + Elasticsearch + ORM
+SearchService -> ProviderResolver + Elasticsearch + ORM readiness query
+ChatbotService -> CRUD + retrieval + provider resolution + conversation/usage ORM
+ProviderRegistry -> SQLAlchemy ProviderConfig
+```
+
+## Extracted engine entry points
+
+| Capability | Application entry point | Dependencies |
+| --- | --- | --- |
+| Upload | `application/documents/upload_document.py` | DocumentRepositoryPort, ObjectStoragePort, TaskQueuePort |
+| Retry / document reindex | `application/documents/retry_document.py` | DocumentRetryRepositoryPort, TaskQueuePort |
+| Ingestion | `application/ingestion/run_ingestion.py` | IngestionRepositoryPort, provider resolver, index builder |
+| Parse/chunk/embed/index | `application/ingestion/build_document_index.py` | Parser callable, ObjectStoragePort, embedding runtime, VectorStorePort |
+| Workspace rebuild | `application/ingestion/reindex_workspace.py` | ReindexRepositoryPort and the same index builder |
+| Retrieval/context | `application/retrieval/retrieve_context.py` | ProviderResolverPort, VectorSearchPort, DocumentReadinessPort |
+| Streaming RAG | `application/rag/stream_chat.py` | ChatbotReadPort, RetrievalPort, ProviderResolverPort, ConversationRepositoryPort, UsageRecorderPort |
+| Chatbot CRUD/publication | `application/chatbots/*` | ChatbotRepositoryPort and provider readiness contracts |
+
+`SelfHostContainer`, `PublicChatContainer`, and `WorkerContainer` wire those ports
+to the existing adapters for their respective hosts.
+`modules/*/service.py` retains compatibility facades. HTTP uploads stop at
+`delivery/http/uploads.py`; typed RAG events become SSE only in
+`delivery/http/sse.py`. Celery task names and arguments remain unchanged.
+
+`ProviderDescriptor` contains deeply immutable, detached options and no credentials.
+The persistence mapper selects the embedding index snapshot before registry
+construction. Decrypted credentials are passed separately to the factory.
+
+## Platform authorization versus engine scope
+
+The instance keeps existing `ADMIN` / `WORKSPACE_ADMIN` authorization. Delivery
+authenticates and authorizes a request before creating an engine command. The
+engine has no platform role enum, billing state or deployment mode. Its
+repositories still enforce the command's organization/workspace scope,
+and the RAG runtime verifies the resolved chatbot belongs to that organization.
+
+`delivery/security/public_chat.py` resolves the published embed key to the chatbot
+and its active workspace on the server. Browser tenant IDs are ignored. Origin
+checks compare explicit HTTP(S) scheme/host/port and reject paths, credentials and
+wildcards. Redis rate limits and concurrency leases remain outside the core.
+
+Public chat calls `PublicChatContainer.stream_events`; authenticated Playground
+uses the `ChatbotService.stream_events` facade over `SelfHostContainer`. Both use
+the same `StreamRagChatUseCase`. `delivery/http/public_chat.py` adds the public
+deadline, observability and shielded lease cleanup around the shared SSE adapter.
+Cleanup covers completion, provider failure, timeout, disconnect and serialization
+failure. The core never imports Redis or serializes SSE.
+
+The existing authenticated API keeps its permissive `published` flag semantics.
+`PublishChatbotUseCase.execute` provides the stricter configuration/provider
+readiness gate for a control plane that chooses to enable it. The existing embed
+publication, appearance settings and key rotation retain their HTTP behavior.
+
+## Migration and invariants
+
+Each step is a separate reviewable commit: inventory; pure primitives; ports;
+ingestion and reusable indexing; retrieval; typed RAG runtime and SSE adapter;
+chatbot domain; ORM-free provider registry; delivery cleanup; contract suite.
+Compatibility imports preserve pure primitive/provider class identity. Legacy
+HTTP `AppError` is now a delivery subclass of the transport-free `CoreError`;
+HTTP delivery selects the status using `delivery/http/error_mapping.py`.
+
+Preserve existing routes, SSE payloads and workspace authorization. Preserve 25 MB
+validation, MIME/extension checks, SHA-256, immutable document versions, three
+retries, pinned concurrent-delivery locks, index cleanup, READY-only retrieval,
+organization/workspace filtering, embedding snapshots/dimensions, trusted
+citations, empty-context provider bypass, no retry after first token, TTFT,
+latency and native/fallback usage.
+
+The application explicitly loads previous history and appends the submitted
+question, commits the question before AI work, and records failed assistant turns
+using existing message metadata. See [conversation transaction policy](RAG_CONVERSATION_POLICY.md)
+for successful, failed and cancelled turns. Membership lifecycle is now scoped to
+the organization by migration `20261003_0012`; an organization administrator cannot
+disable or reactivate a global identity. This control-plane change stays outside
+the engine.
+
+Retrieval fusion, context budgeting and citation resolution consume typed
+`RetrievedChunk` objects. Raw Elasticsearch hit mapping belongs to infrastructure;
+compatibility dictionaries remain in outer facades only. Object storage methods are
+async; the MinIO adapter runs blocking SDK calls in a thread. Services expose typed
+RAG events, and only HTTP delivery maps events to SSE payloads. Redis admission lives
+in `infrastructure/redis/public_chat_admission.py`, with HTTP dependencies in
+`delivery/public/admission.py`.
+
+## Verification
+
+Run backend checks from `backend/`:
+
+```powershell
+../.venv/Scripts/python.exe -m ruff check .
+$env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
+../.venv/Scripts/python.exe -m pytest -p no:cacheprovider -m 'not integration'
+```
+
+Core contract tests use fake ports and no Docker or network. Infrastructure
+integration tests remain marked `integration` and require the existing stack.
+Architecture tests enforce dependency direction, including transitive imports.
+Public API tests freeze the facade exports and identity and import it in a fresh
+subprocess with host/runtime libraries blocked. Fake-port ingestion, retrieval and
+RAG tests consume public use cases from the same facade as host composition.
+
+For a core-only environment, run from `raghub-core/`:
+
+```sh
+python -m pip install -r requirements-test.lock
+python -m pip install --no-deps -e .
+python -m pytest -p no:cacheprovider
+```
+
+CI has a separate job using this minimal dependency set. Core architecture checks
+live in `raghub-core/tests/test_architecture.py`; host composition checks and
+adapter tests stay in `backend/tests`. Install both projects into the backend
+environment with `python -m pip install --no-deps -e ../raghub-core -e .` after
+installing the backend runtime lock. Run both suites to cover the full regression.
+
+## Extraction status and verified limits
+
+| Plan stage | Status |
+| --- | --- |
+| CORE-0 / CORE-1 | Inventory, canonical pure packages, PDF adapter and compatibility imports implemented |
+| CORE-2 | Typed ports wired into the existing adapters; fake adapters exercised by contract tests |
+| CORE-3 | Upload/ingestion/rebuild callable without Celery; initial and rebuild indexing share one use case |
+| CORE-4 | Retrieval callable without concrete Elasticsearch dependencies; READY and tenant filters preserved |
+| CORE-5 | Typed streaming events, prompt/citation policies, conversation/usage ports and SSE adapter implemented |
+| CORE-6 | Chatbot management separated; publication readiness gate explicit and opt-in for existing HTTP behavior |
+| CORE-7 | Registry imports without ORM/settings; immutable descriptor and shared provider contract tests implemented |
+| CORE-8 | Current public chat uses the shared typed RAG runtime; server scope, explicit origins and Redis admission remain in delivery |
+| CORE-9 | HTTP maps inputs/results; Celery tasks delegate bootstrap and use cases; compatibility paths retained |
+| CORE-10 | Core-only CI, fake-port contracts, dependency tests and separate live integration tests implemented |
+
+The [original self-host verification report](../operations/SELF_HOST_VERIFICATION.md)
+records the previous extraction and operations evidence. The
+[package consolidation report](RAGHUB_CORE_PACKAGE_VERIFICATION.md) records the
+earlier combined-wheel verification. The [sibling package refactor report](RAGHUB_CORE_SIBLING_VERIFICATION.md)
+records verification of the standalone core and self-host host. The isolated
+adapter suite includes PostgreSQL concurrency, conversation persistence, public
+SSE, Redis admission and workspace rebuilds. A separate CPU self-host installation
+exercises actual Sentence Transformer and Ollama models, restart persistence and
+backup/restore into a new project. Core contracts still require neither Docker nor
+model downloads. Full pull-request CI remains necessary before merge into `develop`.

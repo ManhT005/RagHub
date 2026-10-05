@@ -1,0 +1,246 @@
+<main class="users-page">
+  <header class="page-heading">
+    <div>
+      <h1>Quản lý người dùng</h1>
+      <p>
+        Tìm kiếm, tạo người dùng và quản lý quyền truy cập các workspace của cài
+        đặt này.
+      </p>
+    </div>
+  </header>
+
+  @if (error()) {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      [nzMessage]="error()"
+      nzCloseable
+      (nzOnClose)="error.set('')"
+    />
+  }
+  @if (success()) {
+    <nz-alert
+      nzType="success"
+      nzShowIcon
+      [nzMessage]="success()"
+      nzCloseable
+      (nzOnClose)="success.set('')"
+    />
+  }
+  @if (actionError()) {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      [nzMessage]="actionError()"
+      nzCloseable
+      (nzOnClose)="actionError.set('')"
+    />
+  }
+
+  <section class="toolbar">
+    <nz-input-group nzSize="large">
+      <input
+        nz-input
+        [ngModel]="searchInput()"
+        (ngModelChange)="onSearchInputChange($event)"
+        placeholder="Tìm theo tên hoặc email"
+        aria-label="Tìm người dùng theo tên hoặc email"
+      />
+    </nz-input-group>
+    <button
+      nz-button
+      nzType="primary"
+      nzSize="large"
+      type="button"
+      (click)="openCreate()"
+    >
+      Tạo tài khoản
+    </button>
+  </section>
+
+  <section class="table-panel" aria-label="Danh sách người dùng">
+    <nz-spin [nzSpinning]="loading()">
+      <nz-table
+        #userTable
+        [nzData]="users()"
+        [nzFrontPagination]="false"
+        [nzPageIndex]="page()"
+        [nzPageSize]="pageSize"
+        [nzTotal]="total()"
+        [nzScroll]="{ x: '1280px' }"
+        [nzShowSizeChanger]="false"
+        (nzPageIndexChange)="changePage($event)"
+        nzSize="middle"
+        nzNotFoundContent="Chưa có người dùng phù hợp"
+      >
+        <thead>
+          <tr>
+            <th>Tên</th>
+            <th>Email</th>
+            <th>Trạng thái</th>
+            <th>Lần đăng nhập gần nhất</th>
+            <th>Ngày tạo</th>
+            <th>Vai trò</th>
+            <th>Workspace đang quản lý</th>
+            <th aria-label="Thao tác">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of userTable.data; track user.id) {
+            <tr>
+              <td>
+                <strong>{{ displayNameOf(user) }}</strong>
+              </td>
+              <td>{{ user.email }}</td>
+              <td>
+                @if (user.status === "ACTIVE") {
+                  <nz-tag nzColor="green">Đang hoạt động</nz-tag>
+                } @else {
+                  <nz-tag nzColor="red">Đã vô hiệu hóa</nz-tag>
+                }
+              </td>
+              <td>{{ formatDate(user.last_login_at) }}</td>
+              <td>{{ formatDate(user.created_at) }}</td>
+              <td>{{ roleLabel(user.role) }}</td>
+              <td>
+                @if (user.workspaces.length) {
+                  @for (workspace of user.workspaces; track workspace.id) {
+                    <nz-tag>{{ workspace.name }}</nz-tag>
+                  }
+                } @else {
+                  <span class="muted">Chưa được gán</span>
+                }
+              </td>
+              <td class="actions">
+                <button
+                  nz-button
+                  nzType="primary"
+                  type="button"
+                  (click)="openRename(user)"
+                >
+                  Đổi tên
+                </button>
+                @if (user.status === "ACTIVE") {
+                  <button
+                    nz-button
+                    nzType="primary"
+                    nzDanger
+                    type="button"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Vô hiệu hóa quyền truy cập trong phạm vi này?"
+                    nzPopconfirmPlacement="topRight"
+                    nzOkText="Vô hiệu hóa"
+                    nzCancelText="Hủy"
+                    [nzLoading]="updatingId() === user.id"
+                    (nzOnConfirm)="toggleStatus(user)"
+                  >
+                    Vô hiệu hóa
+                  </button>
+                } @else {
+                  <button
+                    nz-button
+                    nzType="primary"
+                    type="button"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Kích hoạt lại quyền truy cập trong phạm vi này?"
+                    nzPopconfirmPlacement="topRight"
+                    nzOkText="Kích hoạt"
+                    nzCancelText="Hủy"
+                    [nzLoading]="updatingId() === user.id"
+                    (nzOnConfirm)="toggleStatus(user)"
+                  >
+                    Kích hoạt
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+      @if (!loading() && !users().length && !error()) {
+        <nz-empty nzNotFoundContent="Chưa có người dùng phù hợp" />
+      }
+    </nz-spin>
+  </section>
+
+  <nz-modal
+    [nzVisible]="modalOpen()"
+    nzTitle="Tạo tài khoản"
+    nzOkText="Tạo tài khoản"
+    nzCancelText="Hủy"
+    [nzOkLoading]="creating()"
+    (nzOnOk)="create()"
+    (nzOnCancel)="closeCreate()"
+  >
+    <ng-container *nzModalContent>
+      <p class="modal-hint">
+        Tài khoản mới thuộc cài đặt này, vai trò mặc định là Workspace admin và
+        chưa có workspace.
+      </p>
+      <label class="modal-field">
+        <span>Email</span>
+        <input
+          nz-input
+          [ngModel]="newEmail()"
+          (ngModelChange)="newEmail.set($event)"
+          type="email"
+          placeholder="nguoidung@donvi.vn"
+          autocomplete="email"
+        />
+      </label>
+      <label class="modal-field">
+        <span>Tên hiển thị (không bắt buộc)</span>
+        <input
+          nz-input
+          [ngModel]="newDisplayName()"
+          (ngModelChange)="newDisplayName.set($event)"
+          type="text"
+          placeholder="Nguyễn Văn A"
+          autocomplete="name"
+          maxlength="200"
+        />
+      </label>
+      <label class="modal-field">
+        <span>Mật khẩu ban đầu (tối thiểu 8 ký tự)</span>
+        <input
+          nz-input
+          [ngModel]="newPassword()"
+          (ngModelChange)="newPassword.set($event)"
+          type="password"
+          autocomplete="new-password"
+        />
+      </label>
+      @if (actionError()) {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />
+      }
+    </ng-container>
+  </nz-modal>
+
+  <nz-modal
+    [nzVisible]="renameOpen()"
+    nzTitle="Đổi tên hiển thị"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzOkLoading]="renaming()"
+    (nzOnOk)="rename()"
+    (nzOnCancel)="closeRename()"
+  >
+    <ng-container *nzModalContent>
+      <label class="modal-field">
+        <span>Tên hiển thị (để trống để xóa tên)</span>
+        <input
+          nz-input
+          [ngModel]="renameValue()"
+          (ngModelChange)="renameValue.set($event)"
+          type="text"
+          placeholder="Nguyễn Văn A"
+          autocomplete="name"
+          maxlength="200"
+        />
+      </label>
+      @if (actionError()) {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />
+      }
+    </ng-container>
+  </nz-modal>
+</main>

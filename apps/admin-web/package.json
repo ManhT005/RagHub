@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prestart": "node ../../scripts/sync-provider-assets.mjs",
+    "prebuild": "node ../../scripts/sync-provider-assets.mjs",
+    "pretest": "node ../../scripts/sync-provider-assets.mjs",
     "start": "ng serve --host 0.0.0.0 --proxy-config proxy.json",
     "build": "ng build",
     "test": "ng test --watch=false"

@@ -1,14 +1,20 @@
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import OrganizationContext, get_organization_context, require_role
+from app.core.auth import (
+    OrganizationContext,
+    get_organization_context,
+    require_workspace_permission,
+)
 from app.core.database import get_session
-from app.modules.documents.schemas import DocumentAccepted, DocumentResponse
+from app.delivery.http.uploads import upload_from_http
+from app.modules.documents.schemas import DocumentAccepted, DocumentDetail, DocumentResponse
 from app.modules.documents.service import DocumentService
-from app.modules.memberships.models import MembershipRole
 
 router = APIRouter(prefix="/workspaces", tags=["documents"])
 
@@ -24,13 +30,9 @@ async def upload_document(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_permission(context, workspace_id, "document.upload", session)
     service = DocumentService(session)
-    return await service.upload_document(
-        organization_id=context.organization_id,
-        workspace_id=workspace_id,
-        upload=file,
-    )
+    return await upload_from_http(service, context.organization_id, workspace_id, file)
 
 
 @router.post(
@@ -44,7 +46,7 @@ async def retry_document_version(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_permission(context, workspace_id, "document.reindex", session)
     return await DocumentService(session).retry(context.organization_id, workspace_id, version_id)
 
 
@@ -59,7 +61,7 @@ async def reindex_document_version(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DocumentAccepted:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_permission(context, workspace_id, "document.reindex", session)
     return await DocumentService(session).reindex(context.organization_id, workspace_id, version_id)
 
 
@@ -69,6 +71,7 @@ async def list_documents(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[DocumentResponse]:
+    await require_workspace_permission(context, workspace_id, "document.view", session)
     return await DocumentService(session).list_documents(context.organization_id, workspace_id)
 
 
@@ -79,7 +82,40 @@ async def delete_document(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_permission(context, workspace_id, "document.delete", session)
     await DocumentService(session).delete_document(
         context.organization_id, workspace_id, document_id
+    )
+
+
+@router.get("/{workspace_id}/documents/{document_id}", response_model=DocumentDetail)
+async def document_detail(
+    workspace_id: UUID,
+    document_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    await require_workspace_permission(context, workspace_id, "document.view", session)
+    return await DocumentService(session).detail(context.organization_id, workspace_id, document_id)
+
+
+@router.get("/{workspace_id}/documents/{document_id}/download")
+async def download_document(
+    workspace_id: UUID,
+    document_id: UUID,
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    await require_workspace_permission(context, workspace_id, "document.view", session)
+    name, mime, content = await DocumentService(session).download(
+        context.organization_id, workspace_id, document_id
+    )
+    return Response(
+        content=content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name, safe='')}",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
     )

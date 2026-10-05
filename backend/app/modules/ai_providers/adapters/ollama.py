@@ -3,17 +3,22 @@ import json
 from collections.abc import AsyncIterator
 
 import httpx
-
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions, ChatStreamDelta, ChatUsage
-from app.modules.ai_providers.errors import (
+from raghub_core.domain.providers.contracts import (
+    ChatMessage,
+    ChatOptions,
+    ChatStreamDelta,
+    ChatUsage,
+)
+from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
     ProviderInvalidResponseError,
     ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
+from raghub_core.domain.providers.usage import estimate_chat_usage
+
 from app.modules.ai_providers.policy import ProviderRequestPolicy
-from app.modules.ai_providers.usage import estimate_chat_usage
 
 
 class OllamaChatProvider:

@@ -62,7 +62,24 @@ class DocumentVersion(Base):
     mime_type: Mapped[str] = mapped_column(String(100))
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(32), default=DocumentStatus.UPLOADED)
+    chunk_count: Mapped[int | None] = mapped_column(Integer)
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentIndexMetadata(Base):
+    __tablename__ = "document_index_metadata"
+
+    document_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("document_versions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    embedding_index_version_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("embedding_index_versions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    chunk_count: Mapped[int] = mapped_column(Integer)
+    indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class IngestionJob(Base):

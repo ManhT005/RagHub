@@ -25,7 +25,8 @@ DEPLOY_ENV = {
 
 def resolve(entrypoint, env_file, overrides=None, expect_success=True):
     result = subprocess.run(
-        ["docker", "compose", "--env-file", env_file, "-f", entrypoint,
+        ["docker", "compose", "--env-file", env_file,
+         *[arg for path in ([entrypoint] if isinstance(entrypoint, str) else entrypoint) for arg in ("-f", path)],
          "--profile", "local-ai", "config", "--format", "json"],
         cwd=ROOT, env={**CLEAN_ENV, **(overrides or {})},
         capture_output=True, text=True, encoding="utf-8", check=False,
@@ -63,6 +64,18 @@ def main():
             assert "build" not in local["services"][name]
             assert local["services"][name]["pull_policy"] == "never"
         assert local["services"]["api"]["build"]["target"] == target
+        api_build = local["services"]["api"]["build"]
+        assert Path(api_build["context"]).resolve() == ROOT
+        assert api_build["dockerfile"] == "backend/Dockerfile"
+        for name in ("api", "worker"):
+            mounts = {
+                volume["target"]: Path(volume["source"]).resolve()
+                for volume in local["services"][name]["volumes"]
+                if volume["type"] == "bind"
+            }
+            assert mounts["/app/app"] == ROOT / "backend/app"
+            assert mounts["/app/raghub_core"] == ROOT / "raghub-core/src/raghub_core"
+            assert all(path.is_dir() for path in mounts.values())
         for service in local["services"].values():
             assert all(port["host_ip"] == "127.0.0.1" for port in service.get("ports", []))
         print(f"Local Compose ({target}): valid")
@@ -87,6 +100,35 @@ def main():
         proxy = deployment["services"]["nginx"]["networks"]["ingress"]["ipv4_address"]
         assert ip_address(proxy) in ip_network(api["environment"]["PUBLIC_CHAT_TRUSTED_PROXY_CIDRS"])
         print(f"GHCR Compose ({suffix or 'runtime'}): valid")
+
+    selfhost_path = "infrastructure/docker-compose.self-host.yml"
+    selfhost_env = ".env.self-host.example"
+    selfhost = resolve(selfhost_path, selfhost_env, DEPLOY_ENV)
+    check_shared(selfhost)
+    for name, service in selfhost["services"].items():
+        assert name == "nginx" or not service.get("ports"), f"Self-host exposes {name}"
+        assert not service.get("deploy", {}).get("resources", {}).get("reservations", {}).get("devices")
+    assert selfhost["services"]["api"]["environment"]["APP_ENV"] == "selfhost"
+    assert selfhost["services"]["api"]["image"].endswith("-local-ai")
+    gpu = resolve([selfhost_path, "infrastructure/docker-compose.gpu.yml"], selfhost_env, DEPLOY_ENV)
+    devices = gpu["services"]["ollama"]["deploy"]["resources"]["reservations"]["devices"]
+    assert devices[0]["driver"] == "nvidia"
+    for required in DEPLOY_ENV.keys() - {"RAGHUB_IMAGE_PREFIX"}:
+        resolve(selfhost_path, selfhost_env, {
+            key: value for key, value in DEPLOY_ENV.items() if key != required
+        }, expect_success=False)
+    print("Self-host CPU/GPU packaging and required secrets: valid")
+
+    source_build = resolve(
+        [selfhost_path, "infrastructure/docker-compose.self-host.build.yml"],
+        selfhost_env, DEPLOY_ENV,
+    )
+    check_shared(source_build)
+    api_build = source_build["services"]["api"]["build"]
+    assert Path(api_build["context"]).resolve() == ROOT
+    assert api_build["dockerfile"] == "backend/Dockerfile"
+    assert api_build["target"] == "local-ai"
+    print("Self-host source build with standalone core: valid")
 
     for required in DEPLOY_ENV.keys() - {"RAGHUB_IMAGE_PREFIX"}:
         resolve("infrastructure/docker-compose.ghcr.yml", ".env.ghcr.example", {

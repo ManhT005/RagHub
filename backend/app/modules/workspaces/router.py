@@ -7,11 +7,21 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import OrganizationContext, get_organization_context, require_role
+from app.core.auth import (
+    OrganizationContext,
+    get_organization_context,
+    require_role,
+    require_workspace_permission,
+)
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.modules.memberships.models import MembershipRole
+from app.modules.memberships.models import (
+    MembershipRole,
+    WorkspaceMembership,
+    WorkspaceMembershipPermission,
+)
 from app.modules.workspaces.models import Workspace
+from app.modules.workspaces.summary import summary_data, summary_statement
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -26,6 +36,15 @@ class WorkspaceResponse(WorkspaceInput):
     organization_id: UUID
     created_at: datetime
     updated_at: datetime | None = None
+    member_count: int = 0
+    document_count: int = 0
+    chunk_count: int | None = None
+    last_indexed_at: datetime | None = None
+    embedding_model: dict | None = None
+    chat_provider_id: UUID | None = None
+    status: str = "AI_NOT_CONFIGURED"
+    reindex_job_id: UUID | None = None
+    reindex_status: str | None = None
 
 
 def response(workspace: Workspace) -> WorkspaceResponse:
@@ -37,12 +56,20 @@ async def list_workspaces(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[WorkspaceResponse]:
-    rows = await session.scalars(
-        select(Workspace)
-        .where(Workspace.organization_id == context.organization_id, Workspace.deleted_at.is_(None))
-        .order_by(Workspace.name)
-    )
-    return [response(workspace) for workspace in rows]
+    require_role(context, MembershipRole.ADMIN, MembershipRole.WORKSPACE_ADMIN)
+    statement = summary_statement(context.organization_id)
+    if context.membership.role == MembershipRole.WORKSPACE_ADMIN:
+        statement = statement.join(
+            WorkspaceMembership, WorkspaceMembership.workspace_id == Workspace.id
+        ).where(WorkspaceMembership.user_id == context.membership.user_id)
+        statement = statement.join(
+            WorkspaceMembershipPermission,
+            (WorkspaceMembershipPermission.workspace_id == Workspace.id)
+            & (WorkspaceMembershipPermission.user_id == context.membership.user_id)
+            & (WorkspaceMembershipPermission.permission == "workspace.view"),
+        )
+    rows = await session.execute(statement.order_by(Workspace.name))
+    return [WorkspaceResponse(**summary_data(row)) for row in rows]
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
@@ -51,7 +78,7 @@ async def create_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WorkspaceResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    require_role(context, MembershipRole.ADMIN)
     exists = await session.scalar(
         select(Workspace.id).where(
             Workspace.organization_id == context.organization_id, Workspace.slug == payload.slug
@@ -75,6 +102,7 @@ async def get_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Workspace:
+    await require_workspace_permission(context, workspace_id, "workspace.view", session)
     workspace = await session.scalar(
         select(Workspace).where(
             Workspace.id == workspace_id,
@@ -94,8 +122,15 @@ async def get_workspace(
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
 async def read_workspace(
     workspace: Annotated[Workspace, Depends(get_workspace)],
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WorkspaceResponse:
-    return response(workspace)
+    row = (
+        await session.execute(
+            summary_statement(context.organization_id).where(Workspace.id == workspace.id)
+        )
+    ).one()
+    return WorkspaceResponse(**summary_data(row))
 
 
 @router.patch("/{workspace_id}", response_model=WorkspaceResponse)
@@ -105,7 +140,7 @@ async def update_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WorkspaceResponse:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.EDITOR)
+    await require_workspace_permission(context, workspace.id, "workspace.edit", session)
     workspace.name, workspace.slug = payload.name.strip(), payload.slug
     try:
         await session.commit()
@@ -124,6 +159,6 @@ async def delete_workspace(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
-    require_role(context, MembershipRole.OWNER, MembershipRole.ADMIN)
+    require_role(context, MembershipRole.ADMIN)
     workspace.deleted_at = datetime.now().astimezone()
     await session.commit()

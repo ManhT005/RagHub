@@ -1,0 +1,79 @@
+<nz-drawer [nzVisible]="visible()" [nzWidth]="640" [nzTitle]="connection() ? 'Quản lý AI provider' : 'Thêm AI provider'"
+  [nzMaskClosable]="!busy()" (nzOnClose)="close()">
+  <ng-container *nzDrawerContent>
+    <p class="muted">Kết nối provider và đăng ký model để dùng trong RagHub.</p>
+    <ol class="steps" aria-label="Tiến trình kết nối provider">
+      @for (label of ['Provider', 'Connection', 'Models']; track label; let i = $index) {
+      <li [class.current]="step() === i" [attr.aria-current]="step() === i ? 'step' : null"><span>{{ i + 1 }}</span>{{
+        label }}</li>
+      }
+    </ol>
+    @if (error()) { <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon /> }
+    @if (notice()) { <p role="status" class="notice">{{ notice() }}</p> }
+    @if (step() === 0) {
+    <h2>Chọn provider</h2>
+    <div class="filters"><input nz-input aria-label="Tìm provider" placeholder="Tìm provider…"
+        [(ngModel)]="search" /><select aria-label="Loại provider" [(ngModel)]="category">
+        <option value="">Tất cả</option>
+        <option>Cloud</option>
+        <option>Local</option>
+        <option>Custom</option>
+      </select></div>
+    <div class="catalog">
+      @for (item of filteredCatalog(); track item.id) {
+      <button type="button" [disabled]="item.status !== 'SUPPORTED'" (click)="choose(item)"><raghub-provider-logo
+          [catalogId]="item.id" aria-hidden="true" /><strong>{{ item.name
+          }}</strong><small>{{ item.status === 'SUPPORTED' ? item.capabilities.join(' · ') : 'Coming soon'
+          }}</small></button>
+      }
+    </div>
+    } @else if (step() === 1) {
+    <div class="card-heading"><raghub-provider-logo [catalogId]="selected()?.id" />
+      <h2>{{ selected()?.name }}</h2>
+    </div>
+    <div class="links">@if (selected()?.docs_url) { <a [href]="selected()!.docs_url" target="_blank"
+        rel="noopener noreferrer">Tài liệu ↗</a> } @if (selected()?.api_key_url) { <a [href]="selected()!.api_key_url"
+        target="_blank" rel="noopener noreferrer">Lấy API key ↗</a> }</div>
+    <label>Tên provider<input nz-input [(ngModel)]="name" maxlength="200" [disabled]="busy()" /></label>
+    @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER') {
+    <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" /></label>
+    <button nz-button type="button" (click)="baseUrl = selected()?.default_base_url ?? ''" [disabled]="busy()">Khôi phục
+      mặc định</button>
+    }
+    @if (selected()?.auth_type === 'API_KEY') { <label>API key<input nz-input type="password"
+        autocomplete="new-password" [(ngModel)]="secret" [disabled]="busy()"
+        [placeholder]="connection()?.has_secret ? 'Để trống để giữ key hiện tại' : 'Nhập API key'" /></label>
+    <p class="muted">Key được mã hóa và lưu ở cấp hệ thống.</p> }
+    <div class="footer"><button nz-button type="button" (click)="close()" [disabled]="busy()">Hủy</button><button
+        nz-button nzType="primary" type="button" (click)="test()" [nzLoading]="busy()" [disabled]="!name.trim()">Kiểm
+        tra kết nối & tìm model</button></div>
+    } @else {
+    <h2>Chọn model để đăng ký</h2>
+    <p class="muted">Model được kiểm tra bằng request thực trước khi dùng cho workspace. Dimension có thể tự phát hiện;
+      nhập thủ công nếu provider yêu cầu.</p>
+    <div class="model-list">
+      @for (item of choices(); track item.model) {
+      <article><label class="choice"><input type="checkbox" [(ngModel)]="item.selected" [disabled]="busy()" />{{
+          item.display_name || item.model }}</label><small>{{ item.model }}</small>
+        <label>Chức năng<select [(ngModel)]="item.capability" [disabled]="busy()">@for (cap of (item.capabilities.length
+            ? item.capabilities : selected()!.capabilities); track cap) { <option [value]="cap">{{ cap }}</option>
+            }</select></label>
+        @if (item.capability === 'EMBEDDING') { <label>Dimension<input nz-input type="number" min="1" max="65536"
+            [(ngModel)]="item.dimension" placeholder="Tự phát hiện" [disabled]="busy()" /></label> }
+      </article>
+      } @empty { <p>Nhập Model ID thủ công để tiếp tục.</p> }
+    </div>
+    <fieldset [disabled]="busy()">
+      <legend>Nhập Model ID thủ công</legend><label>Model ID<input nz-input [(ngModel)]="manualId"
+          maxlength="255" /></label><label>Chức năng<select [(ngModel)]="manualCapability">@for (cap of
+          selected()!.capabilities; track cap) { <option [value]="cap">{{ cap }}</option> }</select></label>@if
+      (manualCapability === 'EMBEDDING') { <label>Dimension<input nz-input type="number" min="1" max="65536"
+          [(ngModel)]="manualDimension" placeholder="Tự phát hiện" /></label> }<button nz-button type="button"
+        (click)="addManual()" [disabled]="!manualId.trim()">Thêm vào lựa chọn</button>
+    </fieldset>
+    <div class="footer"><button nz-button type="button" (click)="close()" [disabled]="busy()">Hủy</button><button
+        nz-button nzType="primary" type="button" (click)="save()" [nzLoading]="busy()" [disabled]="!hasSelection()">Kiểm
+        tra & đăng ký model</button></div>
+    }
+  </ng-container>
+</nz-drawer>

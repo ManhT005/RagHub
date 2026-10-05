@@ -1,0 +1,57 @@
+.users-page {
+  display: grid;
+  gap: 16px;
+}
+
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: var(--rh-muted);
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.table-panel {
+  overflow-x: auto;
+}
+
+.toolbar nz-input-group {
+  flex: 1;
+  min-width: 240px;
+}
+
+.modal-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.modal-hint {
+  color: var(--rh-muted);
+  margin: 0;
+}
+
+.muted {
+  color: var(--rh-muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}

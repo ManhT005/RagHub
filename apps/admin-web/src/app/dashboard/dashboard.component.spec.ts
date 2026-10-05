@@ -15,7 +15,7 @@ describe("DashboardComponent", () => {
           provide: RaghubApiService,
           useValue: {
             organizations: () =>
-              of([{ id: "org-1", name: "Demo", slug: "demo", role: "OWNER" }]),
+              of([{ id: "org-1", name: "Demo", slug: "demo", role: "ADMIN" }]),
             workspaces: () =>
               of([
                 {
@@ -72,16 +72,15 @@ describe("DashboardComponent", () => {
     return fixture;
   }
 
-  it("offers quick actions from the overview", async () => {
+  it("hides the quick actions section from the overview", async () => {
     const fixture = await setup();
     const content = fixture.nativeElement.textContent;
-    expect(content).toContain("Tạo workspace mới");
-    expect(content).toContain("Tải tài liệu lên");
-    expect(content).toContain("Tạo chatbot");
-    expect(content).toContain("Nhúng chatbot");
-    expect(
-      fixture.nativeElement.querySelector('a[href="/app/workspaces"]'),
-    ).not.toBeNull();
+    expect(fixture.nativeElement.querySelector(".page-heading")).toBeNull();
+    expect(content).not.toContain("Chào mừng trở lại");
+    expect(content).not.toContain("Thao tác nhanh");
+    expect(content).not.toContain("Tạo workspace mới");
+    expect(content).not.toContain("Nhúng chatbot");
+    expect(content).toContain("Hoạt động gần đây");
   });
 
   it("renders real counts from the API instead of hardcoded numbers", async () => {
@@ -90,5 +89,39 @@ describe("DashboardComponent", () => {
     expect(content).not.toContain("1.248");
     expect(content).toContain("Tài liệu a.pdf đã được thêm");
     expect(content).toContain("Chatbot Bot đã được xuất bản");
+  });
+
+  it("renders recent activity as a data table without a surrounding card", async () => {
+    const fixture = await setup();
+    const headers = fixture.nativeElement.querySelectorAll("thead th");
+    const rows = fixture.nativeElement.querySelectorAll("tbody tr.ant-table-row");
+
+    expect(Array.from(headers, (header: Element) => header.textContent?.trim())).toEqual([
+      "Loại",
+      "Hoạt động",
+      "Workspace",
+      "Thời gian",
+    ]);
+    expect(rows.length).toBe(2);
+    expect(fixture.nativeElement.querySelector(".activity-card")).toBeNull();
+  });
+
+  it("provides workspace and date filters with ten rows per page", async () => {
+    const fixture = await setup();
+    const component = fixture.componentInstance as unknown as {
+      pageSize: number;
+      selectedWorkspace: { set(value: string): void };
+    };
+
+    expect(fixture.nativeElement.querySelector(".workspace-filter")).not.toBeNull();
+    expect(fixture.nativeElement.querySelector(".date-filter")).not.toBeNull();
+    expect(component.pageSize).toBe(10);
+
+    component.selectedWorkspace.set("ws-1");
+    fixture.detectChanges();
+
+    const rows = fixture.nativeElement.querySelectorAll("tbody tr.ant-table-row");
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain("a.pdf");
   });
 });

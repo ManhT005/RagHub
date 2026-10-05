@@ -1,441 +1,480 @@
-﻿<main>
-  <section class="page-heading">
+<main class="chatbot-flow">
+  <header class="page-heading">
     <div>
-      <p class="eyebrow">RAG CHAT</p>
-      <h1>Chatbot tài liệu</h1>
-      <p class="lede">
-        Cấu hình AI, xuất bản trợ lý và kiểm tra câu trả lời dựa trên tài liệu
-        của workspace.
-      </p>
+      <h1>{{ screen() === "list" ? "Danh sách chatbot" : screen() === "embed" ? "Nhúng chatbot" : "Cấu hình chatbot" }}</h1>
     </div>
-    <span class="flow-state" [class.ready]="currentStep() === 3">{{
-      currentStep() === 3 ? "Sẵn sàng chat" : "Bước " + currentStep() + " / 3"
-    }}</span>
-  </section>
+  </header>
 
   @if (error()) {
-    <p class="message error">{{ error() }}</p>
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      nzCloseable
+      [nzMessage]="error()"
+      (nzOnClose)="error.set('')"
+    />
   }
   @if (notice()) {
-    <p class="message notice">{{ notice() }}</p>
+    <nz-alert
+      nzType="success"
+      nzShowIcon
+      nzCloseable
+      [nzMessage]="notice()"
+      (nzOnClose)="notice.set('')"
+    />
   }
 
-  <section class="workspace-bar panel">
-    <label
-      >Tổ chức
-      <select
-        [(ngModel)]="selectedOrganization"
-        (change)="changeOrganization()"
-        [disabled]="connectionBusy() || botBusy() || isStreaming()"
-      >
-        @for (organization of organizations(); track organization.id) {
-          <option [value]="organization.id">{{ organization.name }}</option>
-        }
-      </select>
-    </label>
-    <label
-      >Không gian làm việc
-      <select
-        [(ngModel)]="selectedWorkspace"
-        (change)="changeWorkspace()"
-        [disabled]="
-          !workspaces().length || connectionBusy() || botBusy() || isStreaming()
-        "
-      >
-        <option value="">Chọn workspace</option>
-        @for (workspace of workspaces(); track workspace.id) {
-          <option [value]="workspace.id">{{ workspace.name }}</option>
-        }
-      </select>
-    </label>
-    <a routerLink="/workspaces">Tạo không gian làm việc</a>
-  </section>
+  @if (screen() === "list") {
+    <section class="chatbot-list-view">
+      <div class="list-toolbar">
+        <div class="list-filters">
+          @if (organizations().length > 1) {
+            <div class="filter-field">
+              <span>Tổ chức</span>
+              <nz-select
+                [ngModel]="selectedOrganization"
+                (ngModelChange)="selectedOrganization = $event; changeOrganization()"
+                aria-label="Chọn tổ chức"
+              >
+                @for (organization of organizations(); track organization.id) {
+                  <nz-option [nzValue]="organization.id" [nzLabel]="organization.name" />
+                }
+              </nz-select>
+            </div>
+          }
+          <div class="filter-field">
+            <span id="workspace-filter-label">Không gian làm việc</span>
+            <nz-select
+              [ngModel]="selectedWorkspace"
+              (ngModelChange)="selectWorkspace($event)"
+              [nzOpen]="workspaceFilterOpen()"
+              (nzOpenChange)="workspaceFilterOpen.set($event)"
+              (click)="workspaceFilterOpen.set(true)"
+              nzPlaceHolder="Chọn workspace"
+              aria-labelledby="workspace-filter-label"
+            >
+              @for (workspace of workspaces(); track workspace.id) {
+                <nz-option [nzValue]="workspace.id" [nzLabel]="workspace.name" />
+              }
+            </nz-select>
+          </div>
+        </div>
 
-  @if (!selectedWorkspace) {
-    <section class="empty-state panel">
-      <h2>Bắt đầu bằng một workspace</h2>
-      <p>Workspace giúp tách tài liệu, provider và chatbot của từng nhóm.</p>
-      <a routerLink="/workspaces">Tạo không gian làm việc</a>
+        <button
+          nz-button
+          nzType="primary"
+          nzSize="large"
+          type="button"
+          class="add-chatbot-button"
+          [disabled]="!selectedWorkspace"
+          (click)="openCreateChatbot()"
+        >
+          Thêm chatbot
+        </button>
+      </div>
+
+      <section class="table-panel" aria-label="Danh sách chatbot">
+        <nz-table
+          #chatbotTable
+          [nzData]="bots()"
+          [nzPageSize]="chatbotPageSize"
+          [nzShowSizeChanger]="false"
+          nzSize="middle"
+          nzNotFoundContent="Chưa có chatbot trong workspace này"
+        >
+          <thead>
+            <tr>
+              <th>Tên chatbot</th>
+              <th>Workspace</th>
+              <th>Trạng thái</th>
+              <th>Ngày tạo</th>
+              <th>Cập nhật gần nhất</th>
+              <th aria-label="Thao tác">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (bot of chatbotTable.data; track bot.id) {
+              <tr>
+                <td class="chatbot-name-cell">
+                  <strong [title]="bot.name">{{ bot.name }}</strong>
+                </td>
+                <td>{{ workspaceName(bot.workspace_id) }}</td>
+                <td>
+                  <nz-tag [nzColor]="bot.published ? 'green' : 'default'">
+                    {{ bot.published ? "Đã xuất bản" : "Bản nháp" }}
+                  </nz-tag>
+                </td>
+                <td>{{ bot.created_at | date: "dd/MM/yyyy HH:mm" }}</td>
+                <td>{{ (bot.updated_at || bot.created_at) | date: "dd/MM/yyyy HH:mm" }}</td>
+                <td class="chatbot-actions">
+                  <button nz-button nzType="primary" type="button" (click)="editChatbot(bot)">
+                    Cấu hình
+                  </button>
+                  <button nz-button type="button" class="embed-action-button" (click)="openEmbed(bot)">
+                    Nhúng
+                  </button>
+                  <button nz-button type="button" (click)="openChatbotDocuments(bot)">
+                    Tài liệu &amp; thử chat
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+      </section>
+    </section>
+  } @else if (screen() === "embed") {
+    <section class="editor-context">
+      <button nz-button type="button" (click)="backToChatbotList()">
+        ← Về danh sách
+      </button>
+      <div class="workspace-summary">
+        <span>Workspace</span>
+        <strong>{{ workspaceName(selectedWorkspace) }}</strong>
+      </div>
+    </section>
+
+    <section class="panel embed-view" aria-labelledby="embed-view-title">
+      <div class="embed-heading">
+        <div>
+          <h2 id="embed-view-title">Nhúng chatbot: {{ selectedBot()?.name || botName }}</h2>
+          <p>Giới hạn website được phép và lấy mã nhúng cho chatbot.</p>
+        </div>
+        <nz-tag [nzColor]="selectedBot()?.published ? 'green' : 'default'">
+          {{ selectedBot()?.published ? "Đã xuất bản" : "Bản nháp" }}
+        </nz-tag>
+      </div>
+
+      <label>
+        <span>Website được phép</span>
+        <textarea
+          nz-input
+          [(ngModel)]="embedOrigins"
+          rows="3"
+          placeholder="https://example.com"
+        ></textarea>
+        <small>Mỗi dòng một domain.</small>
+      </label>
+
+      <div class="embed-theme-fields">
+        <label>
+          <span>Màu chính</span>
+          <input class="color-input" [(ngModel)]="embedPrimaryColor" type="color" />
+        </label>
+        <label>
+          <span>Tiêu đề widget</span>
+          <input nz-input [(ngModel)]="embedTitle" />
+        </label>
+      </div>
+
+      <label>
+        <span>Lời chào</span>
+        <textarea nz-input [(ngModel)]="embedGreeting" rows="3"></textarea>
+      </label>
+
+      <div class="embed-actions">
+        <button
+          nz-button
+          nzType="primary"
+          type="button"
+          [nzLoading]="embedBusy()"
+          [disabled]="embedBusy()"
+          (click)="saveEmbedSettings()"
+        >
+          Lưu cấu hình nhúng
+        </button>
+        <button
+          nz-button
+          type="button"
+          [disabled]="!selectedBot()?.published || embedBusy()"
+          (click)="rotateEmbedKey()"
+        >
+          Tạo key mới
+        </button>
+      </div>
+
+      <div class="embed-code">
+        <div>
+          <strong>Mã nhúng</strong>
+          <small>Dán trước thẻ <code>&lt;/body&gt;</code> của website.</small>
+        </div>
+        <pre>{{ embedCode() || "Lưu cấu hình nhúng để nhận mã." }}</pre>
+        <button
+          nz-button
+          type="button"
+          [disabled]="!embedCode()"
+          (click)="copyEmbedCode()"
+        >
+          Sao chép mã
+        </button>
+      </div>
     </section>
   } @else {
-    <nav class="wizard-steps" aria-label="Các bước cấu hình">
-      <button
-        type="button"
-        [attr.aria-current]="currentStep() === 1 ? 'step' : null"
-        [class.current]="currentStep() === 1"
-        [disabled]="connectionBusy() || botBusy() || isStreaming()"
-        (click)="goBack(1)"
-      >
-        <span>1</span> Kết nối AI
+    <section class="editor-context">
+      <button nz-button type="button" (click)="backToChatbotList()">
+        ← Về danh sách
       </button>
-      <span class="step-arrow" aria-hidden="true">→</span>
-      <button
-        type="button"
-        [attr.aria-current]="currentStep() === 2 ? 'step' : null"
-        [class.current]="currentStep() === 2"
-        [disabled]="currentStep() < 2 || botBusy() || isStreaming()"
-        (click)="goBack(2)"
-      >
-        <span>2</span> Tạo chatbot
-      </button>
-      <span class="step-arrow" aria-hidden="true">→</span>
-      <span
-        class="last-step"
-        [class.current]="currentStep() === 3"
-        [attr.aria-current]="currentStep() === 3 ? 'step' : null"
-        ><span>3</span> Thử hỏi tài liệu</span
-      >
-    </nav>
-    <section class="workflow-grid">
-      <article
-        class="panel setup-panel"
-        [hidden]="currentStep() !== 1"
-        [attr.inert]="connectionBusy() ? '' : null"
-      >
-        <div class="section-title">
-          <span>1</span>
-          <div>
-            <h2>Cấu hình AI &amp; Mô hình</h2>
-            <p>Chọn và kiểm tra mô hình Local hoặc Gemini API cho workspace.</p>
-          </div>
+      <div class="workspace-summary">
+        <span>Workspace</span>
+        <strong>{{ workspaceName(selectedWorkspace) }}</strong>
+      </div>
+    </section>
+
+    <section class="create-step panel" [hidden]="currentStep() !== 1">
+      <div class="section-title simple-title">
+        <span>1</span>
+        <div>
+          <h2>{{ selectedBot() ? "Cấu hình chatbot" : "Tạo chatbot" }}</h2>
+          <p>Nhập thông tin cơ bản, hệ thống sẽ tự dùng cấu hình của workspace.</p>
         </div>
+        @if (selectedBot(); as bot) {
+          <nz-tag [nzColor]="bot.published ? 'green' : 'default'" class="config-status-tag">
+            {{ bot.published ? "Đã xuất bản" : "Bản nháp" }}
+          </nz-tag>
+        }
+      </div>
 
-        <section class="model-block" aria-labelledby="embedding-title">
-          <h3 id="embedding-title">
-            <span>A</span> Mô hình Embedding
-            <small>Đánh chỉ mục tài liệu</small>
-          </h3>
-          <fieldset class="source-radios">
-            <legend>Nguồn sử dụng</legend>
-            <label
-              ><input
-                type="radio"
-                name="embeddingSource"
-                [checked]="embeddingSource === 'local'"
-                (change)="setProviderSource('EMBEDDING', 'local')"
-              />
-              Local</label
-            ><label
-              ><input
-                type="radio"
-                name="embeddingSource"
-                [checked]="embeddingSource === 'gemini'"
-                (change)="setProviderSource('EMBEDDING', 'gemini')"
-              />
-              Google Gemini API</label
-            >
-          </fieldset>
-          <div class="model-picker">
-            <label
-              >Danh sách model<select
-                [(ngModel)]="selectedEmbeddingProvider"
-                (ngModelChange)="invalidateConnection()"
-                name="embeddingProvider"
-              >
-                <option value="">Chọn model embedding</option>
-                @for (
-                  provider of providersFor("EMBEDDING");
-                  track provider.id
-                ) {
-                  <option [value]="provider.id">{{ provider.model }}</option>
-                }
-              </select></label
-            ><button
-              type="button"
-              class="secondary"
-              (click)="testSelected('EMBEDDING')"
-              [disabled]="!selectedProvider('EMBEDDING') || connectionBusy()"
-            >
-              Kiểm tra
-            </button>
-          </div>
-          @if (selectedProvider("EMBEDDING"); as provider) {
-            <p class="model-status" role="status">
-              ● {{ connectionChecks()[provider.id] || "Sẵn sàng kiểm tra" }}
-              @if (provider.dimension) {
-                | Chiều vector: {{ provider.dimension }}
-              }
-            </p>
-          } @else {
-            <p class="model-status muted">
-              Chưa có model theo nguồn này. Dùng “Làm mới model” hoặc thêm nguồn
-              mới.
-            </p>
-          }
-        </section>
+      <div class="configuration-grid">
+        <div class="chatbot-fields">
+          <label>
+            <span>Tên chatbot</span>
+            <input nz-input nzSize="large" [(ngModel)]="botName" placeholder="Trợ lý tài liệu" />
+          </label>
 
-        <section class="model-block" aria-labelledby="chat-title">
-          <h3 id="chat-title">
-            <span>B</span> Mô hình Chat
-            <small>Sinh câu trả lời &amp; RAG</small>
-          </h3>
-          <fieldset class="source-radios">
-            <legend>Nguồn sử dụng</legend>
-            <label
-              ><input
-                type="radio"
-                name="chatSource"
-                [checked]="chatSource === 'local'"
-                (change)="setProviderSource('CHAT', 'local')"
+          <label>
+            <span>Hướng dẫn cho chatbot</span>
+            <textarea
+              nz-input
+              [(ngModel)]="botPrompt"
+              rows="5"
+              placeholder="Mô tả cách chatbot nên trả lời"
+            ></textarea>
+          </label>
+
+          @if (isAdmin()) {
+            <div class="provider-grid">
+              <label>
+                <span>Model LLM</span>
+                <nz-select
+                  [ngModel]="selectedChatProvider"
+                  (ngModelChange)="onChatProviderChange($event)"
+                  nzPlaceHolder="Chọn model LLM"
+                  aria-label="Chọn model LLM"
+                >
+                  @for (provider of chatProviderOptions(); track provider.id) {
+                    <nz-option [nzValue]="provider.id" [nzLabel]="providerLabel(provider)" />
+                  }
+                  @empty {
+                    <nz-option nzValue="" nzLabel="Chưa có provider chat" nzDisabled />
+                  }
+                </nz-select>
+                <small>Các provider chat hiện có trong tổ chức.</small>
+              </label>
+
+              <label>
+                <span>Model Embedding</span>
+                <nz-select
+                  [ngModel]="selectedEmbeddingProvider"
+                  (ngModelChange)="onEmbeddingProviderChange($event)"
+                  nzPlaceHolder="Chọn model Embedding"
+                  aria-label="Chọn model Embedding"
+                >
+                  @for (provider of embeddingProviderOptions(); track provider.id) {
+                    <nz-option [nzValue]="provider.id" [nzLabel]="providerLabel(provider)" />
+                  }
+                  @empty {
+                    <nz-option nzValue="" nzLabel="Chưa có provider embedding" nzDisabled />
+                  }
+                </nz-select>
+                <small>Các provider embedding hiện có trong tổ chức.</small>
+              </label>
+            </div>
+
+            <label>
+              <span>API key</span>
+              <input
+                nz-input
+                type="password"
+                [(ngModel)]="geminiApiKey"
+                placeholder="Để trống nếu dùng local hoặc key đã lưu"
+                autocomplete="off"
               />
-              Local (Ollama)</label
-            ><label
-              ><input
-                type="radio"
-                name="chatSource"
-                [checked]="chatSource === 'gemini'"
-                (change)="setProviderSource('CHAT', 'gemini')"
-              />
-              Google Gemini API</label
-            >
-          </fieldset>
-          @if (chatSource === "gemini") {
-            <div class="api-key-row">
-              <span>API key:</span
-              ><strong>● Dùng cấu hình hệ thống (.env)</strong
-              ><button
+              <small>Chỉ cần khi dùng Google Gemini chưa lưu key. Key được xóa ngay sau khi lưu.</small>
+            </label>
+
+            <div class="provider-actions">
+              <button
+                nz-button
                 type="button"
-                class="text-button"
-                (click)="showGeminiForm = !showGeminiForm"
-                [attr.aria-expanded]="showGeminiForm"
+                (click)="refreshProviderChoices()"
+                [nzLoading]="providerRefreshBusy()"
+                [disabled]="providerRefreshBusy()"
               >
-                [+] Dùng key khác
+                Làm mới danh sách model
               </button>
             </div>
+          } @else {
+            <p class="workspace-ai-hint">Hệ thống sẽ tự dùng cấu hình AI của workspace.</p>
           }
-          @if (showGeminiForm && chatSource === "gemini") {
-            <div class="alternate-key">
-              <label
-                >Gemini API key<input
-                  [(ngModel)]="geminiApiKey"
-                  name="geminiApiKey"
-                  type="password"
-                  autocomplete="off"
-                  placeholder="Dán API key riêng" /></label
-              ><label
-                >Model chat<input
-                  [(ngModel)]="geminiChatModel"
-                  name="geminiChatModel" /></label
-              ><button
+
+          <div class="primary-action">
+            @if (selectedBot(); as bot) {
+              <button
+                nz-button
+                nzType="primary"
+                nzSize="large"
                 type="button"
-                (click)="configureGemini()"
-                [disabled]="!geminiApiKey.trim() || !geminiChatModel.trim()"
+                class="publish-config-cta"
+                [nzDanger]="bot.published"
+                nz-popconfirm
+                [nzPopconfirmTitle]="bot.published ? 'Hủy xuất bản chatbot này?' : 'Xuất bản chatbot này?'"
+                [nzOkText]="bot.published ? 'Hủy xuất bản' : 'Xuất bản'"
+                nzCancelText="Hủy"
+                [nzLoading]="publishingBotId() === bot.id"
+                [disabled]="creationBusy() || publishingBotId() !== ''"
+                (nzOnConfirm)="toggleBotPublish(bot)"
               >
-                Áp dụng key
+                {{ bot.published ? "Hủy xuất bản" : "Xuất bản" }}
               </button>
-            </div>
-          }
-          <div class="model-picker">
-            <label
-              >Danh sách model<select
-                [(ngModel)]="selectedChatProvider"
-                (ngModelChange)="invalidateConnection()"
-                name="chatProvider"
-              >
-                <option value="">Chọn model chat</option>
-                @for (provider of providersFor("CHAT"); track provider.id) {
-                  <option [value]="provider.id">{{ provider.model }}</option>
-                }
-              </select></label
-            ><button
+            }
+            <button
+              nz-button
+              nzType="primary"
+              nzSize="large"
               type="button"
-              class="secondary"
-              (click)="testSelected('CHAT')"
-              [disabled]="!selectedProvider('CHAT') || connectionBusy()"
+              class="create-chatbot-cta"
+              [nzLoading]="creationBusy()"
+              [disabled]="creationBusy()"
+              (click)="createChatbotAndContinue()"
             >
-              Kiểm tra
+              {{ creationBusy() ? "Đang kiểm tra và lưu..." : selectedBot() ? "Lưu chatbot →" : "Tạo chatbot →" }}
             </button>
           </div>
-          @if (selectedProvider("CHAT"); as provider) {
-            <p class="model-status" role="status">
-              ● {{ connectionChecks()[provider.id] || "Sẵn sàng kiểm tra" }}
-            </p>
-          } @else {
-            <p class="model-status muted">Chưa có model theo nguồn này.</p>
-          }
-        </section>
-
-        <div class="refresh-row">
-          <button
-            type="button"
-            class="text-button"
-            (click)="refreshProviderChoices()"
-            [disabled]="providerRefreshBusy()"
-          >
-            {{
-              providerRefreshBusy()
-                ? "Đang làm mới…"
-                : "↻ Làm mới danh sách model từ backend"
-            }}
-          </button>
         </div>
-        <div class="wizard-actions">
-          <p class="hint">
-            Mỗi model sẽ được kiểm tra lại trước khi lưu vào workspace.
-          </p>
-          <button
-            type="button"
-            (click)="continueConnection()"
-            [disabled]="
-              connectionBusy() ||
-              !selectedProvider('EMBEDDING') ||
-              !selectedProvider('CHAT')
-            "
-          >
-            {{ connectionBusy() ? "Đang kiểm tra và lưu…" : "Lưu cấu hình →" }}
-          </button>
-        </div>
-      </article>
+      </div>
+    </section>
 
-      <article
-        class="panel setup-panel"
-        [hidden]="currentStep() !== 2"
-        [attr.inert]="botBusy() ? '' : null"
-      >
-        <div class="section-title">
+    <section class="document-chat-step" [hidden]="currentStep() !== 2">
+      <div class="step-two-heading">
+        <div class="section-title simple-title">
           <span>2</span>
           <div>
-            <h2>Tạo chatbot</h2>
-            <p>Chỉ chatbot đã xuất bản mới trả lời được.</p>
+            <h2>Thêm tài liệu &amp; thử chatbot</h2>
+            <p>Tải tài liệu lên và đặt câu hỏi ngay khi xử lý hoàn tất.</p>
           </div>
         </div>
-        <label
-          >Chatbot hiện tại
-          <select
-            [ngModel]="selectedBot()?.id ?? ''"
-            (ngModelChange)="selectBot($any($event) ? (bots().find(bot => bot.id === $event) ?? null) : null)"
-            name="selectedBot"
-          >
-            <option value="">Tạo chatbot mới</option>
-            @for (bot of bots(); track bot.id) {
-              <option [value]="bot.id">
-                {{ bot.name }} · {{ bot.published ? "Đã xuất bản" : "Nháp" }}
-              </option>
-            }
-          </select>
-        </label>
-        <label>Tên<input [(ngModel)]="botName" name="botName" /></label>
-        <label
-          >Hướng dẫn cho chatbot<textarea
-            [(ngModel)]="botPrompt"
-            name="botPrompt"
-            rows="4"
-          ></textarea>
-        </label>
-        <label
-          >Số đoạn tài liệu dùng để trả lời<input
-            [(ngModel)]="botRetrievalLimit"
-            name="botRetrievalLimit"
-            type="number"
-            min="1"
-            max="10"
-        /></label>
-        <div class="button-row">
-          <button (click)="saveBot()">
-            {{ selectedBot() ? "Lưu thay đổi" : "Tạo chatbot" }}
-          </button>
-          @if (selectedBot()) {
-            <button class="secondary" (click)="togglePublish()">
-              {{ selectedBot()?.published ? "Ngừng xuất bản" : "Xuất bản" }}
-            </button>
-          }
-          @if (selectedBot()) {
-            <a
-              class="settings-link"
-              [routerLink]="['/app/chatbots', selectedBot()!.id, 'settings']"
-              >Cài đặt chatbot</a
-            >
-          }
-        </div>
-        <div class="wizard-actions">
-          <button
-            type="button"
-            class="secondary"
-            (click)="goBack(1)"
-            [disabled]="botBusy()"
-          >
-            ← Kết nối AI</button
-          ><button
-            type="button"
-            (click)="continueBot()"
-            [disabled]="botBusy() || !botName.trim()"
-          >
-            {{
-              botBusy()
-                ? "Đang lưu và xuất bản…"
-                : "Lưu, xuất bản và tiếp tục →"
-            }}
-          </button>
-        </div>
-      </article>
+        <button nz-button type="button" (click)="goBack(1)">Chỉnh chatbot</button>
+      </div>
 
-      <article class="panel chat-panel" [hidden]="currentStep() !== 3">
-        <div class="section-title">
-          <span>3</span>
-          <div>
-            <h2>Thử hỏi tài liệu</h2>
-            <p>Luồng phản hồi hiển thị trực tiếp và kèm nguồn trích dẫn.</p>
-          </div>
-        </div>
-        @if (!selectedBot()?.published) {
-          <div class="chat-guard">
-            Xuất bản chatbot ở bước 2 để mở khung chat.
-          </div>
-        }
-        <button
-          type="button"
-          class="secondary back-button"
-          (click)="goBack(2)"
-          [disabled]="isStreaming()"
+      <section class="panel document-zone" aria-labelledby="documents-title">
+        <h3 id="documents-title">Tài liệu</h3>
+        <nz-upload
+          nzType="drag"
+          [nzMultiple]="false"
+          [nzShowUploadList]="false"
+          [nzBeforeUpload]="beforeUpload"
+          [nzDisabled]="uploading()"
+          nzAccept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
         >
-          ← Chỉnh chatbot
-        </button>
+          <p class="upload-title">{{ uploading() ? "Đang tải tài liệu lên..." : "Kéo thả tài liệu vào đây" }}</p>
+          <p class="upload-hint">+ Chọn tài liệu · Hỗ trợ PDF, TXT và Markdown</p>
+        </nz-upload>
+
+        <nz-table
+          #documentTable
+          [nzData]="documents()"
+          [nzShowPagination]="false"
+          [nzScroll]="{ x: '760px' }"
+          nzSize="middle"
+          nzNotFoundContent="Chưa có tài liệu trong workspace này."
+        >
+          <thead>
+            <tr>
+              <th>Tên tài liệu</th>
+              <th>Trạng thái</th>
+              <th>Tiến độ</th>
+              <th>Ngày tải</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (document of documentTable.data; track document.id) {
+              <tr>
+                <td><strong>{{ document.name }}</strong></td>
+                <td>
+                  <nz-tag [nzColor]="statusColor(document.stage ?? document.status)">
+                    {{ statusLabel(document.stage ?? document.status) }}
+                  </nz-tag>
+                </td>
+                <td>{{ document.progress ?? 0 }}%</td>
+                <td>{{ document.created_at | date: "medium" }}</td>
+                <td class="document-actions">
+                  @if (document.status === "FAILED" && document.retryable) {
+                    <button nz-button type="button" (click)="retryDocument(document)">Thử lại</button>
+                  }
+                  @if (document.status === "READY" && document.document_version_id) {
+                    <button nz-button nzType="primary" type="button" (click)="reindexDocument(document)">Lập chỉ mục lại</button>
+                  }
+                  <button nz-button nzType="primary" nzDanger type="button" (click)="removeDocument(document)">Xóa</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+      </section>
+
+      <section class="panel chat-zone" aria-labelledby="chat-title">
+        <h3 id="chat-title">Thử chatbot</h3>
+        <p class="chatbot-name">{{ selectedBot()?.name || botName }}</p>
+        @if (!hasReadyDocuments()) {
+          <nz-alert
+            nzType="info"
+            nzShowIcon
+            nzMessage="Chat sẽ mở khi có ít nhất một tài liệu ở trạng thái Sẵn sàng."
+          />
+        }
+
         <div class="transcript" aria-live="polite">
           @for (message of messages(); track $index) {
-            <div
-              class="bubble"
-              [class.user]="message.role === 'user'"
-              [class.assistant]="message.role === 'assistant'"
-            >
+            <div class="bubble" [class.user]="message.role === 'user'" [class.assistant]="message.role === 'assistant'">
               <strong>{{ message.role === "user" ? "Bạn" : "RagHub" }}</strong>
-              <p>
-                {{ message.content || (isStreaming() ? "Đang trả lời…" : "") }}
-              </p>
+              <p>{{ message.content || (isStreaming() ? "Đang trả lời…" : "") }}</p>
               @if (message.citations?.length) {
                 <ul class="citations">
                   @for (citation of message.citations; track $index) {
                     <li>
                       <strong>{{ citation.rank ?? $index + 1 }}.</strong>
-                      {{ citationLabel(citation)
-                      }}<small>{{ citation.excerpt }}</small>
+                      {{ citationLabel(citation) }}
+                      <small>{{ citation.excerpt }}</small>
                     </li>
                   }
                 </ul>
               }
             </div>
           } @empty {
-            <p class="hint">
-              Tải một tài liệu ở trạng thái READY, rồi đặt câu hỏi cụ thể để
-              kiểm tra RAG.
-            </p>
+            <div class="welcome-message">Xin chào! Hãy đặt câu hỏi về tài liệu bạn vừa tải lên.</div>
           }
         </div>
+
         <form class="composer" (ngSubmit)="send()">
           <textarea
+            nz-input
             [(ngModel)]="chatInput"
             name="chatInput"
-            [disabled]="!selectedBot()?.published || isStreaming()"
-            placeholder="Ví dụ: Tài liệu nói gì về mục tiêu dự án?"
-          ></textarea
-          ><button
-            [disabled]="
-              !selectedBot()?.published || isStreaming() || !chatInput.trim()
-            "
+            [disabled]="!hasReadyDocuments() || isStreaming()"
+            placeholder="Nhập câu hỏi..."
+          ></textarea>
+          <button
+            nz-button
+            nzType="primary"
+            nzSize="large"
+            [nzLoading]="isStreaming()"
+            [disabled]="!hasReadyDocuments() || isStreaming() || !chatInput.trim()"
           >
-            {{ isStreaming() ? "Đang trả lời" : "Gửi" }}
+            Gửi
           </button>
         </form>
-      </article>
+      </section>
     </section>
   }
 </main>

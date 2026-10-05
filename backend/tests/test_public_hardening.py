@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from starlette.requests import Request
+from uvicorn.logging import AccessFormatter
 
 from app.core.config import Settings
 from app.core.logging import SecretRedactionFilter
@@ -44,6 +45,23 @@ def test_raw_embed_key_is_redacted_in_access_and_application_logs():
     SecretRedactionFilter().filter(record)
     assert "rgh_secret" not in record.getMessage()
     assert "/public/chatbots/[REDACTED]/chat" in record.getMessage()
+
+
+def test_access_log_redaction_preserves_uvicorn_formatter_arguments():
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:1234", "GET", "/public/rgh_secret", "1.1", 200),
+        None,
+    )
+
+    SecretRedactionFilter().filter(record)
+
+    assert len(record.args) == 5
+    assert "rgh_secret" not in AccessFormatter("%(message)s").format(record)
 
 
 @pytest.mark.asyncio

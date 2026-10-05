@@ -2,23 +2,36 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
   signal,
 } from "@angular/core";
+import { DatePipe } from "@angular/common";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { RouterLink } from "@angular/router";
-import { forkJoin, of, switchMap } from "rxjs";
+import { ActivatedRoute } from "@angular/router";
+import { forkJoin, of, switchMap, timer } from "rxjs";
+import { NzAlertModule } from "ng-zorro-antd/alert";
+import { NzButtonModule } from "ng-zorro-antd/button";
+import { NzInputModule } from "ng-zorro-antd/input";
+import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
+import { NzSelectModule } from "ng-zorro-antd/select";
+import { NzTableModule } from "ng-zorro-antd/table";
+import { NzTagModule } from "ng-zorro-antd/tag";
+import { NzUploadFile, NzUploadModule } from "ng-zorro-antd/upload";
 
 import { session } from "../core/api-auth.interceptor";
 import {
   Chatbot,
   ChatbotInput,
   ChatStreamEvent,
+  DocumentItem,
   Organization,
   ProviderConfig,
   RaghubApiService,
   Workspace,
 } from "../core/raghub-api.service";
+import { ingestionErrorMessage } from "../documents/ingestion-errors";
 
 interface Citation {
   document_name?: string;
@@ -35,12 +48,29 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-chatbots",
-  imports: [FormsModule, RouterLink],
+  imports: [
+    DatePipe,
+    FormsModule,
+    NzAlertModule,
+    NzButtonModule,
+    NzInputModule,
+    NzPopconfirmModule,
+    NzSelectModule,
+    NzTableModule,
+    NzTagModule,
+    NzUploadModule,
+  ],
   templateUrl: "./chatbots.component.html",
   styleUrl: "./chatbots.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChatbotsComponent {
+  protected readonly screen = signal<"list" | "editor" | "embed">("list");
+  protected readonly chatbotPageSize = 10;
+  protected readonly workspaceFilterOpen = signal(false);
+  protected readonly publishingBotId = signal("");
+  protected readonly embedCode = signal("");
+  protected readonly embedBusy = signal(false);
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
   protected readonly providers = signal<ProviderConfig[]>([]);
@@ -57,13 +87,42 @@ export class ChatbotsComponent {
   });
   protected readonly bots = signal<Chatbot[]>([]);
   protected readonly selectedBot = signal<Chatbot | null>(null);
-  protected readonly messages = signal<TranscriptMessage[]>([]);
+  protected readonly isAdmin = computed(
+    () =>
+      this.organizations().find((item) => item.id === this.selectedOrganization)
+        ?.role === "ADMIN",
+  );  protected readonly messages = signal<TranscriptMessage[]>([]);
   protected readonly error = signal("");
   protected readonly notice = signal("");
   protected readonly isStreaming = signal(false);
   protected readonly currentStep = signal<1 | 2 | 3>(1);
+  protected readonly advancedOpen = signal(false);
+  protected readonly documents = signal<DocumentItem[]>([]);
+  protected readonly uploading = signal(false);
   protected readonly connectionBusy = signal(false);
   protected readonly botBusy = signal(false);
+  protected readonly creationBusy = computed(
+    () => this.connectionBusy() || this.botBusy(),
+  );
+  protected readonly hasReadyDocuments = computed(() =>
+    this.documents().some((document) => document.status === "READY"),
+  );
+  protected readonly statusLabel = (status: string): string =>
+    ({
+      QUEUED: "Đang chờ",
+      PARSING: "Đang đọc tài liệu",
+      CHUNKING: "Đang chia đoạn",
+      EMBEDDING: "Đang tạo embedding",
+      INDEXING: "Đang lập chỉ mục",
+      READY: "Sẵn sàng",
+      FAILED: "Lỗi",
+    })[status] ?? status;
+  protected readonly statusColor = (status: string): string =>
+    status === "READY" ? "green" : status === "FAILED" ? "red" : "blue";
+  protected readonly beforeUpload = (file: NzUploadFile): boolean => {
+    this.uploadDocument((file.originFileObj ?? file) as File);
+    return false;
+  };
   private verifiedConnection = "";
   private workspaceRevision = 0;
 
@@ -77,6 +136,232 @@ export class ChatbotsComponent {
       this.currentStep.set(step);
       this.clearMessages();
     }
+  }
+
+  protected selectWorkspace(workspaceId: string): void {
+    this.workspaceFilterOpen.set(false);
+    if (workspaceId === this.selectedWorkspace) return;
+    this.selectedWorkspace = workspaceId;
+    this.changeWorkspace();
+  }
+
+  protected workspaceName(workspaceId: string): string {
+    return (
+      this.workspaces().find((workspace) => workspace.id === workspaceId)?.name ??
+      "—"
+    );
+  }
+
+  protected openCreateChatbot(): void {
+    if (!this.selectedWorkspace) return;
+    this.selectedBot.set(null);
+    this.botName = "Trợ lý tài liệu";
+    this.botPrompt =
+      "Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên. Nếu không đủ thông tin, hãy nói rõ điều đó.";
+    this.botRetrievalLimit = 5;
+    this.currentStep.set(1);
+    this.advancedOpen.set(false);
+    this.clearMessages();
+    this.screen.set("editor");
+  }
+
+  protected editChatbot(bot: Chatbot): void {
+    this.selectBot(bot);
+    this.currentStep.set(1);
+    this.advancedOpen.set(false);
+    this.clearMessages();
+    this.screen.set("editor");
+  }
+
+  protected openEmbed(bot: Chatbot): void {
+    this.selectBot(bot);
+    if (bot.published) this.loadEmbedCode(bot.id);
+    this.clearMessages();
+    this.screen.set("embed");
+  }
+
+  protected backToEditor(): void {
+    if (this.embedBusy()) return;
+    this.clearMessages();
+    this.currentStep.set(1);
+    this.screen.set("editor");
+  }
+
+  protected openChatbotDocuments(bot: Chatbot): void {
+    this.selectBot(bot);
+    this.currentStep.set(2);
+    this.clearMessages();
+    this.screen.set("editor");
+    this.loadDocuments();
+  }
+
+  protected backToChatbotList(): void {
+    if (this.creationBusy() || this.uploading() || this.isStreaming() || this.embedBusy()) return;
+    this.currentStep.set(1);
+    this.advancedOpen.set(false);
+    this.clearMessages();
+    this.screen.set("list");
+  }
+
+  protected toggleAdvanced(): void {
+    this.advancedOpen.update((open) => !open);
+  }
+
+  protected selectMainModel(providerId: string): void {
+    this.selectedChatProvider = providerId;
+    const chat = this.providers().find((provider) => provider.id === providerId);
+    if (chat) {
+      this.chatSource =
+        this.providerSource(chat) === "Local" ? "local" : "gemini";
+      const matchingEmbedding = this.uniqueProviders().find(
+        (provider) =>
+          provider.capability === "EMBEDDING" &&
+          (this.providerSource(provider) === "Local" ? "local" : "gemini") ===
+            this.chatSource,
+      );
+      if (matchingEmbedding)
+        this.selectedEmbeddingProvider = matchingEmbedding.id;
+    }
+    this.invalidateConnection();
+  }
+
+  protected createChatbotAndContinue(): void {
+    if (this.creationBusy()) return;
+    if (!this.selectedWorkspace) {
+      this.setError("Chọn workspace trước khi tạo chatbot.");
+      return;
+    }
+    if (
+      !this.botName.trim() ||
+      !Number.isInteger(Number(this.botRetrievalLimit)) ||
+      Number(this.botRetrievalLimit) < 1 ||
+      Number(this.botRetrievalLimit) > 10
+    ) {
+      this.setError("Nhập tên chatbot và số đoạn tài liệu từ 1 đến 10.");
+      return;
+    }
+    if (!this.isAdmin()) {
+      this.persistBotAndOpenDocuments();
+      return;
+    }
+
+    const embedding = this.selectedProvider("EMBEDDING");
+    const chat = this.selectedProvider("CHAT");
+    if (!embedding || !chat) {
+      this.setError("Chưa có cấu hình AI phù hợp cho workspace này.");
+      return;
+    }
+
+    const customGeminiKey = this.geminiApiKey.trim();
+    if (customGeminiKey) {
+      if (
+        embedding.provider_type !== "GOOGLE_GEMINI" ||
+        chat.provider_type !== "GOOGLE_GEMINI"
+      ) {
+        this.setError(
+          "API Key khác chỉ dùng khi cả mô hình Chat và Embedding đều là Google Gemini.",
+        );
+        return;
+      }
+
+      const revision = this.workspaceRevision;
+      this.clearMessages();
+      this.connectionBusy.set(true);
+      forkJoin({
+        embedding: this.api.updateProvider(embedding.id, {
+          secret: customGeminiKey,
+        }),
+        chat: this.api.updateProvider(chat.id, { secret: customGeminiKey }),
+      }).subscribe({
+        next: ({ embedding: updatedEmbedding, chat: updatedChat }) => {
+          if (revision !== this.workspaceRevision) return;
+          this.connectionBusy.set(false);
+          this.geminiApiKey = "";
+          this.providers.update((providers) =>
+            providers.map((provider) => {
+              if (provider.id === updatedEmbedding.id) return updatedEmbedding;
+              if (provider.id === updatedChat.id) return updatedChat;
+              return provider;
+            }),
+          );
+          this.validateAiAndCreate(updatedEmbedding, updatedChat);
+        },
+        error: () => {
+          if (revision !== this.workspaceRevision) return;
+          this.connectionBusy.set(false);
+          this.setError(
+            "Không thể lưu Google Gemini API Key. Vui lòng kiểm tra key và thử lại.",
+          );
+        },
+      });
+      return;
+    }
+
+    this.validateAiAndCreate(embedding, chat);
+  }
+
+  private validateAiAndCreate(
+    embedding: ProviderConfig,
+    chat: ProviderConfig,
+  ): void {
+    const revision = this.workspaceRevision;
+    this.clearMessages();
+    this.connectionBusy.set(true);
+    forkJoin({
+      embedding: this.api.testProvider(embedding.id),
+      chat: this.api.testProvider(chat.id),
+    })
+      .pipe(
+        switchMap(() =>
+          this.api.bindWorkspaceProviders(
+            this.selectedWorkspace,
+            embedding.id,
+            chat.id,
+          ),
+        ),
+      )
+      .subscribe({
+        next: () => {
+          if (revision !== this.workspaceRevision) return;
+          this.connectionBusy.set(false);
+          this.verifiedConnection = `${this.selectedWorkspace}:${embedding.id}:${chat.id}`;
+          this.persistBotAndOpenDocuments();
+        },
+        error: () => {
+          if (revision !== this.workspaceRevision) return;
+          this.connectionBusy.set(false);
+          this.setError(
+            this.providerSource(chat) === "Local"
+              ? "Không thể kết nối mô hình AI local. Hãy kiểm tra dịch vụ và model."
+              : "Không thể kết nối Google Gemini. Vui lòng kiểm tra API Key.",
+          );
+        },
+      });
+  }
+
+  private persistBotAndOpenDocuments(): void {
+    const revision = this.workspaceRevision;
+    const bot = this.selectedBot();
+    this.botBusy.set(true);
+    const request = bot
+      ? this.api.updateChatbot(bot.id, this.botPayload(true))
+      : this.api.createChatbot(this.selectedWorkspace, this.botPayload(true));
+    request.subscribe({
+      next: (saved) => {
+        if (revision !== this.workspaceRevision) return;
+        this.botBusy.set(false);
+        if (!bot) this.bots.update((items) => [...items, saved]);
+        this.replaceBot(saved);
+        this.currentStep.set(2);
+        this.notice.set("Chatbot đã sẵn sàng. Hãy thêm tài liệu để bắt đầu hỏi đáp.");
+        this.loadDocuments();
+      },
+      error: () => {
+        if (revision !== this.workspaceRevision) return;
+        this.botBusy.set(false);
+        this.setError("Không thể tạo chatbot. Dữ liệu bạn đã nhập vẫn được giữ lại.");
+      },
+    });
   }
 
   protected continueConnection(): void {
@@ -131,8 +416,9 @@ export class ChatbotsComponent {
   }
 
   protected continueBot(): void {
+    if (this.botBusy()) return;
     if (
-      this.botBusy() ||
+      this.isAdmin() &&
       this.verifiedConnection !==
         `${this.selectedWorkspace}:${this.selectedEmbeddingProvider}:${this.selectedChatProvider}`
     )
@@ -197,9 +483,16 @@ export class ChatbotsComponent {
   protected botPrompt =
     "Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên. Nếu không đủ thông tin, hãy nói rõ điều đó.";
   protected botRetrievalLimit = 5;
+  protected embedOrigins = location.origin;
+  protected embedPrimaryColor = "#1463ff";
+  protected embedTitle = "RagHub Assistant";
+  protected embedGreeting = "Xin chào! Tôi có thể giúp gì cho bạn?";
   protected chatInput = "";
   private conversationId: string | null = null;
   private readonly api = inject(RaghubApiService);
+  private readonly requestedWorkspaceId =
+    inject(ActivatedRoute).snapshot.queryParamMap.get("workspaceId") ?? "";
+  private readonly destroyRef = inject(DestroyRef);
 
   protected providersFor(capability: "EMBEDDING" | "CHAT"): ProviderConfig[] {
     const source =
@@ -232,6 +525,28 @@ export class ChatbotsComponent {
     return `[${source}] ${provider.model}`;
   }
 
+  protected chatProviderOptions(): ProviderConfig[] {
+    return this.uniqueProviders().filter(
+      (provider) => provider.capability === "CHAT",
+    );
+  }
+
+  protected embeddingProviderOptions(): ProviderConfig[] {
+    return this.uniqueProviders().filter(
+      (provider) => provider.capability === "EMBEDDING",
+    );
+  }
+
+  protected onChatProviderChange(providerId: string): void {
+    this.selectedChatProvider = providerId;
+    this.invalidateConnection();
+  }
+
+  protected onEmbeddingProviderChange(providerId: string): void {
+    this.selectedEmbeddingProvider = providerId;
+    this.invalidateConnection();
+  }
+
   protected providerCount(type: ProviderConfig["provider_type"]): number {
     return this.uniqueProviders().filter(
       (provider) => provider.provider_type === type,
@@ -262,6 +577,18 @@ export class ChatbotsComponent {
 
   constructor() {
     this.loadOrganizations();
+    timer(3000, 3000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (
+          this.currentStep() === 2 &&
+          this.documents().some(
+            (document) => !["READY", "FAILED"].includes(document.status),
+          )
+        ) {
+          this.loadDocuments();
+        }
+      });
   }
 
   protected loadOrganizations(): void {
@@ -286,7 +613,11 @@ export class ChatbotsComponent {
     this.api.workspaces().subscribe({
       next: (items) => {
         this.workspaces.set(items);
-        this.selectedWorkspace = items[0]?.id ?? "";
+        this.selectedWorkspace =
+          items.find((workspace) => workspace.id === this.requestedWorkspaceId)
+            ?.id ??
+          items[0]?.id ??
+          "";
         this.changeWorkspace();
       },
       error: () =>
@@ -297,6 +628,8 @@ export class ChatbotsComponent {
   protected changeWorkspace(): void {
     this.workspaceRevision++;
     this.invalidateConnection();
+    this.currentStep.set(1);
+    this.advancedOpen.set(false);
     this.connectionBusy.set(false);
     this.botBusy.set(false);
     this.connectionChecks.set({});
@@ -307,21 +640,22 @@ export class ChatbotsComponent {
     this.bots.set([]);
     this.selectedBot.set(null);
     this.messages.set([]);
+    this.documents.set([]);
     this.conversationId = null;
     if (!this.selectedWorkspace || !this.selectedOrganization) return;
-    this.api.providers(this.selectedOrganization).subscribe({
-      next: (items) => {
-        this.providers.set(items);
-        this.autoSelectProviders();
-      },
-      error: () => this.setError("Không thể tải danh sách nhà cung cấp AI."),
-    });
+    if (this.isAdmin()) {
+      this.api.providers(this.selectedOrganization).subscribe({
+        next: (items) => {
+          this.providers.set(items);
+          this.autoSelectProviders();
+        },
+        error: () => this.setError("Không thể tải danh sách nhà cung cấp AI."),
+      });
+    }
     this.api.chatbots(this.selectedWorkspace).subscribe({
       next: (items) => {
         this.bots.set(items);
-        const published =
-          items.find((bot) => bot.published) ?? items[0] ?? null;
-        this.selectBot(published);
+        this.selectedBot.set(null);
       },
       error: () =>
         this.setError("Không thể tải chatbot của không gian làm việc."),
@@ -536,20 +870,171 @@ export class ChatbotsComponent {
     });
   }
 
-  protected togglePublish(): void {
+  protected saveEmbedSettings(): void {
     const bot = this.selectedBot();
-    if (!bot) return;
+    if (!bot || this.embedBusy()) return;
+    const allowedOrigins = this.embedOrigins
+      .split(/\n|,/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!allowedOrigins.length) {
+      this.setError("Nhập ít nhất một website được phép nhúng chatbot.");
+      return;
+    }
+
     this.clearMessages();
+    this.embedBusy.set(true);
+    this.api
+      .publishEmbed(bot.id, {
+        allowed_origins: allowedOrigins,
+        primary_color: this.embedPrimaryColor,
+        title: this.embedTitle.trim(),
+        greeting: this.embedGreeting.trim(),
+      })
+      .subscribe({
+        next: (result) => {
+          this.embedBusy.set(false);
+          this.embedCode.set(result.code);
+          const updated: Chatbot = {
+            ...bot,
+            published: true,
+            allowed_origins: allowedOrigins,
+            embed_primary_color: this.embedPrimaryColor,
+            embed_title: this.embedTitle.trim(),
+            embed_greeting: this.embedGreeting.trim(),
+          };
+          this.selectedBot.set(updated);
+          this.bots.update((items) =>
+            items.map((item) => (item.id === updated.id ? updated : item)),
+          );
+          this.notice.set(
+            "Đã lưu cấu hình nhúng và xuất bản chatbot. Hãy sao chép mã nhúng ngay.",
+          );
+        },
+        error: (response) => {
+          this.embedBusy.set(false);
+          this.setError(
+            response?.error?.error?.message ||
+              "Không thể lưu cấu hình nhúng chatbot.",
+          );
+        },
+      });
+  }
+
+  protected rotateEmbedKey(): void {
+    const bot = this.selectedBot();
+    if (!bot || !bot.published || this.embedBusy()) return;
+    this.clearMessages();
+    this.embedBusy.set(true);
+    this.api.rotateEmbedKey(bot.id).subscribe({
+      next: (result) => {
+        this.embedBusy.set(false);
+        this.embedCode.set(result.code);
+        this.notice.set("Đã tạo key mới. Mã nhúng cũ không còn hoạt động.");
+      },
+      error: () => {
+        this.embedBusy.set(false);
+        this.setError("Không thể tạo key nhúng mới.");
+      },
+    });
+  }
+
+  protected async copyEmbedCode(): Promise<void> {
+    if (!this.embedCode()) return;
+    await navigator.clipboard?.writeText(this.embedCode());
+    this.notice.set("Đã sao chép mã nhúng.");
+    this.error.set("");
+  }
+
+  private loadEmbedCode(chatbotId: string): void {
+    this.embedCode.set("");
+    this.api.embedCode(chatbotId).subscribe({
+      next: (result) => this.embedCode.set(result.code),
+      error: () => this.embedCode.set(""),
+    });
+  }
+
+  protected toggleBotPublish(bot: Chatbot): void {
+    if (this.publishingBotId()) return;
+    this.clearMessages();
+    this.publishingBotId.set(bot.id);
     this.api.updateChatbot(bot.id, { published: !bot.published }).subscribe({
       next: (saved) => {
-        this.replaceBot(saved);
+        this.publishingBotId.set("");
+        this.bots.update((items) =>
+          items.map((item) => (item.id === saved.id ? saved : item)),
+        );
+        if (this.selectedBot()?.id === saved.id) this.selectedBot.set(saved);
         this.notice.set(
           saved.published
             ? "Chatbot đã được xuất bản."
             : "Chatbot đã chuyển về bản nháp.",
         );
+        this.error.set("");
       },
-      error: () => this.setError("Không thể đổi trạng thái xuất bản."),
+      error: () => {
+        this.publishingBotId.set("");
+        this.setError("Không thể đổi trạng thái xuất bản.");
+      },
+    });
+  }
+
+  protected loadDocuments(): void {
+    if (!this.selectedWorkspace) {
+      this.documents.set([]);
+      return;
+    }
+    this.api.documents(this.selectedWorkspace).subscribe({
+      next: (items) => this.documents.set(items),
+      error: () => this.setError("Không thể tải danh sách tài liệu của workspace."),
+    });
+  }
+
+  protected uploadDocument(file: File): void {
+    if (!this.selectedWorkspace || this.uploading()) return;
+    this.uploading.set(true);
+    this.api.upload(this.selectedWorkspace, file).subscribe({
+      next: () => {
+        this.uploading.set(false);
+        this.notice.set("Đã tải tài liệu lên. Hệ thống đang xử lý tài liệu.");
+        this.loadDocuments();
+      },
+      error: (response) => {
+        this.uploading.set(false);
+        this.setError(ingestionErrorMessage(response.error?.error?.code));
+      },
+    });
+  }
+
+  protected retryDocument(document: DocumentItem): void {
+    if (!document.document_version_id || !document.retryable) return;
+    this.api
+      .retryDocument(this.selectedWorkspace, document.document_version_id)
+      .subscribe({
+        next: () => this.loadDocuments(),
+        error: (response) =>
+          this.setError(ingestionErrorMessage(response.error?.error?.code)),
+      });
+  }
+
+  protected reindexDocument(document: DocumentItem): void {
+    if (!document.document_version_id || document.status !== "READY") return;
+    this.api
+      .reindexDocument(this.selectedWorkspace, document.document_version_id)
+      .subscribe({
+        next: () => this.loadDocuments(),
+        error: (response) =>
+          this.setError(ingestionErrorMessage(response.error?.error?.code)),
+      });
+  }
+
+  protected removeDocument(document: DocumentItem): void {
+    this.api.deleteDocument(this.selectedWorkspace, document.id).subscribe({
+      next: () =>
+        this.documents.update((items) =>
+          items.filter((item) => item.id !== document.id),
+        ),
+      error: () => this.setError("Không thể xóa tài liệu."),
     });
   }
 
@@ -557,19 +1042,26 @@ export class ChatbotsComponent {
     this.selectedBot.set(bot);
     this.messages.set([]);
     this.conversationId = null;
+    this.embedCode.set("");
     if (!bot) return;
     this.botName = bot.name;
     this.botPrompt = bot.system_prompt;
     this.botRetrievalLimit = bot.retrieval_limit;
+    this.embedOrigins = bot.allowed_origins?.join("\n") || location.origin;
+    this.embedPrimaryColor = bot.embed_primary_color || "#1463ff";
+    this.embedTitle = bot.embed_title || bot.name;
+    this.embedGreeting =
+      bot.embed_greeting || "Xin chào! Tôi có thể giúp gì cho bạn?";
   }
 
   protected send(): void {
     const bot = this.selectedBot();
     const question = this.chatInput.trim();
     if (
-      this.currentStep() !== 3 ||
+      this.currentStep() !== 2 ||
       !bot ||
       !bot.published ||
+      !this.hasReadyDocuments() ||
       !question ||
       this.isStreaming()
     )
@@ -647,7 +1139,7 @@ export class ChatbotsComponent {
   }
 
   private reloadProviders(): void {
-    if (!this.selectedOrganization) return;
+    if (!this.selectedOrganization || !this.isAdmin()) return;
     this.api.providers(this.selectedOrganization).subscribe({
       next: (items) => {
         this.providers.set(items);
@@ -727,6 +1219,7 @@ export class ChatbotsComponent {
     this.selectedWorkspace = "";
     this.selectedBot.set(null);
     this.messages.set([]);
+    this.documents.set([]);
     this.conversationId = null;
   }
 

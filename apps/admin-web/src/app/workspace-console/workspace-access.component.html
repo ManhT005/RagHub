@@ -1,0 +1,96 @@
+<section class="access-card" aria-labelledby="workspace-access-title">
+  <div class="access-heading">
+    <div>
+      <p class="eyebrow">PHÂN QUYỀN WORKSPACE</p>
+      <h2 id="workspace-access-title">Quản trị viên</h2>
+      <p>
+        Những tài khoản có thể quản lý tài liệu và chatbot trong
+        {{ workspaceName() }}.
+      </p>
+    </div>
+    @if (isAdmin()) {
+      <nz-tag nzColor="blue"
+        >{{ workspaceAdmins().length }} quản trị viên</nz-tag
+      >
+    }
+  </div>
+
+  @if (!isAdmin()) {
+    <nz-alert
+      nzType="info"
+      nzShowIcon
+      nzMessage="Quyền truy cập do Admin quản lý"
+      nzDescription="Bạn có thể quản lý nội dung của workspace này nhưng không thể cấp quyền cho tài khoản khác."
+    />
+  } @else {
+    <form class="add-admin" (ngSubmit)="addAdmin()">
+      <label>
+        <span>Email tài khoản</span>
+        <input
+          nz-input
+          [(ngModel)]="email"
+          name="workspaceAdminEmail"
+          type="email"
+          autocomplete="email"
+          placeholder="nguoidung@donvi.vn"
+        />
+      </label>
+      <button nz-button nzType="primary" type="submit" [nzLoading]="saving()">
+        Thêm quản trị viên
+      </button>
+    </form>
+
+    @if (error()) {
+      <nz-alert nzType="error" nzShowIcon [nzMessage]="error()" />
+    }
+    @if (success()) {
+      <nz-alert nzType="success" nzShowIcon [nzMessage]="success()" />
+    }
+
+    <nz-spin [nzSpinning]="loading()">
+      <nz-table
+        #adminTable
+        [nzData]="workspaceAdmins()"
+        [nzShowPagination]="false"
+        nzSize="small"
+        nzNotFoundContent="Chưa có quản trị viên phù hợp"
+      >
+        <thead>
+          <tr>
+            <th>Tài khoản</th>
+            <th>Vai trò</th>
+            <th aria-label="Thao tác"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (member of adminTable.data; track member.user_id) {
+            <tr>
+              <td>
+                <strong>{{ member.email }}</strong>
+              </td>
+              <td><nz-tag nzColor="geekblue">Workspace admin</nz-tag></td>
+              <td class="actions">
+                <button
+                  nz-button
+                  nzType="link"
+                  nzDanger
+                  type="button"
+                  nz-popconfirm
+                  nzPopconfirmTitle="Gỡ quyền quản trị khỏi workspace này?"
+                  nzOkText="Gỡ quyền"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="removeAdmin(member)"
+                >
+                  Gỡ quyền
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+      @if (!loading() && !workspaceAdmins().length) {
+        <p class="empty">Workspace này chưa có quản trị viên riêng.</p>
+      }
+    </nz-spin>
+  }
+</section>

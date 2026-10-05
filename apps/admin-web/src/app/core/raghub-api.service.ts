@@ -7,12 +7,35 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  role: string;
+  role: "ADMIN" | "WORKSPACE_ADMIN";
 }
 export interface Membership {
   user_id: string;
   email: string;
-  role: "OWNER" | "ADMIN" | "EDITOR" | "VIEWER";
+  role: "ADMIN" | "WORKSPACE_ADMIN";
+  workspace_ids: string[];
+}
+export interface AdminUserWorkspace {
+  id: string;
+  name: string;
+  slug: string;
+}
+export interface AdminUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+  status: string;
+  last_login_at: string | null;
+  created_at: string | null;
+  role: "ADMIN" | "WORKSPACE_ADMIN";
+  workspace_ids: string[];
+  workspaces: AdminUserWorkspace[];
+}
+export interface AdminUserPage {
+  items: AdminUser[];
+  page: number;
+  page_size: number;
+  total: number;
 }
 export interface Workspace {
   id: string;
@@ -215,15 +238,43 @@ export class RaghubApiService {
       `${this.base}/organizations/${organizationId}/members`,
     );
   }
-  saveMember(organizationId: string, email: string, role: Membership["role"]) {
+  saveMember(
+    organizationId: string,
+    email: string,
+    role: Membership["role"],
+    workspaceIds: string[] = [],
+  ) {
     return this.http.put<Membership>(
       `${this.base}/organizations/${organizationId}/members`,
-      { email, role },
+      { email, role, workspace_ids: workspaceIds },
     );
   }
   deleteMember(organizationId: string, userId: string) {
     return this.http.delete(
       `${this.base}/organizations/${organizationId}/members/${userId}`,
+    );
+  }
+  adminUsers(q: string, page: number, pageSize = 10) {
+    return this.http.get<AdminUserPage>(`${this.base}/admin/users`, {
+      params: { q, page: String(page), page_size: String(pageSize) },
+    });
+  }
+  createAdminUser(email: string, password: string, displayName?: string) {
+    return this.http.post<AdminUser>(`${this.base}/admin/users`, {
+      email,
+      password,
+      display_name: displayName?.trim() ? displayName.trim() : null,
+    });
+  }
+  updateAdminUser(userId: string, displayName: string | null) {
+    return this.http.patch<AdminUser>(`${this.base}/admin/users/${userId}`, {
+      display_name: displayName?.trim() ? displayName.trim() : null,
+    });
+  }
+  updateAdminUserStatus(userId: string, status: "ACTIVE" | "DISABLED") {
+    return this.http.patch<AdminUser>(
+      `${this.base}/admin/users/${userId}/status`,
+      { status },
     );
   }
   workspaces() {
@@ -340,6 +391,7 @@ export class RaghubApiService {
     chatbotId: string,
     payload: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -356,6 +408,7 @@ export class RaghubApiService {
         headers,
         body: JSON.stringify(payload),
         credentials: "include",
+        signal,
       });
       if (!response.ok || !response.body) {
         onEvent({
@@ -379,6 +432,7 @@ export class RaghubApiService {
       }
       parser.flush().forEach(onEvent);
     } catch {
+      if (signal?.aborted) return;
       onEvent({
         event: "error",
         data: { message: "Kết nối chat bị gián đoạn. Hãy thử lại." },

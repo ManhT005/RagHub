@@ -1,0 +1,3 @@
+include requirements-test.lock
+include uv.lock
+recursive-include tests *.py

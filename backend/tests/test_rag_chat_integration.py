@@ -2,7 +2,9 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from raghub_core.domain.rag.models import StreamChatCommand
 
+from app.delivery.http.sse import event_payload
 from app.modules.ai_providers.contracts import ChatStreamDelta, ChatUsage
 from app.modules.chatbots.models import Message, MessageCitation, UsageEvent
 from app.modules.chatbots.service import ChatbotService
@@ -82,16 +84,21 @@ async def test_successful_rag_stream_persists_usage_and_selected_citations(
                 config=SimpleNamespace(provider_type="OPENAI_COMPATIBLE", model="chat-model"),
             )
 
-    import app.modules.chatbots.service as service_module
+    import app.composition.self_host as composition
+    from app.infrastructure.chat_runtime import RuntimeRetrievalAdapter
 
-    monkeypatch.setattr(service_module, "SearchService", Search)
-    monkeypatch.setattr(service_module, "ProviderResolver", Resolver)
+    monkeypatch.setattr(
+        composition.SelfHostContainer,
+        "retrieve_context",
+        lambda self: RuntimeRetrievalAdapter(lambda: Search(None)),
+    )
+    monkeypatch.setattr(composition, "ProviderResolver", Resolver)
     session = SessionStub()
 
     events = [
-        event
-        async for event in Service(session).stream(  # type: ignore[arg-type]
-            organization_id, chatbot.id, "deadline", None, "user"
+        event_payload(event)
+        async for event in Service(session).stream_events(
+            StreamChatCommand(organization_id, chatbot.id, "deadline", None, "user")
         )
     ]
 
