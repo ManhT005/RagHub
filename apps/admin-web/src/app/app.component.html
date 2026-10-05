@@ -1,4 +1,7 @@
 <router-outlet />
+@if (auth.restoreError()) {
+  <div role="alert" class="session-banner">Kết nối tạm thời gián đoạn. Phiên đăng nhập được giữ lại. <button type="button" (click)="retrySession()">Thử lại</button></div>
+}
 <!--
   <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">
     <a class="brand" routerLink="/" aria-label="Tổng quan RagHub">

@@ -1,5 +1,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, inject } from "@angular/core";
+import { firstValueFrom } from "rxjs";
+import { AuthSessionService } from "./auth-session.service";
 
 import { session } from "./api-auth.interceptor";
 
@@ -195,6 +197,7 @@ export class SseEventParser {
 @Injectable({ providedIn: "root" })
 export class RaghubApiService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthSessionService);
   private readonly base = "/api/v1";
 
   login(email: string, password: string) {
@@ -403,13 +406,19 @@ export class RaghubApiService {
       headers["X-Organization-ID"] = session.organizationId;
 
     try {
-      const response = await fetch(`${this.base}/chatbots/${chatbotId}/chat`, {
+      const send = () => fetch(`${this.base}/chatbots/${chatbotId}/chat`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
         credentials: "include",
         signal,
       });
+      let response = await send();
+      if (response.status === 401 && !signal?.aborted) {
+        const token = await firstValueFrom(this.auth.refresh());
+        headers["Authorization"] = `Bearer ${token}`;
+        response = await send();
+      }
       if (!response.ok || !response.body) {
         onEvent({
           event: "error",

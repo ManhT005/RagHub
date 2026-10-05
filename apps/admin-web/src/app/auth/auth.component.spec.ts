@@ -3,6 +3,7 @@ import { provideRouter } from "@angular/router";
 import { of } from "rxjs";
 
 import { AuthComponent } from "./auth.component";
+import { provideHttpClient } from "@angular/common/http";
 import { RaghubApiService } from "../core/raghub-api.service";
 
 describe("AuthComponent", () => {
@@ -21,6 +22,7 @@ describe("AuthComponent", () => {
     await TestBed.configureTestingModule({
       imports: [AuthComponent],
       providers: [
+        provideHttpClient(),
         provideRouter([]),
         { provide: RaghubApiService, useValue: api },
       ],

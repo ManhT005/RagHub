@@ -70,6 +70,13 @@ the secure refresh cookie outside development/test environments.
 
 ## Health and persistence
 
+Access tokens default to 15 minutes (`ACCESS_TOKEN_TTL_MINUTES`), and HttpOnly
+refresh cookies default to 7 days (`REFRESH_TOKEN_TTL_DAYS`). Keep HTTPS enabled:
+the refresh cookie is Secure in self-host mode. The Console rotates refresh tokens,
+shares concurrent refresh requests, restores cookie sessions in new tabs, and
+keeps local state during gateway/network failures. Logout revokes the refresh
+session and clears its cookie; password changes/reset revoke previous sessions.
+
 `/health/live` checks that the process responds. `/health/ready` checks PostgreSQL,
 Redis, Elasticsearch and MinIO. AI connectivity is checked independently through
 provider tests; a stopped Ollama service does not fail basic API readiness.

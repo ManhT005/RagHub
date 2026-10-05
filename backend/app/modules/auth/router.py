@@ -5,6 +5,7 @@ from fastapi import APIRouter, Cookie, Depends, Response, status
 from app.core.auth import get_current_user
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError
+from app.modules.auth.cookies import delete_refresh_cookie, set_refresh_cookie
 from app.modules.auth.dependencies import get_auth_service
 from app.modules.auth.schemas import (
     Credentials,
@@ -15,25 +16,10 @@ from app.modules.auth.schemas import (
     PasswordResetRequest,
     TokenResponse,
 )
-from app.modules.auth.service import AuthResult, AuthService
+from app.modules.auth.service import AuthService
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _set_refresh_cookie(
-    response: Response, result: AuthResult, settings: Settings
-) -> TokenResponse:
-    response.set_cookie(
-        "refresh_token",
-        result.refresh_token,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path=f"{settings.api_v1_prefix}/auth",
-        max_age=settings.refresh_token_ttl_days * 86400,
-    )
-    return TokenResponse(access_token=result.access_token)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -43,7 +29,7 @@ async def login(
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
-    return _set_refresh_cookie(
+    return set_refresh_cookie(
         response, await service.login(payload.email, payload.password), settings
     )
 
@@ -75,7 +61,7 @@ async def change_password(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
     result = await service.change_password(user, payload.current_password, payload.new_password)
-    return _set_refresh_cookie(response, result, settings)
+    return set_refresh_cookie(response, result, settings)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -89,7 +75,7 @@ async def refresh(
         raise AppError(
             "REFRESH_TOKEN_REQUIRED", "A refresh token cookie is required.", status_code=401
         )
-    return _set_refresh_cookie(response, await service.refresh(refresh_token), settings)
+    return set_refresh_cookie(response, await service.refresh(refresh_token), settings)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -100,7 +86,7 @@ async def logout(
     refresh_token: Annotated[str | None, Cookie()] = None,
 ) -> Response:
     await service.logout(refresh_token)
-    response.delete_cookie("refresh_token", path=f"{settings.api_v1_prefix}/auth")
+    delete_refresh_cookie(response, settings)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response
 

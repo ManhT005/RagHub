@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { AuthSessionService } from './core/auth-session.service';
 
 @Component({
   selector: 'raghub-root',
@@ -8,4 +9,7 @@ import { RouterOutlet } from '@angular/router';
   styleUrl: './app.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AppComponent {}
+export class AppComponent {
+  protected readonly auth = inject(AuthSessionService);
+  protected retrySession(): void { window.location.reload(); }
+}

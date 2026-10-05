@@ -6,7 +6,7 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { RaghubApiService } from "../core/raghub-api.service";
-import { session } from "../core/api-auth.interceptor";
+import { AuthSessionService } from "../core/auth-session.service";
 
 @Component({
   selector: "raghub-security",
@@ -98,6 +98,7 @@ export class SecurityComponent {
   protected readonly error = signal("");
   protected readonly success = signal("");
   private readonly api = inject(RaghubApiService);
+  private readonly auth = inject(AuthSessionService);
   protected submit(): void {
     this.error.set("");
     this.success.set("");
@@ -107,7 +108,7 @@ export class SecurityComponent {
     }
     this.api.changePassword(this.currentPassword, this.newPassword).subscribe({
       next: ({ access_token }) => {
-        session.accessToken = access_token;
+        this.auth.acceptToken(access_token);
         this.success.set(
           "Đổi mật khẩu thành công. Các phiên cũ đã bị thu hồi.",
         );

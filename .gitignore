@@ -10,6 +10,7 @@
 
 # Local core extraction plan (kept outside version control)
 /RagHub_Core_Remake_Implementation_Plan.md
+/raghub_refresh_token_initial_setup_plan.md
 
 # Python
 __pycache__/

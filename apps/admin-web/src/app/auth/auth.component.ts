@@ -8,7 +8,7 @@ import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 
 import { RaghubApiService } from "../core/raghub-api.service";
-import { session } from "../core/api-auth.interceptor";
+import { AuthSessionService } from "../core/auth-session.service";
 
 type AuthMode = "login" | "forgot";
 
@@ -27,6 +27,7 @@ export class AuthComponent {
   protected readonly message = signal("");
   protected readonly loading = signal(false);
   private readonly api = inject(RaghubApiService);
+  private readonly auth = inject(AuthSessionService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -40,8 +41,8 @@ export class AuthComponent {
     this.error.set("");
     this.message.set("");
     this.loading.set(true);
-    this.api.login(this.email, this.password).subscribe({
-      next: ({ access_token }) => this.completeLogin(access_token),
+    this.auth.login(this.email, this.password).subscribe({
+      next: () => this.completeLogin(),
       error: () => {
         this.error.set("Không thể đăng nhập. Hãy kiểm tra email và mật khẩu.");
         this.loading.set(false);
@@ -66,8 +67,7 @@ export class AuthComponent {
     });
   }
 
-  private completeLogin(accessToken: string): void {
-    session.accessToken = accessToken;
+  private completeLogin(): void {
     this.loading.set(false);
     const returnUrl = this.route.snapshot.queryParamMap.get("returnUrl");
     void this.router.navigateByUrl(
