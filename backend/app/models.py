@@ -20,7 +20,7 @@ from app.modules.memberships.models import (
     WorkspaceMembership,
     WorkspaceMembershipPermission,
 )
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationAiDefaults
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
@@ -34,6 +34,7 @@ __all__ = [
     "WorkspaceMembership",
     "WorkspaceMembershipPermission",
     "Organization",
+    "OrganizationAiDefaults",
     "User",
     "Workspace",
     "Chatbot",

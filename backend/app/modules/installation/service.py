@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.security import hash_password
-from app.modules.ai_providers.schemas import ProviderConfigInput
-from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.auth.models import UserIdentity
 from app.modules.auth.service import AuthResult, AuthService
+from app.modules.installation.local_ai_bootstrap import (
+    LocalAiBootstrapService,
+    enqueue_local_ai_health,
+)
 from app.modules.installation.models import InstallationState
 from app.modules.installation.schemas import InitializeInstallationInput
 from app.modules.memberships.models import Membership
@@ -102,33 +104,22 @@ class InitializeInstallationService:
             )
             provider_ids = []
             if payload.ai_mode == "LOCAL":
-                providers = ProviderConfigService(self.session)
-                for config in (
-                    ProviderConfigInput(
-                        name="Local embedding",
-                        provider_type="LOCAL_SENTENCE_TRANSFORMER",
-                        capability="EMBEDDING",
-                        model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                        dimension=384,
-                    ),
-                    ProviderConfigInput(
-                        name="Local chat",
-                        provider_type="OLLAMA",
-                        capability="CHAT",
-                        model="gemma3:1b",
-                    ),
-                ):
-                    provider = await providers.create(organization.id, config, commit=False)
-                    provider_ids.append(str(provider.id))
+                models = await LocalAiBootstrapService(self.session).ensure(organization.id)
+                provider_ids = [str(model.id) for model in models]
             auth = await auth_service.issue_session(user) if auth_service else None
             state.owner_id = user.id
             state.organization_id = organization.id
             state.status = "INITIALIZED"
             state.initialized_at = now
             await self.session.flush()
-            return InstallationResult(
+            result = InstallationResult(
                 str(user.id), str(organization.id), email, "created", auth, tuple(provider_ids)
             )
+        if provider_ids:
+            import asyncio
+
+            await asyncio.to_thread(enqueue_local_ai_health, result.organization_id, provider_ids)
+        return result
 
     async def _existing_owner(self, state, payload) -> InstallationResult:
         user = await self.session.get(User, state.owner_id) if state.owner_id else None

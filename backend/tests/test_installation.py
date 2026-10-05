@@ -19,7 +19,7 @@ from app.modules.installation.models import InstallationState
 from app.modules.installation.schemas import InitializeInstallationInput
 from app.modules.installation.service import InitializeInstallationService
 from app.modules.memberships.models import Membership
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationAiDefaults
 from app.modules.users.models import User
 
 
@@ -108,7 +108,12 @@ async def test_concurrent_initialization_only_one_owner(installation_sessions):
 
 
 @pytest.mark.integration
-async def test_local_ai_configs_and_auth_session_commit_together(installation_sessions):
+async def test_local_ai_configs_and_auth_session_commit_together(
+    installation_sessions, monkeypatch
+):
+    monkeypatch.setattr(
+        "app.modules.installation.service.enqueue_local_ai_health", lambda *args: None
+    )
     async with installation_sessions() as session:
         auth = AuthService(
             session=session, email_sender=AsyncMock(), settings=Settings(_env_file=None)
@@ -118,6 +123,13 @@ async def test_local_ai_configs_and_auth_session_commit_together(installation_se
         )
         assert result.auth and len(result.provider_ids) == 2
         providers = list(await session.scalars(select(ProviderConfig)))
+        assert {provider.connection.catalog_id for provider in providers} == {
+            "sentence-transformer",
+            "ollama",
+        }
+        defaults = await session.get(OrganizationAiDefaults, result.organization_id)
+        assert defaults.default_embedding_model_id in {provider.id for provider in providers}
+        assert defaults.default_chat_model_id in {provider.id for provider in providers}
         assert {provider.provider_type for provider in providers} == {
             "LOCAL_SENTENCE_TRANSFORMER",
             "OLLAMA",

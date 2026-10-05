@@ -87,10 +87,15 @@ export class WorkspaceApiService {
   get(id: string) {
     return this.http.get<WorkspaceSummary>(`/api/v1/workspaces/${id}`);
   }
-  create(name: string, slug: string) {
+  aiDefaults() {
+    return this.http.get<{default_embedding_model_id: string | null; default_chat_model_id: string | null}>("/api/v1/workspaces/ai-defaults");
+  }
+  create(name: string, slug: string, embeddingModelId: string | null = null, chatModelId: string | null = null) {
     return this.http.post<WorkspaceSummary>("/api/v1/workspaces", {
       name,
       slug,
+      embedding_model_id: embeddingModelId,
+      chat_model_id: chatModelId,
     });
   }
   update(id: string, name: string, slug: string) {

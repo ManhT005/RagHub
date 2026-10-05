@@ -18,7 +18,7 @@ import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzModalModule } from "ng-zorro-antd/modal";
 import { NzDropDownModule } from "ng-zorro-antd/dropdown";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
-import { catchError, finalize, map, of, switchMap } from "rxjs";
+import { finalize, forkJoin } from "rxjs";
 import {
   WorkspaceApiService,
   WorkspaceSummary,
@@ -97,6 +97,8 @@ export class WorkspacesPageComponent {
   protected name = "";
   protected slug = "";
   protected initialModel = "";
+  protected initialChat = "";
+  private defaults = { default_embedding_model_id: null as string | null, default_chat_model_id: null as string | null };
   private readonly api = inject(WorkspaceApiService);
   private readonly providers = inject(ProviderApiService);
   private readonly auth = inject(RaghubApiService);
@@ -123,17 +125,15 @@ export class WorkspacesPageComponent {
     if (!this.selectedOrganization()) return;
     this.load();
     if (this.isAdmin())
-      this.providers
-        .models(this.selectedOrganization())
+      forkJoin({ models: this.providers.models(this.selectedOrganization()), defaults: this.api.aiDefaults() })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: (items) =>
+          next: ({models: items, defaults}) => {
+            this.defaults = defaults;
             this.models.set(
-              items.filter(
-                (item) =>
-                  item.capability === "EMBEDDING" && selectableModel(item),
-              ),
-            ),
+              items.filter(selectableModel),
+            );
+          },
           error: (error) => this.error.set(apiError(error)),
         });
   }
@@ -155,7 +155,10 @@ export class WorkspacesPageComponent {
     this.editing.set(item);
     this.name = item?.name ?? "";
     this.slug = item?.slug ?? "";
-    this.initialModel = "";
+    this.initialModel = !item && this.models().some(m => m.id === this.defaults.default_embedding_model_id)
+      ? this.defaults.default_embedding_model_id! : "";
+    this.initialChat = !item && this.models().some(m => m.id === this.defaults.default_chat_model_id)
+      ? this.defaults.default_chat_model_id! : "";
     this.editorOpen.set(true);
   }
   protected save() {
@@ -180,22 +183,9 @@ export class WorkspacesPageComponent {
     const editing = this.editing();
     const request = editing
       ? this.api.update(editing.id, this.name.trim(), slug)
-      : this.api.create(this.name.trim(), slug);
+      : this.api.create(this.name.trim(), slug, this.initialModel || null, this.initialChat || null);
     request
       .pipe(
-        switchMap((workspace) =>
-          !editing && this.initialModel
-            ? this.api.changeEmbedding(workspace.id, this.initialModel).pipe(
-                map(() => workspace),
-                catchError((error) => {
-                  this.notice.set(
-                    `Workspace đã tạo. ${apiError(error)} Cấu hình model trong cài đặt AI.`,
-                  );
-                  return of(workspace);
-                }),
-              )
-            : of(workspace),
-        ),
         finalize(() => this.saving.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )

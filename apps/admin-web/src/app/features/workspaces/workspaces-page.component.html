@@ -149,12 +149,22 @@
       <label>Embedding model ban đầu<select [(ngModel)]="initialModel" [disabled]="saving()">
           <option value="">Cấu hình sau</option>
           @for (model of models(); track model.id) {
+          @if (model.capability === 'EMBEDDING') {
           <option [value]="model.id">
             {{ model.provider_name }} / {{ model.model }} ·
             {{ model.dimension }} dims
           </option>
           }
+          }
         </select></label>
+      <label>Chat model ban đầu<select [(ngModel)]="initialChat" [disabled]="saving()">
+          <option value="">Cấu hình sau</option>
+          @for (model of models(); track model.id) {
+            @if (model.capability === 'CHAT') {
+              <option [value]="model.id">{{ model.provider_name }} / {{ model.model }}</option>
+            }
+          }
+      </select></label>
       @if (!models().length) {
       <p class="muted">
         Bạn vẫn có thể tạo workspace. Đăng ký model trong
