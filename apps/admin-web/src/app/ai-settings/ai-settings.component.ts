@@ -1,10 +1,11 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RaghubApiService, ProviderConfig, ProviderType, ProviderCapability } from '../core/raghub-api.service';
 import { session } from '../core/api-auth.interceptor';
 
 @Component({
-  selector: 'raghub-ai-settings', imports: [FormsModule],
+  selector: 'raghub-ai-settings', imports: [PasswordToggleDirective,FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main>

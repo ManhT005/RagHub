@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -42,7 +43,7 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-workspace-console",
-  imports: [FormsModule, RouterLink, WorkspaceAccessComponent],
+  imports: [PasswordToggleDirective,FormsModule, RouterLink, WorkspaceAccessComponent],
   templateUrl: "./workspace-console.component.html",
   styleUrl: "./workspace-console.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,

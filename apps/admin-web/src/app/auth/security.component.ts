@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,7 +11,7 @@ import { AuthSessionService } from "../core/auth-session.service";
 
 @Component({
   selector: "raghub-security",
-  imports: [FormsModule],
+  imports: [PasswordToggleDirective,FormsModule],
   template: `<section class="security-card">
     <p class="eyebrow">TÀI KHOẢN</p>
     <h1>Đổi mật khẩu</h1>

@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -14,7 +15,7 @@ type AuthMode = "login" | "forgot";
 
 @Component({
   selector: "raghub-auth",
-  imports: [FormsModule],
+  imports: [PasswordToggleDirective,FormsModule],
   templateUrl: "./auth.component.html",
   styleUrl: "./auth.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,

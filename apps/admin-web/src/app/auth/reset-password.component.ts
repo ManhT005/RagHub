@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,7 +11,7 @@ import { RaghubApiService } from "../core/raghub-api.service";
 
 @Component({
   selector: "raghub-reset-password",
-  imports: [FormsModule, RouterLink],
+  imports: [PasswordToggleDirective,FormsModule, RouterLink],
   template: `<main class="auth-card">
     <p class="eyebrow">BẢO MẬT RAGHUB</p>
     <h1>Đặt lại mật khẩu</h1>

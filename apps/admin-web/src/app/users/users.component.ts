@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -32,7 +33,7 @@ const PAGE_SIZE = 10;
 
 @Component({
   selector: "raghub-users",
-  imports: [
+  imports: [PasswordToggleDirective,
     FormsModule,
     NzAlertModule,
     NzButtonModule,

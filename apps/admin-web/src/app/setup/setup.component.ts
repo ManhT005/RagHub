@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -9,7 +10,7 @@ import { Readiness, SetupStateService } from './setup-state.service';
 
 @Component({
   selector: 'raghub-setup',
-  imports: [FormsModule, RouterLink],
+  imports: [PasswordToggleDirective,FormsModule, RouterLink],
   templateUrl: './setup.component.html',
   styleUrl: './setup.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

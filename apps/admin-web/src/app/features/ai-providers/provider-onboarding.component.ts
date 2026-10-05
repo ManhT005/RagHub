@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -37,7 +38,7 @@ interface Choice extends DiscoveredModel {
 }
 @Component({
   selector: "raghub-provider-onboarding",
-  imports: [
+  imports: [PasswordToggleDirective,
     ProviderLogoComponent,
     FormsModule,
     NzDrawerModule,

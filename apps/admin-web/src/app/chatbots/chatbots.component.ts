@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -50,7 +51,7 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-chatbots",
-  imports: [
+  imports: [PasswordToggleDirective,
     ChatbotSettingsComponent,
     DatePipe,
     FormsModule,
