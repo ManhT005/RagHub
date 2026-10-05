@@ -11,6 +11,7 @@ from app.modules.ai_providers.schemas import (
     _validate_provider_options,
     _validate_safe_config,
     validate_public_provider_url,
+    validate_trusted_local_provider_url,
 )
 
 
@@ -33,13 +34,23 @@ class ConnectionInput(BaseModel):
         if not self.name:
             raise ValueError("Connection name is required")
         self.base_url = _validate_base_url(self.base_url or item.default_base_url)
-        if item.category != "Local":
+        if (
+            item.endpoint_scope == "LOCAL_TRUSTED"
+            and self.provider_type != "LOCAL_SENTENCE_TRANSFORMER"
+        ):
+            self.base_url = validate_trusted_local_provider_url(
+                self.base_url, ollama=self.provider_type == "OLLAMA"
+            )
+        elif item.endpoint_scope == "PUBLIC":
             self.base_url = validate_public_provider_url(self.base_url)
         if self.provider_type == "OPENAI_COMPATIBLE" and not self.base_url:
             raise ValueError("Custom provider requires base URL")
         if item.auth_type == "NONE" and self.secret:
             raise ValueError("Local providers do not accept credentials")
         self.config_json = _validate_provider_options(_validate_safe_config(self.config_json))
+        self.config_json.update(
+            endpoint_scope=item.endpoint_scope, request_profile=item.request_profile
+        )
         return self
 
 

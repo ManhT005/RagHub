@@ -353,15 +353,22 @@ async def infer_dimension(connection, model: str, secret: str | None) -> int:
     else:
         import httpx
 
-        from app.modules.ai_providers.schemas import validate_public_provider_url
+        from app.modules.ai_providers.request_profiles import embedding_payload
+        from app.modules.ai_providers.schemas import validate_connection_endpoint
 
-        base = validate_public_provider_url(connection.base_url).rstrip("/")
+        try:
+            base = validate_connection_endpoint(connection).rstrip("/")
+        except ValueError as exc:
+            raise AppError(
+                "PROVIDER_ENDPOINT_REJECTED", "Provider endpoint is not allowed.", status_code=422
+            ) from exc
+        profile = supported_catalog_by_id(connection_catalog_id(connection)).request_profile
         try:
             async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
                 response = await client.post(
                     f"{base}/embeddings",
                     headers={"Authorization": f"Bearer {secret}"} if secret else {},
-                    json={"model": model, "input": ["RagHub dimension probe"]},
+                    json=embedding_payload(profile, model, ["RagHub dimension probe"], "query"),
                 )
                 if response.status_code in {401, 403}:
                     raise AppError(

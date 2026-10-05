@@ -1,7 +1,7 @@
 import ipaddress
 import socket
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -47,6 +47,10 @@ class ProviderOptions(BaseModel):
     max_concurrency: int | None = Field(default=None, strict=True, ge=1, le=64)
     include_stream_usage: bool | None = Field(default=None, strict=True)
     options: dict[str, Any] | None = None
+    endpoint_scope: Literal["PUBLIC", "LOCAL_TRUSTED"] | None = None
+    request_profile: (
+        Literal["OPENAI_STANDARD", "NVIDIA_NIM", "OLLAMA", "GEMINI", "SENTENCE_TRANSFORMER"] | None
+    ) = None
 
 
 def _validate_provider_options(config: dict[str, Any]) -> dict[str, Any]:
@@ -87,6 +91,62 @@ def validate_public_provider_url(url: str | None) -> str | None:
     return url
 
 
+def validate_trusted_local_provider_url(url: str | None, *, ollama: bool = False) -> str:
+    from app.core.config import get_settings
+
+    url = _validate_base_url(url)
+    if not url:
+        raise ValueError("Local provider requires a base URL")
+    hostname = urlsplit(url).hostname
+    allowed = {
+        host.strip().lower()
+        for host in get_settings().trusted_local_provider_hosts.split(",")
+        if host.strip()
+    }
+    if ollama:
+        allowed.update({"ollama", "localhost", "127.0.0.1", "::1"})
+        configured_host = urlsplit(get_settings().ollama_base_url).hostname
+        if configured_host:
+            allowed.add(configured_host.lower())
+    if not hostname or hostname.lower() not in allowed:
+        raise ValueError("Hostname must be explicitly allowlisted in TRUSTED_LOCAL_PROVIDER_HOSTS")
+    addresses = set()
+    try:
+        addresses.add(str(ipaddress.ip_address(hostname)))
+    except ValueError:
+        try:
+            addresses.update(item[4][0] for item in socket.getaddrinfo(hostname, None))
+        except socket.gaierror:
+            pass
+    for address in addresses:
+        ip = ipaddress.ip_address(address)
+        if (
+            ip.is_link_local
+            or ip.is_multicast
+            or ip.is_unspecified
+            or (ip.is_reserved and not (ollama and ip.is_loopback))
+        ):
+            raise ValueError("Metadata, link-local and reserved addresses are forbidden")
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        return url
+    if not (ollama and ip.is_loopback):
+        raise ValueError("Trusted local gateways require an exact hostname, not an IP literal")
+    return url
+
+
+def validate_connection_endpoint(connection):
+    from app.modules.ai_providers.catalog import connection_catalog_id, supported_catalog_by_id
+
+    catalog = supported_catalog_by_id(connection_catalog_id(connection))
+    if catalog.endpoint_scope == "LOCAL_TRUSTED":
+        return validate_trusted_local_provider_url(
+            connection.base_url, ollama=connection.provider_type == "OLLAMA"
+        )
+    return validate_public_provider_url(connection.base_url)
+
+
 class ProviderConfigInput(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     provider_type: ProviderType
@@ -121,7 +181,10 @@ class ProviderConfigInput(BaseModel):
             ProviderType.OPENAI_COMPATIBLE,
             ProviderType.GOOGLE_GEMINI,
         }:
-            self.base_url = validate_public_provider_url(self.base_url)
+            if self.config_json.get("endpoint_scope") == "LOCAL_TRUSTED":
+                self.base_url = validate_trusted_local_provider_url(self.base_url)
+            else:
+                self.base_url = validate_public_provider_url(self.base_url)
         if self.capability == ProviderCapability.EMBEDDING and self.dimension is None:
             raise ValueError("Embedding providers require dimension")
         if (

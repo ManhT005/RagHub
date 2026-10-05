@@ -17,6 +17,9 @@ class CatalogItem(BaseModel):
     docs_url: str | None = None
     api_key_url: str | None = None
     status: str = "SUPPORTED"
+    endpoint_scope: str = "PUBLIC"
+    discovery_profile: str = "OPENAI_MODELS"
+    request_profile: str = "OPENAI_STANDARD"
 
 
 CATALOG = [
@@ -30,6 +33,8 @@ CATALOG = [
         supports_model_discovery=True,
         docs_url="https://ai.google.dev/gemini-api/docs",
         api_key_url="https://aistudio.google.com/apikey",
+        discovery_profile="GEMINI_MODELS",
+        request_profile="GEMINI",
     ),
     CatalogItem(
         id="openai",
@@ -58,6 +63,9 @@ CATALOG = [
         supports_model_discovery=True,
         auth_type="NONE",
         docs_url="https://docs.ollama.com",
+        endpoint_scope="LOCAL_TRUSTED",
+        discovery_profile="OLLAMA",
+        request_profile="OLLAMA",
     ),
     CatalogItem(
         id="sentence-transformer",
@@ -66,6 +74,32 @@ CATALOG = [
         provider_type="LOCAL_SENTENCE_TRANSFORMER",
         capabilities=["EMBEDDING"],
         auth_type="NONE",
+        endpoint_scope="LOCAL_TRUSTED",
+        discovery_profile="MANUAL",
+        request_profile="SENTENCE_TRANSFORMER",
+    ),
+    CatalogItem(
+        id="nvidia-nim",
+        name="NVIDIA NIM",
+        category="Cloud",
+        provider_type="OPENAI_COMPATIBLE",
+        default_base_url="https://integrate.api.nvidia.com/v1",
+        capabilities=["CHAT", "EMBEDDING"],
+        supports_model_discovery=True,
+        request_profile="NVIDIA_NIM",
+        docs_url="https://docs.api.nvidia.com/nim/",
+        api_key_url="https://build.nvidia.com/",
+    ),
+    CatalogItem(
+        id="9router",
+        name="9Router",
+        category="Local",
+        provider_type="OPENAI_COMPATIBLE",
+        default_base_url="http://9router:20128/v1",
+        capabilities=["CHAT", "EMBEDDING"],
+        supports_model_discovery=True,
+        endpoint_scope="LOCAL_TRUSTED",
+        auth_type="OPTIONAL_API_KEY",
     ),
     *[
         CatalogItem(
@@ -79,7 +113,6 @@ CATALOG = [
         for name in (
             "Anthropic",
             "Azure OpenAI",
-            "NVIDIA",
             "DeepSeek",
             "Groq",
             "Cloudflare",

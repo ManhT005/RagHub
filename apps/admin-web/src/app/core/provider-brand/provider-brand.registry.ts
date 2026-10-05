@@ -9,6 +9,8 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
   anthropic: { id: 'anthropic', label: 'Anthropic', logo: 'assets/providers/anthropic.svg', fallback: 'A' },
   'azure-openai': { id: 'azure-openai', label: 'Azure OpenAI', logo: null, fallback: 'AZ', genericFallback: true },
   nvidia: { id: 'nvidia', label: 'NVIDIA', logo: 'assets/providers/nvidia.svg', fallback: 'N' },
+  'nvidia-nim': { id: 'nvidia-nim', label: 'NVIDIA NIM', logo: 'assets/providers/nvidia.svg', fallback: 'N' },
+  '9router': { id: '9router', label: '9Router', logo: 'assets/providers/openai-compatible.svg', fallback: '9R' },
   deepseek: { id: 'deepseek', label: 'DeepSeek', logo: 'assets/providers/deepseek.svg', fallback: 'D' },
   groq: { id: 'groq', label: 'Groq', logo: null, fallback: 'GQ', genericFallback: true },
   cloudflare: { id: 'cloudflare', label: 'Cloudflare', logo: 'assets/providers/cloud-generic.svg', fallback: 'CF', genericFallback: true },

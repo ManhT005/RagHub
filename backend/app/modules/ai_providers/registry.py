@@ -79,6 +79,8 @@ class ProviderRegistry:
             dimension=config.dimension or 0,
             secret=secret,
             policy=cls._policy(config),
+            endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
+            request_profile=(config.options or {}).get("request_profile", "OPENAI_STANDARD"),
         )
 
     @classmethod
@@ -89,6 +91,7 @@ class ProviderRegistry:
             secret=secret,
             policy=cls._policy(config),
             include_stream_usage=cls._include_stream_usage(config),
+            endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
         )
 
     @classmethod

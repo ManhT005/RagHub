@@ -112,9 +112,9 @@ def test_identity_survives_model_and_workspace_serialization():
         dimension=384,
     )
     assert (
-        summary_data((workspace, 3, 10, None, 1, version, config, None, None, None))["embedding_model"][
-            "provider_catalog_id"
-        ]
+        summary_data((workspace, 3, 10, None, 1, version, config, None, None, None))[
+            "embedding_model"
+        ]["provider_catalog_id"]
         == "compatible"
     )
 

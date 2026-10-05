@@ -41,7 +41,7 @@
     <button nz-button type="button" (click)="baseUrl = selected()?.default_base_url ?? ''" [disabled]="busy()">Khôi phục
       mặc định</button>
     }
-    @if (selected()?.auth_type === 'API_KEY') { <label>API key<input nz-input type="password"
+    @if (selected()?.auth_type === 'API_KEY' || selected()?.auth_type === 'OPTIONAL_API_KEY') { <label>API key<input nz-input type="password"
         autocomplete="new-password" [(ngModel)]="secret" [disabled]="busy()"
         [placeholder]="connection()?.has_secret ? 'Để trống để giữ key hiện tại' : 'Nhập API key'" /></label>
     <p class="muted">Key được mã hóa và lưu ở cấp hệ thống.</p> }

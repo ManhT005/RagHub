@@ -12,7 +12,7 @@ from app.core.exceptions import AppError
 from app.modules.ai_providers.control_schemas import ModelInput
 from app.modules.ai_providers.control_service import ProviderControlService
 from app.modules.ai_providers.models import OllamaModelPull, ProviderConfig, ProviderConnection
-from app.modules.ai_providers.schemas import _validate_base_url
+from app.modules.ai_providers.schemas import validate_trusted_local_provider_url
 
 ACTIVE_PULLS = {"QUEUED", "PULLING", "VERIFYING"}
 
@@ -26,7 +26,12 @@ def ollama_connection(connection):
         raise AppError("OLLAMA_REQUIRED", "This action requires Ollama.", status_code=422)
     if not connection.enabled:
         raise AppError("PROVIDER_DISABLED", "Connection is disabled.", status_code=409)
-    return _validate_base_url(connection.base_url).rstrip("/")
+    try:
+        return validate_trusted_local_provider_url(connection.base_url, ollama=True).rstrip("/")
+    except ValueError as exc:
+        raise AppError(
+            "PROVIDER_ENDPOINT_REJECTED", "Ollama endpoint is not allowed.", status_code=422
+        ) from exc
 
 
 class OllamaModelManager:

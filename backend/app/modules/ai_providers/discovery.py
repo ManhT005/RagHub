@@ -4,7 +4,7 @@ import httpx
 
 from app.core.exceptions import AppError
 from app.modules.ai_providers.control_schemas import DiscoveredModel
-from app.modules.ai_providers.schemas import validate_public_provider_url
+from app.modules.ai_providers.schemas import validate_connection_endpoint
 
 
 async def discover_models(
@@ -13,10 +13,14 @@ async def discover_models(
     provider_type = connection.provider_type
     if provider_type == "LOCAL_SENTENCE_TRANSFORMER":
         raise AppError("MODEL_DISCOVERY_UNSUPPORTED", "Enter a model ID manually.", status_code=409)
-    base = connection.base_url.rstrip("/")
+    try:
+        base = validate_connection_endpoint(connection).rstrip("/")
+    except ValueError as exc:
+        raise AppError(
+            "PROVIDER_ENDPOINT_REJECTED", "Provider endpoint is not allowed.", status_code=422
+        ) from exc
     headers = {"Authorization": f"Bearer {secret}"} if secret else {}
     if provider_type == "GOOGLE_GEMINI":
-        validate_public_provider_url(base)
         # Native metadata is adjacent to the OpenAI-compatible runtime endpoint.
         base = base.removesuffix("/openai")
         url, key = f"{base}/models", "models"
@@ -24,7 +28,6 @@ async def discover_models(
     elif provider_type == "OLLAMA":
         url, key = f"{base}/api/tags", "models"
     else:
-        validate_public_provider_url(base)
         url, key = f"{base}/models", "data"
     models: list[DiscoveredModel] = []
     params = {"pageSize": "1000"} if provider_type == "GOOGLE_GEMINI" else {}

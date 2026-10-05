@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     public_chat_stream_timeout_seconds: float = Field(default=90, ge=1, le=600)
     public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
+    trusted_local_provider_hosts: str = ""
 
     frontend_url: str = "http://localhost:8080"
     smtp_host: str = ""

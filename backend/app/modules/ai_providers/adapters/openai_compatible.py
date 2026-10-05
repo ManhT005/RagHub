@@ -13,6 +13,7 @@ from raghub_core.domain.providers.contracts import (
 )
 from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
+    ProviderConfigurationError,
     ProviderInvalidResponseError,
     ProviderRateLimitError,
     ProviderTimeoutError,
@@ -21,6 +22,11 @@ from raghub_core.domain.providers.errors import (
 from raghub_core.domain.providers.usage import estimate_chat_usage
 
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from app.modules.ai_providers.request_profiles import embedding_payload
+from app.modules.ai_providers.schemas import (
+    validate_public_provider_url,
+    validate_trusted_local_provider_url,
+)
 
 
 class _OpenAICompatibleBase:
@@ -32,12 +38,23 @@ class _OpenAICompatibleBase:
         secret: str | None,
         provider_name: str = "OPENAI_COMPATIBLE",
         policy: ProviderRequestPolicy | None = None,
+        endpoint_scope: str = "PUBLIC",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.secret = secret
         self.provider_name = provider_name
         self.policy = policy or ProviderRequestPolicy()
+        self.endpoint_scope = endpoint_scope
+
+    def _validate_endpoint(self):
+        try:
+            if self.endpoint_scope == "LOCAL_TRUSTED":
+                validate_trusted_local_provider_url(self.base_url)
+            else:
+                validate_public_provider_url(self.base_url)
+        except ValueError as exc:
+            raise ProviderConfigurationError("Provider endpoint is not allowed.") from exc
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.secret}"} if self.secret else {}
@@ -60,16 +77,22 @@ class _OpenAICompatibleBase:
 
 
 class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
-    def __init__(self, *, dimension: int, **kwargs: object) -> None:
+    def __init__(
+        self, *, dimension: int, request_profile: str = "OPENAI_STANDARD", **kwargs: object
+    ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self.metadata = EmbeddingMetadata(self.provider_name, self.model, dimension)
+        self.request_profile = request_profile
 
-    async def _embed(self, texts: list[str]) -> list[list[float]]:
-        payload = {"model": self.model, "input": texts}
+    async def _embed(self, texts: list[str], input_type: str = "passage") -> list[list[float]]:
+        self._validate_endpoint()
+        payload = embedding_payload(self.request_profile, self.model, texts, input_type)
         last_error: Exception | None = None
         for attempt in range(self.policy.max_attempts):
             try:
-                async with httpx.AsyncClient(timeout=self._timeout()) as client:
+                async with httpx.AsyncClient(
+                    timeout=self._timeout(), follow_redirects=False
+                ) as client:
                     response = await client.post(
                         f"{self.base_url}/embeddings", headers=self._headers(), json=payload
                     )
@@ -116,7 +139,7 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
-        return (await self._embed([text]))[0]
+        return (await self._embed([text], "query"))[0]
 
 
 class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
@@ -127,6 +150,7 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
     ) -> AsyncIterator[ChatStreamDelta]:
+        self._validate_endpoint()
         payload: dict[str, object] = {
             "model": options.model or self.model,
             "messages": [{"role": item.role, "content": item.content} for item in messages],
@@ -143,7 +167,9 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
             completion: list[str] = []
             usage_received = False
             try:
-                async with httpx.AsyncClient(timeout=self._timeout()) as client:
+                async with httpx.AsyncClient(
+                    timeout=self._timeout(), follow_redirects=False
+                ) as client:
                     async with client.stream(
                         "POST",
                         f"{self.base_url}/chat/completions",
