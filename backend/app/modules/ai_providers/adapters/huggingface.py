@@ -9,7 +9,9 @@ from app.modules.ai_providers.adapters.openai_compatible import OpenAICompatible
 
 class HuggingFaceChatProvider(OpenAICompatibleChatProvider):
     def __init__(self, *, base_url, **kwargs):
-        super().__init__(base_url=base_url + "/v1", provider_name="HUGGINGFACE_INFERENCE", **kwargs)
+        super().__init__(
+            base_url=base_url.rstrip("/") + "/v1", provider_name="HUGGINGFACE_INFERENCE", **kwargs
+        )
 
 
 class HuggingFaceEmbeddingProvider(ProviderHttp):

@@ -84,7 +84,7 @@ export class RerankProfileComponent {
   }
   protected save() {
     const id = this.context.workspace()?.id;
-    if (!id || !this.context.can('workspace.edit') || this.busy() || !this.valid()) return;
+    if (!id || !this.context.can('workspace.edit') || this.busy() || !this.valid() || this.unavailable()) return;
     this.busy.set(true);
     this.error.set('');
     this.notice.set('');

@@ -18,7 +18,9 @@ def validate_model(model):
 
 class CloudflareChatProvider(OpenAICompatibleChatProvider):
     def __init__(self, *, base_url, **kwargs):
-        super().__init__(base_url=base_url + "/v1", provider_name="CLOUDFLARE_WORKERS_AI", **kwargs)
+        super().__init__(
+            base_url=base_url.rstrip("/") + "/v1", provider_name="CLOUDFLARE_WORKERS_AI", **kwargs
+        )
 
 
 class CloudflareEmbeddingProvider(ProviderHttp):

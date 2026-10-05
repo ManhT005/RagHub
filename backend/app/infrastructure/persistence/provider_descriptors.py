@@ -22,10 +22,9 @@ def provider_descriptor(
         try:
             validate_connection_endpoint(connection)
             catalog = supported_catalog_by_id(connection_catalog_id(connection))
-            if (
-                catalog.locked_base_url
-                and (source.base_url or "").rstrip("/") != connection.base_url
-            ):
+            if catalog.locked_base_url and (source.base_url or "").rstrip("/") != (
+                connection.base_url or ""
+            ).rstrip("/"):
                 raise ValueError("Snapshot endpoint mismatch")
         except ValueError as exc:
             raise ProviderConfigurationError(

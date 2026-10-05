@@ -9,6 +9,8 @@ from app.modules.ai_providers.bootstrap import ProviderBootstrapService
 
 
 async def run(args):
+    import app.models  # noqa: F401
+
     try:
         async with SessionFactory() as session:
             async with session.begin():

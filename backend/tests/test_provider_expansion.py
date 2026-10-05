@@ -376,12 +376,16 @@ def test_snapshot_endpoint_cannot_exfiltrate_brand_credentials():
     )
     with pytest.raises(ProviderConfigurationError):
         provider_descriptor(config, snapshot)
+    connection.base_url += "/"
+    snapshot.base_url = connection.base_url.rstrip("/")
+    assert provider_descriptor(config, snapshot).base_url == snapshot.base_url
 
 
 async def test_openrouter_public_catalog_cannot_mark_invalid_credentials_connected(monkeypatch):
     from unittest.mock import AsyncMock
-    from app.modules.ai_providers.control_service import ProviderControlService
+
     from app.modules.ai_providers.adapters.http import ProviderHttp
+    from app.modules.ai_providers.control_service import ProviderControlService
 
     connection = SimpleNamespace(
         catalog_id="openrouter",
