@@ -1,0 +1,127 @@
+<header class="page-heading">
+  <div>
+    <span class="eyebrow">WORKSPACE / CHAT</span>
+    <h1>Chat với tài liệu</h1>
+    <p>Kiểm tra câu trả lời và nguồn trích dẫn từ active index.</p>
+  </div>
+  @if (context.can("workspace.edit")) {
+    <button nz-button (click)="editorOpen.set(true)">+ Tạo chatbot</button>
+  }
+</header>
+@if (error()) {
+  <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+}
+<section class="surface">
+  <div class="toolbar">
+    <select
+      aria-label="Chọn chatbot"
+      [(ngModel)]="selected"
+      (ngModelChange)="reset()"
+      [disabled]="loading() || streaming()"
+    >
+      <option value="">
+        {{ loading() ? "Đang tải chatbot…" : "Chọn chatbot" }}
+      </option>
+      @for (bot of bots(); track bot.id) {
+        <option [value]="bot.id">{{ bot.name }}</option>
+      }</select
+    ><button nz-button (click)="reset()">Hội thoại mới</button>
+    @if (selected && context.can("workspace.edit")) {
+      <a nz-button [routerLink]="['/app/chatbots', selected, 'settings']"
+        >Cấu hình & widget</a
+      >
+    }
+  </div>
+  @if (!loading() && !bots().length) {
+    <div class="empty-state">
+      <h2>Chưa có chatbot</h2>
+      <p>Quản trị viên workspace cần tạo chatbot để bắt đầu hội thoại.</p>
+    </div>
+  }
+  <div
+    class="chat-transcript"
+    role="log"
+    aria-label="Hội thoại"
+    aria-live="polite"
+  >
+    @for (message of messages(); track $index) {
+      <article [class.user-message]="message.role === 'user'">
+        <strong>{{ message.role === "user" ? "Bạn" : "RagHub" }}</strong>
+        <p style="white-space: pre-wrap">
+          {{ message.text || (streaming() ? "Đang tạo câu trả lời…" : "") }}
+        </p>
+        @if (message.citations?.length) {
+          <small class="muted"
+            >Nguồn:
+            @for (citation of message.citations; track $index) {
+              <span
+                >{{ citation.document_name ?? "Tài liệu"
+                }}{{
+                  citation.page_number
+                    ? " · trang " + citation.page_number
+                    : ""
+                }};
+              </span>
+            }
+          </small>
+        }
+      </article>
+    }
+  </div>
+  <form (ngSubmit)="send()">
+    <label
+      >Câu hỏi<textarea
+        nz-input
+        [(ngModel)]="question"
+        name="question"
+        rows="3"
+        placeholder="Hỏi về nội dung tài liệu…"
+        [disabled]="streaming() || !selected"
+        maxlength="8000"
+      ></textarea></label
+    ><button
+      nz-button
+      nzType="primary"
+      [nzLoading]="streaming()"
+      [disabled]="!question.trim() || !selected"
+      type="submit"
+    >
+      Gửi câu hỏi
+    </button>
+  </form>
+</section>
+<nz-modal
+  [nzVisible]="editorOpen()"
+  nzTitle="Tạo chatbot"
+  nzOkText="Tạo chatbot"
+  nzCancelText="Hủy"
+  [nzOkDisabled]="!name.trim()"
+  [nzOkLoading]="saving()"
+  [nzMaskClosable]="false"
+  (nzOnCancel)="!saving() && editorOpen.set(false)"
+  (nzOnOk)="create()"
+  ><ng-container *nzModalContent>
+    <div class="selfhost-page">
+      <label
+        >Tên chatbot<input
+          nz-input
+          [(ngModel)]="name"
+          maxlength="200"
+          [disabled]="saving()" /></label
+      ><label
+        >Hướng dẫn trả lời<textarea
+          nz-input
+          [(ngModel)]="prompt"
+          rows="5"
+          [disabled]="saving()"
+        ></textarea>
+      </label>
+      <p class="muted">
+        Chatbot dùng model của workspace. Việc xuất bản widget được cấu hình
+        riêng.
+      </p>
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" />
+      }
+    </div> </ng-container
+></nz-modal>

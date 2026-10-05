@@ -1,0 +1,115 @@
+"""Upload-to-chat through the public facade, with fake ports and no host runtime."""
+
+from uuid import uuid4
+
+from raghub_core.api import (
+    BuildDocumentIndexUseCase,
+    ChatCompleted,
+    CitationsResolved,
+    ConversationStarted,
+    RetrievalScope,
+    RetrieveContextUseCase,
+    RetrievedChunk,
+    RunIngestionUseCase,
+    StreamChatCommand,
+    StreamRagChatUseCase,
+    TokenDelta,
+    UploadDocumentCommand,
+    UploadDocumentUseCase,
+    UsageReported,
+)
+from raghub_core.domain.ingestion.models import IngestionDocument
+from raghub_core.domain.ingestion.parser import parse_document
+
+from .fakes import (
+    FakeObjectStorage,
+    FakeProviderResolver,
+    FakeTaskQueue,
+    FakeUploadRepository,
+    FakeVectorStore,
+)
+from .test_ingestion import Repository
+from .test_rag_runtime import Chatbots, Conversations, Usage
+from .test_retrieval import Readiness
+
+
+async def test_upload_ingest_index_retrieve_chat_preserves_scope_and_source():
+    storage, queue, uploads = FakeObjectStorage(), FakeTaskQueue(), FakeUploadRepository()
+    providers, index = FakeProviderResolver(), FakeVectorStore()
+    scope = RetrievalScope(uuid4(), uuid4())
+    command = UploadDocumentCommand(
+        scope.organization_id,
+        scope.workspace_id,
+        "guide.md",
+        "text/markdown",
+        b"# Recovery\n\nThe recovery code is ORCHID-729.",
+    )
+    receipt = await UploadDocumentUseCase(uploads, storage, queue).execute(command)
+    assert uploads.commits == 1 and queue.ingestion == [receipt.document_version_id]
+    document = IngestionDocument(
+        scope,
+        receipt.document_id,
+        receipt.document_version_id,
+        uploads.uploads[0]["storage_key"],
+        command.filename,
+    )
+    ingestion = Repository(document)
+    await RunIngestionUseCase(
+        ingestion,
+        BuildDocumentIndexUseCase(storage, parse_document),
+        providers,
+        lambda _: index,
+    ).execute(receipt.document_version_id)
+    assert ingestion.stages[-1] == ("READY", 100)
+    indexed = index.indexes[0]
+    assert indexed.scope == scope
+
+    class Search:
+        async def search(self, requested_scope, query, vector, limit):
+            if requested_scope != indexed.scope:
+                return []
+            return [
+                RetrievedChunk(
+                    indexed.document_id,
+                    indexed.document_version_id,
+                    item.chunk.chunk_id,
+                    item.chunk.content,
+                    indexed.source_name,
+                    item.chunk.page_number,
+                    item.chunk.heading,
+                    1.0,
+                )
+                for item in indexed.chunks
+            ][:limit]
+
+        async def close(self):
+            pass
+
+    ready = Readiness()
+    ready.ready_pairs.add((document.document_id, document.version_id))
+    retrieval = RetrieveContextUseCase(providers, ready, lambda _: Search())
+    assert not await retrieval.retrieve(RetrievalScope(uuid4(), uuid4()), "Recovery", 5)
+    chatbots, conversations, usage = Chatbots(), Conversations(), Usage()
+    from dataclasses import replace
+
+    chatbots.config = replace(chatbots.config, scope=scope)
+    events = [
+        event
+        async for event in StreamRagChatUseCase(
+            chatbots,
+            retrieval,
+            providers,
+            conversations,
+            usage,
+        ).execute(StreamChatCommand(scope.organization_id, chatbots.config.id, "Recovery code?"))
+    ]
+    assert isinstance(events[0], ConversationStarted)
+    assert isinstance(events[1], CitationsResolved)
+    assert events[2:-2] and all(isinstance(event, TokenDelta) for event in events[2:-2])
+    assert isinstance(events[-2], UsageReported)
+    assert isinstance(events[-1], ChatCompleted)
+    citations = next(event for event in events if isinstance(event, CitationsResolved)).citations
+    assert citations[0].document_id == receipt.document_id
+    assert citations[0].chunk_id == indexed.chunks[0].chunk.chunk_id
+    assert "ORCHID-729" in providers.chat.calls[0][0][0].content
+    assert usage.records[0].scope == scope and conversations.commits == 2

@@ -66,6 +66,33 @@ Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tu
 
 ## Công nghệ và kiến trúc
 
+Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành instance quản lý**.
+Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
+billing và quản trị enterprise thuộc roadmap sau.
+
+Console Self-host UI v1 có AI Providers/Model Registry tại `/system/ai/` và
+workspace console tại `/app/workspaces`. Xem [phạm vi triển khai, migration và rollback](docs/ui/selfhost-v1/implementation.md)
+cùng [kết quả nghiệm thu và lệnh kiểm thử](docs/ui/selfhost-v1/verification.md).
+
+**Core namespace — `backend/raghub_core`:** engine tri thức và RAG tái sử dụng,
+chứa domain rules, application workflows và dependency ports. Core không sở hữu
+HTTP delivery, persistence implementation, Redis admission, deployment mode hay
+quản trị sản phẩm. Host composition phải lấy public use case từ `raghub_core.api`;
+infrastructure được implement trực tiếp `raghub_core.ports` và dùng domain contracts.
+
+**Host runtime — `backend/app`:** composition, delivery, persistence adapters,
+auth/RBAC, Redis, provider clients, MinIO, Elasticsearch, Celery và quản trị sản phẩm.
+Playground và public widget dùng cùng typed RAG runtime; origin, rate limit và
+concurrency thuộc host. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
+và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
+Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
+**Backend distribution — `raghub-backend`:** hiện chứa cả `app` và `raghub_core`.
+Core đã tách namespace và dependency, nhưng chưa có release/version độc lập.
+Standalone `raghub-core` distribution được chủ động hoãn (**Deferred**), theo
+[ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md).
+CI kiểm tra engine từ installed wheel trong venv tối thiểu, chặn import `app`
+và dùng cache tokenizer rỗng.
+
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |
 | Giao diện | ![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white) | Ứng dụng quản trị tiếng Việt với NG-ZORRO |
@@ -244,7 +271,14 @@ CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile T
 ```text
 apps/admin-web/       Ứng dụng quản trị Angular
 apps/chat-widget/     Widget Web Component và website demo
-backend/app/          API, nghiệp vụ, adapter hạ tầng và worker
+backend/raghub_core/  Engine RAG độc lập, không import app
+  domain/             Domain, thuật toán, policy và AI contracts
+  application/        Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
+  ports/              Hợp đồng storage, search, queue, provider và persistence
+  api.py              Facade public cho các host
+backend/app/          API, control plane, adapter hạ tầng và worker
+  composition/        Ghép use cases với adapter của từng runtime
+  delivery/           Upload/SSE HTTP adapter và worker bootstrap
 backend/alembic/      Migration cơ sở dữ liệu
 backend/tests/        Kiểm thử backend
 infrastructure/       Docker Compose và cấu hình Nginx
@@ -253,6 +287,9 @@ docs/                 Tài liệu thiết kế, API và hướng dẫn tích h�
 ```
 
 ## Xử lý sự cố và tài liệu
+
+Self-host: [cài đặt Console và AI local](docs/operations/SELF_HOST.md) ·
+[backup, restore và nâng cấp](docs/operations/SELF_HOST_OPERATIONS.md).
 
 - **`502 Bad Gateway` sau khi build lại web:** Nginx có thể vẫn giữ địa chỉ container cũ. Chạy `docker compose -f infrastructure/docker-compose.yml restart nginx` rồi tải lại trang.
 - **Tài liệu không đến trạng thái Sẵn sàng:** xem `docker compose -f infrastructure/docker-compose.yml logs -f worker api`; tra mã lỗi xử lý trong [hướng dẫn ingestion](docs/ingestion-qa.md).

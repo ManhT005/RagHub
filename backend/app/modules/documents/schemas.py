@@ -26,3 +26,15 @@ class DocumentResponse(BaseModel):
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool = False
+    mime_type: str | None = None
+    size_bytes: int | None = None
+    chunk_count: int | None = None
+    indexed_at: datetime | None = None
+    embedding_model_id: UUID | None = None
+    embedding_model_name: str | None = None
+    embedding_dimension: int | None = None
+
+
+class DocumentDetail(DocumentResponse):
+    checksum: str | None = None
+    chunk_strategy: str = "450 tokens / overlap 80"

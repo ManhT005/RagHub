@@ -4,6 +4,7 @@ import { catchError, map, of } from "rxjs";
 
 import { session } from "./api-auth.interceptor";
 import { RaghubApiService } from "./raghub-api.service";
+import { consoleOrganization } from "./console-organization";
 
 export const adminOnly: CanActivateFn = () => {
   const api = inject(RaghubApiService);
@@ -13,9 +14,8 @@ export const adminOnly: CanActivateFn = () => {
   }
   return api.organizations().pipe(
     map((organizations) => {
-      const current =
-        organizations.find((item) => item.id === session.organizationId) ??
-        organizations[0];
+      const current = consoleOrganization(organizations);
+      session.organizationId = current?.id ?? null;
       if (current && current.role === "ADMIN") {
         return true;
       }

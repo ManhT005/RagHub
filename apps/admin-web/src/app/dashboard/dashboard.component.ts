@@ -14,6 +14,7 @@ import { NzTagModule } from "ng-zorro-antd/tag";
 import { catchError, forkJoin, map, of, switchMap } from "rxjs";
 
 import { session } from "../core/api-auth.interceptor";
+import { consoleOrganization } from "../core/console-organization";
 import {
   Chatbot,
   DocumentItem,
@@ -69,8 +70,9 @@ export class DashboardComponent {
       workspaceId: bot.workspace_id,
       createdAt: bot.created_at,
     }));
-    return [...docs, ...bots]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...docs, ...bots].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
   });
   protected readonly filteredActivities = computed<Activity[]>(() => {
     const workspaceId = this.selectedWorkspace();
@@ -95,7 +97,7 @@ export class DashboardComponent {
       .organizations()
       .pipe(
         switchMap((orgs) => {
-          const orgId = session.organizationId ?? orgs[0]?.id ?? "";
+          const orgId = consoleOrganization(orgs)?.id ?? "";
           if (!orgId)
             return of({ workspaces: [] as Workspace[], docs: [], bots: [] });
           session.organizationId = orgId;

@@ -64,7 +64,5 @@ release PRs may be blocked unexpectedly.
 
 ## Activation notes
 
-- Merge this `.github` configuration into the repository's default branch before
-  expecting Dependabot version updates to run.
 - Let `CI` and `Pull request policy` run at least once, then select the exact job
   names above as required checks in each ruleset.

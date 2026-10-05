@@ -1,24 +1,24 @@
-import asyncio
-import json
-import logging
-from contextlib import aclosing
 from typing import Annotated
 from uuid import UUID
 
-import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.composition.public_chat import PublicChatContainer
 from app.core.auth import (
     OrganizationContext,
     get_current_user,
     get_organization_context,
-    require_workspace_access,
+    require_workspace_permission,
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
-from app.modules.chatbots.public_limits import PublicChatLimits, client_ip, get_public_limits
+from app.delivery.http.public_chat import PublicStreamingResponse as PublicStreamingResponse
+from app.delivery.http.public_chat import public_stream_sse
+from app.delivery.http.sse import stream_sse
+from app.delivery.public.admission import client_ip, get_public_limits
+from app.infrastructure.redis.public_chat_admission import PublicChatLimits
 from app.modules.chatbots.schemas import (
     ChatbotInput,
     ChatbotPatch,
@@ -29,36 +29,9 @@ from app.modules.chatbots.schemas import (
 )
 from app.modules.chatbots.service import ChatbotService
 from app.modules.users.models import User
+from raghub_core.domain.rag.models import StreamChatCommand
 
 router = APIRouter(tags=["chatbots"])
-logger = logging.getLogger(__name__)
-
-
-class PublicStreamingResponse(StreamingResponse):
-    def __init__(self, *args, limits, chatbot_id, slot, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.limits = limits
-        self.chatbot_id = chatbot_id
-        self.slot = slot
-
-    async def __call__(self, scope, receive, send):
-        try:
-            # Also bound slow network sends, which the generator deadline cannot cancel.
-            with anyio.move_on_after(self.limits.settings.public_chat_stream_timeout_seconds + 1):
-                await super().__call__(scope, receive, send)
-        finally:
-            # Starlette cancels the stream task on disconnect. Cleanup must survive it.
-            with anyio.CancelScope(shield=True):
-                try:
-                    await self.body_iterator.aclose()
-                finally:
-                    await self._release_slot()
-
-    async def _release_slot(self):
-        try:
-            await self.limits.release(self.chatbot_id, self.slot)
-        except Exception:
-            logger.warning("Public slot release failed chatbot_id=%s", self.chatbot_id)
 
 
 def response(chatbot: object) -> ChatbotResponse:
@@ -71,7 +44,7 @@ async def list_chatbots(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[ChatbotResponse]:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "chat.use", session)
     return [
         response(item)
         for item in await ChatbotService(session).list(context.organization_id, workspace_id)
@@ -89,7 +62,7 @@ async def create_chatbot(
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
-    await require_workspace_access(context, workspace_id, session)
+    await require_workspace_permission(context, workspace_id, "workspace.edit", session)
     return response(
         await ChatbotService(session).create(context.organization_id, workspace_id, payload)
     )
@@ -102,7 +75,7 @@ async def get_chatbot(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "chat.use", session)
     return response(chatbot)
 
 
@@ -114,7 +87,7 @@ async def patch_chatbot(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ChatbotResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
     return response(
         await ChatbotService(session).update(context.organization_id, chatbot_id, payload)
     )
@@ -127,7 +100,7 @@ async def delete_chatbot(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
     await ChatbotService(session).delete(context.organization_id, chatbot_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -140,7 +113,7 @@ async def publish_embed(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
     _, key = await ChatbotService(session).publish_embed(
         context.organization_id, chatbot_id, payload
     )
@@ -162,7 +135,7 @@ async def rotate_embed_key(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
     key = await ChatbotService(session).rotate_embed_key(context.organization_id, chatbot_id)
     return EmbedCodeResponse(
         code=f'<script src="/widget/raghub.js" data-chatbot-key="{key}" async></script>', key=key
@@ -176,7 +149,7 @@ async def embed_code(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
     if not chatbot.published or not chatbot.embed_key_hash:
         raise AppError(
             "EMBED_NOT_PUBLISHED",
@@ -194,7 +167,7 @@ async def public_config(
     origin: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> JSONResponse:
-    config = await ChatbotService(session).public_config(embed_key, origin)
+    config = await PublicChatContainer(session).config(embed_key, origin)
     return JSONResponse(config, headers=public_cors_headers(origin))
 
 
@@ -213,7 +186,7 @@ async def public_chat_options(
     origin: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> Response:
-    await ChatbotService(session).public_chatbot(embed_key, origin)
+    await PublicChatContainer(session).resolve(embed_key, origin)
     return Response(status_code=status.HTTP_204_NO_CONTENT, headers=public_cors_headers(origin))
 
 
@@ -226,39 +199,25 @@ async def public_chat(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    chatbot = await ChatbotService(session).public_chatbot(embed_key, origin)
+    chatbot = await PublicChatContainer(session).resolve(embed_key, origin)
     request.state.public_origin = origin
     request.state.public_chatbot_id = str(chatbot.id)
     await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
     slot = await limits.acquire(str(chatbot.id))
 
-    async def events():
-        try:
-            async with (
-                asyncio.timeout(limits.settings.public_chat_stream_timeout_seconds),
-                aclosing(
-                    ChatbotService(session).stream(
-                        chatbot.organization_id,
-                        chatbot.id,
-                        payload.message,
-                        payload.conversation_id,
-                        payload.external_user_id,
-                    )
-                ) as stream,
-            ):
-                async for event, data in stream:
-                    yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-        except TimeoutError:
-            request.state.public_error_code = "PUBLIC_CHAT_TIMEOUT"
-            error = {"code": "PUBLIC_CHAT_TIMEOUT", "message": "Chat timed out."}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-        except AppError as exc:
-            request.state.public_error_code = exc.code
-            error = {"code": exc.code, "message": exc.message}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-
+    events = PublicChatContainer(session).stream_events(
+        StreamChatCommand(
+            chatbot.organization_id,
+            chatbot.id,
+            payload.message,
+            payload.conversation_id,
+            payload.external_user_id,
+        )
+    )
     return PublicStreamingResponse(
-        events(),
+        public_stream_sse(
+            events, request, timeout_seconds=limits.settings.public_chat_stream_timeout_seconds
+        ),
         limits=limits,
         chatbot_id=str(chatbot.id),
         slot=slot,
@@ -280,24 +239,19 @@ async def chat(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> StreamingResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
-    await require_workspace_access(context, chatbot.workspace_id, session)
+    await require_workspace_permission(context, chatbot.workspace_id, "chat.use", session)
 
-    async def events():
-        try:
-            async for event, data in ChatbotService(session).stream(
-                context.organization_id,
-                chatbot_id,
-                payload.message,
-                payload.conversation_id,
-                str(user.id),
-            ):
-                yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-        except AppError as exc:
-            error = {"code": exc.code, "message": exc.message}
-            yield f"event: error\ndata: {json.dumps(error)}\n\n"
-
+    events = ChatbotService(session).stream_events(
+        StreamChatCommand(
+            context.organization_id,
+            chatbot_id,
+            payload.message,
+            payload.conversation_id,
+            str(user.id),
+        )
+    )
     return StreamingResponse(
-        events(),
+        stream_sse(events),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

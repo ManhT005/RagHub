@@ -1,5 +1,6 @@
 import { TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
+import { RouterTestingHarness } from "@angular/router/testing";
 import { of } from "rxjs";
 import { vi } from "vitest";
 
@@ -7,6 +8,45 @@ import { RaghubApiService } from "../core/raghub-api.service";
 import { WorkspaceConsoleComponent } from "./workspace-console.component";
 
 describe("WorkspaceConsoleComponent", () => {
+  it("loads the linked workspace and changes it when navigating within the console", async () => {
+    const documents = vi.fn(() => of([]));
+    await TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: "workspaces/:workspaceId", component: WorkspaceConsoleComponent },
+        ]),
+        {
+          provide: RaghubApiService,
+          useValue: {
+            organizations: () => of([{ id: "org-1", role: "ADMIN" }]),
+            workspaces: () => of([
+              { id: "workspace-1", name: "First", organization_id: "org-1" },
+              { id: "workspace-2", name: "Second", organization_id: "org-1" },
+            ]),
+            members: () => of([]),
+            providers: () => of([]),
+            chatbots: () => of([]),
+            documents,
+          },
+        },
+      ],
+    }).compileComponents();
+    const harness = await RouterTestingHarness.create();
+    const first = await harness.navigateByUrl(
+      "/workspaces/workspace-2?section=documents", WorkspaceConsoleComponent,
+    );
+    expect(documents).toHaveBeenLastCalledWith("workspace-2");
+    expect(harness.routeNativeElement?.querySelector(".document-panel")?.hasAttribute("hidden"))
+      .toBe(false);
+    const second = await harness.navigateByUrl(
+      "/workspaces/workspace-1?section=integration", WorkspaceConsoleComponent,
+    );
+    expect(second).toBe(first);
+    expect(documents).toHaveBeenLastCalledWith("workspace-1");
+    expect(harness.routeNativeElement?.querySelector(".document-panel")?.hasAttribute("hidden"))
+      .toBe(true);
+  });
+
   it("offers one workspace creation action when no workspace exists", async () => {
     await TestBed.configureTestingModule({
       imports: [WorkspaceConsoleComponent],

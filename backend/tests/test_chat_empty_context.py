@@ -3,7 +3,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.delivery.http.sse import event_payload
 from app.modules.chatbots.service import EMPTY_CONTEXT_ANSWER, ChatbotService
+from raghub_core.domain.rag.models import StreamChatCommand
 
 
 class SessionStub:
@@ -32,6 +34,9 @@ async def test_empty_context_skips_chat_provider(monkeypatch: pytest.MonkeyPatch
     )
 
     class Service(ChatbotService):
+        async def _history(self, conversation_id):
+            return []
+
         async def get(self, organization_id: object, chatbot_id: object) -> object:
             return chatbot
 
@@ -49,16 +54,21 @@ async def test_empty_context_skips_chat_provider(monkeypatch: pytest.MonkeyPatch
         def __init__(self, session: object) -> None:
             raise AssertionError("chat provider must not be resolved for empty context")
 
-    import app.modules.chatbots.service as service_module
+    import app.composition.self_host as composition
+    from app.infrastructure.chat_runtime import RuntimeRetrievalAdapter
 
-    monkeypatch.setattr(service_module, "SearchService", EmptySearch)
-    monkeypatch.setattr(service_module, "ProviderResolver", ForbiddenResolver)
+    monkeypatch.setattr(
+        composition.SelfHostContainer,
+        "retrieve_context",
+        lambda self: RuntimeRetrievalAdapter(lambda: EmptySearch(None)),
+    )
+    monkeypatch.setattr(composition, "ProviderResolver", ForbiddenResolver)
     session = SessionStub()
 
     events = [
-        event
-        async for event in Service(session).stream(  # type: ignore[arg-type]
-            organization_id, chatbot.id, "unknown", None, "user"
+        event_payload(event)
+        async for event in Service(session).stream_events(
+            StreamChatCommand(organization_id, chatbot.id, "unknown", None, "user")
         )
     ]
 

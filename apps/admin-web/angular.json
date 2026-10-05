@@ -15,7 +15,7 @@
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "styles": ["src/styles.css"],
-            "assets": ["src/assets"],
+            "assets": ["src/assets", { "glob": "**/*", "input": ".provider-assets", "output": "assets/providers" }],
             "outputPath": "dist/admin-web"
           },
           "configurations": {

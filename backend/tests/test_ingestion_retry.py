@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from celery.exceptions import Retry
 
+from app.composition import worker as worker_composition
+from app.delivery.workers import ingestion as ingestion_runtime
 from app.modules.ai_providers.errors import (
     ProviderAuthenticationError,
     ProviderRateLimitError,
@@ -49,7 +51,7 @@ async def test_terminal_redelivery_does_not_mutate_metrics(
         get=AsyncMock(return_value=version), commit=AsyncMock(), scalar=AsyncMock(return_value=job)
     )
     pipeline = AsyncMock()
-    monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
     await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
     session.commit.assert_not_awaited()
     if status == "READY":
@@ -62,8 +64,15 @@ async def test_terminal_redelivery_does_not_mutate_metrics(
 async def test_incomplete_ready_redelivery_resumes_indexing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    version = SimpleNamespace(id=uuid.uuid4(), document_id=uuid.uuid4(), status="READY")
-    document = SimpleNamespace(status="READY", deleted_at=None)
+    version = SimpleNamespace(
+        id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        status="READY",
+        organization_id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        storage_key="key",
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt", status="READY", deleted_at=None)
     job = SimpleNamespace(attempts=0, stage="READY", progress=90)
     session = SimpleNamespace(
         get=AsyncMock(side_effect=[version, document]),
@@ -71,7 +80,7 @@ async def test_incomplete_ready_redelivery_resumes_indexing(
         commit=AsyncMock(),
     )
     pipeline = AsyncMock()
-    monkeypatch.setattr(tasks, "_run_pipeline", pipeline)
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
 
     await tasks._run_attempt(session, version.id, retries=0, max_retries=3)
 
@@ -90,7 +99,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
     job = SimpleNamespace(
         stage="PARSING", progress=20, error_code="old", error_message="old", error_details={}
     )
-    session = SimpleNamespace(commit=AsyncMock())
+    session = SimpleNamespace(commit=AsyncMock(), scalar=AsyncMock(return_value=None))
     observed: list[tuple[str, str, str, int]] = []
 
     class Indexer:
@@ -106,11 +115,13 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
         def close(self) -> None:
             pass
 
-    storage = SimpleNamespace(get=lambda _key: b"text")
-    monkeypatch.setattr(tasks, "MinioObjectStorage", lambda _settings: storage)
-    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    storage = SimpleNamespace(get=AsyncMock(return_value=b"text"))
+    monkeypatch.setattr(worker_composition, "MinioObjectStorage", lambda _settings: storage)
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
-    monkeypatch.setattr(tasks, "chunk_sections", lambda _sections, _version_id: [chunk])
+    monkeypatch.setattr(
+        worker_composition, "chunk_sections", lambda _sections, _version_id: [chunk]
+    )
     provider = SimpleNamespace(embed_documents=AsyncMock(return_value=[[1.0, 0.0]]))
     resolved = SimpleNamespace(
         provider=provider,
@@ -124,8 +135,8 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
         async def embedding_for_workspace(self, *_args: object) -> object:
             return resolved
 
-    monkeypatch.setattr(tasks, "ProviderResolver", Resolver)
-    monkeypatch.setattr(tasks, "ChunkIndexer", Indexer)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", Resolver)
+    monkeypatch.setattr(worker_composition, "ChunkIndexer", Indexer)
 
     await tasks._run_pipeline(session, document, version, job)
 
@@ -140,18 +151,25 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
 async def test_attempt_records_failure_before_leaving_lock(
     monkeypatch: pytest.MonkeyPatch, retryable: bool, retries: int, failed: bool
 ) -> None:
-    version = SimpleNamespace(id=uuid.uuid4(), document_id=uuid.uuid4(), status="QUEUED")
-    document = SimpleNamespace(status="QUEUED", deleted_at=None)
-    job = SimpleNamespace(attempts=retries, stage="QUEUED")
+    version = SimpleNamespace(
+        id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        status="QUEUED",
+        organization_id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        storage_key="key",
+    )
+    document = SimpleNamespace(id=uuid.uuid4(), name="a.txt", status="QUEUED", deleted_at=None)
+    job = SimpleNamespace(attempts=retries, stage="QUEUED", progress=0)
     session = SimpleNamespace(
         get=AsyncMock(side_effect=[version, document]),
         scalar=AsyncMock(return_value=job),
         commit=AsyncMock(),
     )
     error = tasks.IngestionError("INDEX_UNAVAILABLE", "private details", retryable=retryable)
-    monkeypatch.setattr(tasks, "_run_pipeline", AsyncMock(side_effect=error))
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", AsyncMock(side_effect=error))
     record = AsyncMock()
-    monkeypatch.setattr(tasks, "_record_failure", record)
+    monkeypatch.setattr(ingestion_runtime, "_record_failure", record)
     with pytest.raises(tasks.IngestionError):
         await tasks._run_attempt(session, version.id, retries=retries, max_retries=3)
     assert job.attempts == retries + 1
@@ -173,16 +191,18 @@ async def test_transient_embedding_provider_failure_is_retryable(
     job = SimpleNamespace(stage="PARSING", progress=20)
     session = SimpleNamespace(commit=AsyncMock())
     monkeypatch.setattr(
-        tasks, "MinioObjectStorage", lambda _settings: SimpleNamespace(get=lambda _key: b"text")
+        worker_composition,
+        "MinioObjectStorage",
+        lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(
-        tasks,
+        worker_composition,
         "chunk_sections",
         lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
     )
     resolver = SimpleNamespace(embedding_for_workspace=AsyncMock(side_effect=provider_error))
-    monkeypatch.setattr(tasks, "ProviderResolver", lambda _session: resolver)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", lambda _session: resolver)
 
     with pytest.raises(tasks.IngestionError) as caught:
         await tasks._run_pipeline(session, document, version, job)
@@ -200,18 +220,20 @@ async def test_auth_embedding_provider_failure_is_permanent(
     job = SimpleNamespace(stage="PARSING", progress=20)
     session = SimpleNamespace(commit=AsyncMock())
     monkeypatch.setattr(
-        tasks, "MinioObjectStorage", lambda _settings: SimpleNamespace(get=lambda _key: b"text")
+        worker_composition,
+        "MinioObjectStorage",
+        lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(tasks, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
     monkeypatch.setattr(
-        tasks,
+        worker_composition,
         "chunk_sections",
         lambda _sections, _version_id: [SimpleNamespace(content="text", chunk_id=uuid.uuid4())],
     )
     resolver = SimpleNamespace(
         embedding_for_workspace=AsyncMock(side_effect=ProviderAuthenticationError())
     )
-    monkeypatch.setattr(tasks, "ProviderResolver", lambda _session: resolver)
+    monkeypatch.setattr(worker_composition, "ProviderResolver", lambda _session: resolver)
 
     with pytest.raises(tasks.IngestionError) as caught:
         await tasks._run_pipeline(session, document, version, job)

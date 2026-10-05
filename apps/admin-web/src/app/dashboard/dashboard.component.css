@@ -1,6 +1,6 @@
 :host {
   display: block;
-  color: #0e2b61;
+  color: var(--rh-text);
 }
 .overview-page {
   width: 100%;
@@ -13,13 +13,13 @@
   margin: 12px 0 0;
 }
 .error {
-  color: #c81e4a;
-  background: rgba(251, 94, 117, 0.12);
+  color: var(--rh-danger);
+  background: var(--rh-danger-bg);
 }
 
 .activity-section h2 {
   margin: 0 0 16px;
-  color: #0a2050;
+  color: var(--rh-text);
   font-size: 16px;
 }
 

@@ -56,10 +56,13 @@ services:
       - --reload
       - --reload-dir
       - /app/app
+      - --reload-dir
+      - /app/raghub_core
     environment:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
+      - ../backend/raghub_core:/app/raghub_core
   worker:
     extends:
       file: docker-compose.base.yml
@@ -72,10 +75,12 @@ services:
       - python
       - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1
       - /app/app
+      - /app/raghub_core
     environment:
       WATCHFILES_FORCE_POLLING: 'true'
     volumes:
       - ../backend/app:/app/app
+      - ../backend/raghub_core:/app/raghub_core
   admin-web:
     extends:
       file: docker-compose.base.yml
@@ -83,14 +88,16 @@ services:
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/admin-web:${LOCAL_IMAGE_TAG:-local}
     pull_policy: build
     build:
-      context: ../apps/admin-web
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
       target: development
     volumes:
-      - ../apps/admin-web/src:/app/src
-      - ../apps/admin-web/angular.json:/app/angular.json:ro
-      - ../apps/admin-web/proxy.json:/app/proxy.json:ro
-      - ../apps/admin-web/tsconfig.json:/app/tsconfig.json:ro
-      - ../apps/admin-web/tsconfig.app.json:/app/tsconfig.app.json:ro
+      - ../apps/admin-web/src:/repo/apps/admin-web/src
+      - ../assets/providers:/repo/assets/providers:ro
+      - ../apps/admin-web/angular.json:/repo/apps/admin-web/angular.json:ro
+      - ../apps/admin-web/proxy.json:/repo/apps/admin-web/proxy.json:ro
+      - ../apps/admin-web/tsconfig.json:/repo/apps/admin-web/tsconfig.json:ro
+      - ../apps/admin-web/tsconfig.app.json:/repo/apps/admin-web/tsconfig.app.json:ro
     healthcheck:
       test:
         - CMD-SHELL

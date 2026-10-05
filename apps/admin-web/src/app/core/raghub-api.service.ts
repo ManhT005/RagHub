@@ -391,6 +391,7 @@ export class RaghubApiService {
     chatbotId: string,
     payload: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -407,6 +408,7 @@ export class RaghubApiService {
         headers,
         body: JSON.stringify(payload),
         credentials: "include",
+        signal,
       });
       if (!response.ok || !response.body) {
         onEvent({
@@ -430,6 +432,7 @@ export class RaghubApiService {
       }
       parser.flush().forEach(onEvent);
     } catch {
+      if (signal?.aborted) return;
       onEvent({
         event: "error",
         data: { message: "Kết nối chat bị gián đoạn. Hãy thử lại." },

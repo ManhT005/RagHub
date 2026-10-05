@@ -11,19 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.modules.ai_providers.contracts import ChatMessage, ChatOptions
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.crypto import ProviderSecretCipher
-from app.modules.ai_providers.enums import (
-    IndexVersionStatus,
-    ProviderCapability,
-    ProviderType,
-    ReindexJobStatus,
-)
-from app.modules.ai_providers.errors import ProviderConfigurationError
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
     ProviderConfig,
+    ProviderConnection,
 )
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.repository import ProviderConfigRepository
@@ -34,6 +29,15 @@ from app.modules.ai_providers.schemas import (
 )
 from app.modules.documents.models import Document, DocumentStatus
 from app.modules.workspaces.models import Workspace
+from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions
+from raghub_core.domain.providers.enums import (
+    IndexVersionStatus,
+    ProviderCapability,
+    ProviderType,
+    ReindexJobStatus,
+)
+from raghub_core.domain.providers.errors import ProviderConfigurationError
+from raghub_core.ports.task_queue import TaskQueuePort
 
 
 def embedding_fingerprint(config: ProviderConfig) -> str:
@@ -55,8 +59,9 @@ def workspace_index_name(workspace_id: UUID, version_id: UUID) -> str:
 
 
 class ProviderConfigService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, task_queue: TaskQueuePort | None = None) -> None:
         self.session = session
+        self.task_queue = task_queue or CeleryTaskQueue()
         self.repository = ProviderConfigRepository(session)
         self.registry = ProviderRegistry()
         self.cipher = ProviderSecretCipher(get_settings().provider_master_key)
@@ -71,7 +76,17 @@ class ProviderConfigService:
         return config
 
     async def create(self, organization_id: UUID, payload: ProviderConfigInput) -> ProviderConfig:
+        connection = ProviderConnection(
+            organization_id=organization_id,
+            name=payload.name.strip(),
+            provider_type=payload.provider_type,
+            base_url=payload.base_url,
+            config_json=payload.config_json,
+            enabled=payload.enabled,
+            encrypted_secret=self.cipher.encrypt(payload.secret) if payload.secret else None,
+        )
         config = ProviderConfig(
+            connection=connection,
             organization_id=organization_id,
             name=payload.name.strip(),
             provider_type=payload.provider_type,
@@ -79,7 +94,7 @@ class ProviderConfigService:
             base_url=payload.base_url.rstrip("/") if payload.base_url else None,
             model=payload.model.strip(),
             dimension=payload.dimension,
-            encrypted_secret=self.cipher.encrypt(payload.secret) if payload.secret else None,
+            encrypted_secret=None,
             config_json=payload.config_json,
             enabled=payload.enabled,
         )
@@ -92,8 +107,10 @@ class ProviderConfigService:
         self, organization_id: UUID, provider_id: UUID, payload: ProviderConfigPatch
     ) -> ProviderConfig:
         config = await self.get(organization_id, provider_id)
-        if payload.enabled is False and config.enabled and await self._is_bound(
-            organization_id, provider_id
+        if (
+            payload.enabled is False
+            and config.enabled
+            and await self._is_bound(organization_id, provider_id)
         ):
             raise AppError(
                 "PROVIDER_IN_USE",
@@ -102,8 +119,7 @@ class ProviderConfigService:
             )
         if (
             payload.clear_secret
-            and config.provider_type
-            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
+            and config.provider_type in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
             and await self._is_bound(organization_id, provider_id)
         ):
             raise AppError(
@@ -111,11 +127,10 @@ class ProviderConfigService:
                 "Credentials cannot be cleared while the provider is bound.",
                 status_code=409,
             )
-        if (
-            payload.base_url is not None
-            and config.provider_type
-            in {ProviderType.OPENAI_COMPATIBLE, ProviderType.GOOGLE_GEMINI}
-        ):
+        if payload.base_url is not None and config.provider_type in {
+            ProviderType.OPENAI_COMPATIBLE,
+            ProviderType.GOOGLE_GEMINI,
+        }:
             validate_public_provider_url(payload.base_url)
         old_fingerprint = embedding_fingerprint(config) if config.dimension else None
         reindex_jobs: list[EmbeddingReindexJob] = []
@@ -126,10 +141,11 @@ class ProviderConfigService:
             if isinstance(value, str):
                 value = value.strip()
             setattr(config, field, value)
+        credential_owner = config.connection or config
         if payload.secret is not None:
-            config.encrypted_secret = self.cipher.encrypt(payload.secret)
+            credential_owner.encrypted_secret = self.cipher.encrypt(payload.secret)
         elif payload.clear_secret:
-            config.encrypted_secret = None
+            credential_owner.encrypted_secret = None
         if config.capability == ProviderCapability.EMBEDDING and not config.dimension:
             raise ProviderConfigurationError("Embedding providers require dimension.")
         await self.session.flush()
@@ -152,26 +168,26 @@ class ProviderConfigService:
         return config
 
     async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
+        indexes = select(EmbeddingIndexVersion.id).where(
+            EmbeddingIndexVersion.organization_id == organization_id,
+            EmbeddingIndexVersion.provider_config_id == provider_id,
+        )
         return bool(
             await self.session.scalar(
                 select(Workspace.id).where(
                     Workspace.organization_id == organization_id,
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
-                    | (Workspace.chat_provider_id == provider_id),
+                    | (Workspace.chat_provider_id == provider_id)
+                    | Workspace.active_embedding_index_version_id.in_(indexes)
+                    | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
             )
         )
 
     async def delete(self, organization_id: UUID, provider_id: UUID) -> None:
         config = await self.get(organization_id, provider_id)
-        bound = await self.session.scalar(
-            select(Workspace.id).where(
-                Workspace.organization_id == organization_id,
-                (Workspace.embedding_provider_id == provider_id)
-                | (Workspace.chat_provider_id == provider_id),
-            )
-        )
+        bound = await self._is_bound(organization_id, provider_id)
         if bound:
             raise AppError("PROVIDER_IN_USE", "Provider is bound to a workspace.", status_code=409)
         has_history = await self.session.scalar(
@@ -181,6 +197,7 @@ class ProviderConfigService:
         )
         if has_history:
             config.enabled = False
+            config.availability_status = "DISABLED"
             config.encrypted_secret = None
             await self.session.commit()
             return
@@ -191,8 +208,12 @@ class ProviderConfigService:
         config = await self.get(organization_id, provider_id)
         if not config.enabled:
             raise AppError("PROVIDER_DISABLED", "Provider is disabled.", status_code=409)
-        secret = self.cipher.decrypt(config.encrypted_secret) if config.encrypted_secret else None
-        provider = self.registry.create(config, secret)
+        if config.connection is not None and not config.connection.enabled:
+            raise AppError("PROVIDER_DISABLED", "Connection is disabled.", status_code=409)
+        from app.infrastructure.provider_credentials import resolve_provider_secret
+
+        secret = resolve_provider_secret(config, self.cipher)
+        provider = self.registry.create(provider_descriptor(config), secret)
         started = time.monotonic()
         dimension: int | None = None
         if config.capability == ProviderCapability.EMBEDDING:
@@ -214,6 +235,14 @@ class ProviderConfigService:
                     break
             if not received:
                 raise ProviderConfigurationError("Provider returned an empty chat stream.")
+        config.availability_status = "AVAILABLE"
+        config.last_health_check_at = datetime.now(UTC)
+        if config.connection is not None:
+            config.connection.status = "CONNECTED"
+            config.connection.last_tested_at = datetime.now(UTC)
+            config.connection.last_latency_ms = int((time.monotonic() - started) * 1000)
+            config.connection.last_error_code = None
+        await self.session.commit()
         return {
             "status": "OK",
             "capability": config.capability,
@@ -232,11 +261,14 @@ class ProviderConfigService:
         chat_provider_id: UUID | None,
     ) -> tuple[Workspace, EmbeddingReindexJob | None]:
         workspace = await self.session.scalar(
-            select(Workspace).where(
+            select(Workspace)
+            .where(
                 Workspace.id == workspace_id,
                 Workspace.organization_id == organization_id,
                 Workspace.deleted_at.is_(None),
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if workspace is None:
             raise AppError("WORKSPACE_NOT_FOUND", "Workspace was not found.", status_code=404)
@@ -270,9 +302,7 @@ class ProviderConfigService:
 
     async def _enqueue_reindex(self, job: EmbeddingReindexJob) -> None:
         try:
-            from app.workers.reindex_tasks import reindex_workspace
-
-            reindex_workspace.delay(str(job.id))
+            getattr(self, "task_queue", CeleryTaskQueue()).enqueue_reindex(job.id)
         except Exception:
             job.status = ReindexJobStatus.QUEUE_FAILED
             job.error_code = "REINDEX_QUEUE_UNAVAILABLE"

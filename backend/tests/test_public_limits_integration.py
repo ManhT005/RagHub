@@ -8,8 +8,9 @@ import pytest
 from redis.asyncio import Redis
 
 from app.core.config import Settings
-from app.core.exceptions import AppError
-from app.modules.chatbots.public_limits import PublicChatLimits
+from app.delivery.http.error_mapping import http_status
+from app.infrastructure.redis.public_chat_admission import PublicChatLimits
+from raghub_core.domain.errors import CoreError
 
 pytestmark = pytest.mark.integration
 
@@ -39,11 +40,11 @@ async def test_atomic_rate_and_slot_leases():
                 *(limits.check_rate("bot", "ip") for _ in range(20)), return_exceptions=True
             )
             assert sum(result is None for result in results) == 3
-            rejected = [result for result in results if isinstance(result, AppError)]
-            assert len(rejected) == 17 and all(result.status_code == 429 for result in rejected)
+            rejected = [result for result in results if isinstance(result, CoreError)]
+            assert len(rejected) == 17 and all(http_status(result) == 429 for result in rejected)
             await limits.check_rate("bot", "other-ip")
             await limits.check_rate("bot", "third-ip")
-            with pytest.raises(AppError):
+            with pytest.raises(CoreError):
                 await limits.check_rate("bot", "fourth-ip")
             results = await asyncio.gather(
                 *(limits.acquire("bot") for _ in range(20)), return_exceptions=True
@@ -51,7 +52,7 @@ async def test_atomic_rate_and_slot_leases():
             tokens = [result for result in results if isinstance(result, str)]
             assert len(tokens) == 2
             other_token = await limits.acquire("other-bot")
-            with pytest.raises(AppError):
+            with pytest.raises(CoreError):
                 await limits.acquire("third-bot")
             await limits.release("bot", tokens[0])
             # Duplicate cleanup cannot release someone else's slot.

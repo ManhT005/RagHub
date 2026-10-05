@@ -1,4 +1,3 @@
-import copy
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -6,16 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.modules.ai_providers.contracts import ChatProvider, EmbeddingProvider
+from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+from app.infrastructure.provider_credentials import resolve_provider_secret
 from app.modules.ai_providers.crypto import ProviderSecretCipher
-from app.modules.ai_providers.enums import IndexVersionStatus, ProviderCapability
-from app.modules.ai_providers.errors import (
-    ProviderConfigurationError,
-    ProviderDisabledError,
-)
 from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.workspaces.models import Workspace
+from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
+from raghub_core.domain.providers.enums import IndexVersionStatus, ProviderCapability
+from raghub_core.domain.providers.errors import (
+    ProviderConfigurationError,
+    ProviderDisabledError,
+)
 
 
 @dataclass(frozen=True)
@@ -42,14 +43,16 @@ class ProviderResolver:
         self.registry = registry or ProviderRegistry()
         self.cipher = cipher or ProviderSecretCipher(get_settings().provider_master_key)
 
-    def _secret(self, config: ProviderConfig) -> str | None:
-        return self.cipher.decrypt(config.encrypted_secret) if config.encrypted_secret else None
+    def _secret(self, config: ProviderConfig, provider_type: str | None = None) -> str | None:
+        return resolve_provider_secret(config, self.cipher, provider_type=provider_type)
 
     @staticmethod
     def _validate(config: ProviderConfig | None, capability: ProviderCapability) -> ProviderConfig:
         if config is None:
             raise ProviderConfigurationError()
         if not config.enabled:
+            raise ProviderDisabledError()
+        if config.connection is not None and not config.connection.enabled:
             raise ProviderDisabledError()
         if config.capability != capability:
             raise ProviderConfigurationError("Provider capability does not match the binding.")
@@ -79,13 +82,9 @@ class ProviderResolver:
             raise ProviderConfigurationError("Workspace has no active embedding index.")
         _, version, config = row
         self._validate(config, ProviderCapability.EMBEDDING)
-        snapshot = copy.copy(config)
-        snapshot.provider_type = version.provider_type
-        snapshot.base_url = version.base_url
-        snapshot.model = version.model
-        snapshot.dimension = version.dimension
-        snapshot.config_json = version.config_json
-        provider = self.registry.create(snapshot, self._secret(config))
+        provider = self.registry.create(
+            provider_descriptor(config, version), self._secret(config, version.provider_type)
+        )
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
 
     async def chat_for_workspace(
@@ -104,7 +103,7 @@ class ProviderResolver:
             )
         ).scalar_one_or_none()
         config = self._validate(row, ProviderCapability.CHAT)
-        provider = self.registry.create(config, self._secret(config))
+        provider = self.registry.create(provider_descriptor(config), self._secret(config))
         return ResolvedChatProvider(provider, config)  # type: ignore[arg-type]
 
     async def embedding_for_version(
@@ -117,11 +116,7 @@ class ProviderResolver:
             )
         )
         config = self._validate(config, ProviderCapability.EMBEDDING)
-        snapshot = copy.copy(config)
-        snapshot.provider_type = version.provider_type
-        snapshot.base_url = version.base_url
-        snapshot.model = version.model
-        snapshot.dimension = version.dimension
-        snapshot.config_json = version.config_json
-        provider = self.registry.create(snapshot, self._secret(config))
+        provider = self.registry.create(
+            provider_descriptor(config, version), self._secret(config, version.provider_type)
+        )
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]

@@ -48,6 +48,12 @@ interface TranscriptMessage {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceConsoleComponent {
+  protected readonly section = signal("overview");
+  protected readonly sections = [
+    { key: "overview", label: "Tổng quan" }, { key: "documents", label: "Tài liệu" },
+    { key: "chatbot", label: "Chatbot" }, { key: "playground", label: "Playground" },
+    { key: "integration", label: "Tích hợp" }, { key: "settings", label: "Cài đặt" },
+  ];
   protected readonly ingestionErrorMessage = ingestionErrorMessage;
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
@@ -100,11 +106,27 @@ export class WorkspaceConsoleComponent {
     viewChild<ElementRef<HTMLInputElement>>("fileInput");
   private readonly api = inject(RaghubApiService);
   private readonly route = inject(ActivatedRoute);
-  private readonly requestedWorkspaceId = this.route.snapshot.paramMap.get("workspaceId");
+  private requestedWorkspaceId = this.route.snapshot.paramMap.get("workspaceId");
   private readonly destroyRef = inject(DestroyRef);
   private conversationId: string | null = null;
 
   constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      this.requestedWorkspaceId = params.get("workspaceId");
+      if (
+        this.requestedWorkspaceId &&
+        this.requestedWorkspaceId !== this.selectedWorkspace &&
+        this.workspaces().some((item) => item.id === this.requestedWorkspaceId)
+      ) {
+        this.selectedWorkspace = this.requestedWorkspaceId;
+        this.changeWorkspace();
+      }
+    });
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const section = params.get("section") ?? "overview";
+      this.section.set(this.sections.some((item) => item.key === section) ? section : "overview");
+      this.setupOpen.set(["settings", "chatbot"].includes(this.section()));
+    });
     this.api.organizations().subscribe({
       next: (items) => {
         this.organizations.set(items);

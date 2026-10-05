@@ -5,23 +5,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.delivery.http.error_mapping import AppError as AppError
+from app.delivery.http.error_mapping import http_status
+from raghub_core.domain.errors import CoreError
+
 logger = logging.getLogger(__name__)
-
-
-class AppError(Exception):
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        *,
-        status_code: int = 400,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.details = details or {}
-        super().__init__(message)
 
 
 def _request_id(request: Request) -> str:
@@ -50,12 +38,12 @@ def _error_response(
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(AppError)
-    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    @app.exception_handler(CoreError)
+    async def handle_app_error(request: Request, exc: CoreError) -> JSONResponse:
         request.state.public_error_code = exc.code
         response = _error_response(
             request,
-            status_code=exc.status_code,
+            status_code=http_status(exc),
             code=exc.code,
             message=exc.message,
             details=exc.details,
@@ -77,7 +65,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=422,
             code="VALIDATION_ERROR",
             message="Request validation failed.",
-            details={"errors": exc.errors()},
+            details={
+                "errors": [
+                    {"loc": error["loc"], "type": error["type"], "msg": "Invalid field value"}
+                    for error in exc.errors()
+                ]
+            },
         )
 
     @app.exception_handler(Exception)

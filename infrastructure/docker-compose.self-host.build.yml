@@ -1,0 +1,28 @@
+# Development/release verification override. Production uses published images.
+services:
+  api:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+    build:
+      context: ../backend
+      target: local-ai
+  worker:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+  migrate:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+  admin-web:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/admin-web:${LOCAL_IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
+  chat-widget:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/chat-widget:${LOCAL_IMAGE_TAG:-local}
+    build:
+      context: ../apps/chat-widget
+  widget-demo:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/widget-demo:${LOCAL_IMAGE_TAG:-local}
+    build:
+      context: ../apps/chat-widget/demo
+  nginx:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/gateway:${LOCAL_IMAGE_TAG:-local}
+    build:
+      context: ./nginx

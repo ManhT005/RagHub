@@ -1,0 +1,305 @@
+@if (context.workspace(); as workspace) {
+  <section
+    class="surface embedding-profile"
+    aria-label="Embedding model của workspace"
+  >
+    <div class="embedding-summary">
+      <div class="provider-model">
+        <raghub-provider-logo
+          [catalogId]="workspace.embedding_model?.provider_catalog_id"
+          size="lg"
+        />
+        <div class="embedding-identity">
+          <div class="embedding-label">
+            <span class="muted">Embedding model của workspace</span
+            ><nz-tag
+              [nzColor]="
+                workspace.embedding_model?.status === 'AVAILABLE'
+                  ? 'green'
+                  : 'orange'
+              "
+              >{{
+                workspace.embedding_model?.status === "AVAILABLE"
+                  ? "Hoạt động"
+                  : workspace.embedding_model
+                    ? workspace.embedding_model.status
+                    : "Cần cấu hình"
+              }}</nz-tag
+            >
+          </div>
+          @if (workspace.embedding_model; as model) {
+            <h2 [title]="model.model">
+              {{ model.provider_name }} / {{ shortModelName(model.model) }}
+            </h2>
+            <div class="embedding-tags">
+              <nz-tag nzColor="blue">{{
+                category(model.provider_catalog_id)
+              }}</nz-tag
+              ><nz-tag>{{ model.dimension }} dims</nz-tag>
+            </div>
+          } @else {
+            <h2>Chưa cấu hình model</h2>
+          }
+        </div>
+      </div>
+      <dl class="embedding-stats">
+        <div>
+          <dt>Tài liệu</dt>
+          <dd>{{ workspace.document_count }}</dd>
+        </div>
+        <div>
+          <dt>Chunks</dt>
+          <dd>{{ workspace.chunk_count ?? "—" }}</dd>
+        </div>
+        <div>
+          <dt>Lần lập chỉ mục gần nhất</dt>
+          <dd>
+            {{
+              workspace.last_indexed_at
+                ? (workspace.last_indexed_at | date: "dd/MM/yyyy")
+                : "—"
+            }}
+          </dd>
+        </div>
+      </dl>
+      @if (context.can("ai.change_embedding")) {
+        <button nz-button [disabled]="migrating() || busy()" (click)="choose()">
+          {{ workspace.embedding_model ? "Đổi model" : "Chọn model" }}
+        </button>
+      }
+    </div>
+    @if (migrating()) {
+      <nz-alert
+        nzType="info"
+        nzMessage="Đang xây dựng index mới. Index hiện tại tiếp tục phục vụ tìm kiếm và chat."
+        nzShowIcon
+      /><nz-progress [nzPercent]="progress()" />
+      <p class="muted">
+        {{ job()?.processed_documents ?? 0 }} /
+        {{ job()?.total_documents ?? 0 }} tài liệu · lỗi
+        {{ job()?.failed_documents ?? 0 }}
+      </p>
+    }
+    @if (retryable()) {
+      <nz-alert
+        nzType="error"
+        nzMessage="Reindex chưa hoàn tất. Index cũ vẫn được giữ lại."
+        nzShowIcon
+      />
+      @if (context.can("ai.change_embedding")) {
+        <button nz-button [nzLoading]="busy()" (click)="retry()">
+          Thử lại reindex
+        </button>
+      }
+    }
+    @if (error()) {
+      <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+    }
+  </section>
+}
+<nz-modal
+  [nzVisible]="open()"
+  [nzTitle]="preview() ? 'Thay đổi embedding model?' : 'Chọn embedding model'"
+  [nzWidth]="620"
+  [nzFooter]="null"
+  [nzClosable]="!busy()"
+  [nzMaskClosable]="false"
+  (nzOnCancel)="close()"
+  (nzAfterClose)="dialogClosed.emit()"
+>
+  <ng-container *nzModalContent>
+    <div class="selfhost-page embedding-picker">
+      @if (preview(); as impact) {
+        <div class="model-comparison">
+          <article>
+            <p class="muted">Model hiện tại</p>
+            <div class="provider-model">
+              <raghub-provider-logo
+                [catalogId]="
+                  context.workspace()?.embedding_model?.provider_catalog_id
+                "
+              /><span
+                ><b [title]="impact.current_model?.model ?? ''">{{
+                  impact.current_model
+                    ? shortModelName(impact.current_model.model)
+                    : "Chưa cấu hình"
+                }}</b
+                ><small class="block muted"
+                  >{{ impact.current_model?.dimension ?? "—" }} dims</small
+                ></span
+              >
+            </div>
+          </article>
+          <span class="comparison-arrow" aria-hidden="true">→</span>
+          <article>
+            <p class="muted">Model mới</p>
+            <div class="provider-model">
+              <raghub-provider-logo
+                [catalogId]="selectedModel()?.provider_catalog_id"
+              /><span
+                ><b [title]="impact.target_model.model">{{
+                  shortModelName(impact.target_model.model)
+                }}</b
+                ><small class="block muted"
+                  >{{ impact.target_model.dimension }} dims</small
+                ></span
+              >
+            </div>
+          </article>
+        </div>
+        @if (impact.requires_reindex) {
+          <nz-alert
+            nzType="warning"
+            nzMessage="Cần lập chỉ mục lại toàn bộ tài liệu"
+            [nzDescription]="
+              'Model mới dùng không gian vector khác. ' +
+              impact.documents_affected +
+              ' tài liệu đã sẵn sàng (' +
+              (impact.chunks_affected ?? 'chưa có dữ liệu') +
+              ' chunks) sẽ được lập chỉ mục lại. Chỉ mục cũ tiếp tục phục vụ cho đến khi hoàn tất.'
+            "
+            nzShowIcon
+          />
+        } @else {
+          <p>Cấu hình này không yêu cầu xây dựng lại chỉ mục.</p>
+        }
+        <label class="confirmation"
+          ><span
+            ><input
+              type="checkbox"
+              [(ngModel)]="confirmed"
+              [disabled]="busy()"
+            />
+            Tôi xác nhận áp dụng cấu hình
+            {{
+              impact.requires_reindex
+                ? "và reindex toàn bộ tài liệu đã sẵn sàng"
+                : "này"
+            }}.</span
+          ></label
+        >
+        <div class="picker-footer">
+          <button
+            nz-button
+            [disabled]="busy()"
+            (click)="preview.set(null); confirmed = false"
+          >
+            Quay lại</button
+          ><button nz-button [disabled]="busy()" (click)="close()">Hủy</button
+          ><button
+            nz-button
+            nzType="primary"
+            [nzDanger]="impact.requires_reindex"
+            [nzLoading]="busy()"
+            [disabled]="!confirmed"
+            (click)="apply()"
+          >
+            {{
+              impact.requires_reindex
+                ? "Đổi model & lập
+          chỉ mục"
+                : "Áp dụng"
+            }}
+          </button>
+        </div>
+      } @else {
+        <p class="muted">
+          Chọn model đã đăng ký và kiểm tra kết nối thành công cho workspace.
+        </p>
+        <input
+          nz-input
+          aria-label="Tìm embedding model"
+          placeholder="Tìm kiếm model…"
+          [ngModel]="modelQuery()"
+          (ngModelChange)="modelQuery.set($event)"
+        />
+        <div class="model-filters">
+          <div class="model-categories" aria-label="Loại embedding model">
+            @for (
+              categoryName of ["", "Cloud", "Local", "Custom"];
+              track categoryName
+            ) {
+              <button
+                type="button"
+                [attr.aria-pressed]="modelCategory() === categoryName"
+                (click)="modelCategory.set(categoryName)"
+              >
+                {{ categoryName || "Tất cả" }}
+              </button>
+            }
+          </div>
+          <select
+            aria-label="Lọc provider"
+            [ngModel]="modelProvider()"
+            (ngModelChange)="modelProvider.set($event)"
+          >
+            <option value="">Tất cả provider</option>
+            @for (model of providerOptions(); track model.provider_catalog_id) {
+              <option [value]="model.provider_catalog_id ?? ''">
+                {{ model.provider_name }}
+              </option>
+            }
+          </select>
+        </div>
+        @if (loading()) {
+          <p role="status">Đang tải model…</p>
+        }
+        <div
+          class="embedding-model-list"
+          role="radiogroup"
+          aria-label="Chọn embedding model"
+        >
+          @for (model of filteredModels(); track model.id) {
+            <label
+              class="embedding-model-option"
+              [class.selected]="selected === model.id"
+              ><input
+                type="radio"
+                name="embedding-model"
+                [value]="model.id"
+                [attr.aria-label]="
+                  'Chọn ' + model.model + ' từ ' + model.provider_name
+                "
+                [(ngModel)]="selected"
+                (ngModelChange)="selectionChanged()"
+                [disabled]="busy()"
+              /><raghub-provider-logo
+                [catalogId]="model.provider_catalog_id"
+              /><span class="model-option-identity"
+                ><b [title]="model.model">{{ shortModelName(model.model) }}</b
+                ><small class="block muted">{{ model.provider_name }}</small
+                ><span class="block model-option-tags"
+                  ><nz-tag>{{ model.dimension }} dims</nz-tag
+                  ><nz-tag>{{ category(model.provider_catalog_id) }}</nz-tag
+                  ><nz-tag nzColor="green">Khả dụng</nz-tag></span
+                ></span
+              ></label
+            >
+          } @empty {
+            @if (!loading()) {
+              <nz-alert
+                nzType="info"
+                nzMessage="Không có embedding model phù hợp. Kiểm tra bộ lọc hoặc đăng ký model trong Model Registry."
+              />
+            }
+          }
+        </div>
+        <div class="picker-footer">
+          <button nz-button [disabled]="busy()" (click)="close()">Hủy</button
+          ><button
+            nz-button
+            nzType="primary"
+            [disabled]="!selected || loading()"
+            [nzLoading]="busy()"
+            (click)="review()"
+          >
+            Chọn model
+          </button>
+        </div>
+      }
+      @if (error()) {
+        <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
+      }
+    </div>
+  </ng-container>
+</nz-modal>

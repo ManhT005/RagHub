@@ -21,6 +21,7 @@ import { NzTagModule } from "ng-zorro-antd/tag";
 import { debounceTime, distinctUntilChanged, Subject } from "rxjs";
 
 import { session } from "../core/api-auth.interceptor";
+import { consoleOrganization } from "../core/console-organization";
 import {
   AdminUser,
   Organization,
@@ -110,9 +111,8 @@ export class UsersComponent {
     this.api.organizations().subscribe({
       next: (organizations) => {
         this.organizations.set(organizations);
-        if (!this.selectedOrganization && organizations[0]) {
-          this.selectedOrganization = organizations[0].id;
-        }
+        this.selectedOrganization =
+          consoleOrganization(organizations)?.id ?? "";
         this.changeOrganization();
       },
       error: () => {
@@ -241,8 +241,8 @@ export class UsersComponent {
         );
         this.success.set(
           nextStatus === "ACTIVE"
-            ? "Đã kích hoạt tài khoản."
-            : "Đã vô hiệu hóa tài khoản.",
+            ? "Đã kích hoạt quyền truy cập."
+            : "Đã vô hiệu hóa quyền truy cập trong phạm vi này.",
         );
       },
       error: (err) => {

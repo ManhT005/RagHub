@@ -12,8 +12,12 @@ from app.core import redis as redis_module
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
 from app.core.exceptions import register_exception_handlers
+from app.infrastructure.redis.public_chat_admission import (
+    ACQUIRE_SCRIPT,
+    RELEASE_SCRIPT,
+    PublicChatLimits,
+)
 from app.modules.chatbots import router
-from app.modules.chatbots.public_limits import ACQUIRE_SCRIPT, RELEASE_SCRIPT, PublicChatLimits
 
 
 @pytest.fixture
@@ -34,13 +38,15 @@ async def test_public_requests_reuse_client_until_shutdown(shared_redis, monkeyp
         def __init__(self, session):
             pass
 
-        async def public_chatbot(self, *args):
+        async def resolve(self, *args):
             return bot
 
-        async def stream(self, *args):
-            yield "done", {}
+        async def stream_events(self, *args):
+            from raghub_core.domain.rag.events import ChatCompleted
 
-    monkeypatch.setattr(router, "ChatbotService", Service)
+            yield ChatCompleted(uuid4(), None, 0)
+
+    monkeypatch.setattr(router, "PublicChatContainer", Service)
     app = FastAPI(lifespan=redis_module.redis_lifespan)
     register_exception_handlers(app)
     app.include_router(router.router)

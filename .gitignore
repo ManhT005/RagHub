@@ -3,9 +3,13 @@
 .env.*
 !.env.example
 !.env.ghcr.example
+!.env.self-host.example
 .venv/
 .python-version
 .worktrees/
+
+# Local core extraction plan (kept outside version control)
+/RagHub_Core_Remake_Implementation_Plan.md
 
 # Python
 __pycache__/
@@ -15,6 +19,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+backend/build/
+*.egg-info/
 
 # Node.js and frontend builds
 node_modules/
@@ -32,4 +38,12 @@ Thumbs.db
 # Runtime data and logs
 *.log
 backend/data/
+.backups/
 .celerybeat-schedule
+
+# Local refactor plans and packaging artifacts
+/selfhost-update-UI/
+/RagHub_SelfHosted_First_Refactor_Plan.md
+/RagHub_Core_Package_Consolidation_Plan.md
+# Generated Angular asset staging; canonical files live in /assets/providers.
+apps/admin-web/.provider-assets/

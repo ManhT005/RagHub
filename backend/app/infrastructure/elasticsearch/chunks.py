@@ -5,8 +5,9 @@ from typing import Any
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 
 from app.core.config import Settings, get_settings
-from app.modules.ingestion.chunker import TextChunk
-from app.modules.search.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
+from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
+from raghub_core.domain.ingestion.chunker import TextChunk
+from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
 def chunk_index_mapping(dimension: int) -> dict[str, Any]:
@@ -172,7 +173,10 @@ class ChunkSearch:
             self._search_bm25(organization_id, workspace_id, query),
             self._search_vector(organization_id, workspace_id, query_vector),
         )
-        return fuse_rrf([lexical, vector], limit=limit)
+        return [chunk_to_hit(hit) for hit in fuse_rrf(
+            [[chunk_from_hit(hit) for hit in ranking] for ranking in (lexical, vector)],
+            limit=limit,
+        )]
 
     async def _search_bm25(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str

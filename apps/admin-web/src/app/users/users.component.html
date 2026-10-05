@@ -2,24 +2,11 @@
   <header class="page-heading">
     <div>
       <h1>Quản lý người dùng</h1>
+      <p>
+        Tìm kiếm, tạo người dùng và quản lý quyền truy cập các workspace của cài
+        đặt này.
+      </p>
     </div>
-    @if (organizations().length > 1) {
-      <label class="organization-picker">
-        <span>Tổ chức đang quản lý</span>
-        <nz-select
-          [(ngModel)]="selectedOrganization"
-          (ngModelChange)="changeOrganization()"
-          aria-label="Chọn tổ chức"
-        >
-          @for (organization of organizations(); track organization.id) {
-            <nz-option
-              [nzValue]="organization.id"
-              [nzLabel]="organization.name"
-            />
-          }
-        </nz-select>
-      </label>
-    }
   </header>
 
   @if (error()) {
@@ -72,107 +59,108 @@
   </section>
 
   <section class="table-panel" aria-label="Danh sách người dùng">
-  <nz-spin [nzSpinning]="loading()">
-    <nz-table
-      #userTable
-      [nzData]="users()"
-      [nzFrontPagination]="false"
-      [nzPageIndex]="page()"
-      [nzPageSize]="pageSize"
-      [nzTotal]="total()"
-      [nzShowSizeChanger]="false"
-      (nzPageIndexChange)="changePage($event)"
-      nzSize="middle"
-      nzNotFoundContent="Chưa có người dùng phù hợp"
-    >
-      <thead>
-        <tr>
-          <th>Tên</th>
-          <th>Email</th>
-          <th>Trạng thái</th>
-          <th>Lần đăng nhập gần nhất</th>
-          <th>Ngày tạo</th>
-          <th>Vai trò</th>
-          <th>Workspace đang quản lý</th>
-          <th aria-label="Thao tác">Thao tác</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (user of userTable.data; track user.id) {
+    <nz-spin [nzSpinning]="loading()">
+      <nz-table
+        #userTable
+        [nzData]="users()"
+        [nzFrontPagination]="false"
+        [nzPageIndex]="page()"
+        [nzPageSize]="pageSize"
+        [nzTotal]="total()"
+        [nzScroll]="{ x: '1280px' }"
+        [nzShowSizeChanger]="false"
+        (nzPageIndexChange)="changePage($event)"
+        nzSize="middle"
+        nzNotFoundContent="Chưa có người dùng phù hợp"
+      >
+        <thead>
           <tr>
-            <td>
-              <strong>{{ displayNameOf(user) }}</strong>
-            </td>
-            <td>{{ user.email }}</td>
-            <td>
-              @if (user.status === "ACTIVE") {
-                <nz-tag nzColor="green">Đang hoạt động</nz-tag>
-              } @else {
-                <nz-tag nzColor="red">Đã vô hiệu hóa</nz-tag>
-              }
-            </td>
-            <td>{{ formatDate(user.last_login_at) }}</td>
-            <td>{{ formatDate(user.created_at) }}</td>
-            <td>{{ roleLabel(user.role) }}</td>
-            <td>
-              @if (user.workspaces.length) {
-                @for (workspace of user.workspaces; track workspace.id) {
-                  <nz-tag>{{ workspace.name }}</nz-tag>
-                }
-              } @else {
-                <span class="muted">Chưa được gán</span>
-              }
-            </td>
-            <td class="actions">
-              <button
-                nz-button
-                nzType="primary"
-                type="button"
-                (click)="openRename(user)"
-              >
-                Đổi tên
-              </button>
-              @if (user.status === "ACTIVE") {
-                <button
-                  nz-button
-                  nzType="primary"
-                  nzDanger
-                  type="button"
-                  nz-popconfirm
-                  nzPopconfirmTitle="Vô hiệu hóa tài khoản này?"
-                  nzPopconfirmPlacement="topRight"
-                  nzOkText="Vô hiệu hóa"
-                  nzCancelText="Hủy"
-                  [nzLoading]="updatingId() === user.id"
-                  (nzOnConfirm)="toggleStatus(user)"
-                >
-                  Vô hiệu hóa
-                </button>
-              } @else {
-                <button
-                  nz-button
-                  nzType="primary"
-                  type="button"
-                  nz-popconfirm
-                  nzPopconfirmTitle="Kích hoạt lại tài khoản này?"
-                  nzPopconfirmPlacement="topRight"
-                  nzOkText="Kích hoạt"
-                  nzCancelText="Hủy"
-                  [nzLoading]="updatingId() === user.id"
-                  (nzOnConfirm)="toggleStatus(user)"
-                >
-                  Kích hoạt
-                </button>
-              }
-            </td>
+            <th>Tên</th>
+            <th>Email</th>
+            <th>Trạng thái</th>
+            <th>Lần đăng nhập gần nhất</th>
+            <th>Ngày tạo</th>
+            <th>Vai trò</th>
+            <th>Workspace đang quản lý</th>
+            <th aria-label="Thao tác">Thao tác</th>
           </tr>
-        }
-      </tbody>
-    </nz-table>
-    @if (!loading() && !users().length && !error()) {
-      <nz-empty nzNotFoundContent="Chưa có người dùng phù hợp" />
-    }
-  </nz-spin>
+        </thead>
+        <tbody>
+          @for (user of userTable.data; track user.id) {
+            <tr>
+              <td>
+                <strong>{{ displayNameOf(user) }}</strong>
+              </td>
+              <td>{{ user.email }}</td>
+              <td>
+                @if (user.status === "ACTIVE") {
+                  <nz-tag nzColor="green">Đang hoạt động</nz-tag>
+                } @else {
+                  <nz-tag nzColor="red">Đã vô hiệu hóa</nz-tag>
+                }
+              </td>
+              <td>{{ formatDate(user.last_login_at) }}</td>
+              <td>{{ formatDate(user.created_at) }}</td>
+              <td>{{ roleLabel(user.role) }}</td>
+              <td>
+                @if (user.workspaces.length) {
+                  @for (workspace of user.workspaces; track workspace.id) {
+                    <nz-tag>{{ workspace.name }}</nz-tag>
+                  }
+                } @else {
+                  <span class="muted">Chưa được gán</span>
+                }
+              </td>
+              <td class="actions">
+                <button
+                  nz-button
+                  nzType="primary"
+                  type="button"
+                  (click)="openRename(user)"
+                >
+                  Đổi tên
+                </button>
+                @if (user.status === "ACTIVE") {
+                  <button
+                    nz-button
+                    nzType="primary"
+                    nzDanger
+                    type="button"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Vô hiệu hóa quyền truy cập trong phạm vi này?"
+                    nzPopconfirmPlacement="topRight"
+                    nzOkText="Vô hiệu hóa"
+                    nzCancelText="Hủy"
+                    [nzLoading]="updatingId() === user.id"
+                    (nzOnConfirm)="toggleStatus(user)"
+                  >
+                    Vô hiệu hóa
+                  </button>
+                } @else {
+                  <button
+                    nz-button
+                    nzType="primary"
+                    type="button"
+                    nz-popconfirm
+                    nzPopconfirmTitle="Kích hoạt lại quyền truy cập trong phạm vi này?"
+                    nzPopconfirmPlacement="topRight"
+                    nzOkText="Kích hoạt"
+                    nzCancelText="Hủy"
+                    [nzLoading]="updatingId() === user.id"
+                    (nzOnConfirm)="toggleStatus(user)"
+                  >
+                    Kích hoạt
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+      @if (!loading() && !users().length && !error()) {
+        <nz-empty nzNotFoundContent="Chưa có người dùng phù hợp" />
+      }
+    </nz-spin>
   </section>
 
   <nz-modal
@@ -186,8 +174,8 @@
   >
     <ng-container *nzModalContent>
       <p class="modal-hint">
-        Tài khoản mới thuộc tổ chức hiện tại, vai trò mặc định là Workspace
-        admin và chưa có workspace.
+        Tài khoản mới thuộc cài đặt này, vai trò mặc định là Workspace admin và
+        chưa có workspace.
       </p>
       <label class="modal-field">
         <span>Email</span>

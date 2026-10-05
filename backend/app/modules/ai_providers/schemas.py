@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.modules.ai_providers.enums import ProviderCapability, ProviderType
+from raghub_core.domain.providers.enums import ProviderCapability, ProviderType
 
 _SENSITIVE_CONFIG_KEYS = {
     "api_key",

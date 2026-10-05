@@ -106,7 +106,7 @@ describe("UsersComponent", () => {
     );
   });
 
-  it("shows the organization picker for multiple organizations", async () => {
+  it("keeps one console scope without a picker even when old organizations exist", async () => {
     api.organizations.mockReturnValue(
       of([
         ...organizations,
@@ -118,9 +118,10 @@ describe("UsersComponent", () => {
     ).loadOrganizations();
     await fixture.whenStable();
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain(
+    expect(fixture.nativeElement.textContent).not.toContain(
       "Tổ chức đang quản lý",
     );
+    expect(fixture.nativeElement.querySelector('[aria-label="Chọn tổ chức"]')).toBeNull();
   });
 
   it("shows a Vietnamese empty state when no user matches", async () => {

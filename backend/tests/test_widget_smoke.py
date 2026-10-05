@@ -1,5 +1,6 @@
 """Live HTTP -> Nginx -> API -> DB/Redis/search -> SSE, without a paid AI provider."""
 
+import json
 import os
 from uuid import UUID, uuid4
 
@@ -121,6 +122,12 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
         },
     )
     assert publish.status_code == 200
+    saved = await client.get(bot_url, headers=headers)
+    assert saved.status_code == 200
+    assert saved.json()["allowed_origins"] == [origin["Origin"]]
+    assert saved.json()["embed_title"] == "Smoke title"
+    listing = await client.get(f"/api/v1/workspaces/{workspace_id}/chatbots", headers=headers)
+    assert listing.status_code == 200 and listing.json()[0]["embed_title"] == "Smoke title"
     key = publish.json()["key"]
     public = f"/api/v1/public/chatbots/{key}"
     oversized = await client.post(
@@ -167,6 +174,21 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
     for event in ("conversation", "citations", "token", "done"):
         assert f"event: {event}" in frames
     assert "event: error" not in frames
+    conversation = json.loads(
+        frames[frames.index("event: conversation") + 1].removeprefix("data: ")
+    )
+    foreign_user = await client.post(
+        public + "/chat",
+        headers=origin,
+        json={
+            "message": "Follow up",
+            "conversation_id": conversation["conversation_id"],
+            "external_user_id": "different-user",
+        },
+    )
+    assert foreign_user.status_code == 200
+    assert "CONVERSATION_ACCESS_DENIED" in foreign_user.text
+    assert "event: done" not in foreign_user.text
     rotated = await client.post(bot_url + "/embed-key/rotate", headers=headers)
     assert rotated.status_code == 200
     new_key = rotated.json()["key"]
@@ -186,7 +208,8 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
     # Real HTTP 429 with a valid key, and admin chat still works after exhausting public rate.
     for _ in range(25):
         limited = await client.post(
-            new_public + "/chat", headers=origin,
+            new_public + "/chat",
+            headers=origin,
             json={"message": "Hello", "conversation_id": str(uuid4())},
         )
         if limited.status_code == 429:
@@ -212,3 +235,9 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
     assert "no-store" in script.headers["cache-control"]
     demo = await client.get("/demo/")
     assert demo.status_code == 200 and "/widget/raghub.js" in demo.text
+    await client.patch(bot_url, headers=headers, json={"published": True})
+    deleted = await client.delete(f"/api/v1/workspaces/{workspace_id}", headers=headers)
+    assert deleted.status_code == 204
+    assert (await client.get(new_public + "/config", headers=origin)).status_code == 404
+    hidden = await client.post(new_public + "/chat", headers=origin, json={"message": "Hello"})
+    assert hidden.status_code == 404

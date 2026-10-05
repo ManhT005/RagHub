@@ -1,18 +1,19 @@
-from collections.abc import Iterable
-from typing import Any
+"""Compatibility payloads are mapped outside the engine."""
+
+from app.infrastructure.retrieval_mapping import chunk_from_hit
+from raghub_core.domain.rag.citations import resolve_trusted_citations
 
 
-def resolve_citations(hits: Iterable[dict[str, Any]]) -> list[dict[str, object]]:
-    """Create trusted citation metadata exclusively from selected backend hits."""
+def resolve_citations(hits):
     return [
         {
-            "citation_id": f"C{rank}",
-            "document_id": str(hit["document_id"]),
-            "document_name": str(hit["source_name"]),
-            "page": hit.get("page_number"),
-            "chunk_id": str(hit["chunk_id"]),
-            "excerpt": str(hit["content"])[:500],
-            "score": float(hit["score"]),
+            "citation_id": c.citation_id,
+            "document_id": str(c.document_id),
+            "document_name": c.document_name,
+            "page": c.page,
+            "chunk_id": str(c.chunk_id),
+            "excerpt": c.excerpt,
+            "score": c.score,
         }
-        for rank, hit in enumerate(hits, start=1)
+        for c in resolve_trusted_citations(chunk_from_hit(hit) for hit in hits)
     ]

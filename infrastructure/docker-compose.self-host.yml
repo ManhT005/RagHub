@@ -1,0 +1,110 @@
+# Image-based CPU-first installation. Add docker-compose.gpu.yml for NVIDIA.
+name: raghub-selfhost
+services:
+  postgres:
+    extends:
+      file: docker-compose.base.yml
+      service: postgres
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+  redis:
+    extends:
+      file: docker-compose.base.yml
+      service: redis
+  elasticsearch:
+    extends:
+      file: docker-compose.base.yml
+      service: elasticsearch
+  minio:
+    extends:
+      file: docker-compose.base.yml
+      service: minio
+    environment:
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+  ollama:
+    extends:
+      file: docker-compose.base.yml
+      service: ollama
+  ollama-init:
+    extends:
+      file: docker-compose.base.yml
+      service: ollama-init
+  api:
+    extends:
+      file: docker-compose.base.yml
+      service: api
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}${BACKEND_IMAGE_SUFFIX:--local-ai}
+    environment:
+      APP_ENV: ${APP_ENV:-selfhost}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
+      PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+    networks:
+      default: {}
+      ingress: {}
+  worker:
+    extends:
+      file: docker-compose.base.yml
+      service: worker
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}${BACKEND_IMAGE_SUFFIX:--local-ai}
+    environment:
+      APP_ENV: ${APP_ENV:-selfhost}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
+      PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+  admin-web:
+    extends:
+      file: docker-compose.base.yml
+      service: admin-web
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/admin-web:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}
+    networks:
+      ingress: {}
+  chat-widget:
+    extends:
+      file: docker-compose.base.yml
+      service: chat-widget
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/chat-widget:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}
+    networks:
+      ingress: {}
+  widget-demo:
+    extends:
+      file: docker-compose.base.yml
+      service: widget-demo
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/widget-demo:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}
+    networks:
+      ingress: {}
+  nginx:
+    extends:
+      file: docker-compose.base.yml
+      service: nginx
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/gateway:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}
+    ports:
+      - ${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:80
+    networks:
+      ingress:
+        ipv4_address: ${PROXY_IP:-172.28.0.10}
+  migrate:
+    extends:
+      file: docker-compose.base.yml
+      service: migrate
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}${BACKEND_IMAGE_SUFFIX:--local-ai}
+    environment:
+      APP_ENV: ${APP_ENV:-selfhost}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
+      PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  elasticsearch-data: {}
+  minio-data: {}
+  ollama-data: {}
+  huggingface-cache: {}
+networks:
+  ingress:
+    ipam:
+      config:
+        - subnet: ${PROXY_NETWORK_SUBNET:-172.28.0.0/24}
