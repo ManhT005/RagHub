@@ -14,6 +14,7 @@ from app.modules.documents.models import (
     DocumentVersion,
     IngestionJob,
 )
+from app.modules.installation.models import InstallationState
 from app.modules.memberships.models import (
     Membership,
     WorkspaceMembership,
@@ -24,6 +25,7 @@ from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
 __all__ = [
+    "InstallationState",
     "Document",
     "DocumentVersion",
     "DocumentIndexMetadata",

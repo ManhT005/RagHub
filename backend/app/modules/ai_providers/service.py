@@ -75,7 +75,9 @@ class ProviderConfigService:
             raise AppError("PROVIDER_NOT_FOUND", "Provider was not found.", status_code=404)
         return config
 
-    async def create(self, organization_id: UUID, payload: ProviderConfigInput) -> ProviderConfig:
+    async def create(
+        self, organization_id: UUID, payload: ProviderConfigInput, *, commit: bool = True
+    ) -> ProviderConfig:
         connection = ProviderConnection(
             organization_id=organization_id,
             name=payload.name.strip(),
@@ -99,6 +101,9 @@ class ProviderConfigService:
             enabled=payload.enabled,
         )
         self.session.add(config)
+        if not commit:
+            await self.session.flush()
+            return config
         await self.session.commit()
         await self.session.refresh(config)
         return config
