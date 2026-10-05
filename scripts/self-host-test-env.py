@@ -26,6 +26,7 @@ def main():
         "PROXY_NETWORK_SUBNET=172.31.83.0/24\nPROXY_IP=172.31.83.10\n"
         "PUBLIC_CHAT_TRUSTED_PROXY_CIDRS=172.31.83.10/32\nOLLAMA_MODEL=gemma3:1b\n"
         "PUBLIC_CHAT_STREAM_TIMEOUT_SECONDS=300\nCHAT_PROVIDER_TIMEOUT_SECONDS=120\n"
+        "ACCESS_TOKEN_TTL_MINUTES=1\nREFRESH_TOKEN_TTL_DAYS=7\n"
         + "".join(
             f"{key}={secrets.token_urlsafe(36)}\n"
             for key in (

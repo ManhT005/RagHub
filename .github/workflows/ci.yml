@@ -64,7 +64,7 @@ jobs:
 
   docker-images:
     name: Docker images
-    needs: [core-contracts, core-package-isolation, backend, frontend, widget, ingestion-integration, compose, migration]
+    needs: [core-contracts, core-package-isolation, backend, frontend, widget, ingestion-integration, auth-setup-integration, compose, migration]
     permissions:
       contents: read
       packages: write
@@ -134,6 +134,39 @@ jobs:
         if: steps.backend.outputs.present == 'true'
         working-directory: backend
         run: python -m pytest -p no:cacheprovider
+
+  auth-setup-integration:
+    name: Auth sessions and installation transactions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6-alpine3.22
+        env:
+          POSTGRES_PASSWORD: raghub-ci-test-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RAGHUB_TEST_DATABASE_URL: postgresql+asyncpg://postgres:raghub-ci-test-only@localhost:5432/postgres
+      PROVIDER_MASTER_KEY: raghub-ci-provider-key-not-for-production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install backend and core
+        working-directory: backend
+        run: |
+          python -m pip install -r requirements.lock
+          python -m pip install --no-deps -e ../raghub-core
+      - name: Test rotation, races, atomic setup and existing-install migrations
+        working-directory: backend
+        run: >-
+          python -m pytest -p no:cacheprovider
+          tests/test_auth_refresh.py tests/test_auth_refresh_concurrency.py
+          tests/test_installation.py tests/test_installation_migration.py tests/test_bootstrap_owner.py
 
   ingestion-integration:
     name: Ingestion integration
