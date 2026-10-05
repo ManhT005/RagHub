@@ -44,10 +44,15 @@ API = BASE + "/api/v1"
 
 ORG_SLUG = "eval-golden"
 WS_SLUG = "golden-test"
+LOCAL_WS_SLUG = "golden-test-local"
 EMBED_MODEL = "gemini-embedding-2"
 EMBED_DIM = 3072
 CHAT_MODEL = "gemini-3.5-flash-lite"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+LOCAL_EMBED_MODEL = "token-hash-v1"
+LOCAL_EMBED_DIM = 384
+LOCAL_CHAT_MODEL = "gemma3:1b"
+LOCAL_OLLAMA_BASE = "http://ollama:11434"
 TRANSIENT_HTTP_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
 PROVIDER_ERROR_CODES = {
     "PROVIDER_RATE_LIMITED",
@@ -360,49 +365,95 @@ def ensure_org(token: str):
 
 
 def ensure_provider(
-    token: str, org: str, name: str, ptype: str, cap: str, model: str, dim, secret: str
+    token: str,
+    org: str,
+    name: str,
+    ptype: str,
+    cap: str,
+    model: str,
+    dim,
+    secret: str | None,
+    *,
+    base_url: str | None = GEMINI_BASE,
+    config_json: dict | None = None,
+    test: bool = True,
 ):
     status, items = api("GET", f"/organizations/{org}/providers", token, org)
     for item in items or []:
-        if item.get("model") == model and item.get("capability") == cap:
+        if (
+            item.get("model") == model
+            and item.get("capability") == cap
+            and item.get("provider_type") == ptype
+        ):
             return item["id"]
     payload = {
-        "name": name, "provider_type": ptype, "capability": cap, "model": model,
-        "base_url": GEMINI_BASE, "secret": secret, "config_json": {}, "enabled": True,
+        "name": name,
+        "provider_type": ptype,
+        "capability": cap,
+        "model": model,
+        "config_json": config_json or {},
+        "enabled": True,
     }
+    if base_url is not None:
+        payload["base_url"] = base_url
+    if secret:
+        payload["secret"] = secret
     if dim:
         payload["dimension"] = dim
     status, item = api("POST", f"/organizations/{org}/providers", token, org, payload)
     if status != 201:
         raise SystemExit(f"create provider {name} failed: {status} {item}")
-    status, test = api("POST", f"/providers/{item['id']}/test", token, org, {})
-    print(f"provider {name} test: {status} {json.dumps(test)[:200]}", flush=True)
+    if test:
+        status, result = api("POST", f"/providers/{item['id']}/test", token, org, {})
+        print(f"provider {name} test: {status} {json.dumps(result)[:200]}", flush=True)
     return item["id"]
 
 
-def ensure_workspace(token: str, org: str, emb_id: str, chat_id: str):
+def ensure_workspace(
+    token: str,
+    org: str,
+    emb_id: str,
+    chat_id: str,
+    *,
+    slug: str = WS_SLUG,
+    name: str = "Golden Test",
+):
     status, items = api("GET", "/workspaces", token, org)
     for ws in items or []:
-        if ws.get("slug") == WS_SLUG:
+        if ws.get("slug") == slug:
+            current_embedding = (ws.get("embedding_model") or {}).get("id")
+            current_chat = ws.get("chat_provider_id")
+            if current_embedding != emb_id or current_chat != chat_id:
+                status, bound = api(
+                    "PATCH",
+                    f"/workspaces/{ws['id']}/providers",
+                    token,
+                    org,
+                    {"embedding_provider_id": emb_id, "chat_provider_id": chat_id},
+                )
+                if status != 200:
+                    raise SystemExit(f"bind workspace providers failed: {status} {bound}")
             return ws["id"]
     status, ws = api(
-        "POST", "/workspaces", token, org,
-        {"name": "Golden Test", "slug": WS_SLUG,
-         "embedding_model_id": emb_id, "chat_model_id": chat_id},
+        "POST",
+        "/workspaces",
+        token,
+        org,
+        {"name": name, "slug": slug, "embedding_model_id": emb_id, "chat_model_id": chat_id},
     )
     if status != 201:
         raise SystemExit(f"create workspace failed: {status} {ws}")
     return ws["id"]
 
 
-def ensure_chatbot(token: str, org: str, ws: str):
+def ensure_chatbot(token: str, org: str, ws: str, *, model: str = CHAT_MODEL):
     status, items = api("GET", f"/workspaces/{ws}/chatbots", token, org)
     for bot in items or []:
         if bot.get("name") == "Golden Eval":
             return bot["id"]
     status, bot = api(
         "POST", f"/workspaces/{ws}/chatbots", token, org,
-        {"name": "Golden Eval", "model": CHAT_MODEL, "retrieval_limit": 5},
+        {"name": "Golden Eval", "model": model, "retrieval_limit": 5},
     )
     if status != 201:
         raise SystemExit(f"create chatbot failed: {status} {bot}")
@@ -473,6 +524,11 @@ def main() -> None:
     ap.add_argument("--token", default=None)
     ap.add_argument("--mint-email", default=None)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--provider-mode", choices=["gemini", "local"], default="gemini")
+    ap.add_argument("--local-embedding-model", default=LOCAL_EMBED_MODEL)
+    ap.add_argument("--local-embedding-dim", type=int, default=LOCAL_EMBED_DIM)
+    ap.add_argument("--local-chat-model", default=LOCAL_CHAT_MODEL)
+    ap.add_argument("--local-ollama-base", default=LOCAL_OLLAMA_BASE)
     ap.add_argument(
         "--gate", action="store_true", help="Exit non-zero when release thresholds fail."
     )
@@ -518,24 +574,78 @@ def main() -> None:
 
     import os
 
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if not gemini_key:
-        env_file = REPO / ".env"
-        if env_file.exists():
-            for line in env_file.read_text(encoding="utf-8").splitlines():
-                if line.startswith("GEMINI_API_KEY="):
-                    gemini_key = line.split("=", 1)[1].strip()
-                    break
-    if not gemini_key:
-        raise SystemExit("GEMINI_API_KEY env is required")
-
     org = ensure_org(token)
-    emb = ensure_provider(token, org, "Eval Embedding", "GOOGLE_GEMINI", "EMBEDDING",
-                          EMBED_MODEL, EMBED_DIM, gemini_key)
-    chat = ensure_provider(token, org, "Eval Chat", "GOOGLE_GEMINI", "CHAT",
-                           CHAT_MODEL, None, gemini_key)
-    ws = ensure_workspace(token, org, emb, chat)
-    bot = ensure_chatbot(token, org, ws)
+    if args.provider_mode == "gemini":
+        gemini_key = os.environ.get("GEMINI_API_KEY", "")
+        if not gemini_key:
+            env_file = REPO / ".env"
+            if env_file.exists():
+                for line in env_file.read_text(encoding="utf-8").splitlines():
+                    if line.startswith("GEMINI_API_KEY="):
+                        gemini_key = line.split("=", 1)[1].strip()
+                        break
+        if not gemini_key:
+            raise SystemExit("GEMINI_API_KEY env is required")
+        embedding_model = EMBED_MODEL
+        embedding_dim = EMBED_DIM
+        chat_model = CHAT_MODEL
+        workspace_slug = WS_SLUG
+        workspace_name = "Golden Test"
+        emb = ensure_provider(
+            token,
+            org,
+            "Eval Embedding",
+            "GOOGLE_GEMINI",
+            "EMBEDDING",
+            embedding_model,
+            embedding_dim,
+            gemini_key,
+            base_url=GEMINI_BASE,
+        )
+        chat = ensure_provider(
+            token,
+            org,
+            "Eval Chat",
+            "GOOGLE_GEMINI",
+            "CHAT",
+            chat_model,
+            None,
+            gemini_key,
+            base_url=GEMINI_BASE,
+        )
+    else:
+        embedding_model = args.local_embedding_model
+        embedding_dim = args.local_embedding_dim
+        chat_model = args.local_chat_model
+        workspace_slug = LOCAL_WS_SLUG
+        workspace_name = "Golden Test Local"
+        emb = ensure_provider(
+            token,
+            org,
+            "Eval Local Token Hash",
+            "LOCAL_TOKEN_HASH",
+            "EMBEDDING",
+            embedding_model,
+            embedding_dim,
+            None,
+            base_url=None,
+        )
+        chat = ensure_provider(
+            token,
+            org,
+            "Eval Local Ollama",
+            "OLLAMA",
+            "CHAT",
+            chat_model,
+            None,
+            None,
+            base_url=args.local_ollama_base,
+            config_json={"request_profile": "OLLAMA", "read_timeout": 120.0, "max_attempts": 1},
+        )
+    ws = ensure_workspace(
+        token, org, emb, chat, slug=workspace_slug, name=workspace_name
+    )
+    bot = ensure_chatbot(token, org, ws, model=chat_model)
 
     corpus_files = sorted((GOLDEN / "corpus").glob("*.md"))
     status, existing = api("GET", f"/workspaces/{ws}/documents", token, org)
@@ -650,14 +760,24 @@ def main() -> None:
         commit = "unknown"
 
     report = {
-        "mode": "production-hybrid",
+        "mode": f"production-hybrid-{args.provider_mode}",
         "commit": commit,
         "dataset_hash": dataset,
-        "config_hash": sha("candidates=25 rrf_k=60 mapping=vi_hybrid_v2"),
-        "model_ids": {"embedding": EMBED_MODEL, "chat": CHAT_MODEL},
+        "config_hash": sha(
+            f"provider={args.provider_mode} embedding={embedding_model} chat={chat_model} "
+            "candidates=25 rrf_k=60 mapping=vi_hybrid_v2"
+        ),
+        "model_ids": {"embedding": embedding_model, "chat": chat_model},
         "seed": args.seed,
-        "retrieval_config": {"candidates": 25, "rrf_k": 60, "mapping_version": "vi_hybrid_v2",
-                             "relevance_gate": False, "reranker": False},
+        "retrieval_config": {
+            "provider_mode": args.provider_mode,
+            "workspace_slug": workspace_slug,
+            "candidates": 25,
+            "rrf_k": 60,
+            "mapping_version": "vi_hybrid_v2",
+            "relevance_gate": False,
+            "reranker": False,
+        },
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
         "release_gate": {"enabled": args.gate, "passed": gate_passed, "checks": gate_checks},
