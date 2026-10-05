@@ -1,3 +1,4 @@
+import { PasswordToggleDirective } from "../shared/password-toggle.directive";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -32,10 +33,12 @@ import {
   Workspace,
 } from "../core/raghub-api.service";
 import { ingestionErrorMessage } from "../documents/ingestion-errors";
+import { ChatbotSettingsComponent } from "./chatbot-settings.component";
+import { chatError } from "../core/api/chat-error";
 
 interface Citation {
   document_name?: string;
-  page_number?: number | null;
+  page?: number | null;
   excerpt?: string;
   rank?: number;
 }
@@ -48,7 +51,8 @@ interface TranscriptMessage {
 
 @Component({
   selector: "raghub-chatbots",
-  imports: [
+  imports: [PasswordToggleDirective,
+    ChatbotSettingsComponent,
     DatePipe,
     FormsModule,
     NzAlertModule,
@@ -69,7 +73,6 @@ export class ChatbotsComponent {
   protected readonly chatbotPageSize = 10;
   protected readonly workspaceFilterOpen = signal(false);
   protected readonly publishingBotId = signal("");
-  protected readonly embedCode = signal("");
   protected readonly embedBusy = signal(false);
   protected readonly organizations = signal<Organization[]>([]);
   protected readonly workspaces = signal<Workspace[]>([]);
@@ -175,7 +178,6 @@ export class ChatbotsComponent {
 
   protected openEmbed(bot: Chatbot): void {
     this.selectBot(bot);
-    if (bot.published) this.loadEmbedCode(bot.id);
     this.clearMessages();
     this.screen.set("embed");
   }
@@ -483,10 +485,7 @@ export class ChatbotsComponent {
   protected botPrompt =
     "Trả lời bằng tiếng Việt, chỉ dựa trên tài liệu đã tải lên. Nếu không đủ thông tin, hãy nói rõ điều đó.";
   protected botRetrievalLimit = 5;
-  protected embedOrigins = location.origin;
-  protected embedPrimaryColor = "#1463ff";
-  protected embedTitle = "RagHub Assistant";
-  protected embedGreeting = "Xin chào! Tôi có thể giúp gì cho bạn?";
+
   protected chatInput = "";
   private conversationId: string | null = null;
   private readonly api = inject(RaghubApiService);
@@ -870,88 +869,9 @@ export class ChatbotsComponent {
     });
   }
 
-  protected saveEmbedSettings(): void {
-    const bot = this.selectedBot();
-    if (!bot || this.embedBusy()) return;
-    const allowedOrigins = this.embedOrigins
-      .split(/\n|,/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (!allowedOrigins.length) {
-      this.setError("Nhập ít nhất một website được phép nhúng chatbot.");
-      return;
-    }
-
-    this.clearMessages();
-    this.embedBusy.set(true);
-    this.api
-      .publishEmbed(bot.id, {
-        allowed_origins: allowedOrigins,
-        primary_color: this.embedPrimaryColor,
-        title: this.embedTitle.trim(),
-        greeting: this.embedGreeting.trim(),
-      })
-      .subscribe({
-        next: (result) => {
-          this.embedBusy.set(false);
-          this.embedCode.set(result.code);
-          const updated: Chatbot = {
-            ...bot,
-            published: true,
-            allowed_origins: allowedOrigins,
-            embed_primary_color: this.embedPrimaryColor,
-            embed_title: this.embedTitle.trim(),
-            embed_greeting: this.embedGreeting.trim(),
-          };
-          this.selectedBot.set(updated);
-          this.bots.update((items) =>
-            items.map((item) => (item.id === updated.id ? updated : item)),
-          );
-          this.notice.set(
-            "Đã lưu cấu hình nhúng và xuất bản chatbot. Hãy sao chép mã nhúng ngay.",
-          );
-        },
-        error: (response) => {
-          this.embedBusy.set(false);
-          this.setError(
-            response?.error?.error?.message ||
-              "Không thể lưu cấu hình nhúng chatbot.",
-          );
-        },
-      });
-  }
-
-  protected rotateEmbedKey(): void {
-    const bot = this.selectedBot();
-    if (!bot || !bot.published || this.embedBusy()) return;
-    this.clearMessages();
-    this.embedBusy.set(true);
-    this.api.rotateEmbedKey(bot.id).subscribe({
-      next: (result) => {
-        this.embedBusy.set(false);
-        this.embedCode.set(result.code);
-        this.notice.set("Đã tạo key mới. Mã nhúng cũ không còn hoạt động.");
-      },
-      error: () => {
-        this.embedBusy.set(false);
-        this.setError("Không thể tạo key nhúng mới.");
-      },
-    });
-  }
-
-  protected async copyEmbedCode(): Promise<void> {
-    if (!this.embedCode()) return;
-    await navigator.clipboard?.writeText(this.embedCode());
-    this.notice.set("Đã sao chép mã nhúng.");
-    this.error.set("");
-  }
-
-  private loadEmbedCode(chatbotId: string): void {
-    this.embedCode.set("");
-    this.api.embedCode(chatbotId).subscribe({
-      next: (result) => this.embedCode.set(result.code),
-      error: () => this.embedCode.set(""),
-    });
+  protected onEmbedSaved(bot: Chatbot): void {
+    this.selectedBot.set(bot);
+    this.bots.update((items) => items.map((item) => item.id === bot.id ? bot : item));
   }
 
   protected toggleBotPublish(bot: Chatbot): void {
@@ -1042,16 +962,11 @@ export class ChatbotsComponent {
     this.selectedBot.set(bot);
     this.messages.set([]);
     this.conversationId = null;
-    this.embedCode.set("");
     if (!bot) return;
     this.botName = bot.name;
     this.botPrompt = bot.system_prompt;
     this.botRetrievalLimit = bot.retrieval_limit;
-    this.embedOrigins = bot.allowed_origins?.join("\n") || location.origin;
-    this.embedPrimaryColor = bot.embed_primary_color || "#1463ff";
-    this.embedTitle = bot.embed_title || bot.name;
-    this.embedGreeting =
-      bot.embed_greeting || "Xin chào! Tôi có thể giúp gì cho bạn?";
+
   }
 
   protected send(): void {
@@ -1060,7 +975,6 @@ export class ChatbotsComponent {
     if (
       this.currentStep() !== 2 ||
       !bot ||
-      !bot.published ||
       !this.hasReadyDocuments() ||
       !question ||
       this.isStreaming()
@@ -1081,7 +995,7 @@ export class ChatbotsComponent {
   }
 
   protected citationLabel(citation: Citation): string {
-    return `${citation.document_name ?? "Tài liệu"}${citation.page_number ? ` · trang ${citation.page_number}` : ""}`;
+    return `${citation.document_name ?? "Tài liệu"}${citation.page ? ` · trang ${citation.page}` : ""}`;
   }
 
   private handleStream(event: ChatStreamEvent): void {
@@ -1101,11 +1015,7 @@ export class ChatbotsComponent {
         citations: event.data["citations"] as Citation[],
       }));
     if (event.event === "error")
-      this.setError(
-        typeof event.data["message"] === "string"
-          ? event.data["message"]
-          : "Chatbot gặp lỗi khi tạo câu trả lời.",
-      );
+      this.setError(chatError(event.data));
     if (event.event === "done" || event.event === "error")
       this.isStreaming.set(false);
   }

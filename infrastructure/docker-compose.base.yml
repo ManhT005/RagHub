@@ -44,6 +44,8 @@ x-backend-environment: &backend-environment
   LOCAL_AI_DOWNLOAD_ENABLED: ${LOCAL_AI_DOWNLOAD_ENABLED:-true}
   LOCAL_AI_MODEL_DIR: /app/.cache/huggingface/local-ai
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:8080}
+  PUBLIC_BASE_URL_ALLOW_HTTP: ${PUBLIC_BASE_URL_ALLOW_HTTP:-false}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}
   SMTP_USERNAME: ${SMTP_USERNAME:-}

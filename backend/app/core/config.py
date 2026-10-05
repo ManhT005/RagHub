@@ -1,7 +1,8 @@
 from functools import lru_cache
 from ipaddress import ip_network
+from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,6 +64,8 @@ class Settings(BaseSettings):
     local_ai_model_dir: str = ".cache/huggingface/local-ai"
 
     frontend_url: str = "http://localhost:8080"
+    public_base_url: str = ""
+    public_base_url_allow_http: bool = False
     smtp_host: str = ""
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str = ""
@@ -70,8 +73,55 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
 
+    @field_validator("public_base_url")
+    @classmethod
+    def validate_public_base_url(cls, value: str) -> str:
+        if not value:
+            return ""
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path not in {"", "/"}
+                or "?" in value
+                or "#" in value
+                or "\\" in value
+                or "*" in value
+                or any(ord(char) <= 32 for char in value)
+                or (port is not None and port < 1)
+            ):
+                raise ValueError("invalid origin")
+            host = parsed.hostname.encode("idna").decode("ascii").lower()
+            if ":" in host:
+                from ipaddress import IPv6Address
+
+                IPv6Address(host)
+                host = f"[{host}]"
+            elif not all(char.isalnum() or char in ".-" for char in host):
+                raise ValueError("invalid host")
+            if port == {"http": 80, "https": 443}[parsed.scheme]:
+                port = None
+            return f"{parsed.scheme}://{host}" + (f":{port}" if port else "")
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError(
+                "PUBLIC_BASE_URL must be an HTTP(S) origin without paths or credentials"
+            ) from exc
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
+        if (
+            self.app_env.lower() == "production"
+            and self.public_base_url.startswith("http://")
+            and not self.public_base_url_allow_http
+        ):
+            raise ValueError(
+                "PUBLIC_BASE_URL requires HTTPS in production; private installs may explicitly "
+                "set PUBLIC_BASE_URL_ALLOW_HTTP=true"
+            )
         for cidr in self.public_chat_trusted_proxy_cidrs.split(","):
             if cidr.strip():
                 ip_network(cidr.strip())

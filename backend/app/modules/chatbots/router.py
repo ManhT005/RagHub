@@ -14,12 +14,12 @@ from app.core.auth import (
     require_workspace_permission,
 )
 from app.core.database import get_session
-from app.core.exceptions import AppError
 from app.delivery.http.public_chat import PublicStreamingResponse as PublicStreamingResponse
 from app.delivery.http.public_chat import public_stream_sse
 from app.delivery.http.sse import stream_sse
 from app.delivery.public.admission import client_ip, get_public_limits
 from app.infrastructure.redis.public_chat_admission import PublicChatLimits
+from app.modules.chatbots.embed import embed_response
 from app.modules.chatbots.schemas import (
     ChatbotInput,
     ChatbotPatch,
@@ -114,18 +114,11 @@ async def publish_embed(
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
     await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
-    _, key = await ChatbotService(session).publish_embed(
+    embed_response()  # Validate deployment URL before changing publication/key state.
+    chatbot, key = await ChatbotService(session).publish_embed(
         context.organization_id, chatbot_id, payload
     )
-    if key is None:
-        raise AppError(
-            "EMBED_KEY_ALREADY_EXISTS",
-            "Use the embed-code endpoint or rotate the key.",
-            status_code=409,
-        )
-    return EmbedCodeResponse(
-        code=f'<script src="/widget/raghub.js" data-chatbot-key="{key}" async></script>', key=key
-    )
+    return embed_response(key, has_embed_key=bool(chatbot.embed_key_hash))
 
 
 @router.post("/chatbots/{chatbot_id}/embed-key/rotate", response_model=EmbedCodeResponse)
@@ -136,10 +129,9 @@ async def rotate_embed_key(
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
     await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
+    embed_response()
     key = await ChatbotService(session).rotate_embed_key(context.organization_id, chatbot_id)
-    return EmbedCodeResponse(
-        code=f'<script src="/widget/raghub.js" data-chatbot-key="{key}" async></script>', key=key
-    )
+    return embed_response(key)
 
 
 @router.get("/chatbots/{chatbot_id}/embed-code", response_model=EmbedCodeResponse)
@@ -150,15 +142,7 @@ async def embed_code(
 ) -> EmbedCodeResponse:
     chatbot = await ChatbotService(session).get(context.organization_id, chatbot_id)
     await require_workspace_permission(context, chatbot.workspace_id, "workspace.edit", session)
-    if not chatbot.published or not chatbot.embed_key_hash:
-        raise AppError(
-            "EMBED_NOT_PUBLISHED",
-            "Publish this chatbot before copying its embed code.",
-            status_code=409,
-        )
-    return EmbedCodeResponse(
-        code='<script src="/widget/raghub.js" data-chatbot-key="REDACTED" async></script>'
-    )
+    return embed_response(has_embed_key=bool(chatbot.embed_key_hash))
 
 
 @router.get("/public/chatbots/{embed_key}/config")
