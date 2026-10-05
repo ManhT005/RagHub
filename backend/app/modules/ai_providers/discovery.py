@@ -67,6 +67,7 @@ async def discover_models(
                             model=name,
                             display_name=item.get("displayName"),
                             capabilities=capabilities,
+                            size_bytes=item.get("size") if provider_type == "OLLAMA" else None,
                         )
                     )
                 token = data.get("nextPageToken")

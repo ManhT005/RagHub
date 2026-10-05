@@ -32,6 +32,10 @@ describe("Provider onboarding", () => {
     discover: vi.fn(),
     register: vi.fn(),
     models: vi.fn(),
+    ollamaRecommendations: vi.fn(() => of([])),
+    ollamaPulls: vi.fn(() => of([])),
+    pullOllama: vi.fn(),
+    ollamaPull: vi.fn(),
   };
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -189,6 +193,25 @@ describe("Provider onboarding", () => {
     component['save']();
     expect(api.register).toHaveBeenCalledWith('connection-1', expect.objectContaining({ capability: 'EMBEDDING' }));
     view.destroy();
+  });
+  it('installs a recommended model, follows progress and refreshes installed/registered models', () => {
+    const view = fixture(), component = view.componentInstance;
+    component['choose'](catalog[0]);
+    component['test']();
+    const job = { id: 'job-1', model: 'gemma3:1b', status: 'QUEUED', total_bytes: 100, completed_bytes: 20 };
+    api.pullOllama.mockReturnValue(of(job));
+    api.ollamaPull.mockReturnValue(of({ ...job, status: 'READY', completed_bytes: 100, registered_model_id: 'registered' }));
+    vi.useFakeTimers();
+    component['install']('gemma3:1b');
+    expect(component['pullActive']()).toBe(true);
+    expect(component['pullPercent']()).toBe(20);
+    vi.advanceTimersByTime(0);
+    expect(api.pullOllama).toHaveBeenCalledWith('connection-1', 'gemma3:1b');
+    expect(component['pullActive']()).toBe(false);
+    expect(component['notice']()).toContain('đăng ký');
+    expect(api.discover).toHaveBeenCalledTimes(2);
+    view.destroy();
+    vi.useRealTimers();
   });
   it("searches names, filters capability and selects only unregistered filtered rows", () => {
     api.discover.mockReturnValue(of([

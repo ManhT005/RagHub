@@ -3,7 +3,18 @@ from datetime import datetime
 from typing import Any
 
 from raghub_core.domain.providers.enums import IndexVersionStatus, ReindexJobStatus
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -92,6 +103,39 @@ class EmbeddingIndexVersion(Base):
     status: Mapped[str] = mapped_column(String(32), default=IndexVersionStatus.BUILDING)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OllamaModelPull(Base):
+    __tablename__ = "ollama_model_pulls"
+    __table_args__ = (
+        Index(
+            "ix_ollama_pull_active_connection",
+            "connection_id",
+            unique=True,
+            postgresql_where=text("status IN ('QUEUED', 'PULLING', 'VERIFYING')"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    connection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("provider_connections.id", ondelete="CASCADE"), index=True
+    )
+    model: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="QUEUED")
+    register_after_pull: Mapped[bool] = mapped_column(default=True)
+    completed_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    registered_model_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("provider_configs.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class EmbeddingReindexJob(Base):

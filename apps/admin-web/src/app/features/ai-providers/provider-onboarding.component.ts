@@ -16,12 +16,14 @@ import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzTagModule } from "ng-zorro-antd/tag";
-import { from, concatMap, finalize, of, switchMap, forkJoin } from "rxjs";
+import { from, concatMap, finalize, of, switchMap, forkJoin, timer, exhaustMap, takeWhile, Subscription } from "rxjs";
 import {
   ProviderApiService,
   ProviderCatalogItem,
   ProviderConnection,
   DiscoveredModel,
+  OllamaRecommendation,
+  OllamaPullJob,
 } from "../../core/api/provider-api.service";
 import { ProviderCapability } from "../../core/raghub-api.service";
 import { apiError } from "../../core/api/api-error";
@@ -63,6 +65,12 @@ export class ProviderOnboardingComponent {
   protected readonly choices = signal<Choice[]>([]);
   protected modelSearch = "";
   protected modelFilter = "";
+  protected modelTab = "installed";
+  protected showMore = false;
+  protected readonly recommendations = signal<OllamaRecommendation[]>([]);
+  protected readonly pullJob = signal<OllamaPullJob | null>(null);
+  protected readonly pullStarting = signal(false);
+  private pullPolling?: Subscription;
   protected search = "";
   protected category = "";
   protected name = "";
@@ -76,7 +84,7 @@ export class ProviderOnboardingComponent {
   private readonly destroyRef = inject(DestroyRef);
   constructor() {
     effect(() => {
-      if (!this.visible()) return;
+      if (!this.visible()) { this.pullPolling?.unsubscribe(); return; }
       const existing = this.connection();
       this.connectionId = existing?.id ?? "";
       this.name = existing?.name ?? "";
@@ -89,6 +97,10 @@ export class ProviderOnboardingComponent {
       this.error.set("");
       this.notice.set("");
       this.choices.set([]);
+      this.pullJob.set(null);
+      this.recommendations.set([]);
+      this.modelTab = "installed";
+      this.showMore = false;
       this.step.set(existing ? 1 : 0);
       const catalog = untracked(() => this.catalog());
       const selected = existing
@@ -185,6 +197,7 @@ export class ProviderOnboardingComponent {
               capability: model.capabilities.length === 1 ? model.capabilities[0] : "UNKNOWN",
             })),
           );
+          if (item.provider_type === "OLLAMA") this.loadOllama();
         },
         error: (error) => this.error.set(apiError(error)),
       });
@@ -253,6 +266,7 @@ export class ProviderOnboardingComponent {
   protected close() {
     if (this.busy()) return;
     this.secret = "";
+    this.pullPolling?.unsubscribe();
     this.changed.emit();
     this.closed.emit();
   }
@@ -278,5 +292,54 @@ export class ProviderOnboardingComponent {
     if (this.busy()) return;
     const models = new Set(this.filteredChoices().filter(item => !item.registered).map(item => item.model));
     this.choices.update(items => items.map(item => models.has(item.model) ? {...item, selected: value} : item));
+  }
+  protected formatBytes(bytes: number | null | undefined) {
+    if (!bytes) return '—';
+    return bytes >= 1_000_000_000 ? `${(bytes / 1_000_000_000).toFixed(1)} GB` : `${Math.round(bytes / 1_000_000)} MB`;
+  }
+  protected pullActive() { return ['QUEUED', 'PULLING', 'VERIFYING'].includes(this.pullJob()?.status ?? '') || this.pullStarting(); }
+  protected installed(model: string) { return this.choices().some(item => item.model === model); }
+  protected visibleRecommendations() { return this.recommendations().filter(item => this.showMore || item.highlighted); }
+  private loadOllama() {
+    forkJoin({ recommendations: this.api.ollamaRecommendations(this.connectionId), jobs: this.api.ollamaPulls(this.connectionId) })
+      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: ({recommendations, jobs}) => {
+          this.recommendations.set(recommendations);
+          if (jobs[0]) { this.pullJob.set(jobs[0]); if (this.pullActive()) this.pollPull(jobs[0].id); }
+        }, error: error => this.error.set(apiError(error)),
+      });
+  }
+  protected install(model: string) {
+    if (!model.trim() || this.pullActive() || this.busy()) return;
+    this.error.set('');
+    this.pullStarting.set(true);
+    this.api.pullOllama(this.connectionId, model.trim()).pipe(finalize(() => this.pullStarting.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({next: job => { this.pullJob.set(job); this.pollPull(job.id); }, error: error => this.error.set(apiError(error))});
+  }
+  protected pullPercent() {
+    const job = this.pullJob();
+    return job?.total_bytes ? Math.min(100, Math.round(100 * job.completed_bytes / job.total_bytes)) : 0;
+  }
+  private pollPull(jobId: string) {
+    this.pullPolling?.unsubscribe();
+    this.pullPolling = timer(0, 1500).pipe(
+      exhaustMap(() => this.api.ollamaPull(this.connectionId, jobId)),
+      takeWhile(job => ['QUEUED', 'PULLING', 'VERIFYING'].includes(job.status), true),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: job => {
+        this.pullJob.set(job);
+        if (job.status === 'READY') {
+          this.notice.set(`Đã cài đặt ${job.model}${job.registered_model_id ? ' và đăng ký' : ''}.`);
+          this.modelTab = 'installed';
+          this.changed.emit();
+          forkJoin({ discovered: this.api.discover(this.connectionId), registered: this.api.models(this.organizationId()) })
+            .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: result => {
+              this.choices.set(result.discovered.map(model => ({ ...model, selected: false, capability: 'CHAT', registered: result.registered.some(item => item.connection_id === this.connectionId && item.model === model.model) })));
+            }, error: error => this.error.set(apiError(error))});
+        }
+        if (job.status === 'FAILED') this.error.set('Cài đặt hoặc kiểm tra model thất bại. Kiểm tra Ollama và thử lại; model đã tải vẫn nằm trong Installed.');
+      }, error: error => this.error.set(apiError(error)),
+    });
   }
 }

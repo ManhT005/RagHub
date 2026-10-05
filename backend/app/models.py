@@ -3,6 +3,7 @@
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
+    OllamaModelPull,
     ProviderConfig,
     ProviderConnection,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "UsageEvent",
     "ProviderConfig",
     "ProviderConnection",
+    "OllamaModelPull",
     "EmbeddingIndexVersion",
     "EmbeddingReindexJob",
     "UserIdentity",

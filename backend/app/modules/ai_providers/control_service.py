@@ -20,7 +20,7 @@ from app.modules.ai_providers.control_schemas import (
 )
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.discovery import discover_models
-from app.modules.ai_providers.models import ProviderConfig, ProviderConnection
+from app.modules.ai_providers.models import OllamaModelPull, ProviderConfig, ProviderConnection
 from app.modules.ai_providers.schemas import ProviderConfigInput
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.workspaces.models import Workspace
@@ -147,6 +147,8 @@ class ProviderControlService:
             proposed.base_url != connection.base_url
             or proposed.config_json != connection.config_json
         )
+        if runtime_changed or not proposed.enabled or payload.secret or payload.clear_secret:
+            await self._require_no_active_pull(connection_id)
         if (runtime_changed or not proposed.enabled or payload.clear_secret) and models:
             for model in models:
                 if await ProviderConfigService(self.session)._is_bound(organization_id, model.id):
@@ -171,6 +173,7 @@ class ProviderControlService:
 
     async def delete(self, organization_id, connection_id):
         connection = await self.get(organization_id, connection_id)
+        await self._require_no_active_pull(connection_id)
         if await self.session.scalar(
             select(ProviderConfig.id).where(ProviderConfig.connection_id == connection_id).limit(1)
         ):
@@ -181,6 +184,19 @@ class ProviderControlService:
             )
         await self.session.delete(connection)
         await self.session.commit()
+
+    async def _require_no_active_pull(self, connection_id):
+        if await self.session.scalar(
+            select(OllamaModelPull.id)
+            .where(
+                OllamaModelPull.connection_id == connection_id,
+                OllamaModelPull.status.in_({"QUEUED", "PULLING", "VERIFYING"}),
+            )
+            .limit(1)
+        ):
+            raise AppError(
+                "MODEL_PULL_IN_PROGRESS", "Wait for the active download.", status_code=409
+            )
 
     def secret(self, connection):
         return resolve_provider_secret(connection, self.cipher)

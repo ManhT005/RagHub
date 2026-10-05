@@ -86,6 +86,32 @@ class DiscoveredModel(BaseModel):
     display_name: str | None = Field(default=None, max_length=200)
     capabilities: list[ProviderCapability] = Field(default_factory=list)
     dimension: int | None = None
+    size_bytes: int | None = None
+
+
+class OllamaPullInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^(?:[a-zA-Z0-9_-]+/)?[a-zA-Z0-9][a-zA-Z0-9._-]*(?::[a-zA-Z0-9][a-zA-Z0-9._-]*)?$",
+    )
+    register_after_pull: bool = True
+
+
+class OllamaPullResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    connection_id: UUID
+    model: str
+    status: str
+    register_after_pull: bool
+    completed_bytes: int
+    total_bytes: int
+    error_code: str | None
+    registered_model_id: UUID | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class ModelInput(BaseModel):

@@ -33,6 +33,15 @@ export interface ModelInput {
 }
 export interface DiscoveredModel {
   model: string; display_name: string | null; capabilities: ProviderCapability[]; dimension: number | null;
+  size_bytes?: number | null;
+}
+export interface OllamaRecommendation {
+  model: string; display_name: string; tier: string; size_bytes: number; description: string; highlighted: boolean;
+}
+export interface OllamaPullJob {
+  id: string; connection_id: string; model: string;
+  status: 'QUEUED' | 'PULLING' | 'VERIFYING' | 'READY' | 'FAILED' | 'CANCELLED';
+  completed_bytes: number; total_bytes: number; error_code: string | null; registered_model_id: string | null;
 }
 export interface ConnectionTest {
   status: string; latency_ms: number; capabilities: ProviderCapability[];
@@ -53,6 +62,10 @@ export class ProviderApiService {
   remove(id: string) { return this.http.delete(`${this.base}/provider-connections/${id}`); }
   test(id: string) { return this.http.post<ConnectionTest>(`${this.base}/provider-connections/${id}/test`, {}); }
   discover(id: string) { return this.http.post<DiscoveredModel[]>(`${this.base}/provider-connections/${id}/models/discover`, {}); }
+  ollamaRecommendations(id: string) { return this.http.get<OllamaRecommendation[]>(`${this.base}/provider-connections/${id}/ollama/recommendations`); }
+  pullOllama(id: string, model: string) { return this.http.post<OllamaPullJob>(`${this.base}/provider-connections/${id}/ollama/models/pull`, { model, register_after_pull: true }); }
+  ollamaPull(id: string, job: string) { return this.http.get<OllamaPullJob>(`${this.base}/provider-connections/${id}/ollama/model-pulls/${job}`); }
+  ollamaPulls(id: string) { return this.http.get<OllamaPullJob[]>(`${this.base}/provider-connections/${id}/ollama/model-pulls`); }
   register(id: string, payload: ModelInput) { return this.http.post<RegistryModel>(`${this.base}/provider-connections/${id}/models`, payload); }
   models(org: string) { return this.http.get<RegistryModel[]>(`${this.base}/organizations/${org}/models`); }
   workspaceModels(id: string, capability: ProviderCapability = 'EMBEDDING') { return this.http.get<RegistryModel[]>(`${this.base}/workspaces/${id}/models`, { params: { capability } }); }
