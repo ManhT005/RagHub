@@ -172,6 +172,7 @@ class ProviderControlService:
                 model.base_url, model.config_json = proposed.base_url, proposed.config_json
                 model.availability_status = "UNTESTED"
         await self.session.commit()
+        await self.session.refresh(connection)
         return connection
 
     async def delete(self, organization_id, connection_id):

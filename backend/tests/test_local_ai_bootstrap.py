@@ -85,7 +85,7 @@ async def test_bound_legacy_local_connection_can_be_retested_without_runtime_cha
     from app.core.auth import OrganizationContext
     from app.core.exceptions import AppError
     from app.modules.ai_providers.control_schemas import ConnectionPatch
-    from app.modules.ai_providers.control_service import ProviderControlService
+    from app.modules.ai_providers.control_service import ProviderControlService, connection_response
     from app.modules.workspaces.router import WorkspaceCreateInput, create_workspace
 
     async with isolated_sessions() as session:
@@ -108,11 +108,12 @@ async def test_bound_legacy_local_connection_can_be_retested_without_runtime_cha
             session,
         )
         service = ProviderControlService(session)
-        await service.update(
+        updated = await service.update(
             organization.id,
             chat.connection_id,
             ConnectionPatch(name="Local Chat", catalog_id="ollama", base_url=chat.base_url),
         )
+        assert connection_response(updated).updated_at is not None
         assert chat.availability_status == "AVAILABLE"
         assert chat.connection.status == "CONNECTED"
         with pytest.raises(AppError) as error:
