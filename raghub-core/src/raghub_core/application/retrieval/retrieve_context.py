@@ -6,6 +6,7 @@ from raghub_core.domain.retrieval.hybrid import (
     RETRIEVAL_CANDIDATES,
     ContextBundle,
     build_context_bundle,
+    normalize_query,
 )
 from raghub_core.domain.retrieval.models import RetrievalScope, RetrievedChunk
 from raghub_core.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
@@ -24,7 +25,8 @@ class RetrieveContextUseCase:
 
     async def retrieve(self, scope: RetrievalScope, query: str, limit: int) -> list[RetrievedChunk]:
         runtime = await self.providers.resolve_embedding(scope)
-        vector = await runtime.provider.embed_query(query)
+        normalized = normalize_query(query)
+        vector = await runtime.provider.embed_query(normalized)
         if len(vector) != runtime.dimension or not all(math.isfinite(x) for x in vector):
             raise CoreError(
                 "PROVIDER_INVALID_RESPONSE",
@@ -32,7 +34,9 @@ class RetrieveContextUseCase:
             )
         search = self.make_search(runtime)
         try:
-            candidates = await search.search(scope, query, vector, max(limit, RETRIEVAL_CANDIDATES))
+            candidates = await search.search(
+                scope, normalized, vector, max(limit, RETRIEVAL_CANDIDATES)
+            )
             return (await self.readiness.filter_ready(scope, candidates))[:limit]
         except CoreError:
             raise

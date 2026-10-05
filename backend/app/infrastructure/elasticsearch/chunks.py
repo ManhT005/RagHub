@@ -4,16 +4,38 @@ from typing import Any
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 from raghub_core.domain.ingestion.chunker import TextChunk
-from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
+from raghub_core.domain.retrieval.hybrid import (
+    MAPPING_VERSION,
+    RETRIEVAL_CANDIDATES,
+    fuse_rrf,
+    resolve_candidate_count,
+)
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
 
+BOOST_EXACT = 1.0
+BOOST_FOLDED = 0.8
+BOOST_HEADING = 2.0
+BOOST_SOURCE_NAME = 1.2
 
-def chunk_index_mapping(dimension: int) -> dict[str, Any]:
+
+def chunk_index_mapping(
+    dimension: int, *, mapping_version: str = MAPPING_VERSION
+) -> dict[str, Any]:
     if dimension < 1:
         raise ValueError("Embedding dimension must be positive")
     return {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "vi_folded": {
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "asciifolding"],
+                    }
+                }
+            }
+        },
         "mappings": {
             "dynamic": "strict",
             "properties": {
@@ -22,7 +44,10 @@ def chunk_index_mapping(dimension: int) -> dict[str, Any]:
                 "document_id": {"type": "keyword"},
                 "document_version_id": {"type": "keyword"},
                 "chunk_id": {"type": "keyword"},
-                "content": {"type": "text"},
+                "content": {
+                    "type": "text",
+                    "fields": {"folded": {"type": "text", "analyzer": "vi_folded"}},
+                },
                 "content_hash": {"type": "keyword"},
                 "token_count": {"type": "integer"},
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
@@ -39,8 +64,59 @@ def chunk_index_mapping(dimension: int) -> dict[str, Any]:
                 "page_number": {"type": "integer"},
                 "chunk_index": {"type": "integer"},
                 "language": {"type": "keyword"},
+                "retrievable": {"type": "boolean"},
+                "mapping_version": {"type": "keyword"},
                 "created_at": {"type": "date"},
             },
+        },
+    }
+
+
+def bm25_query(query: str, organization_id: uuid.UUID, workspace_id: uuid.UUID) -> dict[str, Any]:
+    """Multi-match Vietnamese query with tenant/retrievable filters pre-cutoff."""
+    return {
+        "bool": {
+            "must": [
+                {
+                    "multi_match": {
+                        "query": query,
+                        "fields": [
+                            f"content^{BOOST_EXACT}",
+                            f"content.folded^{BOOST_FOLDED}",
+                            f"heading.text^{BOOST_HEADING}",
+                            f"source_name.text^{BOOST_SOURCE_NAME}",
+                        ],
+                    }
+                }
+            ],
+            "filter": [
+                {"term": {"organization_id": str(organization_id)}},
+                {"term": {"workspace_id": str(workspace_id)}},
+                {"term": {"retrievable": True}},
+            ],
+        }
+    }
+
+
+def knn_query(
+    query_vector: list[float],
+    organization_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    *,
+    k: int,
+    num_candidates: int,
+) -> dict[str, Any]:
+    return {
+        "knn": {
+            "field": "embedding",
+            "query_vector": query_vector,
+            "k": k,
+            "num_candidates": num_candidates,
+            "filter": [
+                {"term": {"organization_id": str(organization_id)}},
+                {"term": {"workspace_id": str(workspace_id)}},
+                {"term": {"retrievable": True}},
+            ],
         }
     }
 
@@ -115,6 +191,8 @@ class ChunkIndexer:
                     "embedding": embeddings[str(chunk.chunk_id)],
                     "chunk_index": chunk.chunk_index,
                     "language": "vi",
+                    "retrievable": True,
+                    "mapping_version": MAPPING_VERSION,
                     "created_at": now,
                 },
             }
@@ -122,6 +200,22 @@ class ChunkIndexer:
         ]
         if actions:
             helpers.bulk(self.client, actions, refresh="wait_for")
+
+    def set_version_retrievable(
+        self, document_version_id: uuid.UUID, *, retrievable: bool
+    ) -> None:
+        """Flip the pre-cutoff retrievable flag without reindexing content."""
+        self.ensure_index()
+        self.client.update_by_query(
+            index=self.index_name,
+            query={"term": {"document_version_id": str(document_version_id)}},
+            script={
+                "source": "ctx._source.retrievable = params.flag",
+                "params": {"flag": retrievable},
+            },
+            conflicts="proceed",
+            refresh=True,
+        )
 
     def document_version_ids(self, workspace_id: uuid.UUID) -> set[uuid.UUID]:
         """Return distinct indexed document versions for a workspace."""
@@ -158,6 +252,12 @@ class ChunkSearch:
     async def close(self) -> None:
         await self.client.close()
 
+    def _candidates(self) -> int:
+        try:
+            return resolve_candidate_count(self.settings.rag_retrieval_candidates)
+        except (ValueError, AttributeError):
+            return RETRIEVAL_CANDIDATES
+
     async def search(
         self,
         *,
@@ -178,21 +278,29 @@ class ChunkSearch:
             limit=limit,
         )]
 
+    async def search_branches(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        query: str,
+        query_vector: list[float],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Raw per-branch hits (lexical, vector) for explainability/telemetry."""
+        import asyncio
+
+        return await asyncio.gather(
+            self._search_bm25(organization_id, workspace_id, query),
+            self._search_vector(organization_id, workspace_id, query_vector),
+        )
+
     async def _search_bm25(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
     ) -> list[dict[str, Any]]:
         response = await self.client.search(
             index=self.index_name,
-            query={
-                "bool": {
-                    "must": [{"match": {"content": {"query": query}}}],
-                    "filter": [
-                        {"term": {"organization_id": str(organization_id)}},
-                        {"term": {"workspace_id": str(workspace_id)}},
-                    ],
-                }
-            },
-            size=RETRIEVAL_CANDIDATES,
+            query=bm25_query(query, organization_id, workspace_id),
+            size=self._candidates(),
             source=self._source_fields(),
         )
         return self._hits(response)
@@ -200,21 +308,17 @@ class ChunkSearch:
     async def _search_vector(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query_vector: list[float]
     ) -> list[dict[str, Any]]:
+        candidates = self._candidates()
         response = await self.client.search(
             index=self.index_name,
-            query={
-                "knn": {
-                    "field": "embedding",
-                    "query_vector": query_vector,
-                    "k": RETRIEVAL_CANDIDATES,
-                    "num_candidates": RETRIEVAL_CANDIDATES * 4,
-                    "filter": [
-                        {"term": {"organization_id": str(organization_id)}},
-                        {"term": {"workspace_id": str(workspace_id)}},
-                    ],
-                }
-            },
-            size=RETRIEVAL_CANDIDATES,
+            query=knn_query(
+                query_vector,
+                organization_id,
+                workspace_id,
+                k=candidates,
+                num_candidates=candidates * 4,
+            ),
+            size=candidates,
             source=self._source_fields(),
         )
         return self._hits(response)

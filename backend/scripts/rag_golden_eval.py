@@ -41,7 +41,7 @@ def dataset_hash() -> str:
 
 
 def config_hash() -> str:
-    cfg = {"retrieval_candidates": 15, "rrf_k": 60, "max_context_tokens": 6000}
+    cfg = {"retrieval_candidates": 25, "rrf_k": 60, "max_context_tokens": 6000}
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -105,7 +105,7 @@ def main() -> None:
         "config_hash": config_hash(),
         "model_ids": {"embedding": "offline-lexical-v1", "chat": "none"},
         "seed": args.seed,
-        "retrieval_config": {"candidates": 15, "rrf_k": 60, "max_context_tokens": 6000},
+        "retrieval_config": {"candidates": 25, "rrf_k": 60, "max_context_tokens": 6000},
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
         "cases": cases,

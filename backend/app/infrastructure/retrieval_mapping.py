@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from raghub_core.domain.retrieval.models import RetrievedChunk
+from raghub_core.domain.retrieval.hybrid import RRF_K, fuse_rrf_with_details
+from raghub_core.domain.retrieval.models import RetrievalCandidate, RetrievedChunk
 
 
 def chunk_from_hit(hit: dict[str, object]) -> RetrievedChunk:
@@ -15,6 +16,21 @@ def chunk_from_hit(hit: dict[str, object]) -> RetrievedChunk:
         hit.get("page_number"),
         hit.get("heading"),
         float(hit["score"]),
+    )
+
+
+def fuse_branches_to_candidates(
+    lexical: list[dict[str, object]],
+    vector: list[dict[str, object]],
+    *,
+    limit: int,
+    rrf_k: int = RRF_K,
+) -> list[RetrievalCandidate]:
+    """Build explainable candidates from raw per-branch hits (lexical first)."""
+    return fuse_rrf_with_details(
+        [[chunk_from_hit(hit) for hit in lexical], [chunk_from_hit(hit) for hit in vector]],
+        limit=limit,
+        rrf_k=rrf_k,
     )
 
 
