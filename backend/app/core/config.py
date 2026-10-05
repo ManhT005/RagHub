@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     s3_secure: bool = False
 
     gemini_api_key: str = ""
+    groq_api_key: str = ""
+    cerebras_api_key: str = ""
+    openrouter_api_key: str = ""
+    openai_api_key: str = ""
+    voyage_api_key: str = ""
+    siliconflow_api_key: str = ""
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: str = ""
+    huggingface_token: str = ""
+    nvidia_nim_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     gemini_model: str = "gemini-3.5-flash-lite"
     chat_provider_timeout_seconds: float = Field(default=45, ge=1, le=120)

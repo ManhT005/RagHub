@@ -121,6 +121,12 @@ class ProviderControlService:
 
     async def update(self, organization_id, connection_id, payload: ConnectionPatch):
         connection = await self.get(organization_id, connection_id)
+        if payload.catalog_id and payload.catalog_id != connection_catalog_id(connection):
+            raise AppError(
+                "PROVIDER_IDENTITY_IMMUTABLE",
+                "Create a new connection to switch providers.",
+                status_code=422,
+            )
         catalog_id = payload.catalog_id or connection_catalog_id(connection)
         if supported_catalog_by_id(catalog_id).provider_type != connection.provider_type:
             raise AppError(
