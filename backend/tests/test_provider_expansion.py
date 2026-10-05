@@ -376,3 +376,27 @@ def test_snapshot_endpoint_cannot_exfiltrate_brand_credentials():
     )
     with pytest.raises(ProviderConfigurationError):
         provider_descriptor(config, snapshot)
+
+
+async def test_openrouter_public_catalog_cannot_mark_invalid_credentials_connected(monkeypatch):
+    from unittest.mock import AsyncMock
+    from app.modules.ai_providers.control_service import ProviderControlService
+    from app.modules.ai_providers.adapters.http import ProviderHttp
+
+    connection = SimpleNamespace(
+        catalog_id="openrouter",
+        provider_type="OPENAI_COMPATIBLE",
+        base_url="https://openrouter.ai/api/v1",
+        enabled=True,
+        config_json={},
+        status="UNTESTED",
+    )
+    service = object.__new__(ProviderControlService)
+    service.get = AsyncMock(return_value=connection)
+    service.secret = lambda _: "invalid-personal-key"
+    service.session = SimpleNamespace(commit=AsyncMock())
+    authentication = AsyncMock(side_effect=ProviderAuthenticationError())
+    monkeypatch.setattr(ProviderHttp, "request", authentication)
+    result = await service.test(None, None)
+    assert result.status == "ERROR" and result.error_code == "PROVIDER_AUTH_FAILED"
+    authentication.assert_awaited_once_with("/key", method="GET")

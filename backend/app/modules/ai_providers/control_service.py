@@ -228,6 +228,17 @@ class ProviderControlService:
         start = time.monotonic()
         error_code = None
         try:
+            secret = self.secret(connection)
+            if item.auth_type == "API_KEY" and not secret:
+                raise AppError(
+                    "PROVIDER_AUTH_FAILED", "API credential is required.", status_code=422
+                )
+            if item.id == "openrouter":
+                from app.modules.ai_providers.adapters.http import ProviderHttp
+
+                await ProviderHttp(
+                    base_url=connection.base_url, secret=secret, provider_name="OPENROUTER"
+                ).request("/key", method="GET")
             if item.discovery_profile == "CURATED":
                 from raghub_core.domain.providers.descriptor import ProviderDescriptor
 

@@ -89,6 +89,7 @@ CATALOG = [
     ),
     CatalogItem(
         id="compatible",
+        auth_type="OPTIONAL_API_KEY",
         name="OpenAI-compatible",
         category="Custom",
         provider_type="OPENAI_COMPATIBLE",
