@@ -1,0 +1,123 @@
+{
+  "corpus_revision": "golden-v1",
+  "created": "2026-10-04",
+  "documents": [
+    {
+      "document_id": "doc-001",
+      "title": "Thông báo tuyển sinh đại học chính quy năm 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/thong-bao-tuyen-sinh-dai-hoc-chinh-quy-nam-2026",
+      "url_verified": false,
+      "source_file": "Thông báo tuyển sinh đại học chính quy năm 2026.html",
+      "file": "corpus/doc-001-thong-bao-tuyen-sinh-dai-hoc-chinh-quy-nam-2026.md",
+      "published_at": "2026-04-23",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "72c1f8f2852232127e3ed6e7aef07b2bb2647375acb74c85c1af6f5e7256975e",
+      "bytes": 34873
+    },
+    {
+      "document_id": "doc-002",
+      "title": "Các phương thức tuyển sinh đại học chính quy 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/cac-phuong-thuc-tuyen-sinh-dai-hoc-chinh-quy-2026",
+      "url_verified": false,
+      "source_file": "Các phương thức tuyển sinh đại học chính quy 2026.html",
+      "file": "corpus/doc-002-cac-phuong-thuc-tuyen-sinh-dai-hoc-chinh-quy-2026.md",
+      "published_at": "2026-03-18",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "9eec011eafa4eeeeea3602c10ea10c1c7988fb07634a59a5de06a539caa9083b",
+      "bytes": 55342
+    },
+    {
+      "document_id": "doc-003",
+      "title": "Kết quả xét tuyển đại học chính quy đợt 2 chương trình đào tạo bằng Tiếng Anh năm 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/ket-qua-xet-tuyen-dai-hoc-chinh-quy-dot-2-chuong",
+      "url_verified": false,
+      "source_file": "Đại học Công Nghiệp Hà Nội dự kiến một số điểm mới trong tuyển sinh đại học chính quy năm 2026.html",
+      "file": "corpus/doc-003-ket-qua-xet-tuyen-dai-hoc-chinh-quy-dot-2-chuong.md",
+      "published_at": "2026-09-04",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "0c810611ceb7bc700877587330d20ddd0ac79c65b3b376a04b8540851827b4b6",
+      "bytes": 3979
+    },
+    {
+      "document_id": "doc-004",
+      "title": "Hướng dẫn đăng ký xét tuyển đại học chính quy năm 2026 trên Cổng thông tin tuyển sinh của Bộ GD&ĐT",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/huong-dan-dang-ky-xet-tuyen-dai-hoc-chinh-quy-nam",
+      "url_verified": false,
+      "source_file": "Hướng dẫn đăng ký xét tuyển đại học chính quy năm 2026 trên Cổng thông tin tuyển sinh của Bộ GD&ĐT.html",
+      "file": "corpus/doc-004-huong-dan-dang-ky-xet-tuyen-dai-hoc-chinh-quy-nam.md",
+      "published_at": "2026-06-23",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "65f82d187956874a6d94ff5370f3170945922fe996809da26ef428b72ace868d",
+      "bytes": 7473
+    },
+    {
+      "document_id": "doc-005",
+      "title": "Ngưỡng đảm bảo chất lượng đầu vào của chương trình đào tạo Vi mạch bán dẫn trình độ đại học chính quy năm 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/nguong-dam-bao-chat-luong-dau-vao-cua-chuong",
+      "url_verified": false,
+      "source_file": "Ngưỡng đảm bảo chất lượng đầu vào của chương trình đào tạo Vi mạch bán dẫn trình độ đại học chính quy năm 2026.html",
+      "file": "corpus/doc-005-nguong-dam-bao-chat-luong-dau-vao-cua-chuong.md",
+      "published_at": "2026-07-14",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "c0b560c8f7cff4e3a92d1c19b7049a034c0c2e27db7c252677cdcbb24fb3b192",
+      "bytes": 3064
+    },
+    {
+      "document_id": "doc-006",
+      "title": "Ngưỡng đảm bảo chất lượng đầu vào và Quy tắc quy đổi điểm xét tuyển, điểm trúng tuyển ĐH chính quy năm 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/nguong-dam-bao-chat-luong-dau-vao-va-quy-tac-quy",
+      "url_verified": false,
+      "source_file": "Ngưỡng đảm bảo chất lượng đầu vào và Quy tắc quy đổi điểm xét tuyển, điểm trúng tuyển ĐH chính quy năm 2026.pdf",
+      "file": "corpus/doc-006-nguong-dam-bao-chat-luong-dau-vao-va-quy-tac-quy.md",
+      "published_at": "2026-01-01",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "f2ebbb989bc3d20a2cc46cbcaa8d0fee60b48c6f6142eba4991cd7997e4f0d32",
+      "bytes": 20121
+    },
+    {
+      "document_id": "doc-007",
+      "title": "Hướng dẫn tuyển sinh đai học chính quy năm 2026 (Bộ GD&ĐT)",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/huong-dan-tuyen-sinh-dai-hoc-chinh-quy-nam-2026",
+      "url_verified": false,
+      "source_file": "Hướng dẫn tuyển sinh đai học chính quy năm 2026 (Bộ GD&ĐT).pdf",
+      "file": "corpus/doc-007-huong-dan-tuyen-sinh-dai-hoc-chinh-quy-nam-2026.md",
+      "published_at": "2026-01-01",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "93cf5eee46f5741638b6b5dc81ee0cc781762e78766e43e90dd23dd0267f041b",
+      "bytes": 77705
+    },
+    {
+      "document_id": "doc-008",
+      "title": "Tuyển sinh đại học chính quy đợt 2 năm 2026",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/tuyen-sinh-dai-hoc-chinh-quy-dot-2-nam-2026",
+      "url_verified": false,
+      "source_file": "Tuyển sinh đại học chính quy đợt 2 năm 2026.html",
+      "file": "corpus/doc-008-tuyen-sinh-dai-hoc-chinh-quy-dot-2-nam-2026.md",
+      "published_at": "2026-08-14",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "e55a6462dffb313ad6c2d7503a0d1a71ebfc3b71b254384e83d5be079d267e91",
+      "bytes": 7903
+    },
+    {
+      "document_id": "doc-009",
+      "title": "15 Chương trình đào tạo bằng Tiếng Anh tại Đại học Công nghiệp Hà Nội",
+      "source_url": "https://tuyensinh.haui.edu.vn/dai-hoc-chinh-quy/15-chuong-trinh-dao-tao-bang-tieng-anh-tai-dai",
+      "url_verified": false,
+      "source_file": "15 Chương trình đào tạo bằng Tiếng Anh tại Đại học Công nghiệp Hà Nội.html",
+      "file": "corpus/doc-009-15-chuong-trinh-dao-tao-bang-tieng-anh-tai-dai.md",
+      "published_at": "2026-01-13",
+      "retrieved_at": "2026-10-04",
+      "admission_year": "2026",
+      "content_sha256": "21ebea400588454a0b84d386c3e819feebe3c62c8b88fc17aa8d71aa82151f6f",
+      "bytes": 5606
+    }
+  ]
+}
