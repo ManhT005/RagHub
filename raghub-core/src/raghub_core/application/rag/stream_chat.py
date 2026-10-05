@@ -110,8 +110,9 @@ class StreamRagChatUseCase:
         previous_history: Sequence[ChatMessage],
         answer: list[str],
     ) -> AsyncIterator[RagEvent]:
+        question = self._resolved_question(command.question, previous_history)
         decision = self.clarification_policy.evaluate(
-            command.question,
+            question,
             mode=self.clarification_mode,
             clarifying_turns=self._clarifying_turns(previous_history),
             max_clarifying_turns=self.max_clarifying_turns,
@@ -151,7 +152,7 @@ class StreamRagChatUseCase:
             return
 
         hits = await self.retrieval.retrieve(
-            chatbot.scope, command.question, chatbot.retrieval_limit
+            chatbot.scope, question, chatbot.retrieval_limit
         )
         if not hits:
             usage = ChatUsage(0, 0, 0, "none")
@@ -179,7 +180,7 @@ class StreamRagChatUseCase:
             )
             budgeted = budgeter.budget(
                 system_text=chatbot.system_prompt,
-                question=command.question,
+                question=question,
                 history=previous_history,
                 context_chunks=[hit.content for hit in context.hits],
             )
@@ -189,7 +190,7 @@ class StreamRagChatUseCase:
             mark = _perf_now()
             messages = build_prompt(
                 chatbot.system_prompt,
-                command.question,
+                question,
                 context,
                 previous_history,
             )
@@ -266,10 +267,24 @@ class StreamRagChatUseCase:
         yield UsageReported(usage)
         yield ChatCompleted(message_id, timing.first_token_ms, latency_ms)
 
+    def _resolved_question(self, question: str, history: Sequence[ChatMessage]) -> str:
+        pending = self._pending_clarification(history)
+        if pending is None:
+            return question
+        return f"{pending} {question}".strip()
+
+    def _pending_clarification(self, history: Sequence[ChatMessage]) -> str | None:
+        if len(history) < 2:
+            return None
+        previous_user, last_assistant = history[-2], history[-1]
+        if previous_user.role != "user" or not self._is_clarification_message(last_assistant):
+            return None
+        return previous_user.content
+
     def _clarifying_turns(self, history: Sequence[ChatMessage]) -> int:
-        return sum(
-            1
-            for message in history
-            if message.role == "assistant"
-            and message.content.startswith("Ban vui long cho biet them ")
+        return sum(1 for message in history if self._is_clarification_message(message))
+
+    def _is_clarification_message(self, message: ChatMessage) -> bool:
+        return message.role == "assistant" and message.content.startswith(
+            "Ban vui long cho biet them "
         )

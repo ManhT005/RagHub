@@ -190,6 +190,30 @@ def test_clarification_limit_falls_back_to_retrieval_answer_path():
     assert providers.chat_scopes
     assert not any(isinstance(event, ClarificationRequested) for event in events)
 
+def test_followup_after_clarification_uses_resolved_question_for_retrieval_and_prompt():
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+    first = replace(command, question="hoc phi?")
+    first_events = asyncio.run(_collect_events(use_case, first))
+    assert isinstance(first_events[1], ClarificationRequested)
+
+    followup = replace(command, question="tieng Anh CNTT")
+    followup_events = asyncio.run(_collect_events(use_case, followup))
+
+    assert [type(event) for event in followup_events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls[-1][1] == "hoc phi? tieng Anh CNTT"
+    prompt = providers.chat.calls[-1][0]
+    assert prompt[-1] == ChatMessage("user", "hoc phi? tieng Anh CNTT")
+    assert conversations.messages[-2:] == [
+        ("user", "tieng Anh CNTT"),
+        ("assistant", "answer"),
+    ]
+
 
 def test_refuse_or_redirect_keeps_legacy_visible_token_stream():
     command, _, retrieval, providers, conversations, usage, use_case = runtime()
