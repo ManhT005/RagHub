@@ -423,9 +423,11 @@ export class RaghubApiService {
         response = await send();
       }
       if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => null);
         onEvent({
           event: "error",
           data: {
+            code: body?.error?.code ?? "CHAT_CONNECTION_FAILED",
             message: `Không thể kết nối chatbot (HTTP ${response.status}).`,
           },
         });
@@ -447,7 +449,7 @@ export class RaghubApiService {
       if (signal?.aborted) return;
       onEvent({
         event: "error",
-        data: { message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
+        data: { code: "CHAT_CONNECTION_FAILED", message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
       });
     }
   }

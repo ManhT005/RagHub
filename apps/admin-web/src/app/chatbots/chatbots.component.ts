@@ -32,10 +32,11 @@ import {
   Workspace,
 } from "../core/raghub-api.service";
 import { ingestionErrorMessage } from "../documents/ingestion-errors";
+import { chatError } from "../core/api/chat-error";
 
 interface Citation {
   document_name?: string;
-  page_number?: number | null;
+  page?: number | null;
   excerpt?: string;
   rank?: number;
 }
@@ -1081,7 +1082,7 @@ export class ChatbotsComponent {
   }
 
   protected citationLabel(citation: Citation): string {
-    return `${citation.document_name ?? "Tài liệu"}${citation.page_number ? ` · trang ${citation.page_number}` : ""}`;
+    return `${citation.document_name ?? "Tài liệu"}${citation.page ? ` · trang ${citation.page}` : ""}`;
   }
 
   private handleStream(event: ChatStreamEvent): void {
@@ -1101,11 +1102,7 @@ export class ChatbotsComponent {
         citations: event.data["citations"] as Citation[],
       }));
     if (event.event === "error")
-      this.setError(
-        typeof event.data["message"] === "string"
-          ? event.data["message"]
-          : "Chatbot gặp lỗi khi tạo câu trả lời.",
-      );
+      this.setError(chatError(event.data));
     if (event.event === "done" || event.event === "error")
       this.isStreaming.set(false);
   }

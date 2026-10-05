@@ -199,17 +199,22 @@ async def test_provider_failure_after_token_never_retries_or_persists_completed_
     assert conversations.failures == [("answer", "PROVIDER_UNAVAILABLE")]
 
 
-@pytest.mark.parametrize("wrong_tenant", [False, True])
-async def test_access_check_precedes_retrieval(wrong_tenant):
+async def test_tenant_check_precedes_retrieval():
     command, chatbots, retrieval, providers, _, _, use_case = runtime()
-    if wrong_tenant:
-        command = replace(command, organization_id=uuid4())
-    else:
-        chatbots.config = replace(chatbots.config, published=False)
+    command = replace(command, organization_id=uuid4())
     with pytest.raises(CoreError) as error:
         _ = [event async for event in use_case.execute(command)]
-    assert error.value.code == ("CHATBOT_NOT_FOUND" if wrong_tenant else "CHATBOT_NOT_PUBLISHED")
+    assert error.value.code == "CHATBOT_NOT_FOUND"
     assert not retrieval.calls and not providers.chat_scopes
+
+
+@pytest.mark.parametrize("published", [False, True])
+async def test_runtime_allows_draft_and_published_chatbots(published):
+    command, chatbots, _, providers, conversations, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, published=published)
+    events = [event async for event in use_case.execute(command)]
+    assert isinstance(events[-1], ChatCompleted)
+    assert providers.chat.calls and conversations.messages[-1][0] == "assistant"
 
 
 async def test_closing_runtime_stream_closes_provider_and_leaves_no_completed_message():
