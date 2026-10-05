@@ -113,9 +113,10 @@ class StreamRagChatUseCase:
         question = self._resolved_question(command.question, previous_history)
         decision = self.clarification_policy.evaluate(
             question,
-            mode=self.clarification_mode,
+            domain_profile=chatbot.domain_profile,
+            mode=chatbot.clarification_mode or self.clarification_mode,
             clarifying_turns=self._clarifying_turns(previous_history),
-            max_clarifying_turns=self.max_clarifying_turns,
+            max_clarifying_turns=chatbot.max_clarifying_turns,
         )
         if decision.action is IntentAction.CLARIFY:
             usage = ChatUsage(0, 0, 0, "none")

@@ -235,6 +235,57 @@ def test_refuse_or_redirect_keeps_legacy_visible_token_stream():
     assert events[3].usage == ChatUsage(0, 0, 0, "none")
     assert conversations.messages[-1] == ("assistant", events[2].text)
 
+def test_chatbot_off_mode_uses_legacy_answer_path_for_ambiguous_question():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="off")
+    command = replace(command, question="hoc phi?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls and providers.chat_scopes
+    assert not any(isinstance(event, ClarificationRequested) for event in events)
+
+
+def test_chatbot_proactive_mode_clarifies_short_topic_query():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="proactive")
+    command = replace(command, question="tuyen sinh")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        ClarificationRequested,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert events[1].missing_slots == ("info_type",)
+    assert not retrieval.calls and not providers.chat_scopes
+
+
+def test_chatbot_conservative_mode_answers_short_topic_query():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="conservative")
+    command = replace(command, question="tuyen sinh")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls and providers.chat_scopes
+
 
 def test_runtime_estimates_missing_provider_usage():
     command, _, _, _, _, usage, use_case = runtime()

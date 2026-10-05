@@ -74,6 +74,9 @@ class SelfHostContainer:
             record.retrieval_limit,
             record.published,
             record.model,
+            record.clarification_mode,
+            record.max_clarifying_turns,
+            record.domain_profile,
         )
 
     def stream_chat(self, *, chatbot_loader=None, conversation_loader=None, history_loader=None):

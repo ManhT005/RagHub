@@ -1,9 +1,12 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.delivery.security.origins import normalize_origin
+
+ClarificationMode = Literal["off", "conservative", "proactive"]
 
 
 class ChatbotInput(BaseModel):
@@ -12,6 +15,9 @@ class ChatbotInput(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=200)
     retrieval_limit: int = Field(default=5, ge=1, le=10)
     published: bool = False
+    clarification_mode: ClarificationMode = "conservative"
+    max_clarifying_turns: int = Field(default=1, ge=0, le=5)
+    domain_profile: str = Field(default="admissions", min_length=1, max_length=64)
 
 
 class ChatbotPatch(BaseModel):
@@ -20,6 +26,9 @@ class ChatbotPatch(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=200)
     retrieval_limit: int | None = Field(default=None, ge=1, le=10)
     published: bool | None = None
+    clarification_mode: ClarificationMode | None = None
+    max_clarifying_turns: int | None = Field(default=None, ge=0, le=5)
+    domain_profile: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class ChatbotResponse(BaseModel):
@@ -30,6 +39,9 @@ class ChatbotResponse(BaseModel):
     model: str | None
     retrieval_limit: int
     published: bool
+    clarification_mode: ClarificationMode = "conservative"
+    max_clarifying_turns: int = 1
+    domain_profile: str = "admissions"
     allowed_origins: list[str] = []
     embed_primary_color: str = "#1463ff"
     embed_title: str = "RagHub Assistant"
