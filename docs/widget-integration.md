@@ -1,13 +1,17 @@
 # Tích hợp public widget
 
-Trong Admin, chọn tổ chức, workspace và chatbot, mở màn hình Nhúng chatbot. Allowed origins phải là origin chính xác, ví dụ `https://www.example.com` hoặc `http://localhost:8081`. Publish để nhận key và mã script; thay đường dẫn script bằng URL tuyệt đối của RagHub. Key chỉ được trả tại lần publish đầu hoặc rotate; copy ngay lúc đó. Không dùng key này để truy cập API quản trị.
+Trong Admin, chọn tổ chức, workspace và chatbot, mở màn hình Nhúng chatbot. Allowed origins phải là origin chính xác, ví dụ `https://www.example.com` hoặc `http://localhost:8081`. Publish để nhận key và mã script có URL tuyệt đối từ `PUBLIC_BASE_URL`; copy và dán trực tiếp. Key chỉ được trả tại lần publish đầu hoặc rotate; copy ngay lúc đó. Không dùng key này để truy cập API quản trị.
 
 ```html
 <script src="https://raghub.example.com/widget/raghub.js"
         data-chatbot-key="rgh_REPLACE_WITH_YOUR_KEY" async></script>
 ```
 
-Widget lấy config rồi POST chat qua `/api/v1/public/chatbots/{key}`. Config và chat đều yêu cầu chatbot đã publish và Origin được allow. Chat dùng SSE; preflight trả CORS cho origin đã kiểm tra. Khi rotate, config/chat với key cũ trả `404`; mã nhúng lấy lại qua API chứa `REDACTED`. Khi chỉnh cấu hình widget đã publish, dùng lại key đã giữ hoặc rotate để nhận key mới.
+Widget lấy config rồi POST chat qua `/api/v1/public/chatbots/{key}` trên origin của script RagHub. Config và chat đều yêu cầu chatbot đã publish và Origin được allow. Chat dùng SSE; preflight trả CORS cho origin đã kiểm tra. Khi rotate, config/chat với key cũ trả `404`. Sau reload, API trả `code: null`, `key: null`, `has_embed_key: true` cùng `script_src` và `public_base_url`; không có mã giả để copy. Cập nhật cấu hình vẫn giữ key cũ. Muốn nhận lại script hoàn chỉnh, tạo key mới rồi thay script trên website.
+
+`PUBLIC_BASE_URL` là origin công khai của gateway RagHub, không lấy từ Host header của request. Local: `http://127.0.0.1:8080`. LAN: `http://192.168.1.50:8080` (đặt `LOCAL_BIND_ADDRESS=0.0.0.0` và mở cổng gateway). Production: `https://raghub.company.vn`. `localhost`/`127.0.0.1` trỏ tới máy của người mở browser, nên không dùng cho client ở máy khác. Chỉ nhận HTTP(S), không có path, credentials, query hoặc fragment. Production yêu cầu HTTPS; private self-host có thể chủ động đặt `PUBLIC_BASE_URL_ALLOW_HTTP=true`. Không cấu hình URL thì publish/rotate trả `503 PUBLIC_BASE_URL_NOT_CONFIGURED` trước khi đổi key.
+
+Authenticated Admin/Workspace chat có quyền `chat.use` được preview cả Draft. Publication chỉ kiểm soát public widget/API. Lỗi runtime được hiển thị bằng thông báo an toàn và mã provider/search; không hiển thị raw upstream response.
 
 Key công khai và Origin có thể bị giả bởi client ngoài trình duyệt. Rate limit theo IP và chatbot cùng concurrent limit bảo vệ tài nguyên; chúng không xác thực danh tính khách truy cập. Không đưa tài liệu riêng tư vào chatbot public nếu người ngoài không được phép xem.
 

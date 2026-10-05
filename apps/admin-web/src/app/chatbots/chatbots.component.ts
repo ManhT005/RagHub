@@ -895,7 +895,7 @@ export class ChatbotsComponent {
       .subscribe({
         next: (result) => {
           this.embedBusy.set(false);
-          this.embedCode.set(result.code);
+          if (result.code) this.embedCode.set(result.code);
           const updated: Chatbot = {
             ...bot,
             published: true,
@@ -930,7 +930,7 @@ export class ChatbotsComponent {
     this.api.rotateEmbedKey(bot.id).subscribe({
       next: (result) => {
         this.embedBusy.set(false);
-        this.embedCode.set(result.code);
+        this.embedCode.set(result.code ?? "");
         this.notice.set("Đã tạo key mới. Mã nhúng cũ không còn hoạt động.");
       },
       error: () => {
@@ -950,7 +950,7 @@ export class ChatbotsComponent {
   private loadEmbedCode(chatbotId: string): void {
     this.embedCode.set("");
     this.api.embedCode(chatbotId).subscribe({
-      next: (result) => this.embedCode.set(result.code),
+      next: (result) => this.embedCode.set(result.code ?? ""),
       error: () => this.embedCode.set(""),
     });
   }

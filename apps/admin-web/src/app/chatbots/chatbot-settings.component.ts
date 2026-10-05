@@ -62,7 +62,7 @@ export class ChatbotSettingsComponent {
       .subscribe({
         next: (result) => {
           this.published = true;
-          this.code.set(result.code);
+          if (result.code) this.code.set(result.code);
           this.notice.set(
             "Đã xuất bản. Hãy lưu embed key ngay — key chỉ hiện một lần.",
           );
@@ -76,7 +76,7 @@ export class ChatbotSettingsComponent {
   rotate() {
     this.api.rotateEmbedKey(this.id).subscribe({
       next: (result) => {
-        this.code.set(result.code);
+        this.code.set(result.code ?? "");
         this.notice.set("Đã tạo embed key mới. Key cũ không còn hoạt động.");
       },
       error: () => this.notice.set("Không thể xoay embed key."),
@@ -86,7 +86,7 @@ export class ChatbotSettingsComponent {
     this.api
       .embedCode(this.id)
       .subscribe({
-        next: (result) => this.code.set(result.code),
+        next: (result) => this.code.set(result.code ?? ""),
         error: () =>
           this.notice.set(
             "Không thể lấy mã nhúng. Key chỉ có thể hiện lại khi xoay key.",

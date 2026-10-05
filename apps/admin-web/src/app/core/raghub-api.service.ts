@@ -139,8 +139,11 @@ export interface EmbedPublishInput {
   greeting: string;
 }
 export interface EmbedCode {
-  code: string;
+  code: string | null;
   key?: string | null;
+  script_src: string;
+  public_base_url: string;
+  has_embed_key: boolean;
 }
 export type ChatStreamEventName =
   | "conversation"

@@ -203,6 +203,9 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
         assert old.status_code == 404
     code = await client.get(bot_url + "/embed-code", headers=headers)
     assert code.status_code == 200 and key not in code.text
+    assert code.json()["code"] is None and code.json()["key"] is None
+    assert code.json()["has_embed_key"] is True
+    assert code.json()["script_src"].startswith(("http://", "https://"))
     new_public = f"/api/v1/public/chatbots/{new_key}"
     assert (await client.get(new_public + "/config", headers=origin)).status_code == 200
     # Real HTTP 429 with a valid key, and admin chat still works after exhausting public rate.
@@ -222,6 +225,8 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
     admin = await client.post(bot_url + "/chat", headers=headers, json={"message": "Hello"})
     assert admin.status_code == 200 and "event: done" in admin.text
     await client.patch(bot_url, headers=headers, json={"published": False})
+    draft_preview = await client.post(bot_url + "/chat", headers=headers, json={"message": "Hello"})
+    assert draft_preview.status_code == 200 and "event: done" in draft_preview.text
     for endpoint in ("config", "chat"):
         unavailable = await client.request(
             "GET" if endpoint == "config" else "POST",
