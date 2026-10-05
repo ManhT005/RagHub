@@ -1,11 +1,14 @@
 import { TestBed } from "@angular/core/testing";
+import { signal } from "@angular/core";
+import { of } from "rxjs";
+import { SetupStateService } from "../setup/setup-state.service";
 import { provideRouter } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
 import { routes } from "../app.routes";
 
 describe("Public pages", () => {
   beforeEach(() =>
-    TestBed.configureTestingModule({ providers: [provideRouter(routes)] }),
+    TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: SetupStateService, useValue: { status: () => of({ initialized: true }), unavailable: signal(false) } }] }),
   );
 
   it("links home navigation to separate public pages", async () => {

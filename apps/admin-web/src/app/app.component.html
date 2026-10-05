@@ -1,6 +1,11 @@
 <router-outlet />
+@if (setup.unavailable()) {
+<div role="alert" class="session-banner">Không thể kiểm tra trạng thái cài đặt. <button type="button"
+    (click)="retrySession()">Thử lại</button></div>
+}
 @if (auth.restoreError()) {
-  <div role="alert" class="session-banner">Kết nối tạm thời gián đoạn. Phiên đăng nhập được giữ lại. <button type="button" (click)="retrySession()">Thử lại</button></div>
+<div role="alert" class="session-banner">Kết nối tạm thời gián đoạn. Phiên đăng nhập được giữ lại. <button type="button"
+    (click)="retrySession()">Thử lại</button></div>
 }
 <!--
   <nz-sider nzCollapsible [nzWidth]="248" [nzTrigger]="null">

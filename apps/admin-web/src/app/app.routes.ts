@@ -1,6 +1,7 @@
 import { Routes } from "@angular/router";
 import { authenticated, authenticatedChild } from "./core/auth.guard";
 import { adminOnly } from "./core/admin.guard";
+import { installationReady, setupAvailable } from "./setup/setup.guard";
 import {
   workspaceContextGuard,
   workspacePermissionGuard,
@@ -12,6 +13,7 @@ export const routes: Routes = [
   {
     path: "",
     pathMatch: "full",
+    canActivate: [installationReady],
     loadComponent: () =>
       import("./landing/landing.component").then((m) => m.LandingComponent),
     title: "RagHub",
@@ -33,6 +35,7 @@ export const routes: Routes = [
   },
   {
     path: "auth",
+    canActivate: [installationReady],
     loadComponent: () =>
       import("./auth/auth.component").then((m) => m.AuthComponent),
   },
@@ -42,7 +45,7 @@ export const routes: Routes = [
       import("./layouts/console-layout.component").then(
         (m) => m.ConsoleLayoutComponent,
       ),
-    canActivate: [authenticated],
+    canActivate: [installationReady, authenticated],
     canActivateChild: [authenticatedChild],
     children: [
       {
@@ -165,7 +168,7 @@ export const routes: Routes = [
       import("./layouts/console-layout.component").then(
         (m) => m.ConsoleLayoutComponent,
       ),
-    canActivate: [authenticated],
+    canActivate: [installationReady, authenticated],
     canActivateChild: [authenticatedChild],
     children: [
       {
@@ -198,6 +201,7 @@ export const routes: Routes = [
       },
     ],
   },
+  { path: "setup", canActivate: [setupAvailable], loadComponent: () => import('./setup/setup.component').then(m => m.SetupComponent), title: 'Khởi tạo RagHub' },
   { path: "workspaces", pathMatch: "full", redirectTo: "app/workspaces" },
   { path: "documents", pathMatch: "full", redirectTo: "app/documents" },
   { path: "chatbots", pathMatch: "full", redirectTo: "app/chatbots" },

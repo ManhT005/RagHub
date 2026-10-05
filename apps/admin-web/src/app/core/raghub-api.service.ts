@@ -334,7 +334,7 @@ export class RaghubApiService {
     );
   }
   testProvider(providerId: string) {
-    return this.http.post(`${this.base}/providers/${providerId}/test`, {});
+    return this.http.post<{ status: string }>(`${this.base}/providers/${providerId}/test`, {});
   }
   bindWorkspaceProviders(
     workspaceId: string,

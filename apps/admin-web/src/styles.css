@@ -2,6 +2,14 @@
 @import "./app/features/selfhost.css";
 @import "./styles/console-theme.css";
 
+.session-banner {
+  padding: 16px 24px;
+  background: var(--rh-warning-bg);
+  color: var(--rh-warning);
+  border: 1px solid currentColor;
+}
+.session-banner button { margin-left: 12px; min-height: 44px; cursor: pointer; }
+
 :root {
   --rh-bg: #f1f8ff;
   --rh-surface: #ffffff;
