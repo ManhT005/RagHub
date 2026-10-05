@@ -22,6 +22,7 @@ import { catchError, finalize, map, of, switchMap } from "rxjs";
 import {
   WorkspaceApiService,
   WorkspaceSummary,
+  workspaceAiLabel,
 } from "../../core/api/workspace-api.service";
 import {
   ProviderApiService,
@@ -55,6 +56,7 @@ import { shortModelName } from "../../core/provider-brand/provider-brand.registr
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspacesPageComponent {
+  protected readonly workspaceAiLabel = workspaceAiLabel;
   protected readonly shortModelName = shortModelName;
   private readonly organizations = signal<Organization[]>([]);
   private readonly selectedOrganization = signal(session.organizationId ?? "");

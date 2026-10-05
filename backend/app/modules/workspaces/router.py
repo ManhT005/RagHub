@@ -42,6 +42,10 @@ class WorkspaceResponse(WorkspaceInput):
     last_indexed_at: datetime | None = None
     embedding_model: dict | None = None
     chat_provider_id: UUID | None = None
+    chat_model: dict | None = None
+    embedding_status: str = "NOT_CONFIGURED"
+    chat_status: str = "NOT_CONFIGURED"
+    ai_status: str = "NOT_CONFIGURED"
     status: str = "AI_NOT_CONFIGURED"
     reindex_job_id: UUID | None = None
     reindex_status: str | None = None

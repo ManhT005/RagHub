@@ -18,11 +18,33 @@ export interface WorkspaceSummary extends Workspace {
   last_indexed_at: string | null;
   embedding_model: EmbeddingProfile | null;
   chat_provider_id: string | null;
+  chat_model: ChatProfile | null;
+  embedding_status: "NOT_CONFIGURED" | "READY" | "REINDEXING" | "WARNING";
+  chat_status: "NOT_CONFIGURED" | "READY" | "WARNING";
+  ai_status: "READY" | "PARTIAL" | "NOT_CONFIGURED" | "WARNING";
   created_at: string;
   updated_at: string | null;
   status: string;
   reindex_job_id: string | null;
   reindex_status: string | null;
+}
+export interface ChatProfile {
+  id: string;
+  model: string;
+  display_name: string;
+  provider_name: string;
+  provider_type: string;
+  provider_catalog_id: string | null;
+  availability_status: string;
+  connection_status: string;
+}
+export function workspaceAiLabel(workspace: WorkspaceSummary): string {
+  if (workspace.embedding_status === "REINDEXING") return "Đang re-index";
+  if (workspace.ai_status === "WARNING") return "Cần kiểm tra";
+  if (workspace.ai_status === "READY") return "AI sẵn sàng";
+  if (workspace.ai_status === "PARTIAL")
+    return workspace.embedding_status === "NOT_CONFIGURED" ? "Thiếu embedding" : "Thiếu chat";
+  return "AI chưa cấu hình";
 }
 export interface EmbeddingPreview {
   current_model: {
