@@ -13,15 +13,18 @@ from raghub_core.domain.rag.citations import (
     resolve_sliced_citations,
     resolve_trusted_citations,
 )
+from raghub_core.domain.rag.clarification import ClarificationPolicy
 from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
+    ClarificationRequested,
     ConversationStarted,
     RagEvent,
     TokenDelta,
     UsageReported,
 )
+from raghub_core.domain.rag.intent import IntentAction
 from raghub_core.domain.rag.models import ChatUsageRecord, StreamChatCommand
 from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
 from raghub_core.domain.rag.prompt_budget import BudgetedPrompt, PromptBudgeter
@@ -48,12 +51,18 @@ class StreamRagChatUseCase:
         budgeter_factory: Callable[[str, str], PromptBudgeter] | None = None,
         citation_observer: Callable[[CitationReport], None] | None = None,
         telemetry: TelemetryPort | None = None,
+        clarification_policy: ClarificationPolicy | None = None,
+        clarification_mode: str = "conservative",
+        max_clarifying_turns: int = 1,
     ) -> None:
         self.chatbots, self.retrieval, self.providers = chatbots, retrieval, providers
         self.conversations, self.usage, self.timing_factory = conversations, usage, timing_factory
         self.budgeter_factory = budgeter_factory
         self.citation_observer = citation_observer
         self.telemetry = telemetry
+        self.clarification_policy = clarification_policy or ClarificationPolicy()
+        self.clarification_mode = clarification_mode
+        self.max_clarifying_turns = max_clarifying_turns
 
     async def execute(self, command: StreamChatCommand) -> AsyncIterator[RagEvent]:
         chatbot = await self.chatbots.get(command.organization_id, command.chatbot_id)
@@ -101,6 +110,46 @@ class StreamRagChatUseCase:
         previous_history: Sequence[ChatMessage],
         answer: list[str],
     ) -> AsyncIterator[RagEvent]:
+        decision = self.clarification_policy.evaluate(
+            command.question,
+            mode=self.clarification_mode,
+            clarifying_turns=self._clarifying_turns(previous_history),
+            max_clarifying_turns=self.max_clarifying_turns,
+        )
+        if decision.action is IntentAction.CLARIFY:
+            usage = ChatUsage(0, 0, 0, "none")
+            message_id = await self.conversations.add_assistant(
+                conversation_id,
+                decision.message,
+                usage,
+                (),
+            )
+            await self.conversations.commit()
+            yield ClarificationRequested(
+                decision.message,
+                decision.missing_slots,
+                decision.suggestions,
+                decision.reason,
+            )
+            yield UsageReported(usage)
+            yield ChatCompleted(message_id, None, 0)
+            return
+        if decision.action is IntentAction.REFUSE_OR_REDIRECT:
+            message = decision.message or "I can only answer from the provided documents."
+            usage = ChatUsage(0, 0, 0, "none")
+            message_id = await self.conversations.add_assistant(
+                conversation_id,
+                message,
+                usage,
+                (),
+            )
+            await self.conversations.commit()
+            yield CitationsResolved(())
+            yield TokenDelta(message)
+            yield UsageReported(usage)
+            yield ChatCompleted(message_id, None, 0)
+            return
+
         hits = await self.retrieval.retrieve(
             chatbot.scope, command.question, chatbot.retrieval_limit
         )
@@ -216,3 +265,11 @@ class StreamRagChatUseCase:
         await self.conversations.commit()
         yield UsageReported(usage)
         yield ChatCompleted(message_id, timing.first_token_ms, latency_ms)
+
+    def _clarifying_turns(self, history: Sequence[ChatMessage]) -> int:
+        return sum(
+            1
+            for message in history
+            if message.role == "assistant"
+            and message.content.startswith("Ban vui long cho biet them ")
+        )
