@@ -236,10 +236,10 @@ export class WorkspaceDocumentsComponent {
     }
     if (
       files.some(
-        (file) => !["pdf", "txt", "md"].includes(this.extension(file.name)),
+        (file) => !["pdf", "txt", "md", "docx", "xlsx", "html", "htm"].includes(this.extension(file.name)),
       )
     ) {
-      this.error.set("Chỉ hỗ trợ PDF, TXT và Markdown (.md).");
+      this.error.set("Chỉ hỗ trợ PDF, TXT, Markdown, DOCX, HTML, XLSX.");
       return;
     }
     if (files.some((file) => !file.size)) {

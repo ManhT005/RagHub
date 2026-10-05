@@ -123,10 +123,10 @@
         [nzMultiple]="false"
         [nzShowUploadList]="false"
         [nzBeforeUpload]="beforeUpload"
-        nzAccept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+        nzAccept=".pdf,.txt,.md,.docx,.xlsx,.html,.htm,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/html"
       >
         <p class="upload-title">Chọn tệp hoặc kéo thả tệp vào đây</p>
-        <p class="upload-hint">Hỗ trợ PDF, TXT và Markdown.</p>
+        <p class="upload-hint">Hỗ trợ PDF, TXT, Markdown, DOCX, HTML và XLSX.</p>
       </nz-upload>
       @if (selectedFile(); as file) {
         <p class="selected-file" aria-live="polite">

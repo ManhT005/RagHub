@@ -240,11 +240,11 @@
         <input
           type="file"
           multiple
-          accept=".pdf,.txt,.md"
+          accept=".pdf,.txt,.md,.docx,.xlsx,.html,.htm"
           aria-label="Chọn tệp tải lên"
           [disabled]="busy()"
           (change)="chooseFiles($event)"
-        /><small>Hỗ trợ PDF, TXT và Markdown. Tối đa 25 MB mỗi tệp.</small>
+        /><small>Hỗ trợ PDF, TXT, Markdown, DOCX, HTML, XLSX. Tối đa 25 MB mỗi tệp.</small>
       </label>
       @if (files().length) {
         <ul class="selected-files">
@@ -295,7 +295,7 @@
       <details>
         <summary>Tùy chọn nâng cao</summary>
         <p>
-          PDF cần có văn bản; TXT/Markdown mã hóa UTF-8. Tệp được xử lý tự động
+          PDF cần có văn bản; TXT/Markdown mã hóa UTF-8; DOCX/XLSX chuẩn Office; HTML không tải tài nguyên ngoài. Tệp được xử lý tự động
           sau khi tải lên.
         </p>
       </details>
@@ -466,7 +466,7 @@
   ><ng-container *nzModalContent>
     <div class="selfhost-page">
       <p>
-        Tải PDF có văn bản, TXT hoặc Markdown (UTF-8), tối đa 25 MB mỗi tệp. Hệ
+        Tải PDF có văn bản, TXT/Markdown (UTF-8), DOCX, HTML hoặc XLSX, tối đa 25 MB mỗi tệp. Hệ
         thống sẽ chia chunks, tạo embedding và lập chỉ mục tự động.
       </p>
       <p>
