@@ -11,6 +11,7 @@ class EmbeddingRuntime:
     provider: EmbeddingProvider
     index_name: str
     dimension: int
+    quota_scope: str | None = None
 
 
 @dataclass(frozen=True)

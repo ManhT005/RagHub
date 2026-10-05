@@ -29,6 +29,15 @@ from app.modules.ai_providers.schemas import (
 )
 
 
+def _retry_after_seconds(response: httpx.Response) -> float:
+    """Honor Retry-After on 429; fall back to 0 (caller uses backoff)."""
+    try:
+        value = float((response.headers.get("retry-after") or "").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+    return min(60.0, max(0.0, value))
+
+
 class _OpenAICompatibleBase:
     def __init__(
         self,
@@ -77,6 +86,8 @@ class _OpenAICompatibleBase:
 
 
 class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
+    batch_stride = 64
+
     def __init__(
         self, *, dimension: int, request_profile: str = "OPENAI_STANDARD", **kwargs: object
     ) -> None:
@@ -88,6 +99,7 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
         self._validate_endpoint()
         payload = embedding_payload(self.request_profile, self.model, texts, input_type)
         last_error: Exception | None = None
+        wait_seconds = 0.0
         for attempt in range(self.policy.max_attempts):
             try:
                 async with httpx.AsyncClient(
@@ -101,6 +113,8 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
                     if response.status_code not in {429, 502, 503, 504}:
                         raise error
                     last_error = error
+                    if response.status_code == 429:
+                        wait_seconds = _retry_after_seconds(response)
                 else:
                     data = response.json().get("data", [])
                     ordered = sorted(data, key=lambda item: item.get("index", 0))
@@ -116,7 +130,11 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
             except (ValueError, TypeError, KeyError) as exc:
                 raise ProviderInvalidResponseError() from exc
             if attempt + 1 < self.policy.max_attempts:
-                await asyncio.sleep(self.policy.backoff_seconds * (2**attempt))
+                if isinstance(last_error, ProviderRateLimitError):
+                    await asyncio.sleep(wait_seconds or min(30.0, 2.0 * (2**attempt)))
+                    wait_seconds = 0.0
+                else:
+                    await asyncio.sleep(self.policy.backoff_seconds * (2**attempt))
         assert last_error is not None
         raise last_error
 
@@ -134,8 +152,9 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
         if not texts:
             return []
         vectors: list[list[float]] = []
-        for start in range(0, len(texts), 64):
-            vectors.extend(await self._embed(texts[start : start + 64]))
+        stride = max(1, self.batch_stride)
+        for start in range(0, len(texts), stride):
+            vectors.extend(await self._embed(texts[start : start + stride]))
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:

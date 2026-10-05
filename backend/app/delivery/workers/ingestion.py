@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -14,22 +15,31 @@ from app.infrastructure.persistence.ingestion import (
 from app.infrastructure.persistence.ingestion import (
     _set_stage as _set_stage,
 )
+from app.infrastructure.redis.quota_buckets import QuotaBucketStore
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
 
 logger = logging.getLogger(__name__)
 
 
+def _make_container(session: AsyncSession) -> tuple[WorkerContainer, Redis]:
+    settings = get_settings()
+    redis = Redis.from_url(settings.redis_url, socket_timeout=2)
+    return WorkerContainer(session, settings, quota=QuotaBucketStore(redis, settings)), redis
+
+
 async def _run_pipeline(
     session: AsyncSession, document: Document, version: DocumentVersion, job: IngestionJob
 ) -> None:
-    repository = WorkerContainer(session).ingestion_repository(
-        document=document, version=version, job=job
-    )
-    await _make_use_case(session, repository).build(repository.snapshot())
+    container, redis = _make_container(session)
+    try:
+        repository = container.ingestion_repository(document=document, version=version, job=job)
+        await _make_use_case(session, repository, container=container).build(repository.snapshot())
+    finally:
+        await redis.aclose()
 
 
-def _make_use_case(session, repository, *, pipeline=None):
-    return WorkerContainer(session).run_ingestion(repository, pipeline=pipeline)
+def _make_use_case(session, repository, *, pipeline=None, container=None):
+    return (container or WorkerContainer(session)).run_ingestion(repository, pipeline=pipeline)
 
 
 async def _run_attempt(

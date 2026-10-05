@@ -6,6 +6,7 @@ from raghub_core.api import (
     RunIngestionUseCase,
 )
 from raghub_core.domain.ingestion.chunker import chunk_sections
+from raghub_core.ports.embedding_quota import EmbeddingQuotaPort
 
 from app.core.config import get_settings
 from app.infrastructure.elasticsearch.chunks import ChunkIndexer
@@ -22,9 +23,10 @@ parse_document = DocumentParser().parse
 
 
 class WorkerContainer:
-    def __init__(self, session, settings=None):
+    def __init__(self, session, settings=None, *, quota: EmbeddingQuotaPort | None = None):
         self.session = session
         self.settings = settings or get_settings()
+        self.quota = quota
 
     def builder(self):
         return MetadataIndexBuilder(
@@ -32,6 +34,7 @@ class WorkerContainer:
                 MinioObjectStorage(self.settings),
                 parse_document,
                 chunker=chunk_sections,
+                quota=self.quota,
             ),
             self.session,
         )

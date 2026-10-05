@@ -1,8 +1,10 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
 from app.modules.ai_providers.models import (
+    EmbeddingBatchCheckpoint,
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
+    EmbeddingWorkItem,
     OllamaModelPull,
     ProviderConfig,
     ProviderConnection,
@@ -50,6 +52,8 @@ __all__ = [
     "ProviderConnection",
     "ProviderCredential",
     "ProviderPool",
+    "EmbeddingBatchCheckpoint",
+    "EmbeddingWorkItem",
     "WorkspaceProviderBinding",
     "OllamaModelPull",
     "EmbeddingIndexVersion",

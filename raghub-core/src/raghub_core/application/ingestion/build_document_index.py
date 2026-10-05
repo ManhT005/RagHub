@@ -18,11 +18,17 @@ from raghub_core.domain.providers.errors import (
     ProviderUnavailableError,
 )
 from raghub_core.domain.retrieval.models import DocumentIndex, IndexedChunk
+from raghub_core.ports.embedding_quota import (
+    EmbeddingQuotaPort,
+    QuotaBackendUnavailableError,
+    QuotaDepletedError,
+)
 from raghub_core.ports.object_storage import ObjectStoragePort
 from raghub_core.ports.provider_resolver import EmbeddingRuntime
 from raghub_core.ports.vector_store import VectorStorePort
 
 StageCallback = Callable[[IngestionStage, int], Awaitable[None]]
+QuotaAcquire = Callable[[int], Awaitable[None]]
 
 
 class BuildDocumentIndexUseCase:
@@ -34,10 +40,12 @@ class BuildDocumentIndexUseCase:
         parser: Callable[[bytes, str], list[ParsedSection]],
         *,
         chunker: Callable[..., list[TextChunk]] = chunk_sections,
+        quota: EmbeddingQuotaPort | None = None,
     ) -> None:
         self.storage = storage
         self.parser = parser
         self.chunker = chunker
+        self.quota = quota
 
     async def execute(
         self,
@@ -48,6 +56,7 @@ class BuildDocumentIndexUseCase:
         stage: StageCallback | None = None,
         before_index: Callable[[], Awaitable[None]] | None = None,
         close_store: bool = True,
+        acquire_quota: QuotaAcquire | None = None,
     ) -> DocumentIndex:
         try:
             content = await self.storage.get(document.storage_key)
@@ -86,6 +95,39 @@ class BuildDocumentIndexUseCase:
             await stage(IngestionStage.EMBEDDING, 65)
         try:
             runtime = await resolve_embedding()
+            quota = self.quota
+            if acquire_quota is not None:
+                estimated = max(1, sum(len(chunk.content) for chunk in chunks) // 4)
+                try:
+                    await acquire_quota(estimated)
+                except QuotaDepletedError as exc:
+                    raise IngestionError(
+                        "EMBEDDING_QUOTA_WAIT",
+                        f"Embedding quota depleted; retry after {exc.wait_seconds:.1f}s.",
+                        retryable=True,
+                    ) from exc
+                except QuotaBackendUnavailableError as exc:
+                    raise IngestionError(
+                        "EMBEDDING_QUOTA_UNAVAILABLE",
+                        "Quota coordinator unreachable; refusing blind provider call.",
+                        retryable=True,
+                    ) from exc
+            elif quota is not None and runtime.quota_scope is not None:
+                estimated = max(1, sum(len(chunk.content) for chunk in chunks) // 4)
+                try:
+                    await quota.acquire(scope=runtime.quota_scope, tokens=estimated)
+                except QuotaDepletedError as exc:
+                    raise IngestionError(
+                        "EMBEDDING_QUOTA_WAIT",
+                        f"Embedding quota depleted; retry after {exc.wait_seconds:.1f}s.",
+                        retryable=True,
+                    ) from exc
+                except QuotaBackendUnavailableError as exc:
+                    raise IngestionError(
+                        "EMBEDDING_QUOTA_UNAVAILABLE",
+                        "Quota coordinator unreachable; refusing blind provider call.",
+                        retryable=True,
+                    ) from exc
             vectors = await runtime.provider.embed_documents([chunk.content for chunk in chunks])
             if len(vectors) != len(chunks):
                 raise ValueError("Embedding response count does not match chunks")
@@ -105,6 +147,8 @@ class BuildDocumentIndexUseCase:
                     for chunk, vector in zip(chunks, vectors, strict=True)
                 ),
             )
+        except IngestionError:
+            raise
         except (ProviderTimeoutError, ProviderUnavailableError, ProviderRateLimitError) as exc:
             raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
         except Exception as exc:

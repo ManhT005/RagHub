@@ -91,6 +91,8 @@ class IngestionJob(Base):
     )
     stage: Mapped[str] = mapped_column(String(32), default=DocumentStatus.QUEUED)
     progress: Mapped[int] = mapped_column(Integer, default=0)
+    embedded_chunks: Mapped[int | None] = mapped_column(Integer)
+    total_chunks: Mapped[int | None] = mapped_column(Integer)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(100))
     error_message: Mapped[str | None] = mapped_column(Text)

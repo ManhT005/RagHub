@@ -5,6 +5,8 @@ from app.modules.ai_providers.adapters.openai_compatible import (
 
 
 class GoogleGeminiEmbeddingProvider(OpenAICompatibleEmbeddingProvider):
+    batch_stride = 24
+
     def __init__(self, **kwargs: object) -> None:
         super().__init__(provider_name="GOOGLE_GEMINI", **kwargs)
 

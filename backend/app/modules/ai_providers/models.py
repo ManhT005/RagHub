@@ -227,3 +227,59 @@ class WorkspaceProviderBinding(Base):
         ForeignKey("provider_pools.id", ondelete="RESTRICT")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmbeddingWorkItem(Base):
+    """One resumable embedding job; a worker handles a single batch per task run."""
+
+    __tablename__ = "embedding_work_items"
+    __table_args__ = (Index("ix_embedding_work_items_ws_state", "workspace_id", "state"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    document_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("document_versions.id", ondelete="CASCADE"), index=True
+    )
+    pool_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("provider_pools.id", ondelete="RESTRICT")
+    )
+    kind: Mapped[str] = mapped_column(String(32), default="upload")
+    state: Mapped[str] = mapped_column(String(32), default="QUEUED", index=True)
+    total_chunks: Mapped[int] = mapped_column(Integer, default=0)
+    embedded_chunks: Mapped[int] = mapped_column(Integer, default=0)
+    manifest_key: Mapped[str | None] = mapped_column(String(1024))
+    available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class EmbeddingBatchCheckpoint(Base):
+    """Persisted vector artifact per finished batch; resume skips these."""
+
+    __tablename__ = "embedding_batch_checkpoints"
+    __table_args__ = (
+        UniqueConstraint(
+            "work_item_id", "batch_index", name="uq_batch_checkpoints_item_batch"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    work_item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("embedding_work_items.id", ondelete="CASCADE"), index=True
+    )
+    batch_index: Mapped[int] = mapped_column(Integer)
+    chunk_start: Mapped[int] = mapped_column(Integer)
+    chunk_end: Mapped[int] = mapped_column(Integer)
+    chunk_count: Mapped[int] = mapped_column(Integer)
+    artifact_key: Mapped[str] = mapped_column(String(1024))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

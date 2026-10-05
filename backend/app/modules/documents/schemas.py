@@ -26,6 +26,9 @@ class DocumentResponse(BaseModel):
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool = False
+    embedded_chunks: int | None = None
+    total_chunks: int | None = None
+    queue_position: int | None = None
     mime_type: str | None = None
     size_bytes: int | None = None
     chunk_count: int | None = None

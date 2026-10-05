@@ -17,15 +17,30 @@ class ProviderResolverAdapter:
             scope.organization_id, scope.workspace_id
         )
         return EmbeddingRuntime(
-            resolved.provider, resolved.index_version.index_name, resolved.index_version.dimension
+            resolved.provider,
+            resolved.index_version.index_name,
+            resolved.index_version.dimension,
+            quota_scope=await self._pool_scope(resolved.index_version),
         )
+
+    async def _pool_scope(self, version: EmbeddingIndexVersion) -> str | None:
+        try:
+            pool, _ = await self.resolver.embedding_pool_for_version(version)
+        except Exception:
+            return None
+        return pool.quota_scope
 
     async def resolve_embedding_version(self, version_id: UUID) -> EmbeddingRuntime:
         version = await self.resolver.session.get(EmbeddingIndexVersion, version_id)
         if version is None:
             raise ProviderConfigurationError("Embedding index version was not found.")
         resolved = await self.resolver.embedding_for_version(version)
-        return EmbeddingRuntime(resolved.provider, version.index_name, version.dimension)
+        return EmbeddingRuntime(
+            resolved.provider,
+            version.index_name,
+            version.dimension,
+            quota_scope=await self._pool_scope(version),
+        )
 
     async def resolve_chat(self, scope: RetrievalScope) -> ChatRuntime:
         resolved = await self.resolver.chat_for_workspace(scope.organization_id, scope.workspace_id)

@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     public_chat_stream_timeout_seconds: float = Field(default=90, ge=1, le=600)
     public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
+
+    provider_pool_max_active_jobs_per_workspace: int = Field(default=1, ge=1, le=10)
+    provider_pool_max_pending_jobs_per_workspace: int = Field(default=5, ge=1, le=100)
+    gemini_embedding_batch_max_chunks: int = Field(default=24, ge=1, le=100)
+    gemini_embedding_batch_target_tokens: int = Field(default=10_000, ge=1_000, le=100_000)
+    gemini_embedding_ingestion_tpm: int = Field(default=21_000, ge=1_000, le=30_000)
+    gemini_embedding_ingestion_rpm: int = Field(default=80, ge=1, le=100)
+    gemini_embedding_ingestion_rpd: int = Field(default=900, ge=1, le=1_000)
     trusted_local_provider_hosts: str = ""
 
     frontend_url: str = "http://localhost:8080"
