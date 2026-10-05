@@ -6,6 +6,9 @@ from app.modules.ai_providers.models import (
     OllamaModelPull,
     ProviderConfig,
     ProviderConnection,
+    ProviderCredential,
+    ProviderPool,
+    WorkspaceProviderBinding,
 )
 from app.modules.auth.models import PasswordResetToken, UserIdentity, UserSession
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
@@ -45,6 +48,9 @@ __all__ = [
     "UsageEvent",
     "ProviderConfig",
     "ProviderConnection",
+    "ProviderCredential",
+    "ProviderPool",
+    "WorkspaceProviderBinding",
     "OllamaModelPull",
     "EmbeddingIndexVersion",
     "EmbeddingReindexJob",

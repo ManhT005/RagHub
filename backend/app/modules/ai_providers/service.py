@@ -14,6 +14,11 @@ from raghub_core.domain.providers.enums import (
     ReindexJobStatus,
 )
 from raghub_core.domain.providers.errors import ProviderConfigurationError
+from raghub_core.domain.providers.fingerprint import (
+    FINGERPRINT_VERSION,
+    embedding_fingerprint_v2,
+    quota_scope,
+)
 from raghub_core.ports.task_queue import TaskQueuePort
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +33,8 @@ from app.modules.ai_providers.models import (
     EmbeddingReindexJob,
     ProviderConfig,
     ProviderConnection,
+    ProviderCredential,
+    ProviderPool,
 )
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.repository import ProviderConfigRepository
@@ -56,6 +63,27 @@ def embedding_fingerprint(config: ProviderConfig) -> str:
 
 def workspace_index_name(workspace_id: UUID, version_id: UUID) -> str:
     return f"raghub_chunks_{workspace_id.hex}_v{version_id.hex[:12]}"
+
+
+def config_fingerprint_v2(config: ProviderConfig) -> str:
+    options = config.config_json or {}
+    return embedding_fingerprint_v2(
+        provider_type=config.provider_type,
+        base_url=config.base_url,
+        model=config.model,
+        dimension=config.dimension,
+        task_type=options.get("task_type"),
+        embedding_options=options,
+    )
+
+
+def config_quota_scope(config: ProviderConfig) -> str:
+    options = config.config_json or {}
+    return quota_scope(
+        provider_type=config.provider_type,
+        model=config.model,
+        project=options.get("quota_project") or options.get("project_id"),
+    )
 
 
 class ProviderConfigService:
@@ -106,6 +134,7 @@ class ProviderConfigService:
             return config
         await self.session.commit()
         await self.session.refresh(config)
+        await self._ensure_pool(config)
         return config
 
     async def update(
@@ -154,6 +183,7 @@ class ProviderConfigService:
         if config.capability == ProviderCapability.EMBEDDING and not config.dimension:
             raise ProviderConfigurationError("Embedding providers require dimension.")
         await self.session.flush()
+        await self._sync_primary_credential(config)
         if old_fingerprint and old_fingerprint != embedding_fingerprint(config):
             workspaces = await self.session.scalars(
                 select(Workspace).where(
@@ -171,6 +201,62 @@ class ProviderConfigService:
             await self._enqueue_reindex(job)
         await self.session.refresh(config)
         return config
+
+    async def _ensure_pool(self, config: ProviderConfig) -> ProviderPool:
+        """Dual-write: every legacy config owns exactly one pool + primary credential."""
+        pool = await self.session.scalar(
+            select(ProviderPool).where(
+                ProviderPool.organization_id == config.organization_id,
+                ProviderPool.fingerprint_v2 == config_fingerprint_v2(config),
+                ProviderPool.capability == config.capability,
+            )
+        )
+        if pool is None:
+            options = config.config_json or {}
+            pool = ProviderPool(
+                organization_id=config.organization_id,
+                provider_type=config.provider_type,
+                capability=config.capability,
+                model=config.model,
+                dimension=config.dimension,
+                task_type=options.get("task_type"),
+                embedding_options=options,
+                quota_scope=config_quota_scope(config),
+                fingerprint_v2=config_fingerprint_v2(config),
+            )
+            self.session.add(pool)
+            await self.session.flush()
+            self.session.add(
+                ProviderCredential(
+                    pool_id=pool.id,
+                    name="primary",
+                    encrypted_secret=config.encrypted_secret,
+                    enabled=config.enabled,
+                )
+            )
+            await self.session.commit()
+        return pool
+
+    async def _sync_primary_credential(self, config: ProviderConfig) -> None:
+        pool = await self._ensure_pool(config)
+        credential = await self.session.scalar(
+            select(ProviderCredential)
+            .where(ProviderCredential.pool_id == pool.id, ProviderCredential.name == "primary")
+            .order_by(ProviderCredential.created_at)
+        )
+        if credential is None:
+            self.session.add(
+                ProviderCredential(
+                    pool_id=pool.id,
+                    name="primary",
+                    encrypted_secret=config.encrypted_secret,
+                    enabled=config.enabled,
+                )
+            )
+        else:
+            # Ciphertext copied verbatim; no decrypt/re-encrypt on sync.
+            credential.encrypted_secret = config.encrypted_secret
+            credential.enabled = config.enabled
 
     async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
         indexes = select(EmbeddingIndexVersion.id).where(
@@ -365,6 +451,8 @@ class ProviderConfigService:
             dimension=config.dimension,
             config_json=config.config_json or {},
             embedding_fingerprint=embedding_fingerprint(config),
+            embedding_fingerprint_v2=config_fingerprint_v2(config),
+            fingerprint_version=FINGERPRINT_VERSION,
             index_name=workspace_index_name(workspace.id, version_id),
             status=IndexVersionStatus.BUILDING,
         )
