@@ -3,6 +3,13 @@
 For the reusable engine boundary and extraction status, see
 [RagHub Core boundaries](architecture/RAGHUB_CORE_BOUNDARIES.md).
 
+The repository has two Python projects: `raghub-core` contains the reusable engine
+under `src/raghub_core`; `backend` contains its self-host host and concrete adapters
+under `app`. The backend package depends on core and the engine never imports the
+host. Composition uses `raghub_core.api` and adapters implement core ports.
+See [ADR-001](architecture/adr/ADR-001-core-package-boundary.md) and the
+[package refactor verification](architecture/RAGHUB_CORE_SIBLING_VERIFICATION.md).
+
 RagHub starts as a modular monolith plus a background worker. The API and worker
 share domain models and infrastructure adapters while running as separate
 processes.

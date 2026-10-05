@@ -1,5 +1,10 @@
 # Core isolation and self-host verification
 
+This report records the original extraction and operations checks. Core now lives
+in the sibling `raghub-core` project, with a separate test suite and wheel; see
+[current package verification](../architecture/RAGHUB_CORE_SIBLING_VERIFICATION.md).
+The totals below remain historical and include core tests in the original backend suite.
+
 Verified locally on **2026-10-04** on branch `refactor/core-isolation-selfhost`,
 starting from the user-provided plan commit `147eb5d`. The implementation plan
 itself is unchanged. Development and verification use separate Docker projects;

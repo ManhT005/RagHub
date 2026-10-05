@@ -11,13 +11,13 @@ RUN addgroup --system raghub && adduser --system --ingroup raghub raghub \
     && mkdir -p /app/.cache/huggingface \
     && chown -R raghub:raghub /app/.cache
 
-COPY requirements.lock ./
+COPY backend/requirements.lock ./
 RUN python -m pip install --upgrade pip==25.2 \
     && python -m pip install -r requirements.lock
 
 FROM dependencies AS local-ai-dependencies
 
-COPY requirements-local-ai.lock ./
+COPY backend/requirements-local-ai.lock ./
 RUN python -m pip install \
         --index-url https://download.pytorch.org/whl/cpu \
         torch==2.8.0 \
@@ -25,10 +25,12 @@ RUN python -m pip install \
 
 FROM dependencies AS runtime
 
-COPY alembic.ini pyproject.toml README.md ./
-COPY alembic ./alembic
-COPY app ./app
-COPY raghub_core ./raghub_core
+COPY raghub-core /opt/raghub-core
+RUN python -m pip install --no-deps /opt/raghub-core
+
+COPY backend/alembic.ini backend/pyproject.toml backend/README.md ./
+COPY backend/alembic ./alembic
+COPY backend/app ./app
 
 USER raghub
 
@@ -39,6 +41,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM local-ai-dependencies AS local-ai
 
 COPY --from=runtime /app /app
+COPY --from=runtime /opt/raghub-core /opt/raghub-core
+RUN python -m pip install --no-deps /opt/raghub-core
 USER raghub
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

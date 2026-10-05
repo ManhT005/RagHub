@@ -64,6 +64,18 @@ def main():
             assert "build" not in local["services"][name]
             assert local["services"][name]["pull_policy"] == "never"
         assert local["services"]["api"]["build"]["target"] == target
+        api_build = local["services"]["api"]["build"]
+        assert Path(api_build["context"]).resolve() == ROOT
+        assert api_build["dockerfile"] == "backend/Dockerfile"
+        for name in ("api", "worker"):
+            mounts = {
+                volume["target"]: Path(volume["source"]).resolve()
+                for volume in local["services"][name]["volumes"]
+                if volume["type"] == "bind"
+            }
+            assert mounts["/app/app"] == ROOT / "backend/app"
+            assert mounts["/app/raghub_core"] == ROOT / "raghub-core/src/raghub_core"
+            assert all(path.is_dir() for path in mounts.values())
         for service in local["services"].values():
             assert all(port["host_ip"] == "127.0.0.1" for port in service.get("ports", []))
         print(f"Local Compose ({target}): valid")
@@ -106,6 +118,17 @@ def main():
             key: value for key, value in DEPLOY_ENV.items() if key != required
         }, expect_success=False)
     print("Self-host CPU/GPU packaging and required secrets: valid")
+
+    source_build = resolve(
+        [selfhost_path, "infrastructure/docker-compose.self-host.build.yml"],
+        selfhost_env, DEPLOY_ENV,
+    )
+    check_shared(source_build)
+    api_build = source_build["services"]["api"]["build"]
+    assert Path(api_build["context"]).resolve() == ROOT
+    assert api_build["dockerfile"] == "backend/Dockerfile"
+    assert api_build["target"] == "local-ai"
+    print("Self-host source build with standalone core: valid")
 
     for required in DEPLOY_ENV.keys() - {"RAGHUB_IMAGE_PREFIX"}:
         resolve("infrastructure/docker-compose.ghcr.yml", ".env.ghcr.example", {

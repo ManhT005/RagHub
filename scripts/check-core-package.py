@@ -1,4 +1,4 @@
-"""Validate the installed backend wheel's engine with minimal dependencies only."""
+"""Validate standalone engine isolation and the self-host wheel dependency boundary."""
 
 import argparse
 import os
@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import venv
 import zipfile
+from email.parser import Parser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,25 +80,25 @@ def run(command, directory, *, environment=None, label):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wheel", type=Path, required=True)
+    parser.add_argument("--backend-wheel", type=Path, required=True)
     args = parser.parse_args()
     wheel = args.wheel.resolve(strict=True)
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
         required = {
-            "app/main.py",
             "raghub_core/__init__.py",
             "raghub_core/api.py",
             "raghub_core/application/rag/stream_chat.py",
             "raghub_core/ports/object_storage.py",
         }
         if not required.issubset(names):
-            raise ValueError("Wheel is missing host or canonical engine modules")
+            raise ValueError("Core wheel is missing canonical engine modules")
         if any(
-            name.startswith(("app/core_domain/", "app/application/", "app/ports/"))
+            name.startswith("app/")
             for name in names
         ):
             raise ValueError(
-                "Wheel must not contain the retired compatibility namespaces"
+                "Core wheel must not contain the self-host package"
             )
         assets = [
             name
@@ -107,10 +108,33 @@ def main():
         ]
         if len(assets) != 1:
             raise ValueError("Wheel must include its bundled tokenizer asset")
+        metadata_path = next(name for name in names if name.endswith(".dist-info/METADATA"))
+        core_metadata = Parser().parsestr(archive.read(metadata_path).decode("utf-8"))
+        runtime_requirements = [
+            requirement for requirement in core_metadata.get_all("Requires-Dist", [])
+            if "extra ==" not in requirement
+        ]
+        if core_metadata["Name"] != "raghub-core" or runtime_requirements != ["tiktoken==0.9.0"]:
+            raise ValueError("Core runtime dependencies must remain minimal")
     print(
-        "PASS: backend wheel contains both app and raghub_core plus tokenizer asset",
+        "PASS: standalone core wheel contains engine and tokenizer asset without app",
         flush=True,
     )
+    backend_wheel = args.backend_wheel.resolve(strict=True)
+    with zipfile.ZipFile(backend_wheel) as archive:
+        names = set(archive.namelist())
+        if "app/main.py" not in names or any(
+            name.startswith(("raghub_core/", "app/core_domain/", "app/application/", "app/ports/"))
+            for name in names
+        ):
+            raise ValueError("Self-host wheel must contain app without bundled engine or aliases")
+        metadata_path = next(name for name in names if name.endswith(".dist-info/METADATA"))
+        metadata = Parser().parsestr(archive.read(metadata_path).decode("utf-8"))
+        requirements = metadata.get_all("Requires-Dist", [])
+        if not any(requirement.replace(" ", "") == f"raghub-core=={core_metadata['Version']}"
+                   for requirement in requirements):
+            raise ValueError("Self-host wheel must declare its versioned core dependency")
+    print("PASS: self-host wheel depends on standalone core; core only needs tiktoken", flush=True)
     with tempfile.TemporaryDirectory(prefix="raghub-core-wheel-") as temporary:
         directory = Path(temporary)
         environment = directory / "venv"
@@ -125,7 +149,7 @@ def main():
                 "pip",
                 "install",
                 "-r",
-                str(ROOT / "backend/requirements-core-test.lock"),
+                str(ROOT / "raghub-core/requirements-test.lock"),
             ],
             directory,
             label="Install minimal core dependencies into a fresh venv",
@@ -133,10 +157,19 @@ def main():
         run(
             [str(python), "-m", "pip", "install", "--no-deps", str(wheel)],
             directory,
-            label="Install backend wheel without host dependencies",
+            label="Install standalone core wheel",
         )
+        output = run(
+            [
+                str(python), "-I", "-m", "pytest", "-p", "no:cacheprovider",
+                str(ROOT / "raghub-core/tests"),
+            ],
+            directory,
+            label="Run all core contracts against the installed wheel with minimal dependencies",
+        )
+        print(output, end="", flush=True)
         shutil.copytree(
-            ROOT / "backend/tests/core",
+            ROOT / "raghub-core/tests",
             directory / "tests/core",
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
@@ -158,7 +191,7 @@ def main():
         )
         print(output, end="", flush=True)
     print(
-        "PASS: installed-wheel isolation and complete fake-port lifecycle", flush=True
+        "PASS: minimal core suite, installed-wheel isolation and fake-port lifecycle", flush=True
     )
 
 

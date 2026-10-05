@@ -53,7 +53,9 @@ chunk strategy per document version/index. Pending builds do not overwrite activ
 metadata. Detail/list summaries read metadata for the active index; legacy rows
 without persisted metadata display unknown values until reindexed. Counts come
 from database aggregation rather than a frontend request for every workspace row.
-`backend/raghub_core` and its public facade have no changes in this delivery.
+The engine's behavior and public facade are unchanged. Its source now lives in
+`raghub-core/src/raghub_core`, alongside the self-host backend, with standalone
+packaging; see [the package refactor](../../architecture/RAGHUB_CORE_SIBLING_VERIFICATION.md).
 
 ## Database rollout and rollback
 

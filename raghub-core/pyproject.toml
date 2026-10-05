@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raghub-core"
+version = "0.1.0"
+description = "Reusable knowledge and RAG engine with domain workflows and dependency ports"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["tiktoken==0.9.0"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5", "pytest-asyncio==0.26.0", "ruff==0.12.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["raghub_core*"]
+
+[tool.setuptools.package-data]
+"raghub_core.domain.ingestion" = ["token_cache/*.gz"]
+
+[tool.pytest.ini_options]
+addopts = "-q --import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]

@@ -20,6 +20,7 @@ __pycache__/
 .coverage
 htmlcov/
 backend/build/
+raghub-core/build/
 *.egg-info/
 
 # Node.js and frontend builds

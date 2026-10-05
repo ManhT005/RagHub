@@ -2,6 +2,11 @@
 
 ## Cấu trúc
 
+Backend build dùng context tại root repository (`.`) và `backend/Dockerfile`
+để cài package `raghub-core` nằm ngang hàng với `backend`. Cả target `runtime`
+và `local-ai` dùng cấu trúc này; tên image và tag trên GHCR giữ nguyên.
+Local Compose mount cả `backend/app` và `raghub-core/src/raghub_core` cho reload.
+
 | File | Vai trò |
 | --- | --- |
 | `infrastructure/docker-compose.base.yml` | Environment, dependencies, healthcheck, volume và logging dùng chung; không chạy trực tiếp |

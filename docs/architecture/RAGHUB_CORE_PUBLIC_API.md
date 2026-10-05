@@ -12,13 +12,12 @@ Direct imports of `raghub_core.application` and its submodules in composition ar
 forbidden by the architecture gate. Concrete adapters
 implement protocols in `raghub_core.ports`. Domain modules remain available for
 typed values used by these protocols; internal algorithm helpers are not facade
-exports. The initial backend wheel contains both packages and retains its existing
-`raghub-backend` distribution name/version.
-A standalone, independently versioned `raghub-core` distribution is intentionally
-**Deferred**; see [ADR-001](adr/ADR-001-core-package-boundary.md).
+exports. The standalone `raghub-core` wheel contains the engine and tokenizer
+asset. The `raghub-backend` wheel contains the self-host `app` package and depends
+on `raghub-core==0.1.0`; see [ADR-001](adr/ADR-001-core-package-boundary.md).
 
 The supported facade is exactly the following 27 exports. Adding or removing a
-symbol requires an intentional contract update in `tests/core/test_public_api.py`.
+symbol requires an intentional contract update in `raghub-core/tests/test_public_api.py`.
 The facade re-exports original symbols without wrappers or constructor changes.
 
 | Group | Facade exports |
