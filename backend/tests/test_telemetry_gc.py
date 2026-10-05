@@ -110,7 +110,7 @@ async def test_use_cases_emit_stages_without_content():
     use_case = RetrieveContextUseCase(providers, Readiness(), lambda _: search, telemetry=telemetry)
     await use_case.retrieve(RetrievalScope(uuid4(), uuid4()), "secret question?", 5)
     stages = {stage for stage, _, _ in telemetry.timings}
-    assert {"query_embedding", "search"} <= stages
+    assert {"query_embedding", "search", "readiness_filter"} <= stages
     blob = str(telemetry.timings) + str(telemetry.counters)
     assert "sensitive chunk text" not in blob and "secret question" not in blob
     assert ("empty_context", {"stage": "context"}, 1) in telemetry.counters

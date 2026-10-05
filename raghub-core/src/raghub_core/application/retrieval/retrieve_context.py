@@ -82,17 +82,23 @@ class RetrieveContextUseCase:
                     if telemetry is not None:
                         telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
             if relevance is not None:
+                mark = time.perf_counter()
                 decision = relevance([hit.score for hit in ranked])
                 if telemetry is not None:
+                    telemetry.timing("relevance_gate", (time.perf_counter() - mark) * 1000, {"stage": "relevance"})
                     telemetry.counter(
                         "relevance_rejected" if not decision.accepted else "relevance_accepted",
                         {"stage": "relevance"},
                     )
                 if not decision.accepted:
                     return []  # REJECT feeds the existing empty-context fallback
+            mark = time.perf_counter()
             ready = await self.readiness.filter_ready(scope, ranked)
-            if telemetry is not None and not ready:
-                telemetry.counter("empty_context", {"stage": "context"})
+            if telemetry is not None:
+                telemetry.timing("readiness_filter", (time.perf_counter() - mark) * 1000, {"stage": "readiness"})
+                telemetry.counter("retrieval_ready_hits", {"stage": "readiness"}, len(ready))
+                if not ready:
+                    telemetry.counter("empty_context", {"stage": "context"})
             return ready[:limit]
         except CoreError:
             raise

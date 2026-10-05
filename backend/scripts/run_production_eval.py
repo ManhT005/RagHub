@@ -48,6 +48,141 @@ EMBED_MODEL = "gemini-embedding-2"
 EMBED_DIM = 3072
 CHAT_MODEL = "gemini-3.5-flash-lite"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+TRANSIENT_HTTP_CODES = {408, 409, 425, 429, 500, 502, 503, 504}
+PROVIDER_ERROR_CODES = {
+    "PROVIDER_RATE_LIMITED",
+    "PROVIDER_TIMEOUT",
+    "PROVIDER_UNAVAILABLE",
+    "CHAT_PROVIDER_TIMEOUT",
+    "CHAT_RUNTIME_FAILED",
+}
+DEFAULT_GATE_THRESHOLDS = {
+    "rejection_f1": 0.90,
+    "citation_precision": 1.00,
+    "answerable_direct_pass_rate": 0.90,
+    "followup_resolution_rate": 0.85,
+    "unnecessary_clarification_rate": 0.15,
+    "citation_coverage_mean": 0.85,
+    "facts_recall": 0.85,
+    "provider_errors": 0,
+}
+
+
+def percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(len(ordered) * pct) - 1))
+    return float(ordered[index])
+
+
+def error_code(payload) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    value = payload.get("code") or payload.get("error_code")
+    if value:
+        return str(value)
+    error = payload.get("error")
+    if isinstance(error, dict):
+        return error_code(error)
+    if isinstance(error, str):
+        return error
+    return ""
+
+
+def is_provider_error(payload) -> bool:
+    code = error_code(payload).upper()
+    return code in PROVIDER_ERROR_CODES or code.startswith("PROVIDER_") or "RATE_LIMIT" in code
+
+
+def quality_cases(cases: list[dict]) -> list[dict]:
+    return [c for c in cases if not c.get("provider_error")]
+
+
+def summarize_cases(cases: list[dict]) -> dict:
+    answerable_cases = [c for c in cases if c["answerable"]]
+    chat_quality = quality_cases(cases)
+    chat_answerable = [c for c in chat_quality if c["answerable"]]
+    rej = rejection_scores(
+        predicted_unanswerable=[not c["predicted_answerable"] for c in cases],
+        actual_unanswerable=[not c["answerable"] for c in cases],
+    )
+    citation_used = sum(len(c.get("cited_ids", [])) for c in chat_quality)
+    citation_invalid = sum(len(c.get("invalid_ids", [])) for c in chat_quality)
+    citation_precision = (
+        1.0 if citation_used == 0 else (citation_used - citation_invalid) / citation_used
+    )
+    return {
+        "hit@5": sum(c["hit@5"] for c in cases) / max(1, len(cases)),
+        "answerable_hit@5": sum(c["hit@5"] for c in answerable_cases)
+        / max(1, len(answerable_cases)),
+        "answerable_direct_pass_rate": sum(
+            1 for c in answerable_cases if c["predicted_answerable"]
+        ) / max(1, len(answerable_cases)),
+        "mrr@5": sum(c["mrr@5"] for c in cases) / max(1, len(cases)),
+        "ndcg@5": sum(c["ndcg@5"] for c in cases) / max(1, len(cases)),
+        "rejection_f1": rej["f1"],
+        "rejection_precision": rej["precision"],
+        "rejection_recall": rej["recall"],
+        "citation_precision": citation_precision,
+        "citation_invalid_total": citation_invalid,
+        "citation_coverage_mean": sum(c["coverage"] for c in chat_quality)
+        / max(1, len(chat_quality)),
+        "facts_recall": round(
+            sum(c["facts_recalled"] for c in chat_answerable)
+            / max(1, len(chat_answerable)),
+            3
+        ),
+        "forbidden_hits": sum(len(c["forbidden_hit"]) for c in chat_quality),
+        "chat_errors": sum(1 for c in cases if c["chat_error"]),
+        "provider_errors": sum(1 for c in cases if c.get("provider_error")),
+        "quality_chat_cases": len(chat_quality),
+        "retrieval_p50_ms": percentile([c["retrieval_ms"] for c in cases], 0.50),
+        "retrieval_p95_ms": percentile([c["retrieval_ms"] for c in cases], 0.95),
+        "chat_p50_ms": percentile([c["chat_ms"] for c in cases], 0.50),
+        "chat_p95_ms": percentile([c["chat_ms"] for c in cases], 0.95),
+    }
+
+
+def evaluate_release_gate(summary: dict, thresholds: dict) -> tuple[bool, dict[str, dict]]:
+    checks = {
+        "rejection_f1": {
+            "actual": summary.get("rejection_f1", 0.0),
+            "op": ">=",
+            "threshold": thresholds["rejection_f1"],
+        },
+        "citation_precision": {
+            "actual": summary.get("citation_precision", 0.0),
+            "op": ">=",
+            "threshold": thresholds["citation_precision"],
+        },
+        "answerable_direct_pass_rate": {
+            "actual": summary.get("answerable_direct_pass_rate", 0.0),
+            "op": ">=",
+            "threshold": thresholds["answerable_direct_pass_rate"],
+        },
+        "citation_coverage_mean": {
+            "actual": summary.get("citation_coverage_mean", 0.0),
+            "op": ">=",
+            "threshold": thresholds["citation_coverage_mean"],
+        },
+        "facts_recall": {
+            "actual": summary.get("facts_recall", 0.0),
+            "op": ">=",
+            "threshold": thresholds["facts_recall"],
+        },
+        "provider_errors": {
+            "actual": summary.get("provider_errors", 0),
+            "op": "<=",
+            "threshold": thresholds["provider_errors"],
+        },
+    }
+    for item in checks.values():
+        if item["op"] == ">=":
+            item["passed"] = item["actual"] >= item["threshold"]
+        else:
+            item["passed"] = item["actual"] <= item["threshold"]
+    return all(item["passed"] for item in checks.values()), checks
 
 
 def norm(text: str) -> str:
@@ -133,7 +268,7 @@ def upload_file(token: str, org: str, ws: str, path: Path):
         raise SystemExit(f"upload {path.name} failed: {e.code} {e.read().decode()[:500]}") from e
 
 
-def sse_chat(token: str, org: str, chatbot: str, message: str):
+def _sse_chat_once(token: str, org: str, chatbot: str, message: str):
     req = urllib.request.Request(
         f"{API}/chatbots/{chatbot}/chat",
         data=json.dumps({"message": message}).encode(),
@@ -146,16 +281,45 @@ def sse_chat(token: str, org: str, chatbot: str, message: str):
     )
     events = []
     t0 = time.perf_counter()
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        event = None
-        for raw in resp:
-            line = raw.decode("utf-8", "replace").strip()
-            if line.startswith("event:"):
-                event = line[len("event:"):].strip()
-            elif line.startswith("data:") and event:
-                events.append((event, json.loads(line[len("data:"):].strip())))
-                event = None
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            event = None
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if line.startswith("event:"):
+                    event = line[len("event:"):].strip()
+                elif line.startswith("data:") and event:
+                    events.append((event, json.loads(line[len("data:"):].strip())))
+                    event = None
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        payload = {"code": f"HTTP_{exc.code}", "message": body[:500], "http_status": exc.code}
+        events.append(("error", payload))
     return events, (time.perf_counter() - t0) * 1000
+
+
+def sse_chat(
+    token: str,
+    org: str,
+    chatbot: str,
+    message: str,
+    *,
+    retries: int = 2,
+    backoff_s: float = 2.0,
+):
+    attempts = max(1, retries + 1)
+    last_events, total_ms = [], 0.0
+    for attempt in range(attempts):
+        events, elapsed = _sse_chat_once(token, org, chatbot, message)
+        total_ms += elapsed
+        last_events = events
+        err = next((payload for kind, payload in events if kind == "error"), None)
+        status = err.get("http_status") if isinstance(err, dict) else None
+        retryable = is_provider_error(err) or status in TRANSIENT_HTTP_CODES
+        if not err or not retryable or attempt == attempts - 1:
+            return events, total_ms, attempt + 1
+        time.sleep(backoff_s * (2 ** attempt))
+    return last_events, total_ms, attempts
 
 
 def mint_token(email: str) -> str:
@@ -309,6 +473,35 @@ def main() -> None:
     ap.add_argument("--token", default=None)
     ap.add_argument("--mint-email", default=None)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument(
+        "--gate", action="store_true", help="Exit non-zero when release thresholds fail."
+    )
+    ap.add_argument("--chat-retries", type=int, default=2)
+    ap.add_argument("--retry-backoff-seconds", type=float, default=2.0)
+    ap.add_argument(
+        "--min-rejection-f1", type=float, default=DEFAULT_GATE_THRESHOLDS["rejection_f1"]
+    )
+    ap.add_argument(
+        "--min-citation-precision",
+        type=float,
+        default=DEFAULT_GATE_THRESHOLDS["citation_precision"],
+    )
+    ap.add_argument(
+        "--min-answerable-direct-pass-rate",
+        type=float,
+        default=DEFAULT_GATE_THRESHOLDS["answerable_direct_pass_rate"],
+    )
+    ap.add_argument(
+        "--min-citation-coverage",
+        type=float,
+        default=DEFAULT_GATE_THRESHOLDS["citation_coverage_mean"],
+    )
+    ap.add_argument(
+        "--min-facts-recall", type=float, default=DEFAULT_GATE_THRESHOLDS["facts_recall"]
+    )
+    ap.add_argument(
+        "--max-provider-errors", type=int, default=DEFAULT_GATE_THRESHOLDS["provider_errors"]
+    )
     args = ap.parse_args()
 
     token = args.token or (mint_token(args.mint_email) if args.mint_email else None)
@@ -372,7 +565,14 @@ def main() -> None:
         answerable = bool(case.get("answerable"))
         predicted_answerable = len(ranked) > 0
 
-        events, chat_ms = sse_chat(token, org, bot, q)
+        events, chat_ms, attempts = sse_chat(
+            token,
+            org,
+            bot,
+            q,
+            retries=args.chat_retries,
+            backoff_s=args.retry_backoff_seconds,
+        )
         answer, inventory, usage, err = "", set(), None, None
         for kind, payload in events:
             if kind == "citations":
@@ -384,6 +584,7 @@ def main() -> None:
                 usage = payload
             elif kind == "error":
                 err = payload
+        provider_error = is_provider_error(err)
         report = validate_citations(answer, inventory_ids=inventory)
         cited = list(report.used_ids)
         facts = [f for f in case.get("reference_facts", [])]
@@ -413,6 +614,8 @@ def main() -> None:
             "facts_total": len(facts),
             "forbidden_hit": forbidden_hit,
             "chat_error": err,
+            "provider_error": provider_error,
+            "chat_attempts": attempts,
             "usage": usage,
             "answer": answer,
             "tags": case.get("tags", []),
@@ -421,32 +624,16 @@ def main() -> None:
         print(f"{case.get('id')} hit={cases[-1]['hit@5']} mrr={cases[-1]['mrr@5']:.2f} "
               f"err={bool(err)}", flush=True)
 
-    answerable_cases = [c for c in cases if c["answerable"]]
-    rej = rejection_scores(
-        predicted_unanswerable=[not c["predicted_answerable"] for c in cases],
-        actual_unanswerable=[not c["answerable"] for c in cases],
-    )
-    summary = {
-        "hit@5": sum(c["hit@5"] for c in cases) / len(cases),
-        "answerable_hit@5": sum(c["hit@5"] for c in answerable_cases) / max(
-            1, len(answerable_cases)
-        ),
-        "mrr@5": sum(c["mrr@5"] for c in cases) / len(cases),
-        "ndcg@5": sum(c["ndcg@5"] for c in cases) / len(cases),
-        "rejection_f1": rej["f1"],
-        "rejection_precision": rej["precision"],
-        "rejection_recall": rej["recall"],
-        "citation_invalid_total": sum(len(c["invalid_ids"]) for c in cases),
-        "citation_coverage_mean": sum(c["coverage"] for c in cases) / len(cases),
-        "facts_recall": round(
-            sum(c["facts_recalled"] for c in cases) / max(1, len(cases)), 3
-        ),
-        "forbidden_hits": sum(len(c["forbidden_hit"]) for c in cases),
-        "chat_errors": sum(1 for c in cases if c["chat_error"]),
-        "retrieval_p50_ms": sorted(c["retrieval_ms"] for c in cases)[len(cases) // 2],
-        "retrieval_p95_ms": sorted(c["retrieval_ms"] for c in cases)[int(len(cases) * 0.95) - 1],
-        "chat_p50_ms": sorted(c["chat_ms"] for c in cases)[len(cases) // 2],
+    summary = summarize_cases(cases)
+    thresholds = {
+        "rejection_f1": args.min_rejection_f1,
+        "citation_precision": args.min_citation_precision,
+        "answerable_direct_pass_rate": args.min_answerable_direct_pass_rate,
+        "citation_coverage_mean": args.min_citation_coverage,
+        "facts_recall": args.min_facts_recall,
+        "provider_errors": args.max_provider_errors,
     }
+    gate_passed, gate_checks = evaluate_release_gate(summary, thresholds)
 
     def sha(s: str) -> str:
         return hashlib.sha256(s.encode()).hexdigest()[:16]
@@ -473,12 +660,17 @@ def main() -> None:
                              "relevance_gate": False, "reranker": False},
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
+        "release_gate": {"enabled": args.gate, "passed": gate_passed, "checks": gate_checks},
+        "provider_error_policy": "Provider/rate-limit errors are recorded separately and excluded from chat quality metrics.",
         "cases": cases,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print("SUMMARY: " + json.dumps(summary, ensure_ascii=False), flush=True)
+    if args.gate and not gate_passed:
+        print("RELEASE_GATE_FAILED: " + json.dumps(gate_checks, ensure_ascii=False), flush=True)
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

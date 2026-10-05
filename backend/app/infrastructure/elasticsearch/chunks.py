@@ -1,4 +1,5 @@
 import uuid
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,6 +14,7 @@ from raghub_core.domain.retrieval.hybrid import (
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
+from raghub_core.ports.telemetry import TelemetryPort
 
 BOOST_EXACT = 1.0
 BOOST_FOLDED = 0.8
@@ -244,9 +246,16 @@ class ChunkIndexer:
 
 
 class ChunkSearch:
-    def __init__(self, *, index_name: str, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        index_name: str,
+        settings: Settings | None = None,
+        telemetry: TelemetryPort | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
         self.index_name = index_name
+        self.telemetry = telemetry
         self.client = AsyncElasticsearch(self.settings.elasticsearch_url)
 
     async def close(self) -> None:
@@ -269,15 +278,29 @@ class ChunkSearch:
     ) -> list[dict[str, Any]]:
         import asyncio
 
+        started = time.perf_counter()
         lexical, vector = await asyncio.gather(
             self._search_bm25(organization_id, workspace_id, query),
             self._search_vector(organization_id, workspace_id, query_vector),
         )
-        return [chunk_to_hit(hit) for hit in fuse_rrf(
+        mark = time.perf_counter()
+        fused = fuse_rrf(
             [[chunk_from_hit(hit) for hit in ranking] for ranking in (lexical, vector)],
             limit=limit,
             max_per_document=self._doc_cap(),
-        )]
+        )
+        if self.telemetry is not None:
+            labels = {"stage": "retrieval"}
+            self.telemetry.timing(
+                "retrieval_rrf_diversity", (time.perf_counter() - mark) * 1000, labels
+            )
+            self.telemetry.timing(
+                "retrieval_es_total", (time.perf_counter() - started) * 1000, labels
+            )
+            self.telemetry.counter("retrieval_bm25_hits", labels, len(lexical))
+            self.telemetry.counter("retrieval_vector_hits", labels, len(vector))
+            self.telemetry.counter("retrieval_fused_hits", labels, len(fused))
+        return [chunk_to_hit(hit) for hit in fused]
 
     def _doc_cap(self) -> int | None:
         try:
@@ -304,18 +327,25 @@ class ChunkSearch:
     async def _search_bm25(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
     ) -> list[dict[str, Any]]:
+        mark = time.perf_counter()
         response = await self.client.search(
             index=self.index_name,
             query=bm25_query(query, organization_id, workspace_id),
             size=self._candidates(),
             source=self._source_fields(),
         )
-        return self._hits(response)
+        hits = self._hits(response)
+        if self.telemetry is not None:
+            self.telemetry.timing(
+                "retrieval_es_bm25", (time.perf_counter() - mark) * 1000, {"stage": "retrieval"}
+            )
+        return hits
 
     async def _search_vector(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query_vector: list[float]
     ) -> list[dict[str, Any]]:
         candidates = self._candidates()
+        mark = time.perf_counter()
         response = await self.client.search(
             index=self.index_name,
             query=knn_query(
@@ -328,7 +358,12 @@ class ChunkSearch:
             size=candidates,
             source=self._source_fields(),
         )
-        return self._hits(response)
+        hits = self._hits(response)
+        if self.telemetry is not None:
+            self.telemetry.timing(
+                "retrieval_es_vector", (time.perf_counter() - mark) * 1000, {"stage": "retrieval"}
+            )
+        return hits
 
     @staticmethod
     def _source_fields() -> list[str]:

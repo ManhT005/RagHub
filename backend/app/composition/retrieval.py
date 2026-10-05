@@ -77,12 +77,15 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
                 retrieval_config_hash=live_config,
             )
 
+    telemetry = LoggingTelemetry()
     return RetrieveContextUseCase(
         ProviderResolverAdapter(ProviderResolver(session)),
         DocumentReadinessAdapter(session),
-        lambda runtime: ElasticsearchVectorSearch(ChunkSearch(index_name=runtime.index_name)),
+        lambda runtime: ElasticsearchVectorSearch(
+            ChunkSearch(index_name=runtime.index_name, telemetry=telemetry)
+        ),
         rerank=rerank,
         relevance=relevance,
         rerank_top_n=settings.rag_rerank_top_n,
-        telemetry=LoggingTelemetry(),
+        telemetry=telemetry,
     )
