@@ -42,19 +42,33 @@ class ContextBundle:
 
 
 def fuse_rrf(
-    rankings: Iterable[list[RetrievedChunk]], *, limit: int, rrf_k: int = RRF_K
+    rankings: Iterable[list[RetrievedChunk]],
+    *,
+    limit: int,
+    rrf_k: int = RRF_K,
+    max_per_document: int | None = None,
 ) -> list[RetrievedChunk]:
     """Merge ranked result lists with Reciprocal Rank Fusion."""
     return [
         candidate.chunk
-        for candidate in fuse_rrf_with_details(rankings, limit=limit, rrf_k=rrf_k)
+        for candidate in fuse_rrf_with_details(
+            rankings, limit=limit, rrf_k=rrf_k, max_per_document=max_per_document
+        )
     ]
 
 
 def fuse_rrf_with_details(
-    rankings: Iterable[list[RetrievedChunk]], *, limit: int, rrf_k: int = RRF_K
+    rankings: Iterable[list[RetrievedChunk]],
+    *,
+    limit: int,
+    rrf_k: int = RRF_K,
+    max_per_document: int | None = None,
 ) -> list[RetrievalCandidate]:
-    """RRF merge keeping per-branch raw score/rank and presence flags."""
+    """RRF merge keeping per-branch raw score/rank and presence flags.
+
+    ``max_per_document`` caps chunks per document (diversity); ``None`` keeps
+    every chunk. Fused order is preserved; capped chunks drop out.
+    """
     lists = [list(ranking) for ranking in rankings]
     branch_rank: list[dict[UUID, int]] = []
     branch_score: list[dict[UUID, float]] = []
@@ -81,7 +95,7 @@ def fuse_rrf_with_details(
     ordered_ids = sorted(
         merged,
         key=lambda chunk_id: (-fused[chunk_id], first_seen[chunk_id]),
-    )[:limit]
+    )
 
     def first_hit(maps: list[dict[UUID, float]], chunk_id: UUID) -> float | None:
         for mapping in maps:
@@ -96,6 +110,28 @@ def fuse_rrf_with_details(
         return None
 
     # Branch 0 is BM25, remaining branches are vector by convention.
+    ordered = list(enumerate(ordered_ids))
+    if max_per_document is not None and max_per_document >= 1:
+        kept: list[tuple[int, UUID]] = []
+        per_document: dict[UUID, int] = {}
+        for rank, chunk_id in ordered:
+            seen = per_document.get(merged[chunk_id].document_id, 0)
+            if seen >= max_per_document:
+                continue
+            per_document[merged[chunk_id].document_id] = seen + 1
+            kept.append((rank, chunk_id))
+        ordered = kept
+    ordered = ordered[:limit]
+    if max_per_document is not None and max_per_document >= 1:
+        kept: list[tuple[int, UUID]] = []
+        per_document: dict[UUID, int] = {}
+        for rank, chunk_id in ordered:
+            seen = per_document.get(merged[chunk_id].document_id, 0)
+            if seen >= max_per_document:
+                continue
+            per_document[merged[chunk_id].document_id] = seen + 1
+            kept.append((rank, chunk_id))
+        ordered = kept
     candidates = [
         RetrievalCandidate(
             chunk=replace(merged[chunk_id], score=fused[chunk_id]),
@@ -106,7 +142,7 @@ def fuse_rrf_with_details(
             fused_score=fused[chunk_id],
             fused_rank=rank + 1,
         )
-        for rank, chunk_id in enumerate(ordered_ids)
+        for rank, chunk_id in ordered
     ]
     return candidates
 

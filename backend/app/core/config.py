@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
+    rag_max_chunks_per_document: int = Field(default=1, ge=1, le=25)
     rag_relevance_gate_enabled: bool = False
     rag_relevance_config_version: str = "baseline-v1"
     rag_relevance_artifact_path: str = ""

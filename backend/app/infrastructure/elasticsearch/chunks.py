@@ -276,7 +276,14 @@ class ChunkSearch:
         return [chunk_to_hit(hit) for hit in fuse_rrf(
             [[chunk_from_hit(hit) for hit in ranking] for ranking in (lexical, vector)],
             limit=limit,
+            max_per_document=self._doc_cap(),
         )]
+
+    def _doc_cap(self) -> int | None:
+        try:
+            return int(self.settings.rag_max_chunks_per_document)
+        except (ValueError, TypeError, AttributeError):
+            return None
 
     async def search_branches(
         self,

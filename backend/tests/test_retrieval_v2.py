@@ -1,6 +1,6 @@
 """Retrieval explainability and Elasticsearch v2 mapping (offline)."""
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import NAMESPACE_DNS, uuid4, uuid5
 
 import pytest
 from raghub_core.domain.retrieval.hybrid import (
@@ -79,6 +79,41 @@ def test_fuse_details_carry_branch_scores_and_presence():
 
 def test_mapping_v2_has_folded_and_retrievable():
     assert MAPPING_VERSION == "vi_hybrid_v2"
+
+
+def _doc_hit(doc: str, name: str, score: float = 1.0) -> RetrievedChunk:
+    uid = uuid4()
+    return RetrievedChunk(
+        uuid5(NAMESPACE_DNS, f"raghub-doc-{doc}"),
+        uuid4(),
+        uid,
+        f"content {name}",
+        f"{doc}.md",
+        None,
+        None,
+        score,
+    )
+
+
+def test_max_per_document_caps_chunks_preserving_fused_order():
+    same_a1 = _doc_hit("doc-a", "a1", 3.0)
+    same_a2 = _doc_hit("doc-a", "a2", 2.0)
+    other_b = _doc_hit("doc-b", "b", 1.0)
+    ranked = fuse_rrf([[same_a1, same_a2, other_b], [same_a1, same_a2, other_b]], limit=5)
+    assert [h.content for h in ranked] == ["content a1", "content a2", "content b"]
+    capped = fuse_rrf(
+        [[same_a1, same_a2, other_b], [same_a1, same_a2, other_b]],
+        limit=5,
+        max_per_document=1,
+    )
+    assert [h.content for h in capped] == ["content a1", "content b"]
+    details = fuse_rrf_with_details(
+        [[same_a1, same_a2, other_b], [same_a1, same_a2, other_b]],
+        limit=5,
+        max_per_document=2,
+    )
+    assert [c.chunk.content for c in details] == ["content a1", "content a2", "content b"]
+    assert details[0].fused_rank == 1 and details[1].fused_rank == 2
     mapping = chunk_index_mapping(768)
     props = mapping["mappings"]["properties"]
     assert props["content"]["fields"]["folded"] == {"type": "text", "analyzer": "vi_folded"}
