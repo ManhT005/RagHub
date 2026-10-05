@@ -16,12 +16,10 @@ ACQUIRE_SCRIPT = """
 local clock = redis.call('TIME')
 local now_ms = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
 local rpm_key, tpm_key, rpd_key = KEYS[1], KEYS[2], KEYS[3]
-local rpm, tpm, rpd, tokens = (
-    tonumber(ARGV[1]),
-    tonumber(ARGV[2]),
-    tonumber(ARGV[3]),
-    tonumber(ARGV[4])
-)
+local rpm = tonumber(ARGV[1])
+local tpm = tonumber(ARGV[2])
+local rpd = tonumber(ARGV[3])
+local tokens = tonumber(ARGV[4])
 local member = ARGV[5]
 redis.call('ZREMRANGEBYSCORE', rpm_key, '-inf', now_ms - 60000)
 redis.call('ZREMRANGEBYSCORE', tpm_key, '-inf', now_ms - 60000)
