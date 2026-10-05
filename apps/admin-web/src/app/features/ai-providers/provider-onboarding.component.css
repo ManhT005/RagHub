@@ -105,11 +105,26 @@ select {
 }
 
 .footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--rh-surface);
+  padding: 12px 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
 }
+
+.model-toolbar { position: sticky; top: 0; background: var(--rh-surface); z-index: 1; padding: 12px 0; }
+.selection-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.selection-toolbar label { margin: 8px 0; }
+.model-list { max-height: 48vh; overflow-y: auto; border: 1px solid var(--rh-border); border-radius: 8px; }
+.model-list .model-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--rh-border); border-radius: 0; }
+.model-row .choice { min-width: 0; flex: 1; }
+.model-row strong, .model-row small { overflow-wrap: anywhere; }
+.model-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.model-controls input { width: 150px; }
 
 .model-list article,
 fieldset {
@@ -137,6 +152,7 @@ fieldset {
 }
 
 @media (max-width: 600px) {
+  .model-list .model-row { flex-direction: column; align-items: stretch; gap: 4px; }
   .catalog {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

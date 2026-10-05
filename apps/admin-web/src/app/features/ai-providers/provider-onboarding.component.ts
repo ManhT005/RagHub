@@ -16,7 +16,7 @@ import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzTagModule } from "ng-zorro-antd/tag";
-import { from, concatMap, finalize, of, switchMap } from "rxjs";
+import { from, concatMap, finalize, of, switchMap, forkJoin } from "rxjs";
 import {
   ProviderApiService,
   ProviderCatalogItem,
@@ -30,7 +30,8 @@ import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.
 
 interface Choice extends DiscoveredModel {
   selected: boolean;
-  capability: ProviderCapability;
+  registered: boolean;
+  capability: ProviderCapability | "UNKNOWN";
 }
 @Component({
   selector: "raghub-provider-onboarding",
@@ -60,13 +61,15 @@ export class ProviderOnboardingComponent {
   protected readonly notice = signal("");
   protected readonly step = signal(0);
   protected readonly choices = signal<Choice[]>([]);
+  protected modelSearch = "";
+  protected modelFilter = "";
   protected search = "";
   protected category = "";
   protected name = "";
   protected baseUrl = "";
   protected secret = "";
   protected manualId = "";
-  protected manualCapability: ProviderCapability = "CHAT";
+  protected manualCapability: ProviderCapability | "UNKNOWN" = "UNKNOWN";
   protected manualDimension: number | null = null;
   private connectionId = "";
   private readonly api = inject(ProviderApiService);
@@ -81,6 +84,8 @@ export class ProviderOnboardingComponent {
       this.secret = "";
       this.search = "";
       this.manualId = "";
+      this.modelSearch = "";
+      this.modelFilter = "";
       this.error.set("");
       this.notice.set("");
       this.choices.set([]);
@@ -92,7 +97,7 @@ export class ProviderOnboardingComponent {
         ) ?? null)
         : null;
       this.selected.set(selected);
-      this.manualCapability = selected?.capabilities[0] ?? "CHAT";
+      this.manualCapability = selected?.capabilities.length === 1 ? selected.capabilities[0] : "UNKNOWN";
     });
   }
   protected filteredCatalog() {
@@ -108,7 +113,7 @@ export class ProviderOnboardingComponent {
     this.name = item.name;
     this.baseUrl = item.default_base_url ?? "";
     this.secret = "";
-    this.manualCapability = item.capabilities[0];
+    this.manualCapability = item.capabilities.length === 1 ? item.capabilities[0] : "UNKNOWN";
     this.step.set(1);
   }
   protected test() {
@@ -157,9 +162,11 @@ export class ProviderOnboardingComponent {
               : "Nhập Model ID thủ công để kiểm tra và đăng ký model.",
           );
           this.step.set(2);
-          return item.supports_model_discovery && !result.error_code
-            ? this.api.discover(this.connectionId)
-            : of([]);
+          return forkJoin({
+            discovered: item.supports_model_discovery && !result.error_code
+              ? this.api.discover(this.connectionId) : of([]),
+            registered: this.api.models(this.organizationId()),
+          });
         }),
         finalize(() => {
           this.busy.set(false);
@@ -168,13 +175,14 @@ export class ProviderOnboardingComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: (models) => {
-          if (!models) return;
+        next: (result) => {
+          if (!result) return;
           this.choices.set(
-            models.map((model) => ({
+            result.discovered.map((model) => ({
               ...model,
               selected: false,
-              capability: model.capabilities[0] ?? item.capabilities[0],
+              registered: result.registered.some(m => m.connection_id === this.connectionId && m.model === model.model),
+              capability: model.capabilities.length === 1 ? model.capabilities[0] : "UNKNOWN",
             })),
           );
         },
@@ -183,24 +191,30 @@ export class ProviderOnboardingComponent {
   }
   protected addManual() {
     const model = this.manualId.trim();
-    if (!model || this.choices().some((item) => item.model === model)) return;
+    if (!model || this.manualCapability === "UNKNOWN" || this.choices().some((item) => item.model === model)) return;
+    const capability = this.manualCapability;
     this.choices.update((items) => [
       ...items,
       {
         model,
         display_name: model,
-        capabilities: [this.manualCapability],
-        capability: this.manualCapability,
+        capabilities: [capability],
+        capability,
         dimension: this.manualDimension,
         selected: true,
+        registered: false,
       },
     ]);
     this.manualId = "";
     this.manualDimension = null;
   }
   protected save() {
-    const selected = this.choices().filter((item) => item.selected);
+    const selected = this.choices().filter((item) => item.selected && !item.registered);
     if (!selected.length || this.busy() || !this.connectionId) return;
+    if (selected.some(item => item.capability === "UNKNOWN")) {
+      this.error.set("Chọn chức năng cho mọi model UNKNOWN trước khi đăng ký.");
+      return;
+    }
     this.busy.set(true);
     this.error.set("");
     from(selected)
@@ -209,7 +223,7 @@ export class ProviderOnboardingComponent {
           this.api.register(this.connectionId, {
             model: item.model,
             display_name: item.display_name ?? item.model,
-            capability: item.capability,
+            capability: item.capability as ProviderCapability,
             ...(item.capability === "EMBEDDING"
               ? { dimension: item.dimension || null }
               : {}),
@@ -224,7 +238,8 @@ export class ProviderOnboardingComponent {
       .subscribe({
         next: (registered) => {
           this.choices.update((items) =>
-            items.filter((item) => item.model !== registered.model),
+            items.map((item) => item.model === registered.model
+              ? { ...item, registered: true, selected: false } : item),
           );
           this.notice.set(`Đã đăng ký ${registered.model}.`);
         },
@@ -242,6 +257,26 @@ export class ProviderOnboardingComponent {
     this.closed.emit();
   }
   protected hasSelection() {
-    return this.choices().some((item) => item.selected);
+    return this.choices().some((item) => item.selected && !item.registered)
+      && !this.choices().some(item => item.selected && item.capability === "UNKNOWN");
+  }
+  protected filteredChoices() {
+    const search = this.modelSearch.trim().toLowerCase();
+    return this.choices().filter(item =>
+      `${item.model} ${item.display_name ?? ''}`.toLowerCase().includes(search)
+      && (!this.modelFilter || item.capability === this.modelFilter));
+  }
+  protected selectedCount() { return this.choices().filter(item => item.selected && !item.registered).length; }
+  protected allFilteredSelected() {
+    const items = this.filteredChoices().filter(item => !item.registered);
+    return items.length > 0 && items.every(item => item.selected);
+  }
+  protected someFilteredSelected() {
+    return this.filteredChoices().some(item => item.selected && !item.registered) && !this.allFilteredSelected();
+  }
+  protected selectFiltered(value: boolean) {
+    if (this.busy()) return;
+    const models = new Set(this.filteredChoices().filter(item => !item.registered).map(item => item.model));
+    this.choices.update(items => items.map(item => models.has(item.model) ? {...item, selected: value} : item));
   }
 }

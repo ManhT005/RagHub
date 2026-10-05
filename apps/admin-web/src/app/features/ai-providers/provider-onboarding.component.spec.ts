@@ -31,9 +31,11 @@ describe("Provider onboarding", () => {
     test: vi.fn(),
     discover: vi.fn(),
     register: vi.fn(),
+    models: vi.fn(),
   };
   beforeEach(async () => {
     vi.clearAllMocks();
+    api.models.mockReturnValue(of([]));
     api.create.mockReturnValue(of({ id: "connection-1" }));
     api.test.mockReturnValue(
       of({ status: "CONNECTED", latency_ms: 8, error_code: null }),
@@ -171,6 +173,47 @@ describe("Provider onboarding", () => {
     component["save"]();
     expect(closed).toHaveBeenCalledTimes(1);
     expect(component["busy"]()).toBe(false);
+    view.destroy();
+  });
+  it("keeps unknown capability explicit and prevents registration until selected", () => {
+    api.discover.mockReturnValue(of([{ model: 'unknown', display_name: 'Mystery', capabilities: [], dimension: null }]));
+    const view = fixture(), component = view.componentInstance;
+    component['choose']({ ...catalog[0], capabilities: ['CHAT', 'EMBEDDING'] });
+    component['test']();
+    component['selectFiltered'](true);
+    expect(component['choices']()[0].capability).toBe('UNKNOWN');
+    expect(component['hasSelection']()).toBe(false);
+    component['save']();
+    expect(api.register).not.toHaveBeenCalled();
+    component['choices']()[0].capability = 'EMBEDDING';
+    component['save']();
+    expect(api.register).toHaveBeenCalledWith('connection-1', expect.objectContaining({ capability: 'EMBEDDING' }));
+    view.destroy();
+  });
+  it("searches names, filters capability and selects only unregistered filtered rows", () => {
+    api.discover.mockReturnValue(of([
+      { model: 'one', display_name: 'First', capabilities: ['CHAT'], dimension: null },
+      { model: 'two', display_name: 'Second', capabilities: ['EMBEDDING'], dimension: 384 },
+      { model: 'three', display_name: 'Third', capabilities: [], dimension: null },
+    ]));
+    api.models.mockReturnValue(of([{ connection_id: 'connection-1', model: 'one' }]));
+    const view = fixture(), component = view.componentInstance;
+    component['choose'](catalog[0]);
+    component['test']();
+    component['modelFilter'] = 'EMBEDDING';
+    component['selectFiltered'](true);
+    expect(component['selectedCount']()).toBe(1);
+    expect(component['allFilteredSelected']()).toBe(true);
+    component['modelFilter'] = '';
+    expect(component['someFilteredSelected']()).toBe(true);
+    component['modelSearch'] = 'third';
+    expect(component['filteredChoices']().map(item => item.model)).toEqual(['three']);
+    component['modelSearch'] = '';
+    component['selectFiltered'](true);
+    expect(component['selectedCount']()).toBe(2);
+    expect(component['choices']()[0].selected).toBe(false);
+    component['selectFiltered'](false);
+    expect(component['selectedCount']()).toBe(0);
     view.destroy();
   });
 });
