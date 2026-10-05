@@ -80,12 +80,20 @@ export class ProviderOnboardingComponent {
   protected manualCapability: ProviderCapability | "UNKNOWN" = "UNKNOWN";
   protected manualDimension: number | null = null;
   private connectionId = "";
+  private openedConnectionId: string | null | undefined;
   private readonly api = inject(ProviderApiService);
   private readonly destroyRef = inject(DestroyRef);
   constructor() {
     effect(() => {
-      if (!this.visible()) { this.pullPolling?.unsubscribe(); return; }
+      if (!this.visible()) {
+        this.openedConnectionId = undefined;
+        this.pullPolling?.unsubscribe();
+        return;
+      }
       const existing = this.connection();
+      const openingId = existing?.id ?? null;
+      if (this.openedConnectionId === openingId) return;
+      this.openedConnectionId = openingId;
       this.connectionId = existing?.id ?? "";
       this.name = existing?.name ?? "";
       this.baseUrl = existing?.base_url ?? "";
@@ -333,6 +341,8 @@ export class ProviderOnboardingComponent {
           this.notice.set(`Đã cài đặt ${job.model}${job.registered_model_id ? ' và đăng ký' : ''}.`);
           this.modelTab = 'installed';
           this.changed.emit();
+        }
+        if (job.status === 'READY' || job.status === 'FAILED') {
           forkJoin({ discovered: this.api.discover(this.connectionId), registered: this.api.models(this.organizationId()) })
             .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({next: result => {
               this.choices.set(result.discovered.map(model => ({ ...model, selected: false, capability: 'CHAT', registered: result.registered.some(item => item.connection_id === this.connectionId && item.model === model.model) })));

@@ -179,6 +179,27 @@ describe("Provider onboarding", () => {
     expect(component["busy"]()).toBe(false);
     view.destroy();
   });
+
+  it("preserves the model step and selection when existing connection metadata refreshes", () => {
+    const view = fixture(), component = view.componentInstance;
+    const connection = { id: 'connection-1', name: 'Local Chat', catalog_id: 'ollama', provider_type: 'OLLAMA', base_url: 'http://ollama:11434' };
+    view.componentRef.setInput('connection', connection);
+    view.detectChanges();
+    api.update.mockReturnValue(of(connection));
+    component['test']();
+    component['selectFiltered'](true);
+    view.componentRef.setInput('connection', { ...connection, status: 'CONNECTED' });
+    view.detectChanges();
+    expect(component['step']()).toBe(2);
+    expect(component['selectedCount']()).toBe(1);
+    view.componentRef.setInput('visible', false);
+    view.detectChanges();
+    view.componentRef.setInput('visible', true);
+    view.detectChanges();
+    expect(component['step']()).toBe(1);
+    expect(component['choices']()).toEqual([]);
+    view.destroy();
+  });
   it("keeps unknown capability explicit and prevents registration until selected", () => {
     api.discover.mockReturnValue(of([{ model: 'unknown', display_name: 'Mystery', capabilities: [], dimension: null }]));
     const view = fixture(), component = view.componentInstance;

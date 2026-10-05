@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.modules.ai_providers.catalog import supported_catalog_by_id
 from app.modules.ai_providers.control_service import health_error
 from app.modules.ai_providers.models import ProviderConfig, ProviderConnection
 from app.modules.ai_providers.service import ProviderConfigService
@@ -43,6 +44,11 @@ class LocalAiBootstrapService:
                 get_settings().ollama_base_url,
             ),
         ):
+            catalog = supported_catalog_by_id(catalog_id)
+            options = {
+                "endpoint_scope": catalog.endpoint_scope,
+                "request_profile": catalog.request_profile,
+            }
             connection = await self.session.scalar(
                 select(ProviderConnection)
                 .where(
@@ -61,7 +67,7 @@ class LocalAiBootstrapService:
                     provider_type=provider_type,
                     base_url=base_url,
                     enabled=True,
-                    config_json={},
+                    config_json=options,
                     status="UNTESTED",
                 )
                 self.session.add(connection)
@@ -84,7 +90,7 @@ class LocalAiBootstrapService:
                     capability=capability,
                     dimension=dimension,
                     base_url=base_url,
-                    config_json={},
+                    config_json=options,
                     enabled=True,
                     availability_status="UNTESTED",
                 )

@@ -76,3 +76,49 @@ async def test_workspace_defaults_bind_both_models_and_explicit_null_skips_them(
             session,
         )
         assert empty.ai_status == "NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+async def test_bound_legacy_local_connection_can_be_retested_without_runtime_change(
+    isolated_sessions,
+):
+    from app.core.auth import OrganizationContext
+    from app.core.exceptions import AppError
+    from app.modules.ai_providers.control_schemas import ConnectionPatch
+    from app.modules.ai_providers.control_service import ProviderControlService
+    from app.modules.workspaces.router import WorkspaceCreateInput, create_workspace
+
+    async with isolated_sessions() as session:
+        organization = Organization(name="Legacy", slug="legacy-local")
+        session.add(organization)
+        await session.flush()
+        configs = await LocalAiBootstrapService(session).ensure(organization.id)
+        chat = configs[1]
+        chat.availability_status = "AVAILABLE"
+        chat.connection.status = "CONNECTED"
+        chat.connection.config_json = {}
+        chat.config_json = {}
+        await session.commit()
+        context = OrganizationContext(
+            organization.id, SimpleNamespace(role="ADMIN", status="ACTIVE")
+        )
+        await create_workspace(
+            WorkspaceCreateInput(name="Chat", slug="legacy-chat", embedding_model_id=None),
+            context,
+            session,
+        )
+        service = ProviderControlService(session)
+        await service.update(
+            organization.id,
+            chat.connection_id,
+            ConnectionPatch(name="Local Chat", catalog_id="ollama", base_url=chat.base_url),
+        )
+        assert chat.availability_status == "AVAILABLE"
+        assert chat.connection.status == "CONNECTED"
+        with pytest.raises(AppError) as error:
+            await service.update(
+                organization.id,
+                chat.connection_id,
+                ConnectionPatch(base_url="http://localhost:11434"),
+            )
+        assert error.value.code == "PROVIDER_IN_USE"

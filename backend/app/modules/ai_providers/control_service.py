@@ -143,9 +143,12 @@ class ProviderControlService:
             enabled=changes.get("enabled", connection.enabled),
             secret=payload.secret,
         )
+        current_catalog = supported_catalog_by_id(connection_catalog_id(connection))
+        current_options = dict(connection.config_json or {})
+        current_options.setdefault("endpoint_scope", current_catalog.endpoint_scope)
+        current_options.setdefault("request_profile", current_catalog.request_profile)
         runtime_changed = (
-            proposed.base_url != connection.base_url
-            or proposed.config_json != connection.config_json
+            proposed.base_url != connection.base_url or proposed.config_json != current_options
         )
         if runtime_changed or not proposed.enabled or payload.secret or payload.clear_secret:
             await self._require_no_active_pull(connection_id)
