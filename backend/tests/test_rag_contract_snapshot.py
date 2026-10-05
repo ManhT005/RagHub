@@ -5,6 +5,7 @@ from raghub_core.domain.providers.contracts import ChatUsage
 from raghub_core.domain.rag.events import (
     ChatCompleted,
     CitationsResolved,
+    ClarificationRequested,
     ConversationStarted,
     TokenDelta,
     UsageReported,
@@ -61,3 +62,21 @@ def test_openapi_has_core_paths():
     op_count = sum(len(v) for v in schema["paths"].values())
     assert len(paths) >= 30, f"paths shrank: {len(paths)}"
     assert op_count >= 45, f"operations shrank: {op_count}"
+
+def test_clarification_sse_payload_contract():
+    event = ClarificationRequested(
+        message="Ban muon hoi hoc phi chuong trinh chuan hay tieng Anh?",
+        missing_slots=("program_type",),
+        suggestions=("Chuong trinh chuan", "Chuong trinh tieng Anh"),
+        reason="missing_required_slot",
+    )
+
+    name, payload = event_payload(event)
+
+    assert name == "clarification"
+    assert payload == {
+        "message": "Ban muon hoi hoc phi chuong trinh chuan hay tieng Anh?",
+        "missing_slots": ["program_type"],
+        "suggestions": ["Chuong trinh chuan", "Chuong trinh tieng Anh"],
+        "reason": "missing_required_slot",
+    }
