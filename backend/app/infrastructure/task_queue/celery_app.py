@@ -8,7 +8,12 @@ celery_app = Celery(
     "raghub",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.workers.tasks", "app.workers.reindex_tasks", "app.workers.provider_tasks"],
+    include=[
+        "app.workers.tasks",
+        "app.workers.reindex_tasks",
+        "app.workers.provider_tasks",
+        "app.workers.embedding_tasks",
+    ],
 )
 celery_app.conf.update(
     task_serializer="json",

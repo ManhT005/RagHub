@@ -3,11 +3,18 @@ from collections.abc import Awaitable, Callable
 
 from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections
 from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.limits import MAX_CHUNKS, MAX_EXTRACTED_TOKENS
 from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
 from raghub_core.domain.ingestion.parser import (
+    DecompressionBombError,
+    DocumentLimitError,
     EmptyExtractedTextError,
     InvalidPdfError,
+    MacroBlockedError,
+    OcrRequiredError,
+    OcrTimeoutError,
     ParsedSection,
+    SignatureMismatchError,
     TextDecodeError,
     UnsupportedFileTypeError,
     UnsupportedOcrError,
@@ -70,6 +77,10 @@ class BuildDocumentIndexUseCase:
             TextDecodeError,
             EmptyExtractedTextError,
             UnsupportedFileTypeError,
+            SignatureMismatchError,
+            MacroBlockedError,
+            OcrRequiredError,
+            OcrTimeoutError,
         ) as exc:
             codes = {
                 InvalidPdfError: "INVALID_PDF",
@@ -77,8 +88,16 @@ class BuildDocumentIndexUseCase:
                 TextDecodeError: "TEXT_DECODE_FAILED",
                 EmptyExtractedTextError: "EMPTY_EXTRACTED_TEXT",
                 UnsupportedFileTypeError: "UNSUPPORTED_FILE_TYPE",
+                SignatureMismatchError: "INVALID_FILE_SIGNATURE",
+                MacroBlockedError: "MACRO_BLOCKED",
+                OcrRequiredError: "OCR_REQUIRED",
+                OcrTimeoutError: "OCR_TIMEOUT",
             }
             raise IngestionError(codes[type(exc)], str(exc), retryable=False) from exc
+        except DecompressionBombError as exc:
+            raise IngestionError("DECOMPRESSION_BOMB", str(exc), retryable=False) from exc
+        except DocumentLimitError as exc:
+            raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("PARSE_FAILED", str(exc), retryable=False) from exc
         if stage:
@@ -87,8 +106,14 @@ class BuildDocumentIndexUseCase:
             chunks = self.chunker(sections, document.version_id)
             if not chunks:
                 raise EmptyExtractedTextError("No chunks were extracted.")
+            if len(chunks) > MAX_CHUNKS:
+                raise DocumentLimitError(f"Document exceeds {MAX_CHUNKS} chunks.")
+            if sum(getattr(chunk, "token_count", 0) for chunk in chunks) > MAX_EXTRACTED_TOKENS:
+                raise DocumentLimitError(f"Document exceeds {MAX_EXTRACTED_TOKENS} tokens.")
         except EmptyExtractedTextError as exc:
             raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
+        except DocumentLimitError as exc:
+            raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
         if stage:

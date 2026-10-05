@@ -23,6 +23,30 @@ class UnsupportedFileTypeError(ValueError):
     pass
 
 
+class DocumentLimitError(ValueError):
+    pass
+
+
+class DecompressionBombError(DocumentLimitError):
+    pass
+
+
+class MacroBlockedError(ValueError):
+    pass
+
+
+class SignatureMismatchError(ValueError):
+    pass
+
+
+class OcrRequiredError(ValueError):
+    pass
+
+
+class OcrTimeoutError(ValueError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class ParsedSection:
     content: str
@@ -95,6 +119,9 @@ def parse_document(
     source_name: str,
     *,
     pdf_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    docx_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    html_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    xlsx_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
 ) -> list[ParsedSection]:
     extension = source_name.rsplit(".", 1)[-1].lower()
     if extension == "pdf":
@@ -105,4 +132,16 @@ def parse_document(
         return parse_txt(content, source_name)
     if extension == "md":
         return parse_markdown(content, source_name)
+    if extension == "docx":
+        if docx_parser is None:
+            raise ValueError("DOCX decoding requires a DOCX parser adapter.")
+        return docx_parser(content, source_name)
+    if extension in {"html", "htm"}:
+        if html_parser is None:
+            raise ValueError("HTML decoding requires an HTML parser adapter.")
+        return html_parser(content, source_name)
+    if extension == "xlsx":
+        if xlsx_parser is None:
+            raise ValueError("XLSX decoding requires an XLSX parser adapter.")
+        return xlsx_parser(content, source_name)
     raise UnsupportedFileTypeError("Unsupported document type.")

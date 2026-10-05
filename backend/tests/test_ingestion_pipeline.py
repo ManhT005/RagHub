@@ -5,8 +5,8 @@ import pytest
 
 from app.modules.ingestion.chunker import chunk_sections
 from app.modules.ingestion.parser import (
-    InvalidPdfError,
     ParsedSection,
+    SignatureMismatchError,
     TextDecodeError,
     UnsupportedOcrError,
     parse_document,
@@ -27,11 +27,18 @@ def _pdf_with_text(*page_texts: str) -> bytes:
 
 
 def test_pdf_pages_keep_citation_boundaries() -> None:
-    pages = parse_pdf(_pdf_with_text("First page content", "Second page content"))
+    pages = parse_pdf(
+        _pdf_with_text(
+            "First page content about admissions 2026", "Second page content about quotas 2026"
+        )
+    )
     chunks = chunk_sections(pages, uuid.uuid4())
     assert [page.page_number for page in pages] == [1, 2]
     assert [chunk.page_number for chunk in chunks] == [1, 2]
-    assert [chunk.content for chunk in chunks] == ["First page content", "Second page content"]
+    assert [chunk.content for chunk in chunks] == [
+        "First page content about admissions 2026",
+        "Second page content about quotas 2026",
+    ]
 
 
 def test_markdown_and_txt_preserve_metadata() -> None:
@@ -66,7 +73,7 @@ def test_chunk_limits_overlap_and_stable_ids() -> None:
 
 
 def test_invalid_and_image_only_pdf() -> None:
-    with pytest.raises(InvalidPdfError):
+    with pytest.raises(SignatureMismatchError):
         parse_pdf(b"not a pdf")
     with pytest.raises(UnsupportedOcrError):
         parse_pdf(_pdf_with_text(""))
@@ -91,11 +98,16 @@ def test_short_txt_paragraphs_merge_before_chunking(paragraph_count: int) -> Non
 
 
 def test_short_document_is_kept_and_global_indexes_preserve_citations() -> None:
-    sections = parse_pdf(_pdf_with_text("Page one", "Page two"))
+    sections = parse_pdf(
+        _pdf_with_text("Page one with enough characters 123", "Page two with enough characters 456")
+    )
     chunks = chunk_sections(sections, uuid.uuid4())
     assert [chunk.chunk_index for chunk in chunks] == [0, 1]
     assert [chunk.page_number for chunk in chunks] == [1, 2]
-    assert [chunk.content for chunk in chunks] == ["Page one", "Page two"]
+    assert [chunk.content for chunk in chunks] == [
+        "Page one with enough characters 123",
+        "Page two with enough characters 456",
+    ]
     sections = parse_document(b"# First\n\nShort.\n\n# Second\n\nAlso short.", "headings.md")
     chunks = chunk_sections(sections, uuid.uuid4())
     assert [chunk.chunk_index for chunk in chunks] == [0, 1]
