@@ -15,6 +15,7 @@ from app.infrastructure.persistence.conversations import (
     ConversationRepositoryAdapter,
     UsageRecorderAdapter,
 )
+from app.infrastructure.telemetry.adapter import LoggingTelemetry
 
 
 def prompt_budgeter_factory(model: str, provider_type: str) -> PromptBudgeter:
@@ -46,4 +47,5 @@ def rag_use_case(
         ),
         UsageRecorderAdapter(session),
         budgeter_factory=prompt_budgeter_factory,
+        telemetry=LoggingTelemetry(),
     )

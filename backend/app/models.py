@@ -1,5 +1,6 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.ai_providers.gc_models import IndexGcItem, IndexGcRun
 from app.modules.ai_providers.models import (
     EmbeddingBatchCheckpoint,
     EmbeddingIndexVersion,
@@ -54,6 +55,8 @@ __all__ = [
     "ProviderPool",
     "EmbeddingBatchCheckpoint",
     "EmbeddingWorkItem",
+    "IndexGcRun",
+    "IndexGcItem",
     "WorkspaceProviderBinding",
     "OllamaModelPull",
     "EmbeddingIndexVersion",

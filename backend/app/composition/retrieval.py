@@ -12,6 +12,7 @@ from app.infrastructure.elasticsearch.chunks import ChunkSearch
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorSearch
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.search.relevance import (
     dataset_hash,
@@ -83,4 +84,5 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         rerank=rerank,
         relevance=relevance,
         rerank_top_n=settings.rag_rerank_top_n,
+        telemetry=LoggingTelemetry(),
     )

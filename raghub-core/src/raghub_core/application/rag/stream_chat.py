@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import aclosing
+from time import perf_counter as _perf_now
 from uuid import UUID
 
 from raghub_core.domain.chatbots.models import ChatbotConfig
@@ -30,6 +31,7 @@ from raghub_core.ports.chatbots import ChatbotReadPort
 from raghub_core.ports.conversations import ConversationRepositoryPort
 from raghub_core.ports.provider_resolver import ProviderResolverPort
 from raghub_core.ports.retrieval import RetrievalPort
+from raghub_core.ports.telemetry import TelemetryPort
 from raghub_core.ports.usage import UsageRecorderPort
 
 
@@ -45,11 +47,13 @@ class StreamRagChatUseCase:
         timing_factory: Callable[[], ChatStreamTiming] = ChatStreamTiming,
         budgeter_factory: Callable[[str, str], PromptBudgeter] | None = None,
         citation_observer: Callable[[CitationReport], None] | None = None,
+        telemetry: TelemetryPort | None = None,
     ) -> None:
         self.chatbots, self.retrieval, self.providers = chatbots, retrieval, providers
         self.conversations, self.usage, self.timing_factory = conversations, usage, timing_factory
         self.budgeter_factory = budgeter_factory
         self.citation_observer = citation_observer
+        self.telemetry = telemetry
 
     async def execute(self, command: StreamChatCommand) -> AsyncIterator[RagEvent]:
         chatbot = await self.chatbots.get(command.organization_id, command.chatbot_id)
@@ -115,7 +119,10 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
         runtime = await self.providers.resolve_chat(chatbot.scope)
+        mark = _perf_now()
         context = build_context_bundle(hits)
+        if self.telemetry is not None:
+            self.telemetry.timing("context", (_perf_now() - mark) * 1000, {})
         budgeted: BudgetedPrompt | None = None
         if self.budgeter_factory is not None:
             budgeter = self.budgeter_factory(
@@ -130,23 +137,29 @@ class StreamRagChatUseCase:
         if budgeted is None:
             citations = resolve_trusted_citations(context.hits)
             inventory = {citation.citation_id for citation in citations}
+            mark = _perf_now()
             messages = build_prompt(
                 chatbot.system_prompt,
                 command.question,
                 context,
                 previous_history,
             )
+            if self.telemetry is not None:
+                self.telemetry.timing("prompt", (_perf_now() - mark) * 1000, {})
         else:
             slice_pairs = [(s.index, s.text) for s in budgeted.context_slices]
             citations = resolve_sliced_citations(context.hits, slice_pairs)
             inventory = {citation.citation_id for citation in citations}
             sliced_bundle = render_sliced_bundle(context.hits, slice_pairs)
+            mark = _perf_now()
             messages = build_prompt(
                 budgeted.system_text,
                 budgeted.question,
                 sliced_bundle,
                 budgeted.history,
             )
+            if self.telemetry is not None:
+                self.telemetry.timing("prompt", (_perf_now() - mark) * 1000, {})
         yield CitationsResolved(citations)
         timing = self.timing_factory()
         usage: ChatUsage | None = None
@@ -170,9 +183,18 @@ class StreamRagChatUseCase:
             if close:
                 await close()
         usage = usage or estimate_chat_usage(messages, "".join(answer))
-        if self.citation_observer is not None:
+        if self.citation_observer is not None or self.telemetry is not None:
             # Observe-only: metrics and release gates consume this; stream is untouched.
-            self.citation_observer(validate_citations("".join(answer), inventory_ids=inventory))
+            report = validate_citations("".join(answer), inventory_ids=inventory)
+            if self.citation_observer is not None:
+                self.citation_observer(report)
+            if self.telemetry is not None:
+                self.telemetry.counter(
+                    "citation_invalid", {"stage": "citation"}, len(report.invalid_ids)
+                )
+                self.telemetry.counter(
+                    "citation_coverage_pct", {"stage": "citation"}, int(report.coverage * 100)
+                )
         message_id = await self.conversations.add_assistant(
             conversation_id,
             "".join(answer),

@@ -1,4 +1,5 @@
 import math
+import time
 from collections.abc import Awaitable, Callable
 
 from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections
@@ -32,6 +33,7 @@ from raghub_core.ports.embedding_quota import (
 )
 from raghub_core.ports.object_storage import ObjectStoragePort
 from raghub_core.ports.provider_resolver import EmbeddingRuntime
+from raghub_core.ports.telemetry import TelemetryPort
 from raghub_core.ports.vector_store import VectorStorePort
 
 StageCallback = Callable[[IngestionStage, int], Awaitable[None]]
@@ -64,7 +66,17 @@ class BuildDocumentIndexUseCase:
         before_index: Callable[[], Awaitable[None]] | None = None,
         close_store: bool = True,
         acquire_quota: QuotaAcquire | None = None,
+        telemetry: TelemetryPort | None = None,
     ) -> DocumentIndex:
+        started = time.perf_counter()
+        checkpoint = started
+
+        def observe(stage: str) -> None:
+            nonlocal checkpoint
+            now = time.perf_counter()
+            if telemetry is not None:
+                telemetry.timing(stage, (now - checkpoint) * 1000, {})
+            checkpoint = now
         try:
             content = await self.storage.get(document.storage_key)
         except Exception as exc:
@@ -100,6 +112,7 @@ class BuildDocumentIndexUseCase:
             raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("PARSE_FAILED", str(exc), retryable=False) from exc
+        observe("parse")
         if stage:
             await stage(IngestionStage.CHUNKING, 45)
         try:
@@ -116,6 +129,7 @@ class BuildDocumentIndexUseCase:
             raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
+        observe("chunk")
         if stage:
             await stage(IngestionStage.EMBEDDING, 65)
         try:
@@ -178,6 +192,7 @@ class BuildDocumentIndexUseCase:
             raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
         except Exception as exc:
             raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
+        observe("embed")
         if stage:
             await stage(IngestionStage.INDEXING, 85)
         if before_index:
@@ -195,4 +210,5 @@ class BuildDocumentIndexUseCase:
         finally:
             if close_store:
                 store.close()
+        observe("index")
         return index

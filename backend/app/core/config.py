@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     rag_max_output_tokens: int = Field(default=1024, ge=1, le=32768)
     rag_prompt_safety_margin: int = Field(default=256, ge=0, le=8192)
     rag_ocr_enabled: bool = False
+    rag_index_gc_enabled: bool = False
 
     rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
