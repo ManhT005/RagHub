@@ -50,6 +50,11 @@ class Settings(BaseSettings):
 
     rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
+    rag_relevance_gate_enabled: bool = False
+    rag_relevance_config_version: str = "baseline-v1"
+    rag_relevance_artifact_path: str = ""
+    rag_reranker_enabled: bool = False
+    rag_rerank_top_n: int = Field(default=8, ge=1, le=25)
 
     provider_pool_max_active_jobs_per_workspace: int = Field(default=1, ge=1, le=10)
     provider_pool_max_pending_jobs_per_workspace: int = Field(default=5, ge=1, le=100)

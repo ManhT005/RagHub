@@ -9,6 +9,8 @@ from raghub_core.domain.retrieval.models import RetrievalCandidate, RetrievedChu
 RETRIEVAL_CANDIDATES = 25
 RETRIEVAL_CANDIDATES_MIN = 10
 RETRIEVAL_CANDIDATES_MAX = 100
+RERANK_SOURCE_COUNT = 25
+RERANK_TOP_N = 8
 RRF_K = 60
 MAX_CONTEXT_TOKENS = 6000
 MAPPING_VERSION = "vi_hybrid_v2"
