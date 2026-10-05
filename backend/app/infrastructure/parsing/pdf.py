@@ -1,5 +1,4 @@
 import pymupdf
-
 from raghub_core.domain.ingestion.parser import InvalidPdfError, ParsedSection, UnsupportedOcrError
 
 

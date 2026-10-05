@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
+from raghub_core.domain.ingestion.chunker import TextChunk
+from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
-from raghub_core.domain.ingestion.chunker import TextChunk
-from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
 
 
 def chunk_index_mapping(dimension: int) -> dict[str, Any]:

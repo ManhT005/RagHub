@@ -3,12 +3,6 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
-from app.core.exceptions import AppError
-from app.modules.ai_providers.errors import ProviderUnavailableError
-from app.modules.chatbots.provider import GeminiChatProvider
-from app.modules.chatbots.router import chat
-from app.modules.chatbots.schemas import ChatRequest
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.contracts import ChatUsage
 from raghub_core.domain.rag.events import (
@@ -18,6 +12,12 @@ from raghub_core.domain.rag.events import (
     TokenDelta,
     UsageReported,
 )
+
+from app.core.exceptions import AppError
+from app.modules.ai_providers.errors import ProviderUnavailableError
+from app.modules.chatbots.provider import GeminiChatProvider
+from app.modules.chatbots.router import chat
+from app.modules.chatbots.schemas import ChatRequest
 
 
 @pytest.mark.asyncio

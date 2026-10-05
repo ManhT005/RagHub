@@ -4,6 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import aclosing
 from uuid import UUID
 
+from raghub_core.domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
+from raghub_core.domain.rag.events import RagEvent
+from raghub_core.domain.rag.models import StreamChatCommand
+from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
+from raghub_core.domain.retrieval.models import RetrievalScope
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.public_chat import PublicChatContainer
@@ -15,11 +20,6 @@ from app.modules.chatbots.embed import (
 )
 from app.modules.chatbots.models import Chatbot
 from app.modules.chatbots.schemas import ChatbotInput, ChatbotPatch, EmbedPublishInput
-from raghub_core.domain.chatbots.models import CreateChatbotCommand, PatchChatbotCommand
-from raghub_core.domain.rag.events import RagEvent
-from raghub_core.domain.rag.models import StreamChatCommand
-from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER as EMPTY_CONTEXT_ANSWER
-from raghub_core.domain.retrieval.models import RetrievalScope
 
 
 class ChatbotService:

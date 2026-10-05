@@ -1,6 +1,5 @@
 """Compatibility imports; new callers should use raghub_core.domain.ingestion.parser."""
 
-from app.infrastructure.parsing.pdf import parse_pdf as parse_pdf
 from raghub_core.domain.ingestion.parser import (
     EmptyExtractedTextError as EmptyExtractedTextError,
 )
@@ -28,6 +27,8 @@ from raghub_core.domain.ingestion.parser import (
 from raghub_core.domain.ingestion.parser import (
     parse_txt as parse_txt,
 )
+
+from app.infrastructure.parsing.pdf import parse_pdf as parse_pdf
 
 
 def parse_document(content: bytes, source_name: str) -> list[ParsedSection]:

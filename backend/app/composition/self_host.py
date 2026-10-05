@@ -1,5 +1,12 @@
 """Self-host wiring. Deployment choices never enter the reusable engine."""
 
+from raghub_core.api import (
+    ChatbotConfig,
+    RetrievalScope,
+    RetryDocumentUseCase,
+    StreamRagChatUseCase,
+    UploadDocumentUseCase,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.chatbots import chatbot_management
@@ -19,13 +26,6 @@ from app.infrastructure.persistence.uploads import (
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.repository import DocumentRepository
-from raghub_core.api import (
-    ChatbotConfig,
-    RetrievalScope,
-    RetryDocumentUseCase,
-    StreamRagChatUseCase,
-    UploadDocumentUseCase,
-)
 
 
 class SelfHostContainer:

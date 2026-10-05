@@ -1,5 +1,10 @@
 from collections.abc import Callable
 
+from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
+from raghub_core.domain.providers.descriptor import ProviderDescriptor
+from raghub_core.domain.providers.enums import ProviderCapability, ProviderType
+from raghub_core.domain.providers.errors import ProviderConfigurationError
+
 from app.modules.ai_providers.adapters import (
     GoogleGeminiChatProvider,
     GoogleGeminiEmbeddingProvider,
@@ -10,10 +15,6 @@ from app.modules.ai_providers.adapters import (
     OpenAICompatibleEmbeddingProvider,
 )
 from app.modules.ai_providers.policy import ProviderRequestPolicy
-from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
-from raghub_core.domain.providers.descriptor import ProviderDescriptor
-from raghub_core.domain.providers.enums import ProviderCapability, ProviderType
-from raghub_core.domain.providers.errors import ProviderConfigurationError
 
 ProviderFactory = Callable[[ProviderDescriptor, str | None], object]
 

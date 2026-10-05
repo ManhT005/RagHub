@@ -3,6 +3,7 @@ import time
 from datetime import UTC, datetime
 from uuid import UUID
 
+from raghub_core.domain.errors import CoreError
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
@@ -23,7 +24,6 @@ from app.modules.ai_providers.models import ProviderConfig, ProviderConnection
 from app.modules.ai_providers.schemas import ProviderConfigInput
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.workspaces.models import Workspace
-from raghub_core.domain.errors import CoreError
 
 
 def connection_response(connection, model_count=0):

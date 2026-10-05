@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import UploadFile
+from raghub_core.domain.errors import CoreError as AppError
 
 from app.core.config import Settings
 from app.delivery.http.error_mapping import http_status
 from app.delivery.http.uploads import read_upload, upload_from_http
 from app.modules.documents.service import DocumentService
-from raghub_core.domain.errors import CoreError as AppError
 
 
 @pytest.fixture

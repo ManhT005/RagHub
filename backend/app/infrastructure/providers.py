@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from app.modules.ai_providers.models import EmbeddingIndexVersion
-from app.modules.ai_providers.resolver import ProviderResolver
 from raghub_core.domain.providers.errors import ProviderConfigurationError
 from raghub_core.domain.retrieval.models import RetrievalScope
 from raghub_core.ports.provider_resolver import ChatRuntime, EmbeddingRuntime
+
+from app.modules.ai_providers.models import EmbeddingIndexVersion
+from app.modules.ai_providers.resolver import ProviderResolver
 
 
 class ProviderResolverAdapter:

@@ -2,7 +2,6 @@ import base64
 import hashlib
 
 from cryptography.fernet import Fernet, InvalidToken
-
 from raghub_core.domain.providers.errors import ProviderConfigurationError
 
 

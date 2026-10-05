@@ -1,3 +1,5 @@
+from raghub_core.api import StreamRagChatUseCase
+
 from app.infrastructure.chat_runtime import (
     ChatbotRuntimeReader,
     LazyProviderResolverAdapter,
@@ -7,7 +9,6 @@ from app.infrastructure.persistence.conversations import (
     ConversationRepositoryAdapter,
     UsageRecorderAdapter,
 )
-from raghub_core.api import StreamRagChatUseCase
 
 
 def rag_use_case(

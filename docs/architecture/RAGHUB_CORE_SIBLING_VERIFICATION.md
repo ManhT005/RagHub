@@ -1,7 +1,7 @@
 # Standalone Core and self-host backend verification
 
-Verified locally on **2026-10-05**, on `feature/selfhost-ui-v1`. This is a local
-refactor on the existing branch; it has not been committed or pushed. The previous
+Initial extraction verified locally on **2026-10-05**, on `feature/selfhost-ui-v1`,
+then committed as `7ddb9cd`. The import-order follow-up below is local. The previous
 combined-wheel reports remain historical. See [ADR-001](adr/ADR-001-core-package-boundary.md)
 for the updated package decision.
 
@@ -22,7 +22,8 @@ backend/
 All **60 engine source/asset files** are byte-identical to their pre-move copies,
 including all **59 Python modules** and the bundled tokenizer cache. The import
 namespace, supported facade, commands, results and workflows are unchanged.
-`backend/app` and Alembic migration sources are unchanged. There is no compatibility
+The extraction preserved `backend/app` and Alembic migration sources; the follow-up
+only normalizes backend imports. There is no compatibility
 copy or symlink at `backend/raghub_core`; backend consumes the installed core.
 
 Backend declares `raghub-core==0.1.0` and maps the editable sibling source for uv.
@@ -43,7 +44,7 @@ distribution includes the complete tests, fake ports and minimal test lock.
 | Wheel boundaries | Core contains engine and tokenizer asset, no `app`; backend contains `app`, no engine, and declares the matching core version |
 | Source distributions and wheels | Both projects built successfully |
 | uv lock consistency | Both project locks passed `uv lock --check` |
-| Ruff | Backend, core and package/Compose check scripts passed |
+| Ruff | Initial cached result missed 57 import-order errors; both packages pass without cache after the follow-up below |
 | Compose | Development runtime/local-AI, GHCR variants, self-host CPU/GPU, source build and required-setting checks passed |
 | Workflow lint | actionlint **1.7.7 passed** |
 | Docker builds | `runtime` and CPU `local-ai` targets built with repository-root context and distinct verification tags |
@@ -54,6 +55,26 @@ distribution includes the complete tests, fake ports and minimal test lock.
 The reindex HTTP regression still asserts **409 `REINDEX_IN_PROGRESS`** and is
 included in the passing backend suite. CI-only provider key configuration from the
 preceding CI fix remains in both relevant jobs.
+
+## Import-order follow-up
+
+After extraction, a cached local Ruff run returned success while a fresh check
+found **57 I001 errors**. Moving core out of backend changes Ruff's import grouping;
+the fresh check reproduced the lint regression on `7ddb9cd`.
+
+From `backend`, Ruff **0.12.9** fixed all 57 errors with:
+
+```sh
+python -m ruff check . ../raghub-core --fix --no-cache
+python -m ruff check . ../raghub-core --no-cache
+```
+
+All 57 changed Python files retain the same import bindings and non-import AST.
+Side-effect `app.models` imports remain present; API and ingestion/reindex entry
+points register the same **22 tables** and configure all SQLAlchemy mappers in
+fresh processes. Backend regression with the CI-only provider key reports
+**274 passed, 15 skipped**. The workflow and Ruff rules are unchanged, and no
+new suppressions were added. Use a fresh/no-cache lint check after moving packages.
 
 ## Reproduce
 
@@ -84,6 +105,7 @@ installation were not rerun for this layout refactor. Container smoke used
 `--network none`, test-only credentials and disposable containers; it verifies
 packaging and imports rather than live provider inference or ingestion. No existing
 installation, persistent volume, schema or frontend code was changed. GPU execution
-and external paid providers are outside these checks. GitHub Actions has not run
-against this local refactor, and neither Python package has been published to a
-registry.
+and external paid providers are outside these checks. A fresh local check reproduced
+the import-order CI regression on `7ddb9cd`; the follow-up fix has not been committed,
+pushed or verified by a new GitHub Actions run. Neither Python package has been
+published to a registry.

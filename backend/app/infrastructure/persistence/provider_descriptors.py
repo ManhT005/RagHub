@@ -1,5 +1,6 @@
-from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from raghub_core.domain.providers.descriptor import ProviderDescriptor
+
+from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 
 
 def provider_descriptor(

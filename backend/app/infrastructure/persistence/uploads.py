@@ -1,9 +1,9 @@
 from uuid import UUID
 
+from raghub_core.domain.documents.upload import RetryDocumentState, UploadReceipt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.documents.repository import DocumentRepository
-from raghub_core.domain.documents.upload import RetryDocumentState, UploadReceipt
 
 
 class UploadRepositoryAdapter:

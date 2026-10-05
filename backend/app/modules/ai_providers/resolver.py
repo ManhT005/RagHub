@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
+from raghub_core.domain.providers.enums import IndexVersionStatus, ProviderCapability
+from raghub_core.domain.providers.errors import (
+    ProviderConfigurationError,
+    ProviderDisabledError,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,12 +17,6 @@ from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.workspaces.models import Workspace
-from raghub_core.domain.providers.contracts import ChatProvider, EmbeddingProvider
-from raghub_core.domain.providers.enums import IndexVersionStatus, ProviderCapability
-from raghub_core.domain.providers.errors import (
-    ProviderConfigurationError,
-    ProviderDisabledError,
-)
 
 
 @dataclass(frozen=True)
