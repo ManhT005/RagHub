@@ -6,7 +6,12 @@ from raghub_core.domain.chatbots.models import ChatbotConfig
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.contracts import ChatMessage, ChatOptions, ChatUsage
 from raghub_core.domain.providers.usage import estimate_chat_usage
-from raghub_core.domain.rag.citations import resolve_trusted_citations
+from raghub_core.domain.rag.citation_validator import CitationReport, validate_citations
+from raghub_core.domain.rag.citations import (
+    render_sliced_bundle,
+    resolve_sliced_citations,
+    resolve_trusted_citations,
+)
 from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
@@ -18,6 +23,7 @@ from raghub_core.domain.rag.events import (
 )
 from raghub_core.domain.rag.models import ChatUsageRecord, StreamChatCommand
 from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
+from raghub_core.domain.rag.prompt_budget import BudgetedPrompt, PromptBudgeter
 from raghub_core.domain.rag.timing import ChatStreamTiming
 from raghub_core.domain.retrieval.hybrid import build_context_bundle
 from raghub_core.ports.chatbots import ChatbotReadPort
@@ -37,9 +43,13 @@ class StreamRagChatUseCase:
         usage: UsageRecorderPort,
         *,
         timing_factory: Callable[[], ChatStreamTiming] = ChatStreamTiming,
+        budgeter_factory: Callable[[str, str], PromptBudgeter] | None = None,
+        citation_observer: Callable[[CitationReport], None] | None = None,
     ) -> None:
         self.chatbots, self.retrieval, self.providers = chatbots, retrieval, providers
         self.conversations, self.usage, self.timing_factory = conversations, usage, timing_factory
+        self.budgeter_factory = budgeter_factory
+        self.citation_observer = citation_observer
 
     async def execute(self, command: StreamChatCommand) -> AsyncIterator[RagEvent]:
         chatbot = await self.chatbots.get(command.organization_id, command.chatbot_id)
@@ -106,14 +116,38 @@ class StreamRagChatUseCase:
             return
         runtime = await self.providers.resolve_chat(chatbot.scope)
         context = build_context_bundle(hits)
-        citations = resolve_trusted_citations(context.hits)
+        budgeted: BudgetedPrompt | None = None
+        if self.budgeter_factory is not None:
+            budgeter = self.budgeter_factory(
+                chatbot.model or runtime.model, runtime.provider_type
+            )
+            budgeted = budgeter.budget(
+                system_text=chatbot.system_prompt,
+                question=command.question,
+                history=previous_history,
+                context_chunks=[hit.content for hit in context.hits],
+            )
+        if budgeted is None:
+            citations = resolve_trusted_citations(context.hits)
+            inventory = {citation.citation_id for citation in citations}
+            messages = build_prompt(
+                chatbot.system_prompt,
+                command.question,
+                context,
+                previous_history,
+            )
+        else:
+            slice_pairs = [(s.index, s.text) for s in budgeted.context_slices]
+            citations = resolve_sliced_citations(context.hits, slice_pairs)
+            inventory = {citation.citation_id for citation in citations}
+            sliced_bundle = render_sliced_bundle(context.hits, slice_pairs)
+            messages = build_prompt(
+                budgeted.system_text,
+                budgeted.question,
+                sliced_bundle,
+                budgeted.history,
+            )
         yield CitationsResolved(citations)
-        messages = build_prompt(
-            chatbot.system_prompt,
-            command.question,
-            context,
-            previous_history,
-        )
         timing = self.timing_factory()
         usage: ChatUsage | None = None
         stream = runtime.provider.stream_chat(
@@ -136,6 +170,9 @@ class StreamRagChatUseCase:
             if close:
                 await close()
         usage = usage or estimate_chat_usage(messages, "".join(answer))
+        if self.citation_observer is not None:
+            # Observe-only: metrics and release gates consume this; stream is untouched.
+            self.citation_observer(validate_citations("".join(answer), inventory_ids=inventory))
         message_id = await self.conversations.add_assistant(
             conversation_id,
             "".join(answer),

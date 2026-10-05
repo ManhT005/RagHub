@@ -111,6 +111,17 @@ def fuse_rrf_with_details(
     return candidates
 
 
+def render_citation_block(index: int, hit: RetrievedChunk, content: str | None = None) -> str:
+    """Render one [Cn] block; an explicit content override renders a budget slice."""
+    citation = f"[C{index}]\nsource: {hit.source_name}"
+    if hit.page_number is not None:
+        citation += f"\npage: {hit.page_number}"
+    citation += f"\nchunk_id: {hit.chunk_id}"
+    if hit.heading:
+        citation += f"\nheading: {hit.heading}"
+    return f"{citation}\ncontent:\n{content if content is not None else hit.content}"
+
+
 def build_context_bundle(
     hits: Iterable[RetrievedChunk], *, max_tokens: int = MAX_CONTEXT_TOKENS
 ) -> ContextBundle:
