@@ -38,15 +38,20 @@ non-development environments all SMTP settings are required at startup.
 
 `POST /api/v1/workspaces/{workspace_id}/documents`
 
-Send `multipart/form-data` with one `file` field. PDF with selectable text,
-UTF-8 TXT, and UTF-8 Markdown are accepted, up to `MAX_UPLOAD_SIZE_MB` (25 MB by
-default). Upload requires `OWNER`, `ADMIN`, or `EDITOR`. A successful request
+Send `multipart/form-data` with one `file` field. PDF (text-first with
+table extraction and optional Tesseract OCR `vie+eng`), UTF-8 TXT, UTF-8
+Markdown, DOCX, sanitized HTML (never fetches external resources) and XLSX
+(read-only, data-only, no macros) are accepted, up to `MAX_UPLOAD_SIZE_MB`
+(25 MB by default). Preflight rejects files over 25 MB compressed, 100 MB
+decompressed, 70 PDF pages, 50 OCR pages, 80.000 tokens, 250 chunks,
+macro-enabled containers and signature mismatches before embedding. Upload requires `OWNER`, `ADMIN`, or `EDITOR`. A successful request
 returns `202 Accepted` with `document_id`, `document_version_id`, `job_id`, and
 `status: "QUEUED"`. The original filename is normalized and used only as
 metadata; the object key is generated from UUIDs.
 
 `GET /workspaces/{workspace_id}/documents` lists non-deleted documents with
-`status`, `stage`, `progress`, `attempts`, `error_code`, `error_message`, and
+`status`, `stage`, `progress`, `embedded_chunks`, `total_chunks`,
+`queue_position`, `attempts`, `error_code`, `error_message`, and
 `retryable`. Error messages are safe descriptions mapped from error codes;
 provider exceptions appear only in server logs.
 Stages are `QUEUED`, `PARSING`, `CHUNKING`, `EMBEDDING`, `INDEXING`, `READY`, and
@@ -70,18 +75,22 @@ document; it requires `OWNER`, `ADMIN`, or `EDITOR`.
 
 `GET /api/v1/workspaces/{workspace_id}/search?q=...&limit=5`
 
-The Elasticsearch query always filters by the authorized organization and
-workspace path before BM25 ranking. Results contain source, page and stable
-chunk IDs, plus heading metadata where available. The current `EMBEDDING`
-stage creates deterministic 384-dimensional token-hash vectors locally. These
-vectors provide a stable index contract; they are lexical features and should
-be replaced by a semantic model before semantic vector search is offered.
+Retrieval is hybrid BM25 + vector kNN fused with RRF (`k=60`, 25 candidates
+per branch by default). The Elasticsearch mapping `vi_hybrid_v2` keeps the
+exact `content` field plus a folded `content.folded` analyzer for
+diacritic-insensitive Vietnamese, with heading (`2.0`) and source-name
+(`1.2`) boosts. Tenant and `retrievable` filters apply inside every branch
+before the cutoff; the database `READY` filter remains as defense in depth.
+Results contain source, page and stable chunk IDs, plus heading metadata
+where available. Query embeddings must match the active index fingerprint;
+changing the embedding profile triggers a versioned reindex.
 
 ## RAG Chat
 
 - `GET`/`POST` `/workspaces/{workspace_id}/chatbots`, `GET`/`PATCH`/`DELETE` `/chatbots/{chatbot_id}` manage organization-scoped chatbots. Writers create or modify them; all organization members can read them.
-- `POST /chatbots/{chatbot_id}/chat` requires a published chatbot and returns `text/event-stream`. Events are `conversation`, `citations`, zero or more `token`, then `done`; failures are `error`. Citations are derived from the request retrieval hits, never from model-generated text.
-- Set `GEMINI_API_KEY` in the server environment. The backend uses Gemini's OpenAI-compatible streaming endpoint; credentials never reach the client.
+- `POST /chatbots/{chatbot_id}/chat` requires a published chatbot and returns `text/event-stream`. Events are `conversation`, `citations`, zero or more `token`, then `done`; failures are `error`. Citations are derived from the request retrieval hits, never from model-generated text. Every prompt is capped by a global token budget (system + question never cut; history newest pairs up to 25%; context fills the rest); citations mirror exactly the sent slices and answers must use `[Cn]` markers.
+- Out-of-scope questions hit the relevance gate (default off until calibrated) or the empty-context fallback; both emit no fake citations.
+- Set `GEMINI_API_KEY` in the server environment. The backend uses Gemini's OpenAI-compatible streaming endpoint; credentials never reach the client. Workspaces bind managed provider pools, never API keys.
 
 ## Health
 
