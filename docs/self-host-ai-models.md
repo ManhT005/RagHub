@@ -62,6 +62,24 @@ recheck endpoint policy. Allowlist only gateways you control.
 OpenAI-compatible model discovery often has no capability metadata. Such rows remain
 `UNKNOWN`; explicitly choose Chat or Embedding before registration.
 
+## Acceptance smoke
+
+Use a disposable installation exposed on loopback, with `gemma3:1b` already installed
+in its Ollama runtime. Store the test owner's `email` and `password` in an ignored
+JSON file. The smoke creates test workspaces and re-pulls only that installed model.
+
+```powershell
+python scripts/self-host-ai-smoke.py --base-url http://localhost:18085 --owner-file .backups/ai-smoke/owner.json --output .backups/ai-smoke/results --initialize --browser
+```
+
+Omit `--initialize` when repeating against an initialized test installation. Browser
+checks require Playwright and Chromium. `--skip-local-embedding` skips the real
+embedding health/READY gate while keeping registry/default and Chat/Ollama checks.
+It does not change provider configuration. After restarting the test API/worker,
+use `--verify-existing --browser` to check saved jobs, defaults, bindings and UI
+without creating another download job. Screenshots and state stay in the ignored
+output directory.
+
 Protocol references: [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md),
 [NVIDIA embedding API](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/1.12.0/reference.html),
 [9Router](https://github.com/decolua/9router).

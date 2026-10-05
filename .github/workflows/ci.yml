@@ -167,6 +167,7 @@ jobs:
           python -m pytest -p no:cacheprovider
           tests/test_auth_refresh.py tests/test_auth_refresh_concurrency.py
           tests/test_installation.py tests/test_installation_migration.py tests/test_bootstrap_owner.py
+          tests/test_local_ai_bootstrap.py tests/test_ollama_manager.py tests/test_provider_profiles.py
 
   ingestion-integration:
     name: Ingestion integration
