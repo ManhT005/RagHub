@@ -27,6 +27,7 @@ def test_embed_is_absolute_and_raw_key_is_show_once(monkeypatch, base):
     issued = embed.embed_response("rgh_new")
     assert issued.script_src == f"{base}/widget/raghub.js"
     assert f'src="{issued.script_src}"' in issued.code
+    assert 'charset="utf-8"' in issued.code
     assert issued.key == "rgh_new" and issued.has_embed_key
     reloaded = embed.embed_response(has_embed_key=True)
     assert reloaded.code is None and reloaded.key is None

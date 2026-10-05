@@ -29,6 +29,7 @@ for (const [name, origin, pathname, query, expected] of [
     assert.equal(new URL(script.src).origin, expected);
     assert.equal(new URL(script.src).pathname, '/widget/raghub.js');
     assert.equal(script.dataset.chatbotKey, 'rgh_test');
+    assert.equal(script.charset, 'utf-8');
     assert.equal(new URLSearchParams(historyUrl).has('key'), false);
     if (query) assert.equal(new URLSearchParams(historyUrl).get('api'), expected);
   });

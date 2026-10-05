@@ -61,6 +61,7 @@
         script.src = new URL("/widget/raghub.js?v=" + Date.now(), apiBase).href;
         script.dataset.chatbotKey = key;
         script.async = true;
+        script.charset = "utf-8";
         document.body.append(script);
         params.delete("key");
         history.replaceState({}, "", `?${params}`);

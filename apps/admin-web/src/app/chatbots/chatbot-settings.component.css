@@ -545,3 +545,13 @@ pre:focus-visible {
         transition: none !important
     }
 }
+
+.configuration .card-heading {
+    display: block;
+}
+
+/* Keep the public widget's contrast even inside the Admin dark theme. */
+:host .preview-head strong,
+:host .preview-head small {
+    color: var(--preview-foreground) !important;
+}

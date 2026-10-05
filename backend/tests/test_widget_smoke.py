@@ -237,6 +237,7 @@ async def test_publish_origin_sse_rotate_and_nginx(smoke_client):
         assert unavailable.status_code == 404
     script = await client.get("/widget/raghub.js")
     assert script.status_code == 200 and "customElements" in script.text
+    assert "charset=utf-8" in script.headers["content-type"].lower()
     assert "no-store" in script.headers["cache-control"]
     demo = await client.get("/demo/")
     assert demo.status_code == 200 and "/widget/raghub.js" in demo.text

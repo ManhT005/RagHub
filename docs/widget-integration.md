@@ -59,3 +59,17 @@ python -m pytest tests/test_widget_smoke.py tests/test_public_limits_integration
 Chỉ chạy smoke với database test. Test tự tạo user đã xác minh để không gửi email, đăng nhập qua HTTP, tạo tổ chức/workspace/provider/chatbot rồi cleanup dữ liệu đã tạo. SSE đi qua Nginx với workspace trống nên trả câu trả lời không có ngữ cảnh và citations rỗng. Test cũng kiểm tra publish, preflight, origin bị chặn, rotate key, ngừng publish, cache script và demo. Test Redis sử dụng namespace ngẫu nhiên và cleanup riêng, kiểm tra burst request, global/per-chatbot slots, release lặp lại và lease hết hạn.
 
 CI job Widget checks chạy loader và compile; job Ingestion integration chạy cả smoke widget và Redis trên Docker Compose. Kiểm tra Admin UI, browser thực, citation từ provider và CSP/domain production vẫn cần nghiệm thu theo môi trường triển khai.
+
+## Nghiệm thu UI V2 có thể chạy lại
+
+```powershell
+cd apps/admin-web
+npm run build
+cd ../..
+node apps/admin-web/node_modules/typescript/bin/tsc -p apps/chat-widget/tsconfig.json --outDir .backups/widget-ui-v2/widget
+python scripts/check-widget-ui-browser.py
+```
+
+Script dùng Chromium headless (Playwright test tooling), bundle production và API giả lập; không tạo account hoặc gọi AI provider thực. Kiểm tra Settings ở 1440/375/320px, dark theme, swatch/hex, preview, show-once key, rotate có xác nhận và các nút ẩn/hiện mật khẩu. Widget được nhúng ở origin khác với CSP, CSS host cố tình gây xung đột, câu trả lời tiếng Việt dài và 5 nguồn mặc định đóng. Kiểm tra thêm mở/đóng nguồn, hội thoại mới, lỗi concurrency và origin. Host test dùng charset mặc định cũ để xác nhận script UTF-8 vẫn đọc đúng; Nginx và mã nhúng khai báo UTF-8 rõ ràng.
+
+Screenshots và `report.json` lưu ở `.backups/widget-ui-v2/browser/`. Đây là kiểm tra render/interaction có thể lặp lại; smoke API qua gateway, provider thực và truy cập từ máy LAN khác vẫn phải chạy trên môi trường triển khai.

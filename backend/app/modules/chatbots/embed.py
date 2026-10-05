@@ -34,7 +34,7 @@ def embed_response(key: str | None = None, *, has_embed_key: bool = False) -> Em
     script_src = f"{base_url}/widget/raghub.js"
     return EmbedCodeResponse(
         code=(
-            f'<script src="{escape(script_src, quote=True)}" '
+            f'<script src="{escape(script_src, quote=True)}" charset="utf-8" '
             f'data-chatbot-key="{escape(key, quote=True)}" async></script>'
             if key
             else None
