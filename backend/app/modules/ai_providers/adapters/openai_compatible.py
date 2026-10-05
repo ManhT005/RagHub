@@ -15,7 +15,6 @@ from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
     ProviderConfigurationError,
     ProviderInvalidResponseError,
-    ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -39,6 +38,7 @@ class _OpenAICompatibleBase:
         provider_name: str = "OPENAI_COMPATIBLE",
         policy: ProviderRequestPolicy | None = None,
         endpoint_scope: str = "PUBLIC",
+        static_headers: dict[str, str] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -46,6 +46,7 @@ class _OpenAICompatibleBase:
         self.provider_name = provider_name
         self.policy = policy or ProviderRequestPolicy()
         self.endpoint_scope = endpoint_scope
+        self.static_headers = static_headers or {}
 
     def _validate_endpoint(self):
         try:
@@ -57,7 +58,10 @@ class _OpenAICompatibleBase:
             raise ProviderConfigurationError("Provider endpoint is not allowed.") from exc
 
     def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.secret}"} if self.secret else {}
+        return {
+            **self.static_headers,
+            **({"Authorization": f"Bearer {self.secret}"} if self.secret else {}),
+        }
 
     def _timeout(self) -> httpx.Timeout:
         return httpx.Timeout(
@@ -69,20 +73,24 @@ class _OpenAICompatibleBase:
 
     @staticmethod
     def _response_error(status: int) -> Exception:
-        if status in {401, 403}:
-            return ProviderAuthenticationError()
-        if status == 429:
-            return ProviderRateLimitError()
-        return ProviderUnavailableError()
+        from app.modules.ai_providers.adapters.http import response_error
+
+        return response_error(status)
 
 
 class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
     def __init__(
-        self, *, dimension: int, request_profile: str = "OPENAI_STANDARD", **kwargs: object
+        self,
+        *,
+        dimension: int,
+        request_profile: str = "OPENAI_STANDARD",
+        batch_limit: int = 64,
+        **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self.metadata = EmbeddingMetadata(self.provider_name, self.model, dimension)
         self.request_profile = request_profile
+        self.batch_limit = max(1, min(batch_limit, 1000))
 
     async def _embed(self, texts: list[str], input_type: str = "passage") -> list[list[float]]:
         self._validate_endpoint()
@@ -96,7 +104,7 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
                     response = await client.post(
                         f"{self.base_url}/embeddings", headers=self._headers(), json=payload
                     )
-                if response.status_code >= 400:
+                if not 200 <= response.status_code < 300:
                     error = self._response_error(response.status_code)
                     if response.status_code not in {429, 502, 503, 504}:
                         raise error
@@ -134,8 +142,8 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
         if not texts:
             return []
         vectors: list[list[float]] = []
-        for start in range(0, len(texts), 64):
-            vectors.extend(await self._embed(texts[start : start + 64]))
+        for start in range(0, len(texts), self.batch_limit):
+            vectors.extend(await self._embed(texts[start : start + self.batch_limit]))
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
@@ -176,7 +184,7 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                         headers=self._headers(),
                         json=payload,
                     ) as response:
-                        if response.status_code >= 400:
+                        if not 200 <= response.status_code < 300:
                             error = self._response_error(response.status_code)
                             if response.status_code not in {429, 502, 503, 504}:
                                 raise error
@@ -223,6 +231,8 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                             )
                 return
             except (ProviderAuthenticationError, ProviderInvalidResponseError):
+                raise
+            except ProviderConfigurationError:
                 raise
             except (httpx.TimeoutException, ProviderTimeoutError) as exc:
                 error: Exception = ProviderTimeoutError()

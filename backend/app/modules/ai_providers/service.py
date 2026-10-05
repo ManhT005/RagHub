@@ -230,6 +230,13 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Provider embedding dimension does not match config."
                 )
+        elif config.capability == ProviderCapability.RERANK:
+            from raghub_core.domain.providers.rerank import validated_rerank_indices
+
+            result = await provider.rerank(
+                query="RagHub", documents=["RagHub documentation", "A different topic"], top_n=2
+            )
+            validated_rerank_indices(result, count=2, top_n=2)
         else:
             received = False
             async for delta in provider.stream_chat(  # type: ignore[attr-defined]

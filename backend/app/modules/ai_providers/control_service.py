@@ -225,7 +225,26 @@ class ProviderControlService:
         start = time.monotonic()
         error_code = None
         try:
-            if item.supports_model_discovery:
+            if item.discovery_profile == "CURATED":
+                from raghub_core.domain.providers.descriptor import ProviderDescriptor
+
+                from app.modules.ai_providers.registry import ProviderRegistry
+
+                preset = next(p for p in item.presets if "EMBEDDING" in p.capabilities)
+                descriptor = ProviderDescriptor(
+                    provider_type=connection.provider_type,
+                    capability="EMBEDDING",
+                    base_url=connection.base_url,
+                    model=preset.model,
+                    dimension=preset.dimension,
+                    options=connection.config_json,
+                )
+                await (
+                    ProviderRegistry()
+                    .create(descriptor, self.secret(connection))
+                    .embed_query("RagHub connectivity test")
+                )
+            elif item.supports_model_discovery:
                 await discover_models(connection, self.secret(connection))
             else:
                 import importlib.util
@@ -235,7 +254,7 @@ class ProviderControlService:
                         "PROVIDER_UNREACHABLE", "Local AI dependency unavailable.", status_code=422
                     )
             connection.status = "CONNECTED"
-        except AppError as exc:
+        except (AppError, CoreError) as exc:
             if exc.code == "MODEL_DISCOVERY_UNSUPPORTED":
                 # Manual mode still needs a successful runtime model probe before selection.
                 connection.status = "UNTESTED"
@@ -346,7 +365,39 @@ class ProviderControlService:
 
 async def infer_dimension(connection, model: str, secret: str | None) -> int:
     """Probe outside the engine, then let its regular adapter verify the registration."""
-    if connection.provider_type == "LOCAL_SENTENCE_TRANSFORMER":
+    if connection.provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"} or (
+        connection.provider_type == "GOOGLE_GEMINI" and model == "gemini-embedding-2"
+    ):
+        from raghub_core.domain.providers.descriptor import ProviderDescriptor
+
+        from app.modules.ai_providers.registry import ProviderRegistry
+        from app.modules.ai_providers.schemas import validate_connection_endpoint
+
+        try:
+            base = validate_connection_endpoint(connection)
+            descriptor = ProviderDescriptor(
+                provider_type=connection.provider_type,
+                capability="EMBEDDING",
+                base_url=base,
+                model=model,
+                dimension=None,
+                options=connection.config_json,
+            )
+            vector = (
+                await ProviderRegistry()
+                .create(descriptor, secret)
+                .embed_query("RagHub dimension probe")
+            )
+            dimension = len(vector)
+        except CoreError as exc:
+            raise AppError(
+                health_error(exc), "Model dimension probe failed.", status_code=422
+            ) from exc
+        except ValueError as exc:
+            raise AppError(
+                "PROVIDER_ENDPOINT_REJECTED", "Endpoint rejected.", status_code=422
+            ) from exc
+    elif connection.provider_type == "LOCAL_SENTENCE_TRANSFORMER":
         import asyncio
 
         from app.modules.ai_providers.adapters.sentence_transformer import (
