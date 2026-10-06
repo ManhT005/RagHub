@@ -1,0 +1,2 @@
+# Keep hash-locked golden fixtures byte-identical on every platform.
+backend/tests/fixtures/rag_golden/** text eol=lf

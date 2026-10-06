@@ -21,7 +21,7 @@ def service(monkeypatch: pytest.MonkeyPatch) -> DocumentService:
         "app.composition.self_host.MinioObjectStorage",
         lambda _: SimpleNamespace(put=AsyncMock(), get=AsyncMock(), remove=AsyncMock()),
     )
-    session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+    session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock(), execute=AsyncMock())
     instance = DocumentService(session, Settings(max_upload_size_mb=1))  # type: ignore[arg-type]
     instance.repository.workspace_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
     instance.repository.try_retry_lock = AsyncMock(return_value=True)  # type: ignore[method-assign]

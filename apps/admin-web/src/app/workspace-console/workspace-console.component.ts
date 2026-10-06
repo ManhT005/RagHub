@@ -502,6 +502,11 @@ export class WorkspaceConsoleComponent {
       typeof event.data["conversation_id"] === "string"
     )
       this.conversationId = event.data["conversation_id"];
+    if (event.event === "clarification" && typeof event.data["message"] === "string")
+      this.updateAssistant((message) => ({
+        ...message,
+        content: event.data["message"] as string,
+      }));
     if (event.event === "token" && typeof event.data["text"] === "string")
       this.updateAssistant((message) => ({
         ...message,

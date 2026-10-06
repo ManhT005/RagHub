@@ -19,6 +19,9 @@ def chatbot_record(chatbot: Chatbot) -> ChatbotRecord:
         chatbot.published,
         chatbot.created_at,
         chatbot.updated_at,
+        getattr(chatbot, "clarification_mode", "conservative"),
+        getattr(chatbot, "max_clarifying_turns", 1),
+        getattr(chatbot, "domain_profile", "generic"),
     )
 
 
@@ -70,6 +73,9 @@ class ChatbotRepositoryAdapter:
             model=command.model,
             retrieval_limit=command.retrieval_limit,
             published=command.published,
+            clarification_mode=command.clarification_mode,
+            max_clarifying_turns=command.max_clarifying_turns,
+            domain_profile=command.domain_profile,
         )
         self.session.add(chatbot)
         await self.session.commit()
@@ -78,7 +84,16 @@ class ChatbotRepositoryAdapter:
 
     async def save(self, record: ChatbotRecord) -> ChatbotRecord:
         row = await self._get(record.organization_id, record.id)
-        for name in ("name", "system_prompt", "model", "retrieval_limit", "published"):
+        for name in (
+            "name",
+            "system_prompt",
+            "model",
+            "retrieval_limit",
+            "published",
+            "clarification_mode",
+            "max_clarifying_turns",
+            "domain_profile",
+        ):
             setattr(row, name, getattr(record, name))
         await self.session.commit()
         await self.session.refresh(row)

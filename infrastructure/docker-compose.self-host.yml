@@ -54,6 +54,17 @@ services:
       PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
       PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+  worker-ocr:
+    extends:
+      file: docker-compose.base.yml
+      service: worker-ocr
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}${OCR_IMAGE_SUFFIX:--ocr-local-ai}
+    environment:
+      APP_ENV: ${APP_ENV:-selfhost}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
+      PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
   admin-web:
     extends:
       file: docker-compose.base.yml

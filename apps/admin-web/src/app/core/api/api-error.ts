@@ -25,7 +25,7 @@ const MESSAGES: Record<string, string> = {
     "Workspace đang reindex. Chờ tác vụ hiện tại hoàn tất trước khi đổi model.",
   MODEL_ALREADY_REGISTERED: "Model này đã được đăng ký trên connection.",
   REINDEX_JOB_NOT_RETRYABLE: "Tác vụ này hiện không thể thử lại.",
-  UNSUPPORTED_FILE_TYPE: "Chỉ hỗ trợ PDF, TXT và Markdown.",
+  UNSUPPORTED_FILE_TYPE: "Chỉ hỗ trợ PDF, TXT, Markdown, DOCX, HTML, XLSX.",
   REINDEX_QUEUE_UNAVAILABLE:
     "Không thể đưa tác vụ vào hàng đợi. Hãy thử lại khi dịch vụ phục hồi.",
   PROVIDER_IN_USE: "Provider hoặc model đang được workspace sử dụng.",

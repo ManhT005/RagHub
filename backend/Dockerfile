@@ -38,6 +38,13 @@ EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+FROM runtime AS ocr
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-vie \
+    && rm -rf /var/lib/apt/lists/*
+USER raghub
+
 FROM local-ai-dependencies AS local-ai
 
 COPY --from=runtime /app /app
@@ -46,3 +53,10 @@ RUN python -m pip install --no-deps /opt/raghub-core
 USER raghub
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM local-ai AS ocr-local-ai
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-vie \
+    && rm -rf /var/lib/apt/lists/*
+USER raghub

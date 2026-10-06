@@ -31,6 +31,16 @@ jobs:
             dockerfile: backend/Dockerfile
             target: local-ai
             suffix: -local-ai
+          - image: backend
+            context: .
+            dockerfile: backend/Dockerfile
+            target: ocr
+            suffix: -ocr
+          - image: backend
+            context: .
+            dockerfile: backend/Dockerfile
+            target: ocr-local-ai
+            suffix: -ocr-local-ai
           - image: admin-web
             context: .
             dockerfile: apps/admin-web/Dockerfile

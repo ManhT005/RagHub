@@ -1,5 +1,6 @@
 from functools import lru_cache
 from ipaddress import ip_network
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -20,7 +21,12 @@ class Settings(BaseSettings):
     provider_master_key: str = "change-me-provider-key"
     access_token_ttl_minutes: int = Field(default=15, ge=1)
     refresh_token_ttl_days: int = Field(default=7, ge=1)
+    refresh_reuse_grace_seconds: int = Field(default=10, ge=0, le=60)
     password_reset_ttl_minutes: int = Field(default=15, ge=5, le=60)
+    auth_login_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_login_requests_per_account: int = Field(default=5, ge=1, le=1000)
+    auth_password_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_password_requests_per_account: int = Field(default=3, ge=1, le=1000)
     api_v1_prefix: str = "/api/v1"
     max_upload_size_mb: int = Field(default=25, ge=1, le=500)
 
@@ -58,6 +64,53 @@ class Settings(BaseSettings):
     public_chat_stream_timeout_seconds: float = Field(default=90, ge=1, le=600)
     public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
+
+    rag_max_context_tokens: int = Field(default=6000, ge=1)
+    rag_model_context_window: int | None = Field(default=None, ge=2048)
+    rag_max_output_tokens: int = Field(default=1024, ge=1, le=32768)
+    rag_prompt_safety_margin: int = Field(default=256, ge=0, le=8192)
+    rag_embedding_cache_enabled: bool = False
+    rag_embedding_batch_max_chunks: int = Field(default=24, ge=1, le=100)
+    rag_embedding_batch_target_tokens: int = Field(default=10000, ge=100, le=100000)
+    rag_ocr_enabled: bool = False
+    rag_index_gc_enabled: bool = False
+    rag_telemetry_json_enabled: bool = False
+
+    rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
+    rag_rrf_k: int = Field(default=60, ge=1, le=200)
+    rag_max_chunks_per_document: int = Field(default=1, ge=1, le=25)
+    rag_adaptive_clarification_enabled: bool = False
+    rag_evidence_selection_enabled: bool = False
+    rag_adaptive_rerank_enabled: bool = False
+    rag_confidence_high_threshold: float = Field(default=0.85, gt=0, lt=1)
+    rag_clarification_medium_threshold: float = Field(default=0.75, gt=0, lt=1)
+    rag_neighbor_expansion_enabled: bool = False
+    rag_relevance_gate_enabled: bool = False
+    rag_relevance_config_version: str = "baseline-v1"
+    rag_relevance_artifact_path: str = ""
+    rag_reranker_snapshot_path: str = ""
+    rag_reranker_expected_sha256: str = ""
+    rag_reranker_timeout_seconds: float = Field(default=2, ge=0.1, le=120)
+    rag_reranker_enabled: bool = False
+    rag_rerank_top_n: int = Field(default=8, ge=1, le=25)
+    rag_rerank_source_count: int = Field(default=25, ge=5, le=100)
+    rag_hardware_profile: Literal["custom", "lite_cpu", "standard_cpu", "gpu"] = "custom"
+    rag_worker_concurrency: int = Field(default=1, ge=1, le=8)
+
+    @model_validator(mode="before")
+    @classmethod
+    def hardware_profile_defaults(cls, values):
+        from app.composition.hardware_profiles import apply_profile
+
+        return apply_profile(values)
+
+    provider_pool_max_active_jobs_per_workspace: int = Field(default=1, ge=1, le=10)
+    provider_pool_max_pending_jobs_per_workspace: int = Field(default=5, ge=1, le=100)
+    gemini_embedding_batch_max_chunks: int = Field(default=24, ge=1, le=100)
+    gemini_embedding_batch_target_tokens: int = Field(default=10_000, ge=1_000, le=100_000)
+    gemini_embedding_ingestion_tpm: int = Field(default=21_000, ge=1_000, le=30_000)
+    gemini_embedding_ingestion_rpm: int = Field(default=80, ge=1, le=100)
+    gemini_embedding_ingestion_rpd: int = Field(default=900, ge=1, le=1_000)
     trusted_local_provider_hosts: str = ""
     ai_rerank_enabled: bool = True
     local_ai_download_enabled: bool = True
@@ -72,6 +125,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    turnstile_enabled: bool = False
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+    turnstile_expected_hostname: str = ""
 
     @field_validator("public_base_url")
     @classmethod
@@ -153,6 +210,14 @@ class Settings(BaseSettings):
             )
             if any(email_settings) and not all(email_settings):
                 raise ValueError("SMTP configuration must be complete when enabled")
+        if self.turnstile_enabled and not all(
+            (
+                self.turnstile_site_key,
+                self.turnstile_secret_key,
+                self.turnstile_expected_hostname,
+            )
+        ):
+            raise ValueError("Turnstile configuration must be complete when enabled")
         return self
 
     @property

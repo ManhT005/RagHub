@@ -9,15 +9,17 @@ import { of } from 'rxjs';
 import { AuthSessionService } from './core/auth-session.service';
 import { SetupStateService } from './setup/setup-state.service';
 
+let mockAccessToken: string | null = null;
+
 const providers = [
   ...appConfig.providers, provideHttpClientTesting(),
   { provide: SetupStateService, useValue: { status: () => of({ initialized: true }), unavailable: signal(false) } },
-  { provide: AuthSessionService, useValue: { restoreSession: () => of(!!sessionStorage.getItem('raghub.access-token')), accessToken: () => sessionStorage.getItem('raghub.access-token'), restoreError: signal(false) } },
+  { provide: AuthSessionService, useValue: { restoreSession: () => of(!!mockAccessToken), accessToken: () => mockAccessToken, restoreError: signal(false) } },
 ];
 
 describe('AppComponent', () => {
   it('redirects legacy documents without a workspace to the workspace selector', async () => {
-    sessionStorage.setItem('raghub.access-token', 'test-token');
+    mockAccessToken = 'test-token';
     await TestBed.configureTestingModule({ providers }).compileComponents();
     const router = TestBed.inject(Router);
     const location = TestBed.inject(Location);
@@ -26,7 +28,7 @@ describe('AppComponent', () => {
   });
 
   it('redirects an unauthenticated profile visit to login', async () => {
-    sessionStorage.removeItem('raghub.access-token');
+    mockAccessToken = null;
     await TestBed.configureTestingModule({ providers }).compileComponents();
     const router = TestBed.inject(Router);
     const location = TestBed.inject(Location);

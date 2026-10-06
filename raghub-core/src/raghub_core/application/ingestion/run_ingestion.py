@@ -18,12 +18,14 @@ class RunIngestionUseCase:
         make_store: Callable[[EmbeddingRuntime], VectorStorePort],
         *,
         pipeline: Callable[[IngestionDocument], Awaitable[None]] | None = None,
+        retry_limits: dict[str, int] | None = None,
     ) -> None:
         self.repository = repository
         self.builder = builder
         self.providers = providers
         self.make_store = make_store
         self.pipeline = pipeline
+        self.retry_limits = retry_limits or {}
 
     async def execute(
         self, version_id: UUID, *, retries: int = 0, max_retries: int = 3
@@ -45,7 +47,9 @@ class RunIngestionUseCase:
                 await self.build(attempt.document)
         except IngestionError as exc:
             await self.repository.record_failure(
-                version_id, exc, failed=not exc.retryable or retries >= max_retries
+                version_id,
+                exc,
+                failed=not exc.retryable or retries >= self.retry_limits.get(exc.code, max_retries),
             )
             raise
         except Exception as exc:

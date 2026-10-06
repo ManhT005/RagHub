@@ -40,7 +40,7 @@ async def test_retrieval_checks_exact_ready_pairs_before_applying_limit():
     use_case = RetrieveContextUseCase(providers, readiness, lambda _: store)
     assert await use_case.retrieve(scope, "question", 1) == [ready]
     assert providers.scopes == readiness.calls == [scope]
-    assert store.searches == [(scope, "question", [1.0, 0.0], 15)]
+    assert store.searches == [(scope, "question", [1.0, 0.0], 25)]
     assert store.closed == 1
 
 

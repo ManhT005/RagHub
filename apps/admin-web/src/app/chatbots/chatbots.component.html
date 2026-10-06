@@ -226,7 +226,7 @@
     <section class="panel document-zone" aria-labelledby="documents-title">
       <h3 id="documents-title">Tài liệu</h3>
       <nz-upload nzType="drag" [nzMultiple]="false" [nzShowUploadList]="false" [nzBeforeUpload]="beforeUpload"
-        [nzDisabled]="uploading()" nzAccept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown">
+        [nzDisabled]="uploading()" nzAccept=".pdf,.txt,.md,.docx,.xlsx,.html,.htm,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/html">
         <p class="upload-title">{{ uploading() ? "Đang tải tài liệu lên..." : "Kéo thả tài liệu vào đây" }}</p>
         <p class="upload-hint">+ Chọn tài liệu · Hỗ trợ PDF, TXT và Markdown</p>
       </nz-upload>

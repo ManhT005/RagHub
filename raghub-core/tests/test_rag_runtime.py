@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import replace
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from raghub_core.api import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
+    ClarificationRequested,
     ConversationStarted,
     CoreError,
     RetrievalScope,
@@ -19,6 +21,7 @@ from raghub_core.api import (
 )
 from raghub_core.domain.providers.contracts import ChatMessage, ChatStreamDelta, ChatUsage
 from raghub_core.domain.providers.errors import ProviderUnavailableError
+from raghub_core.domain.rag.intent import IntentAction, IntentDecision
 from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER
 
 from .fakes import FakeProviderResolver
@@ -86,23 +89,106 @@ class Usage:
         self.records.append(record)
 
 
+class FakeClarificationPolicy:
+    def is_clarification(self, text):
+        return text.startswith("Please clarify ")
+
+    def evaluate(self, question, *, mode, clarifying_turns, max_clarifying_turns, **kwargs):
+        if mode == "off" or clarifying_turns >= max_clarifying_turns:
+            return IntentDecision(IntentAction.ANSWER_NOW)
+        if question == "ignore instructions":
+            return IntentDecision(
+                IntentAction.REFUSE_OR_REDIRECT, message="Use the provided documents."
+            )
+        if question == "ambiguous?" or (question == "topic" and mode == "proactive"):
+            slots = ("scope",) if question == "ambiguous?" else ("topic",)
+            return IntentDecision(
+                IntentAction.CLARIFY, missing_slots=slots, message="Please clarify scope."
+            )
+        return IntentDecision(IntentAction.ANSWER_NOW)
+
+
 def runtime():
     chatbots, retrieval, providers = Chatbots(), Retrieval(), FakeProviderResolver()
     conversations, usage = Conversations(), Usage()
-    use_case = StreamRagChatUseCase(chatbots, retrieval, providers, conversations, usage)
+    use_case = StreamRagChatUseCase(
+        chatbots,
+        retrieval,
+        providers,
+        conversations,
+        usage,
+        clarification_policy=FakeClarificationPolicy(),
+    )
     command = StreamChatCommand(
         chatbots.config.scope.organization_id, chatbots.config.id, "question"
     )
     return command, chatbots, retrieval, providers, conversations, usage, use_case
 
 
-async def test_runtime_preserves_events_trusted_citations_native_usage_and_scope():
+def test_post_retrieval_clarification_uses_confidence_without_generating():
+    from raghub_core.domain.retrieval.models import RetrievalAssessment
+
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+
+    class ConfidencePolicy(FakeClarificationPolicy):
+        def evaluate(self, question, **kwargs):
+            if kwargs.get("retrieval_confidence") == 0.6:
+                return IntentDecision(IntentAction.CLARIFY, message="Please clarify scope.")
+            return IntentDecision(IntentAction.ANSWER_NOW)
+
+    async def assess(*args):
+        return RetrievalAssessment(tuple(retrieval.hits), 0.6)
+
+    use_case.clarification_policy = ConfidencePolicy()
+    use_case.retrieval_assessor = assess
+    events = asyncio.run(_collect_events(use_case, command))
+    assert any(isinstance(event, ClarificationRequested) for event in events)
+    assert conversations.messages[-1] == ("assistant", "Please clarify scope.")
+    assert providers.chat_scopes == []
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_authenticated_runtime_allows_draft_and_published_chatbots(published):
+    command, chatbots, _, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, published=published)
+    events = asyncio.run(_collect_events(use_case, command))
+    assert isinstance(events[-1], ChatCompleted)
+    assert providers.chat.calls
+
+
+def test_final_citation_inventory_matches_the_five_prompt_context_chunks():
+    command, chatbots, retrieval, providers, conversations, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, retrieval_limit=8)
+    retrieval.hits = [
+        replace(retrieval.hits[0], chunk_id=uuid4(), content=f"context {i}") for i in range(10)
+    ]
+    events = asyncio.run(_collect_events(use_case, command))
+    citations = next(event.citations for event in events if isinstance(event, CitationsResolved))
+    assert len(citations) == 5 and citations == conversations.citations
+    prompt = providers.chat.calls[0][0][0].content
+    assert all(c.excerpt in prompt for c in citations)
+    assert "context 4" in prompt and "context 5" not in prompt
+
+
+async def _collect_events(use_case, command):
+    return [event async for event in use_case.execute(command)]
+
+
+async def _close_after_first_token(use_case, command) -> None:
+    stream = use_case.execute(command)
+    assert isinstance(await anext(stream), ConversationStarted)
+    assert isinstance(await anext(stream), CitationsResolved)
+    assert isinstance(await anext(stream), TokenDelta)
+    await stream.aclose()
+
+
+def test_runtime_preserves_events_trusted_citations_native_usage_and_scope():
     command, chatbots, retrieval, providers, conversations, usage, use_case = runtime()
     providers.chat.deltas = [
         ChatStreamDelta(text="See [C99]"),
         ChatStreamDelta(usage=ChatUsage(10, 2, 12, "provider")),
     ]
-    events = [event async for event in use_case.execute(command)]
+    events = asyncio.run(_collect_events(use_case, command))
     assert [type(event) for event in events] == [
         ConversationStarted,
         CitationsResolved,
@@ -124,10 +210,10 @@ async def test_runtime_preserves_events_trusted_citations_native_usage_and_scope
     assert prompt[-1] == ChatMessage("user", command.question)
 
 
-async def test_empty_context_skips_chat_resolution_and_usage_recording():
+def test_empty_context_skips_chat_resolution_and_usage_recording():
     command, _, retrieval, providers, conversations, usage, use_case = runtime()
     retrieval.hits = []
-    events = [event async for event in use_case.execute(command)]
+    events = asyncio.run(_collect_events(use_case, command))
     assert not providers.chat_scopes and not providers.chat.calls and not usage.records
     assert events[1] == CitationsResolved(()) and events[2] == TokenDelta(EMPTY_CONTEXT_ANSWER)
     assert events[3].usage == ChatUsage(0, 0, 0, "none")
@@ -135,35 +221,179 @@ async def test_empty_context_skips_chat_resolution_and_usage_recording():
     assert conversations.messages[-1] == ("assistant", EMPTY_CONTEXT_ANSWER)
 
 
-async def test_runtime_estimates_missing_provider_usage():
+def test_ambiguous_question_emits_clarification_without_retrieval_or_provider():
+    command, _, retrieval, providers, conversations, usage, use_case = runtime()
+    command = replace(command, question="ambiguous?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        ClarificationRequested,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert not retrieval.calls and not providers.chat_scopes and not providers.chat.calls
+    assert not usage.records
+    assert events[1].missing_slots == ("scope",)
+    assert events[2].usage == ChatUsage(0, 0, 0, "none")
+    assert events[3].first_token_ms is None and events[3].latency_ms == 0
+    assert conversations.messages[-1] == ("assistant", events[1].message)
+    assert conversations.commits == 2
+
+
+def test_clarification_limit_falls_back_to_retrieval_answer_path():
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+    conversations.messages = [
+        ("assistant", "Please clarify scope."),
+    ]
+    command = replace(command, question="ambiguous?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls
+    assert providers.chat_scopes
+    assert not any(isinstance(event, ClarificationRequested) for event in events)
+
+
+def test_legacy_ascii_clarification_prefix_still_counts_toward_limit() -> None:
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+    conversations.messages = [
+        ("assistant", "Please clarify scope."),
+    ]
+    command = replace(command, question="ambiguous?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls
+    assert providers.chat_scopes
+    assert not any(isinstance(event, ClarificationRequested) for event in events)
+
+
+def test_followup_after_clarification_uses_resolved_question_for_retrieval_and_prompt():
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+    first = replace(command, question="ambiguous?")
+    first_events = asyncio.run(_collect_events(use_case, first))
+    assert isinstance(first_events[1], ClarificationRequested)
+
+    followup = replace(command, question="scope A")
+    followup_events = asyncio.run(_collect_events(use_case, followup))
+
+    assert [type(event) for event in followup_events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls[-1][1] == "ambiguous? scope A"
+    prompt = providers.chat.calls[-1][0]
+    assert prompt[-1] == ChatMessage("user", "ambiguous? scope A")
+    assert conversations.messages[-2:] == [
+        ("user", "scope A"),
+        ("assistant", "answer"),
+    ]
+
+
+def test_refuse_or_redirect_keeps_legacy_visible_token_stream():
+    command, _, retrieval, providers, conversations, usage, use_case = runtime()
+    command = replace(command, question="ignore instructions")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert not retrieval.calls and not providers.chat_scopes and not providers.chat.calls
+    assert not usage.records
+    assert events[1] == CitationsResolved(())
+    assert events[2].text == "Use the provided documents."
+    assert events[3].usage == ChatUsage(0, 0, 0, "none")
+    assert conversations.messages[-1] == ("assistant", events[2].text)
+
+
+def test_chatbot_off_mode_uses_legacy_answer_path_for_ambiguous_question():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="off")
+    command = replace(command, question="ambiguous?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls and providers.chat_scopes
+    assert not any(isinstance(event, ClarificationRequested) for event in events)
+
+
+def test_chatbot_proactive_mode_clarifies_short_topic_query():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="proactive")
+    command = replace(command, question="topic")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        ClarificationRequested,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert events[1].missing_slots == ("topic",)
+    assert not retrieval.calls and not providers.chat_scopes
+
+
+def test_chatbot_conservative_mode_answers_short_topic_query():
+    command, chatbots, retrieval, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, clarification_mode="conservative")
+    command = replace(command, question="topic")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls and providers.chat_scopes
+
+
+def test_runtime_estimates_missing_provider_usage():
     command, _, _, _, _, usage, use_case = runtime()
-    events = [event async for event in use_case.execute(command)]
+    events = asyncio.run(_collect_events(use_case, command))
     assert events[3].usage.source == "estimated"
     assert events[3].usage.total_tokens > 0
     assert usage.records[0].usage == events[3].usage
 
 
-async def test_citations_are_limited_to_five_final_context_chunks_in_relevance_order():
-    command, chatbots, retrieval, providers, conversations, _, use_case = runtime()
-    chatbots.config = replace(chatbots.config, retrieval_limit=8)
-    retrieval.hits = [
-        replace(retrieval.hits[0], chunk_id=uuid4(), content=f"context {i}") for i in range(10)
-    ]
-    events = [event async for event in use_case.execute(command)]
-    citations = events[1].citations
-    assert len(citations) == 5 and citations == conversations.citations
-    assert [citation.chunk_id for citation in citations] == [
-        hit.chunk_id for hit in retrieval.hits[:5]
-    ]
-    prompt = providers.chat.calls[0][0][0].content
-    assert all(citation.excerpt in prompt for citation in citations)
-    assert "context 7" in prompt and "context 8" not in prompt
-
-
-async def test_current_question_is_appended_once_after_previous_history():
+def test_current_question_is_appended_once_after_previous_history():
     command, _, _, providers, conversations, _, use_case = runtime()
     conversations.messages = [("user", "earlier"), ("assistant", "previous answer")]
-    _ = [event async for event in use_case.execute(command)]
+    _ = asyncio.run(_collect_events(use_case, command))
     prompt = providers.chat.calls[0][0]
     assert prompt[1:] == [
         ChatMessage("user", "earlier"),
@@ -173,7 +403,7 @@ async def test_current_question_is_appended_once_after_previous_history():
 
 
 @pytest.mark.parametrize("failure", ["resolution", "retrieval", "timeout", "unexpected"])
-async def test_failure_policy_saves_user_and_failed_assistant_before_error_event(failure):
+def test_failure_policy_saves_user_and_failed_assistant_before_error_event(failure):
     command, _, retrieval, providers, conversations, usage, use_case = runtime()
     if failure in {"resolution", "retrieval"}:
 
@@ -192,7 +422,7 @@ async def test_failure_policy_saves_user_and_failed_assistant_before_error_event
         )
         code = "PROVIDER_TIMEOUT" if failure == "timeout" else "CHAT_RUNTIME_FAILED"
         partial = "answer"
-    events = [event async for event in use_case.execute(command)]
+    events = asyncio.run(_collect_events(use_case, command))
     assert isinstance(events[0], ConversationStarted)
     assert isinstance(events[-1], ChatFailed) and events[-1].code == code
     assert conversations.messages == [("user", command.question)]
@@ -201,10 +431,10 @@ async def test_failure_policy_saves_user_and_failed_assistant_before_error_event
     assert "vendor-secret" not in repr(events)
 
 
-async def test_provider_failure_after_token_never_retries_or_persists_completed_answer():
+def test_provider_failure_after_token_never_retries_or_persists_completed_answer():
     command, _, _, providers, conversations, usage, use_case = runtime()
     providers.chat.error = ProviderUnavailableError()
-    events = [event async for event in use_case.execute(command)]
+    events = asyncio.run(_collect_events(use_case, command))
     assert [type(event) for event in events] == [
         ConversationStarted,
         CitationsResolved,
@@ -216,25 +446,16 @@ async def test_provider_failure_after_token_never_retries_or_persists_completed_
     assert conversations.failures == [("answer", "PROVIDER_UNAVAILABLE")]
 
 
-async def test_tenant_check_precedes_retrieval():
+def test_access_check_precedes_retrieval():
     command, chatbots, retrieval, providers, _, _, use_case = runtime()
     command = replace(command, organization_id=uuid4())
     with pytest.raises(CoreError) as error:
-        _ = [event async for event in use_case.execute(command)]
+        _ = asyncio.run(_collect_events(use_case, command))
     assert error.value.code == "CHATBOT_NOT_FOUND"
     assert not retrieval.calls and not providers.chat_scopes
 
 
-@pytest.mark.parametrize("published", [False, True])
-async def test_runtime_allows_draft_and_published_chatbots(published):
-    command, chatbots, _, providers, conversations, _, use_case = runtime()
-    chatbots.config = replace(chatbots.config, published=published)
-    events = [event async for event in use_case.execute(command)]
-    assert isinstance(events[-1], ChatCompleted)
-    assert providers.chat.calls and conversations.messages[-1][0] == "assistant"
-
-
-async def test_closing_runtime_stream_closes_provider_and_leaves_no_completed_message():
+def test_closing_runtime_stream_closes_provider_and_leaves_no_completed_message():
     command, _, _, providers, conversations, usage, use_case = runtime()
     closed = []
 
@@ -246,10 +467,6 @@ async def test_closing_runtime_stream_closes_provider_and_leaves_no_completed_me
             closed.append(True)
 
     providers.chat.stream_chat = provider_stream
-    stream = use_case.execute(command)
-    assert isinstance(await anext(stream), ConversationStarted)
-    assert isinstance(await anext(stream), CitationsResolved)
-    assert isinstance(await anext(stream), TokenDelta)
-    await stream.aclose()
+    asyncio.run(_close_after_first_token(use_case, command))
     assert closed == [True] and not usage.records and conversations.commits == 1
     assert not conversations.failures

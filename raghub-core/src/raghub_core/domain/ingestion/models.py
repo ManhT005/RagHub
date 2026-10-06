@@ -22,6 +22,7 @@ class IngestionDocument:
     version_id: UUID
     storage_key: str
     source_name: str
+    kind: str = "upload"
 
 
 @dataclass(frozen=True)

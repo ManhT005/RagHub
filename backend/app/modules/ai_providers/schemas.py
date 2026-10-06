@@ -47,6 +47,7 @@ class ProviderOptions(BaseModel):
     max_concurrency: int | None = Field(default=None, strict=True, ge=1, le=64)
     include_stream_usage: bool | None = Field(default=None, strict=True)
     options: dict[str, Any] | None = None
+    document_pipeline: Literal["legacy", "normalized-v1", "context-v1"] | None = None
     endpoint_scope: Literal["PUBLIC", "LOCAL_TRUSTED"] | None = None
     request_profile: (
         Literal[

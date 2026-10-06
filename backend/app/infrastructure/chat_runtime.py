@@ -19,6 +19,9 @@ class ChatbotRuntimeReader:
             chatbot.retrieval_limit,
             chatbot.published,
             getattr(chatbot, "model", None),
+            getattr(chatbot, "clarification_mode", "conservative"),
+            getattr(chatbot, "max_clarifying_turns", 1),
+            getattr(chatbot, "domain_profile", "generic"),
         )
 
 
@@ -34,6 +37,11 @@ class RuntimeRetrievalAdapter:
             limit,
         )
         return [chunk_from_hit(hit) for hit in hits]
+
+    async def assess(self, scope, query, limit):
+        return await self.search_factory().assess(
+            scope.organization_id, scope.workspace_id, query, limit
+        )
 
 
 class LazyProviderResolverAdapter:

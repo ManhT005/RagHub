@@ -26,6 +26,7 @@ PUBLIC_CONTRACTS = {
         "RagEvent",
         "ConversationStarted",
         "CitationsResolved",
+        "ClarificationRequested",
         "TokenDelta",
         "UsageReported",
         "ChatCompleted",

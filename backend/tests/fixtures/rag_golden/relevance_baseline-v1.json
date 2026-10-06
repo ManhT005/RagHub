@@ -1,0 +1,21 @@
+{
+  "version": "baseline-v1",
+  "feature_names": [
+    "fused_1",
+    "margin_12",
+    "mean_top3",
+    "n_results"
+  ],
+  "weights": [
+    0.16905886031476378,
+    0.03693751063159515,
+    0.1353315877242801,
+    0.07628503968077288
+  ],
+  "intercept": 0.015257007936154471,
+  "threshold": 0.6000359697617272,
+  "train_rejection_f1": 0.7142857142857143,
+  "dataset_hash": "5fac68f182c0a46d",
+  "retrieval_config_hash": "8b5c6d8b2836088d",
+  "embedding_fingerprint": ""
+}

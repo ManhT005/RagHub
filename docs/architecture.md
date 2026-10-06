@@ -52,6 +52,28 @@ Roles are `OWNER`, `ADMIN`, `EDITOR`, and `VIEWER`. Authorization is enforced
 at the API boundary; repositories still apply organization and workspace filters
 to protect retrieval and document data isolation.
 
+## RAG pipeline upgrade (evaluation-first)
+
+- Golden corpus and QA live in `backend/tests/fixtures/rag_golden/` (hash-locked,
+  offline). The eval runner `backend/scripts/rag_golden_eval.py` calls the same
+  application use cases as production and reports hit@5/MRR/nDCG, rejection F1,
+  citation precision/coverage and faithfulness.
+- Providers are managed pools: workspaces bind profiles, credentials stay
+  platform-side. Embedding fingerprint v2 covers type/endpoint/model/dimension;
+  failover never crosses fingerprints. Quota buckets (Redis rolling RPM/TPM/RPD)
+  gate every external embedding call; ingestion embeds at most 24 chunks/~10K
+  tokens per batch with per-batch checkpoints and resume.
+- Retrieval fuses 25 BM25 + 25 vector candidates (RRF k=60) over the
+  `vi_hybrid_v2` mapping, with an optional calibrated relevance gate and a
+  local cross-encoder reranker (both default off, independent flags).
+- Prompts obey a global token budget; citations mirror sent slices and answers
+  use `[Cn]` markers validated post-stream as a release gate.
+- Telemetry records stage timings with low-cardinality labels only; GC runs
+  dry-run by default (`python -m app.cli index-gc`, `--apply` requires
+  `RAG_INDEX_GC_ENABLED`).
+- API compatibility is frozen by `docs/api/openapi.json` and the Postman
+  collection in `postman/`; CI regenerates both into temp dirs and diffs.
+
 ## Error contract
 
 Application and validation errors use one envelope:

@@ -10,6 +10,12 @@ services:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
   migrate:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+  worker-ocr:
+    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}-ocr
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      target: ocr-local-ai
   admin-web:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/admin-web:${LOCAL_IMAGE_TAG:-local}
     build:

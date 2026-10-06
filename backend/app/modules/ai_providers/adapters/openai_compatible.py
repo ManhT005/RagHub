@@ -14,6 +14,7 @@ from raghub_core.domain.providers.contracts import (
 from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
     ProviderConfigurationError,
+    ProviderError,
     ProviderInvalidResponseError,
     ProviderTimeoutError,
     ProviderUnavailableError,
@@ -26,6 +27,15 @@ from app.modules.ai_providers.schemas import (
     validate_public_provider_url,
     validate_trusted_local_provider_url,
 )
+
+
+def _retry_after_seconds(response: httpx.Response) -> float:
+    """Honor Retry-After on 429; fall back to 0 (caller uses backoff)."""
+    try:
+        value = float((response.headers.get("retry-after") or "").strip())
+    except (ValueError, AttributeError):
+        return 0.0
+    return min(60.0, max(0.0, value))
 
 
 class _OpenAICompatibleBase:
@@ -79,6 +89,8 @@ class _OpenAICompatibleBase:
 
 
 class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
+    batch_stride = 64
+
     def __init__(
         self,
         *,
@@ -157,8 +169,9 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
         if not texts:
             return []
         vectors: list[list[float]] = []
-        for start in range(0, len(texts), self.batch_limit):
-            vectors.extend(await self._embed(texts[start : start + self.batch_limit]))
+        stride = min(self.batch_limit, max(1, getattr(self, "batch_stride", self.batch_limit)))
+        for start in range(0, len(texts), stride):
+            vectors.extend(await self._embed(texts[start : start + stride]))
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
@@ -275,6 +288,3 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                 raise error
             retry_after = getattr(error, "details", {}).get("retry_after_seconds", 0)
             await asyncio.sleep(max(retry_after, self.policy.backoff_seconds * (2**attempt)))
-
-
-from raghub_core.domain.providers.errors import ProviderError  # noqa: E402

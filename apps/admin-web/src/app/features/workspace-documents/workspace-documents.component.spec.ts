@@ -92,7 +92,7 @@ describe("Workspace documents", () => {
     expect(component["files"]()).toHaveLength(0);
     expect(component["error"]()).toContain("25 MB");
     component["chooseFiles"]({
-      target: { files: [new File(["content"], "bad.docx")], value: "" },
+      target: { files: [new File(["content"], "bad.exe")], value: "" },
     } as unknown as Event);
     expect(component["files"]()).toHaveLength(0);
     expect(component["error"]()).toContain("PDF");

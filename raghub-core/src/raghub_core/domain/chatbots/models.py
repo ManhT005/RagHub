@@ -15,6 +15,9 @@ class ChatbotConfig:
     retrieval_limit: int
     published: bool
     model: str | None = None
+    clarification_mode: str = "conservative"
+    max_clarifying_turns: int = 1
+    domain_profile: str = "generic"
 
 
 @dataclass(frozen=True)
@@ -29,6 +32,9 @@ class ChatbotRecord:
     published: bool
     created_at: datetime
     updated_at: datetime | None
+    clarification_mode: str = "conservative"
+    max_clarifying_turns: int = 1
+    domain_profile: str = "generic"
 
     @property
     def scope(self) -> RetrievalScope:
@@ -43,6 +49,9 @@ class CreateChatbotCommand:
     model: str | None = None
     retrieval_limit: int = 5
     published: bool = False
+    clarification_mode: str = "conservative"
+    max_clarifying_turns: int = 1
+    domain_profile: str = "generic"
 
 
 class Unset(Enum):
@@ -56,3 +65,6 @@ class PatchChatbotCommand:
     model: str | None | Unset = Unset.VALUE
     retrieval_limit: int | None | Unset = Unset.VALUE
     published: bool | None | Unset = Unset.VALUE
+    clarification_mode: str | Unset = Unset.VALUE
+    max_clarifying_turns: int | Unset = Unset.VALUE
+    domain_profile: str | Unset = Unset.VALUE

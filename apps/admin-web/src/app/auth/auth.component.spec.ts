@@ -12,12 +12,16 @@ describe("AuthComponent", () => {
   let api: {
     login: ReturnType<typeof vi.fn>;
     forgotPassword: ReturnType<typeof vi.fn>;
+    authSecurityConfig: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
     api = {
       login: vi.fn(() => of({ access_token: "login-token" })),
       forgotPassword: vi.fn(() => of({ message: "sent" })),
+      authSecurityConfig: vi.fn(() =>
+        of({ turnstile_enabled: false, turnstile_site_key: "" }),
+      ),
     };
     await TestBed.configureTestingModule({
       imports: [AuthComponent],

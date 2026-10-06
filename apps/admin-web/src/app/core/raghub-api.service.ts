@@ -119,6 +119,9 @@ export interface Chatbot {
   embed_primary_color: string;
   embed_title: string;
   embed_greeting: string;
+  clarification_mode: "off" | "conservative" | "proactive";
+  max_clarifying_turns: number;
+  domain_profile: string;
 }
 export interface ChatbotInput {
   name: string;
@@ -126,6 +129,9 @@ export interface ChatbotInput {
   model?: string | null;
   retrieval_limit: number;
   published: boolean;
+  clarification_mode?: "off" | "conservative" | "proactive";
+  max_clarifying_turns?: number;
+  domain_profile?: string;
 }
 export interface ChatRequest {
   message: string;
@@ -148,6 +154,7 @@ export interface EmbedCode {
 export type ChatStreamEventName =
   | "conversation"
   | "citations"
+  | "clarification"
   | "token"
   | "usage"
   | "done"
@@ -164,6 +171,10 @@ export interface CurrentUser {
   id: string;
   email: string;
   email_verified: boolean;
+}
+export interface AuthSecurityConfig {
+  turnstile_enabled: boolean;
+  turnstile_site_key: string;
 }
 
 export class SseEventParser {
@@ -215,16 +226,20 @@ export class RaghubApiService {
   me() {
     return this.http.get<CurrentUser>(`${this.base}/auth/me`);
   }
-  forgotPassword(email: string) {
+  authSecurityConfig() {
+    return this.http.get<AuthSecurityConfig>(`${this.base}/auth/security-config`);
+  }
+  forgotPassword(email: string, turnstileToken = "") {
     return this.http.post<{ message: string }>(
       `${this.base}/auth/password/forgot`,
-      { email },
+      { email, turnstile_token: turnstileToken },
     );
   }
-  resetPassword(token: string, newPassword: string) {
+  resetPassword(token: string, newPassword: string, turnstileToken = "") {
     return this.http.post<void>(`${this.base}/auth/password/reset`, {
       token,
       new_password: newPassword,
+      turnstile_token: turnstileToken,
     });
   }
   changePassword(currentPassword: string, newPassword: string) {

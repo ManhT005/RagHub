@@ -10,6 +10,7 @@ from raghub_core.api import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.composition.chatbots import chatbot_management
+from app.composition.rag import prompt_budgeter_factory
 from app.composition.retrieval import retrieval_use_case
 from app.core.config import Settings, get_settings
 from app.infrastructure.chat_runtime import ChatbotRuntimeReader, LazyProviderResolverAdapter
@@ -24,8 +25,10 @@ from app.infrastructure.persistence.uploads import (
     UploadRepositoryAdapter,
 )
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
+from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.documents.repository import DocumentRepository
+from app.modules.rag_policies.clarification import HostClarificationPolicy
 
 
 class SelfHostContainer:
@@ -74,12 +77,16 @@ class SelfHostContainer:
             record.retrieval_limit,
             record.published,
             record.model,
+            record.clarification_mode,
+            record.max_clarifying_turns,
+            record.domain_profile,
         )
 
     def stream_chat(self, *, chatbot_loader=None, conversation_loader=None, history_loader=None):
+        retrieval = self.retrieve_context()
         return StreamRagChatUseCase(
             ChatbotRuntimeReader(chatbot_loader) if chatbot_loader else self,
-            self.retrieve_context(),
+            retrieval,
             LazyProviderResolverAdapter(lambda: ProviderResolver(self.session)),
             ConversationRepositoryAdapter(
                 self.session,
@@ -87,6 +94,14 @@ class SelfHostContainer:
                 history_loader=history_loader,
             ),
             UsageRecorderAdapter(self.session),
+            budgeter_factory=prompt_budgeter_factory,
+            clarification_policy=HostClarificationPolicy(
+                self.settings.rag_clarification_medium_threshold
+            ),
+            retrieval_assessor=retrieval.assess
+            if self.settings.rag_adaptive_clarification_enabled
+            else None,
+            telemetry=LoggingTelemetry(),
         )
 
     async def get(self, organization_id, chatbot_id):

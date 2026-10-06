@@ -1,19 +1,44 @@
+import math
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 from raghub_core.domain.ingestion.chunker import TextChunk
-from raghub_core.domain.retrieval.hybrid import RETRIEVAL_CANDIDATES, fuse_rrf
+from raghub_core.domain.retrieval.hybrid import (
+    MAPPING_VERSION,
+    RETRIEVAL_CANDIDATES,
+    fuse_rrf,
+    resolve_candidate_count,
+)
+from raghub_core.ports.telemetry import TelemetryPort
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
 
+BOOST_EXACT = 1.0
+BOOST_FOLDED = 0.8
+BOOST_HEADING = 2.0
+BOOST_SOURCE_NAME = 1.2
 
-def chunk_index_mapping(dimension: int) -> dict[str, Any]:
+
+def chunk_index_mapping(
+    dimension: int, *, mapping_version: str = MAPPING_VERSION
+) -> dict[str, Any]:
     if dimension < 1:
         raise ValueError("Embedding dimension must be positive")
     return {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "vi_folded": {
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "asciifolding"],
+                    }
+                }
+            }
+        },
         "mappings": {
             "dynamic": "strict",
             "properties": {
@@ -22,8 +47,17 @@ def chunk_index_mapping(dimension: int) -> dict[str, Any]:
                 "document_id": {"type": "keyword"},
                 "document_version_id": {"type": "keyword"},
                 "chunk_id": {"type": "keyword"},
-                "content": {"type": "text"},
+                "content": {
+                    "type": "text",
+                    "fields": {"folded": {"type": "text", "analyzer": "vi_folded"}},
+                },
                 "content_hash": {"type": "keyword"},
+                "raw_content": {"type": "text", "index": False},
+                "heading_path": {"type": "keyword"},
+                "parent_section_id": {"type": "keyword"},
+                "previous_chunk_id": {"type": "keyword"},
+                "next_chunk_id": {"type": "keyword"},
+                "metadata": {"type": "object", "enabled": False},
                 "token_count": {"type": "integer"},
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
                 "embedding": {
@@ -39,8 +73,59 @@ def chunk_index_mapping(dimension: int) -> dict[str, Any]:
                 "page_number": {"type": "integer"},
                 "chunk_index": {"type": "integer"},
                 "language": {"type": "keyword"},
+                "retrievable": {"type": "boolean"},
+                "mapping_version": {"type": "keyword"},
                 "created_at": {"type": "date"},
             },
+        },
+    }
+
+
+def bm25_query(query: str, organization_id: uuid.UUID, workspace_id: uuid.UUID) -> dict[str, Any]:
+    """Multi-match Vietnamese query with tenant/retrievable filters pre-cutoff."""
+    return {
+        "bool": {
+            "must": [
+                {
+                    "multi_match": {
+                        "query": query,
+                        "fields": [
+                            f"content^{BOOST_EXACT}",
+                            f"content.folded^{BOOST_FOLDED}",
+                            f"heading.text^{BOOST_HEADING}",
+                            f"source_name.text^{BOOST_SOURCE_NAME}",
+                        ],
+                    }
+                }
+            ],
+            "filter": [
+                {"term": {"organization_id": str(organization_id)}},
+                {"term": {"workspace_id": str(workspace_id)}},
+                {"term": {"retrievable": True}},
+            ],
+        }
+    }
+
+
+def knn_query(
+    query_vector: list[float],
+    organization_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    *,
+    k: int,
+    num_candidates: int,
+) -> dict[str, Any]:
+    return {
+        "knn": {
+            "field": "embedding",
+            "query_vector": query_vector,
+            "k": k,
+            "num_candidates": num_candidates,
+            "filter": [
+                {"term": {"organization_id": str(organization_id)}},
+                {"term": {"workspace_id": str(workspace_id)}},
+                {"term": {"retrievable": True}},
+            ],
         }
     }
 
@@ -86,6 +171,13 @@ class ChunkIndexer:
         chunks: list[TextChunk],
         embeddings: dict[str, list[float]],
     ) -> None:
+        if len({chunk.chunk_id for chunk in chunks}) != len(chunks):
+            raise ValueError("Duplicate chunk identity in index manifest.")
+        if set(embeddings) != {str(chunk.chunk_id) for chunk in chunks} or any(
+            len(vector) != self.dimension or not all(math.isfinite(x) for x in vector)
+            for vector in embeddings.values()
+        ):
+            raise ValueError("Index vectors do not match the manifest or index dimension.")
         self.ensure_index()
         index = self.index_name
         self.client.delete_by_query(
@@ -106,7 +198,19 @@ class ChunkIndexer:
                     "document_id": str(document_id),
                     "document_version_id": str(document_version_id),
                     "chunk_id": str(chunk.chunk_id),
-                    "content": chunk.content,
+                    "content": chunk.normalized_content
+                    if chunk.normalized_content is not None
+                    else chunk.content,
+                    "raw_content": chunk.content,
+                    "heading_path": list(chunk.heading_path),
+                    "parent_section_id": str(chunk.parent_section_id)
+                    if chunk.parent_section_id
+                    else None,
+                    "previous_chunk_id": str(chunk.previous_chunk_id)
+                    if chunk.previous_chunk_id
+                    else None,
+                    "next_chunk_id": str(chunk.next_chunk_id) if chunk.next_chunk_id else None,
+                    "metadata": dict(chunk.metadata),
                     "source_name": chunk.source_name,
                     "page_number": chunk.page_number,
                     "heading": chunk.heading,
@@ -115,6 +219,8 @@ class ChunkIndexer:
                     "embedding": embeddings[str(chunk.chunk_id)],
                     "chunk_index": chunk.chunk_index,
                     "language": "vi",
+                    "retrievable": False,
+                    "mapping_version": MAPPING_VERSION,
                     "created_at": now,
                 },
             }
@@ -122,6 +228,39 @@ class ChunkIndexer:
         ]
         if actions:
             helpers.bulk(self.client, actions, refresh="wait_for")
+        result = self.client.count(
+            index=index,
+            query={"term": {"document_version_id": str(document_version_id)}},
+        )
+        if result["count"] != len(chunks):
+            raise ValueError("Indexed chunk count does not match the document manifest.")
+        try:
+            self.set_version_retrievable(document_version_id, retrievable=True)
+        except Exception:
+            try:
+                self.set_version_retrievable(document_version_id, retrievable=False)
+            except Exception:
+                pass  # Readiness filtering still hides the uncommitted version.
+            raise
+
+    def set_version_retrievable(self, document_version_id: uuid.UUID, *, retrievable: bool) -> None:
+        """Flip the pre-cutoff retrievable flag without reindexing content."""
+        self.ensure_index()
+        result = self.client.update_by_query(
+            index=self.index_name,
+            query={"term": {"document_version_id": str(document_version_id)}},
+            script={
+                "source": "ctx._source.retrievable = params.flag",
+                "params": {"flag": retrievable},
+            },
+            conflicts="abort",
+            refresh=True,
+        )
+        body = getattr(result, "body", result)
+        if isinstance(body, dict) and (
+            body.get("failures") or body.get("timed_out") or body.get("version_conflicts")
+        ):
+            raise ValueError("Document publication did not complete successfully.")
 
     def document_version_ids(self, workspace_id: uuid.UUID) -> set[uuid.UUID]:
         """Return distinct indexed document versions for a workspace."""
@@ -150,13 +289,26 @@ class ChunkIndexer:
 
 
 class ChunkSearch:
-    def __init__(self, *, index_name: str, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        index_name: str,
+        settings: Settings | None = None,
+        telemetry: TelemetryPort | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
         self.index_name = index_name
+        self.telemetry = telemetry
         self.client = AsyncElasticsearch(self.settings.elasticsearch_url)
 
     async def close(self) -> None:
         await self.client.close()
+
+    def _candidates(self) -> int:
+        try:
+            return resolve_candidate_count(self.settings.rag_retrieval_candidates)
+        except (ValueError, AttributeError):
+            return RETRIEVAL_CANDIDATES
 
     async def search(
         self,
@@ -169,59 +321,98 @@ class ChunkSearch:
     ) -> list[dict[str, Any]]:
         import asyncio
 
+        started = time.perf_counter()
         lexical, vector = await asyncio.gather(
             self._search_bm25(organization_id, workspace_id, query),
             self._search_vector(organization_id, workspace_id, query_vector),
         )
-        return [chunk_to_hit(hit) for hit in fuse_rrf(
+        mark = time.perf_counter()
+        fused = fuse_rrf(
             [[chunk_from_hit(hit) for hit in ranking] for ranking in (lexical, vector)],
             limit=limit,
-        )]
+            max_per_document=self._doc_cap(),
+            rrf_k=self.settings.rag_rrf_k,
+        )
+        if self.telemetry is not None:
+            labels = {"stage": "retrieval"}
+            self.telemetry.timing(
+                "retrieval_rrf_diversity", (time.perf_counter() - mark) * 1000, labels
+            )
+            self.telemetry.timing(
+                "retrieval_es_total", (time.perf_counter() - started) * 1000, labels
+            )
+            self.telemetry.counter("retrieval_bm25_hits", labels, len(lexical))
+            self.telemetry.counter("retrieval_vector_hits", labels, len(vector))
+            self.telemetry.counter("retrieval_fused_hits", labels, len(fused))
+        return [chunk_to_hit(hit) for hit in fused]
+
+    def _doc_cap(self) -> int | None:
+        try:
+            return int(self.settings.rag_max_chunks_per_document)
+        except (ValueError, TypeError, AttributeError):
+            return None
+
+    async def search_branches(
+        self,
+        *,
+        organization_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        query: str,
+        query_vector: list[float],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Raw per-branch hits (lexical, vector) for explainability/telemetry."""
+        import asyncio
+
+        return await asyncio.gather(
+            self._search_bm25(organization_id, workspace_id, query),
+            self._search_vector(organization_id, workspace_id, query_vector),
+        )
 
     async def _search_bm25(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query: str
     ) -> list[dict[str, Any]]:
+        mark = time.perf_counter()
         response = await self.client.search(
             index=self.index_name,
-            query={
-                "bool": {
-                    "must": [{"match": {"content": {"query": query}}}],
-                    "filter": [
-                        {"term": {"organization_id": str(organization_id)}},
-                        {"term": {"workspace_id": str(workspace_id)}},
-                    ],
-                }
-            },
-            size=RETRIEVAL_CANDIDATES,
+            query=bm25_query(query, organization_id, workspace_id),
+            size=self._candidates(),
             source=self._source_fields(),
         )
-        return self._hits(response)
+        hits = self._hits(response)
+        if self.telemetry is not None:
+            self.telemetry.timing(
+                "retrieval_es_bm25", (time.perf_counter() - mark) * 1000, {"stage": "retrieval"}
+            )
+        return hits
 
     async def _search_vector(
         self, organization_id: uuid.UUID, workspace_id: uuid.UUID, query_vector: list[float]
     ) -> list[dict[str, Any]]:
+        candidates = self._candidates()
+        mark = time.perf_counter()
         response = await self.client.search(
             index=self.index_name,
-            query={
-                "knn": {
-                    "field": "embedding",
-                    "query_vector": query_vector,
-                    "k": RETRIEVAL_CANDIDATES,
-                    "num_candidates": RETRIEVAL_CANDIDATES * 4,
-                    "filter": [
-                        {"term": {"organization_id": str(organization_id)}},
-                        {"term": {"workspace_id": str(workspace_id)}},
-                    ],
-                }
-            },
-            size=RETRIEVAL_CANDIDATES,
+            query=knn_query(
+                query_vector,
+                organization_id,
+                workspace_id,
+                k=candidates,
+                num_candidates=candidates * 4,
+            ),
+            size=candidates,
             source=self._source_fields(),
         )
-        return self._hits(response)
+        hits = self._hits(response)
+        if self.telemetry is not None:
+            self.telemetry.timing(
+                "retrieval_es_vector", (time.perf_counter() - mark) * 1000, {"stage": "retrieval"}
+            )
+        return hits
 
     @staticmethod
     def _source_fields() -> list[str]:
         return [
+            "chunk_index",
             "document_id",
             "document_version_id",
             "chunk_id",
@@ -229,6 +420,12 @@ class ChunkSearch:
             "source_name",
             "page_number",
             "heading",
+            "raw_content",
+            "heading_path",
+            "parent_section_id",
+            "previous_chunk_id",
+            "next_chunk_id",
+            "metadata",
         ]
 
     @staticmethod

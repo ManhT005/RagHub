@@ -172,9 +172,12 @@ type WidgetConfig = { primary_color: string; title: string; greeting: string };
               const history = this.root.querySelector(".history")!;
               const follow = history.scrollHeight - history.scrollTop - history.clientHeight < 100;
               text += data.text;
-              answer.textContent = text;
+              answer.replaceChildren(this.renderAssistantText(text));
               status.textContent = "";
               if (follow) history.scrollTop = history.scrollHeight;
+            }
+            if (event === "clarification" && typeof data.message === "string") {
+              text = data.message; answer.replaceChildren(this.renderAssistantText(text));
             }
             if (event === "conversation" && typeof data.conversation_id === "string") this.conversationId = data.conversation_id;
             if (event === "citations") {
@@ -225,6 +228,28 @@ type WidgetConfig = { primary_color: string; title: string; greeting: string };
       const history = this.root.querySelector(".history")!;
       history.append(row); history.scrollTop = history.scrollHeight;
       return body;
+    }
+    private renderAssistantText(text: string) {
+      const fragment = document.createDocumentFragment();
+      const cleaned = this.cleanAssistantText(text);
+      const boldPattern = /(\*\*\*|___)([\s\S]+?)\1|(\*\*|__)([\s\S]+?)\3/g;
+      let cursor = 0;
+      for (const match of cleaned.matchAll(boldPattern)) {
+        const index = match.index ?? 0;
+        if (index > cursor) fragment.append(document.createTextNode(cleaned.slice(cursor, index)));
+        const strong = document.createElement("strong");
+        strong.textContent = match[2] || match[4] || "";
+        fragment.append(strong);
+        cursor = index + match[0].length;
+      }
+      if (cursor < cleaned.length) fragment.append(document.createTextNode(cleaned.slice(cursor)));
+      return fragment;
+    }
+    private cleanAssistantText(text: string) {
+      return text
+        .replace(/\s*\[(?:C\d+(?:\s*,\s*C?\d+)*)\]/gi, "")
+        .replace(/[ \t]+([.,;:!?])/g, "$1")
+        .replace(/[ \t]{2,}/g, " ");
     }
     private addCitations(bubble: HTMLElement, citations: EventPayload[]) {
       const sources = citations.slice(0, 5);
