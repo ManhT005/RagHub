@@ -1,99 +1,200 @@
 # RAG operations runbook
 
-## Feature flags (all default off except the prompt budget)
+## Acceptance scope
 
-| Flag | Default | Enable | Rollback |
+The October 6 optimization iteration prioritizes reliable operations: bounded
+resource use, queue fairness, recoverable work, safe publication and observable
+failures. Local model quality and latency depend on the configured model and
+hardware; they are diagnostic results, not mandatory acceptance thresholds for
+this iteration. Reviewed 200?300-case data is not required to finish this scope.
+Evaluation tools enforce thresholds only when explicitly requested with `--gate`.
+
+Run Python commands below from `backend/`, with the installation's configured
+DB/search/broker/provider settings. Run Docker commands from the repository root.
+
+## Feature flags
+
+| Flag | Default | Enable after | Rollback |
 |---|---|---|---|
-| `RAG_RELEVANCE_GATE_ENABLED` | `false` | After calibration + holdout pass; `shadow → 10% → 50% → 100%` internal canary | Set `false`: instant return to top-k, no reindex |
-| `RAG_RERANKER_ENABLED` | `false` | After p95 ≤ 750 ms and quality gates; independent canary | Set `false`: fusion output continues |
-| `RAG_OCR_ENABLED` | `false` | After resource/security test per MIME | Per-adapter off; indexed docs stay until reindex |
-| `RAG_INDEX_GC_ENABLED` | `false` | After 7-day dry-run audit with zero false positives | Disable apply, keep dry-run |
-| `RAG_EMBEDDING_CACHE_ENABLED` | `false` | After tenant/fingerprint isolation verification | Set `false`; durable work-item checkpoints still apply |
-| `RAG_NEIGHBOR_EXPANSION_ENABLED` | `false` | After same-document quality/latency comparison | Set `false`; no reindex |
-| `RAG_ADAPTIVE_CLARIFICATION_ENABLED` | `false` | After reviewed uncertainty-policy evaluation | Set `false`; configured pre-retrieval policy continues |
-| Prompt budgeter | always on | Safety boundary; roll back via model registry/config | `RAG_MAX_OUTPUT_TOKENS` / `RAG_PROMPT_SAFETY_MARGIN` |
-| Provider binding | live | Roll back binding to prior pool/profile | If fingerprint differs from active index, roll back the active index version too |
+| `RAG_RELEVANCE_GATE_ENABLED` | `false` | Matching calibration artifact and reviewed refusal behavior | Set `false`; no reindex |
+| `RAG_RERANKER_ENABLED` | `false` | Preparing the pinned local snapshot and checking available capacity | Set `false`; fusion continues |
+| `RAG_ADAPTIVE_RERANK_ENABLED` | `false` in custom profile | Checking confidence routing; CPU/GPU presets may enable routing | Set `false`; configured reranking continues |
+| `RAG_EVIDENCE_SELECTION_ENABLED` | `false` | Comparing evidence coverage and prompt fit | Set `false`; no reindex |
+| `RAG_OCR_ENABLED` | `false` | Resource/security checks per MIME and an OCR worker | Disable; indexed documents remain |
+| `RAG_INDEX_GC_ENABLED` | `false` | Dry-run audit of retention and protected versions | Disable apply; keep dry-run |
+| `RAG_EMBEDDING_CACHE_ENABLED` | `false` | Tenant/fingerprint isolation checks | Set `false`; durable checkpoints remain |
+| `RAG_NEIGHBOR_EXPANSION_ENABLED` | `false` | Checking same-document evidence and context budget | Set `false`; no reindex |
+| `RAG_ADAPTIVE_CLARIFICATION_ENABLED` | `false` | Reviewing uncertainty policy | Set `false`; configured policy continues |
+| `RAG_TELEMETRY_JSON_ENABLED` | `false` | Configuring JSON log capture for API and workers | Set `false`; ordinary logging continues |
+| Prompt budgeter | Always on | Fixed prompts/question, then evidence, then bounded history | Adjust context/output/safety configuration |
 
-## Threshold calibration
+Adaptive reranking skips inference only for calibrated HIGH confidence. MEDIUM
+and unknown confidence keep the configured reranker; LOW can reject retrieval.
+A mismatched artifact produces unknown confidence. Reranker failure falls back
+to fused evidence. Enabling adaptive routing does not install or enable a model.
 
-Run backend commands below from `backend/`, with the deployment's configured
-DB/search/provider settings. Fixture `rag_golden_eval.py` is a lexical comparison
-tool and must not train a production gate.
+## Capacity presets and queue routing
 
-1. In a dedicated evaluation workspace, disable the relevance gate, neighbor
-   expansion and both workspace-provider/local reranking while collecting fused
-   scores. Use `python scripts/collect_calibration_scores.py --mint-email <eval-email>
-   --out ../artifacts/calib_scores.json` after ingesting the original golden corpus.
-   This collector uses HTTP search results; verify they are unmodified fused scores
-   and match the runtime five-candidate feature window. Non-default pipelines need
-   an equivalent collector before calibration.
-2. `python scripts/calibrate_relevance.py --scores <calibration-scores>.json \
-   --out artifacts/relevance_<version>.json --dataset-hash <qa-hash> \
-   --config-hash <retrieval-hash> --fingerprint <active-embedding-fingerprint> \
-   --version <version>`
-   Collector output may contain both splits; the calibrator selects only
-   `calibration`. A list explicitly containing holdout rows is rejected.
-3. Evaluate the 10 holdout cases; never tune the threshold on holdout.
-4. Deploy the artifact path via `RAG_RELEVANCE_ARTIFACT_PATH` and set
-   `RAG_RELEVANCE_CONFIG_VERSION`. A dataset/config hash mismatch keeps the
-   gate off automatically. Fingerprint mismatch also keeps it off. Compute hashes
-   with `app.modules.search.relevance.dataset_hash` and `retrieval_config_hash`,
-   using the same QA file, candidates, RRF k, mapping version and document cap as
-   `app.composition.retrieval`. Report hashes from other eval scripts are not
-   interchangeable with artifact hashes.
+`RAG_HARDWARE_PROFILE=custom` preserves explicit settings. Opt-in presets are
+starting configurations, not throughput or quality guarantees:
 
-## Upgrade and worker routing
+| Profile | Worker concurrency | Candidates | Rerank source/top count | Active jobs/workspace |
+|---|---:|---:|---:|---:|
+| `lite_cpu` | 1 | 15 | 12 / 5 | 1 |
+| `standard_cpu` | 1 | 25 | 20 / 6 | 1 |
+| `gpu` | 2 | 40 | 40 / 8 | 2 |
 
-Back up the database, retained index versions and object storage before upgrading
-a deployed installation. `python -m alembic upgrade head` reaches revision `0030`.
-The migration graph reconciles develop's `0021/0022` and legacy RAG `0026` histories;
-do not rename deployed revisions manually. Test upgrades covered all three histories
-(including an empty DB) and retained existing organization data.
+Use a supplied overlay so Compose's explicit defaults do not mask preset values:
 
-The normal worker consumes `celery`, `rag-ingestion`, `rag-reindex` and
-`rag-embedding`. When `RAG_OCR_ENABLED=true`, ingestion/reindex jobs route entirely
-to `rag-ocr`; launch the Compose `ocr` profile as well. Its worker concurrency is
-one. This also limits non-OCR ingestion in that deployment; increasing the number
-of OCR workers increases the aggregate CPU load.
+```text
+docker compose --env-file .env --env-file .env.rag-lite-cpu.example -f infrastructure/docker-compose.yml up -d
+```
 
-For a local build, use `docker build --target ocr -t raghub-ocr -f backend/Dockerfile .`
-from the repo root; `ocr-local-ai` adds the local AI dependencies. GHCR deployments
-use the OCR image tag configured by their Compose example. API and worker settings
-must agree about OCR enablement. Validate the image from the repository root:
+Alternatives are `.env.rag-standard-cpu.example` and `.env.rag-gpu.example`.
+`python scripts/print_rag_profile.py lite_cpu` prints the preset environment.
+Explicit configuration overrides preset defaults. No preset downloads models or
+enables OCR. `RAG_WORKER_CONCURRENCY` controls the regular worker; the OCR worker
+stays at concurrency one. Local inference capacity is bounded per process/model;
+multiple worker processes can still increase aggregate RAM/VRAM consumption.
+
+Work priorities are query, upload, retry/recovery, reindex, then maintenance.
+Within a class, scheduling interleaves workspaces. Shared provider quota reserves
+query capacity. When the pending limit exceeds one, reindex admission leaves one
+slot for uploads. Workspace/work-item locks protect claims, and eligible queued
+higher-priority work in the same workspace takes precedence.
+
+The regular worker consumes `celery`, `rag-ingestion`, `rag-reindex` and
+`rag-embedding`. Redis priority buckets include legacy 6/9 buckets so older queued
+messages remain drainable. With `RAG_OCR_ENABLED=true`, ingestion/reindex route to
+`rag-ocr`; start the Compose `ocr` profile too. API and worker settings must agree.
+Queue caps use `PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE` and
+`PROVIDER_POOL_MAX_PENDING_JOBS_PER_WORKSPACE`.
+
+Native local inference retains its capacity slot until the underlying thread
+finishes, even if the caller cancels. Document token limits are checked before
+full chunk allocation/provider resolution, and chunk count is bounded.
+
+## Upgrade, durable resume and publication
+
+Back up deployed databases, retained indices and object storage before upgrading.
+`python -m alembic upgrade head` reaches revision `0030`. The migration graph
+reconciles develop's `0021/0022` and legacy RAG `0026` histories. Empty, develop and
+legacy RAG database upgrades were tested; do not rename deployed revisions.
+
+Durable manifests and vector batches live in object storage. Resume the existing
+document/job with the same target fingerprint/index. Checkpoint storage outages
+are retryable; a vector artifact already written before an interrupted response
+is reused. Explicit document retry resets FAILED work for the active target index
+and preserves completed batches. Quota waits do not justify deleting checkpoints.
+
+Before replacement, publication validates chunk IDs, vector keys, dimensions and
+finite values. Count verification precedes publication, and retrieval readiness
+excludes uncommitted evidence. Changing provider binding to a different embedding
+fingerprint also requires a matching active index version.
+
+The versioned document pipeline defaults to `legacy`. Configure
+`providerOptions.document_pipeline` as `normalized-v1` or `context-v1` when creating
+a new index configuration; runtime reads `config_json.document_pipeline`.
+Normalization retains raw citation text/offsets and structural metadata. The
+context pipeline embeds deterministic source/section/page context. Pipeline
+changes alter the fingerprint and require a new index/reindex; do not edit a live
+index configuration in place.
+
+## Model-free operations snapshot
+
+```text
+python scripts/capture_rag_operations.py --out ../artifacts/rag_ops.json
+python scripts/capture_rag_operations.py --out ../artifacts/rag_ops.json --telemetry <saved-json.log>
+```
+
+These commands read DB work-item/ingestion states and broker queue depths without
+calling AI models. Optional telemetry summarizes stage count/p50/p95, counters
+and cache hit rate over the supplied log window. Missing infrastructure is listed
+in `issues`; `--strict-infrastructure` opts into failure exit status. Queue depth
+is a point-in-time snapshot, not a throughput measurement. An undeclared empty
+queue reports zero; other broker failures remain visible.
+
+Set `RAG_TELEMETRY_JSON_ENABLED=true` consistently on API/workers and restart them
+to emit JSON events. Labels are sanitized and exclude document/question content;
+the operations summary omits correlation IDs. Cache counters include duplicate
+chunks, cache hits/misses, estimated tokens saved and avoided embedding calls.
+Token savings use a tokenizer proxy, not provider billing. Percentiles use
+nearest-rank selection, including the higher sample for a two-sample p95.
+
+The checked-in [operations smoke report](../artifacts/optimization-operations-smoke.json)
+comes from a disposable empty DB/broker stack. It verifies diagnostic plumbing;
+it does not establish loaded throughput, model quality or hardware performance.
+
+## Retrieval diagnostics and calibration
+
+```text
+python scripts/run_retrieval_ablation.py --organization-id <UUID> --workspace-id <UUID> --qa <QA.json> --out ../artifacts/retrieval_ablation.json
+python scripts/rag_dataset_audit.py --qa <QA.json>
+```
+
+Ablation runs actual BM25/ANN queries for each candidates/RRF/document-cap cell
+and reuses query embeddings. Unlike the operations snapshot, it calls the
+configured embedding provider. It records pipeline/fingerprint/mapping/schema,
+context tokens and measured latency; it does not automatically change runtime
+settings. Add `--evidence-map <mapping.json>` for reviewed case-ID to actual chunk
+UUID lists. Without labels, quality metrics are unavailable and the report is
+not release eligible. Dataset audit is informational; `--gate` opts into reviewed
+family/format/split checks.
+
+Collect calibration directly from ready fused top-five candidates, before
+reranking, gating and neighbor expansion:
+
+```text
+python scripts/collect_calibration_scores.py --organization-id <UUID> --workspace-id <UUID> --qa <QA.json> --out ../artifacts/calib_scores.json
+python scripts/calibrate_relevance.py --scores ../artifacts/calib_scores.json --out ../artifacts/relevance_v3.json --version <version>
+```
+
+The collector records dataset/config hashes, embedding fingerprint, mapping
+version and `fused-ready-top5-v3` feature schema. The calibrator imports that
+metadata; manual identity overrides must match. It trains only `calibration`
+rows; holdout rows never train the threshold. Evaluate holdout independently.
+Fixture lexical comparisons must not train a production relevance gate.
+
+Deploy with `RAG_RELEVANCE_ARTIFACT_PATH` and `RAG_RELEVANCE_CONFIG_VERSION`.
+Runtime currently hashes `backend/tests/fixtures/rag_golden/qa.json`; a custom QA
+artifact cannot activate unless that runtime dataset identity matches. Any
+identity/schema mismatch disables calibrated gating. Report hashes from other
+evaluation tools are not interchangeable with artifact hashes.
+
+## Local model preparation
+
+```text
+python scripts/prepare_reranker.py --directory <snapshot-directory>
+python scripts/measure_rerank.py --organization-id <UUID> --workspace-id <UUID>
+```
+
+Use an environment with local AI dependencies. Review the pinned revision and
+checksum, mount the snapshot read-only, then configure
+`RAG_RERANKER_SNAPSHOT_PATH` and `RAG_RERANKER_EXPECTED_SHA256`. Runtime never
+downloads reranker weights. Workspace-provider reranking takes precedence over
+the local fallback. Choose enablement based on deployment capacity and observed
+behavior; this iteration does not require a fixed local latency threshold.
+
+For OCR, build from the repository root:
+
+```text
+docker build --target ocr -t raghub-ocr -f backend/Dockerfile .
+```
+
+`ocr-local-ai` also includes local AI dependencies. Validate the built image:
 
 ```powershell
 Get-Content -Raw backend/scripts/verify_ocr_runtime.py | docker run --rm -i raghub-ocr python -
 ```
 
-Queue caps use `PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE` and
-`PROVIDER_POOL_MAX_PENDING_JOBS_PER_WORKSPACE`. Durable manifests/vector batches
-live in object storage. Resume by retrying the existing document/job with the same
-target fingerprint/index; do not discard checkpoints to work around quota waits.
-
-## Local reranker preparation
-
-Prepare using an environment with the local AI dependencies installed:
-
-```text
-python scripts/prepare_reranker.py --directory <deployment-snapshot-directory>
-python scripts/measure_rerank.py --organization-id <eval-org-uuid> --workspace-id <eval-workspace-uuid>
-```
-
-Review the pinned revision and prepared files/checksum before deployment. Mount
-the snapshot read-only, set `RAG_RERANKER_SNAPSHOT_PATH` to its container path and
-`RAG_RERANKER_EXPECTED_SHA256` to the approved printed checksum. Runtime never
-downloads weights. Keep `RAG_RERANKER_ENABLED=false` until baseline comparisons and
-hardware-specific p95 measurements pass. Workspace-provider reranking remains
-independently configured; it takes precedence over this local fallback.
-
-## Semantic support review and draft data
+## Optional answer quality review
 
 The [V2 draft](../backend/tests/fixtures/rag_golden_v2/README.md) has 210 generated
-variants in 30 families and zero reviewed V2 labels. Keep it separate from the
-original baseline until source/fact links and missing format coverage are reviewed.
+variants in 30 families and zero reviewed V2 labels. It remains draft data; it is
+not evidence of 200 independent reviewed cases or production answer quality.
 
-Live reports retain each answer and its `citation_inventory`. Reviewer annotations
-are a JSON object keyed by case ID. Example entry:
+Live reports retain exact answers and citation inventories. Reviewer annotations
+are keyed by case ID, for example:
 
 ```json
 {
@@ -102,71 +203,66 @@ are a JSON object keyed by case ID. Example entry:
     "expected_facts": [{"fact": "cost", "supporting_chunk_ids": ["<actual-chunk-id>"]}],
     "observed_facts": [{
       "fact": "cost",
-      "claim_text": "<exact claim text, including its citations>",
+      "claim_text": "<exact claim including citations>",
       "cited_chunk_ids": ["<actual-chunk-id>"]
     }]
   }
 }
 ```
 
-Inspect source text to verify each expected support link. Record all answer claims,
-including unsupported ones using an unmatched fact label; link citation markers
-to the actual inventory chunk IDs. The tool measures reviewer labels; it does not
-judge semantic equivalence automatically. Missing/stale reviews or uncited claims
-without a measurable precision leave the aggregate support metric unavailable.
-Reviews cover answerable cases without provider errors; provider errors are gated
-separately. Fixture aliases such as `doc-001:p1:c0` need mapping to actual chunks.
+Review all cases without provider errors, including unanswerable cases. Record
+all claims and unsupported ones using unmatched labels. A reviewed refusal can
+have an empty observed-fact list. Verify source/fact links against actual text;
+fixture aliases need mapping to runtime UUIDs. Missing/stale answer hashes leave
+support metrics unavailable and remove stale verdicts.
+
+Precision/fact support recall aggregate answerable cases; unsupported claim rate
+also includes claims in unanswerable responses. Grounding and citation correctness
+are separate: a claim supported elsewhere in the provided inventory can have a
+low unsupported rate while its inline citation is wrong.
 
 ```text
-python scripts/score_fact_support.py --report <live-report.json> --annotations <review.json> --out <reviewed-report.json> --gate --thresholds <thresholds.json>
+python scripts/score_fact_support.py --report <live-report.json> --annotations <review.json> --out <reviewed-report.json>
 ```
 
-Threshold overrides are a JSON metric-to-number map, for example:
+Completed-review scoring is diagnostic by default. Missing review/support
+precision returns exit code 2 even without a gate; this optional reviewer tool
+is not required for operational acceptance. Add
+`--gate --thresholds <thresholds.json>` only for a selected evaluation gate. Defaults then include support
+precision 0.90, fact support recall 0.85 and unsupported claim rate at most 0.10,
+alongside production-runner thresholds. `--require-reviewed-v2` is a separate
+opt-in check. A requested metric with missing evidence fails an enabled gate.
 
-```json
-{"mrr@5": 0.70, "ndcg@5": 0.75, "answerable_hit@5": 0.85, "retrieval_p95_ms": 300}
+Live runner TTFT measures client time until the first SSE token; server generation
+first-token time is recorded separately. Backoff/retry time contributes to total
+latency, and a response is never retried after its first token. Provider/service
+errors are counted separately from false rejection/answer rates. Operator-supplied
+HTTP runtime configuration is labeled as supplied, not claimed as verified.
+
+Reference targets such as hit@5 0.85, MRR@5 0.70, nDCG@5 0.75 or retrieval p95
+300/750 ms may guide a later deployment benchmark. They are not mandatory gates
+for this operations iteration and do not override model/hardware constraints.
+
+## Versioned reindex, rollback and GC
+
+1. Stage a new index version for a changed mapping/fingerprint/pipeline.
+2. Reindex and verify counts, dimensions, readiness and representative queries.
+3. Activate after verification; retain the previous active version for rollback.
+4. Roll back by repointing to a retained version; never modify a live mapping.
+5. In-flight uploads keep their target snapshot; target changes supersede/reschedule them.
+
+GC defaults to dry-run: `python -m app.cli index-gc` records decisions without
+deleting. Active versions, pending/running work and the two newest completed
+versions per workspace are protected. Retired versions remain at least 24 hours;
+failed versions remain seven days. Audit retention before `--apply`; deleted
+indices require snapshot restoration or reingestion.
+
+## API contracts
+
+```text
+python scripts/export_openapi.py --out ../docs/api/openapi.json
+python scripts/build_postman_collection.py --openapi ../docs/api/openapi.json --out ../postman/collections/raghub-api.postman_collection.json
 ```
 
-Semantic scoring recomputes the verdict and preserves thresholds from the input
-report unless explicitly overridden; stale verdicts are removed. Its defaults
-require support precision ≥ 0.90 and fact support recall ≥ 0.85 in addition to the
-base production runner gates. Exit code 2 means missing review or a failed enabled
-gate. Citation ID precision and lexical `facts_recall` remain separate metrics.
-Nightly lexical comparison is informational; it does not establish production
-quality. TTFT/rerank release thresholds and reviewed live evidence remain pending.
-
-## Quality gates
-
-Retrieval hit@5 ≥ 0.85, MRR@5 ≥ 0.70, nDCG@5 ≥ 0.75; rejection F1 ≥ 0.90;
-citation precision = 1.00, coverage and faithfulness ≥ 0.90; no metric more
-than 0.02 below the approved baseline. Retrieval p95 ≤ 300 ms without
-reranker, ≤ 750 ms with it.
-
-## Versioned reindex and rollback
-
-1. Stage a new `EmbeddingIndexVersion` (new mapping or fingerprint).
-2. Reindex, then validate count/dimension/sample queries/golden.
-3. Activate only on pass; the previous active id is returned for rollback.
-4. Roll back with the retained version inside its retention window:
-   repoint the workspace active pointer; never edit a live mapping in place.
-5. Uploads in flight keep their target-index snapshot; a target change
-   supersedes and reschedules them.
-
-## Index GC recovery
-
-- Default is dry-run: `python -m app.cli index-gc` prints decisions and writes
-  audit rows without deleting.
-- Protected: active index, pending/running jobs, work-item workspaces, two
-  newest completed versions per workspace. Retired kept ≥ 24 h, failed 7 days.
-- Deleted indices recover from snapshot or reingest only; retention is a hard
-  precondition for `--apply`.
-
-## Contract and release
-
-- `python scripts/export_openapi.py --out docs/api/openapi.json`
-- `python scripts/build_postman_collection.py --openapi docs/api/openapi.json \
-  --out postman/collections/raghub-api.postman_collection.json`
-- CI regenerates both into temp dirs and fails on diff.
-- `POSTMAN_ENV=/tmp/seed-env.json bash postman/run.sh` runs the collection
-  locally (newman); seed via `backend/scripts/seed_contract_env.py` against
-  an ephemeral stack. No paid provider in PR gates; no secrets leave the runner.
+CI regenerates both into temporary directories and checks differences. Contract
+runs use a seeded ephemeral stack; no paid provider is required for PR checks.
