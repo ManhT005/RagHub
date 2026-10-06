@@ -4,10 +4,12 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
 import { Observable } from 'rxjs';
 import { authenticated } from './auth.guard';
+import { session } from './session-state';
 
 describe('authenticated guard', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    session.accessToken = null;
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
   });
   for (const status of [200, 401, 503]) {
