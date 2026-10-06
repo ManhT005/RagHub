@@ -150,12 +150,14 @@ describe('RaghubApiService authentication endpoints', () => {
   afterEach(() => http.verify());
 
   it('supports forgot, reset, and change password flows', () => {
-    api.forgotPassword('user@example.com').subscribe();
-    http.expectOne('/api/v1/auth/password/forgot').flush({ message: 'sent' });
+    api.forgotPassword('user@example.com', 'captcha-forgot').subscribe();
+    const forgot = http.expectOne('/api/v1/auth/password/forgot');
+    expect(forgot.request.body).toEqual({ email: 'user@example.com', turnstile_token: 'captcha-forgot' });
+    forgot.flush({ message: 'sent' });
 
-    api.resetPassword('reset-token', 'new-password').subscribe();
+    api.resetPassword('reset-token', 'new-password', 'captcha-reset').subscribe();
     const reset = http.expectOne('/api/v1/auth/password/reset');
-    expect(reset.request.body).toEqual({ token: 'reset-token', new_password: 'new-password' });
+    expect(reset.request.body).toEqual({ token: 'reset-token', new_password: 'new-password', turnstile_token: 'captcha-reset' });
     reset.flush(null);
 
     api.changePassword('old-password', 'new-password').subscribe();

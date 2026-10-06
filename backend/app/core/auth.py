@@ -1,6 +1,7 @@
 """Authentication and organization/workspace authorization dependencies."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.exceptions import AppError
 from app.core.security import decode_token
+from app.modules.auth.models import UserSession
 from app.modules.memberships.models import (
     Membership,
     MembershipRole,
@@ -41,6 +43,19 @@ async def get_current_user(
     if user is None or user.status != "ACTIVE" or user.auth_version != claims.auth_version:
         raise AppError(
             "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
+        )
+    auth_session = (
+        await session.get(UserSession, claims.session_id) if claims.session_id is not None else None
+    )
+    if (
+        auth_session is None
+        or auth_session.user_id != user.id
+        or auth_session.auth_version != user.auth_version
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= datetime.now(UTC)
+    ):
+        raise AppError(
+            "AUTHENTICATION_REQUIRED", "The login session is unavailable.", status_code=401
         )
     return user
 

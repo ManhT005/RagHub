@@ -54,6 +54,7 @@ class UserSession(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     refresh_token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    family_id: Mapped[uuid.UUID] = mapped_column(index=True)
     auth_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

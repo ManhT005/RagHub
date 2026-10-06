@@ -9,6 +9,7 @@ describe('AuthSessionService', () => {
   let http: HttpTestingController;
   beforeEach(() => {
     sessionStorage.clear();
+    session.accessToken = null;
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     auth = TestBed.inject(AuthSessionService);
     http = TestBed.inject(HttpTestingController);
@@ -21,6 +22,7 @@ describe('AuthSessionService', () => {
     expect(request.request.withCredentials).toBe(true);
     request.flush({ access_token: 'new' });
     expect(tokens).toEqual(['new', 'new', 'new', 'new', 'new']);
+    expect(sessionStorage.getItem('raghub.access-token')).toBeNull();
     auth.refresh().subscribe();
     http.expectOne('/api/v1/auth/refresh').flush({ access_token: 'newer' });
   });

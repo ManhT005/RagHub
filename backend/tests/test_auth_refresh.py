@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import Response
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.core.config import Settings
 from app.core.exceptions import AppError
@@ -53,10 +54,18 @@ async def test_login_rotation_reuse_and_persistence(isolated_sessions):
             == rotated.session_id
         )
     async with sessions() as session:
+        other_device = await service(session).login("owner@example.com", "original-password")
         with pytest.raises(AppError) as error:
             await service(session).refresh(initial.refresh_token)
         assert error.value.code == "REFRESH_TOKEN_REUSED"
+        assert (await session.get(UserSession, rotated.session_id)).revoked_at is None
+        previous = await session.get(UserSession, initial.session_id)
+        previous.revoked_at = datetime.now(UTC) - timedelta(seconds=11)
+        await session.commit()
+        with pytest.raises(AppError):
+            await service(session).refresh(initial.refresh_token)
         assert (await session.get(UserSession, rotated.session_id)).revoked_at
+        assert (await session.get(UserSession, other_device.session_id)).revoked_at is None
 
 
 @pytest.mark.integration
@@ -90,6 +99,23 @@ async def test_logout_revokes_refresh(isolated_sessions):
         assert (await session.get(UserSession, initial.session_id)).revoked_at
         with pytest.raises(AppError):
             await auth.refresh(initial.refresh_token)
+
+
+@pytest.mark.integration
+async def test_logout_invalidates_access_token_immediately(isolated_sessions, monkeypatch):
+    from app.core.auth import get_current_user
+
+    await create_user(isolated_sessions)
+    async with isolated_sessions() as session:
+        auth = service(session)
+        issued = await auth.login("owner@example.com", "original-password")
+        monkeypatch.setattr("app.core.auth.get_settings", lambda: auth.settings)
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=issued.access_token)
+        assert await get_current_user(credentials, session)
+        await auth.logout(issued.refresh_token)
+        with pytest.raises(AppError) as error:
+            await get_current_user(credentials, session)
+        assert error.value.code == "AUTHENTICATION_REQUIRED"
 
 
 @pytest.mark.integration

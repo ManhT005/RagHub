@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     provider_master_key: str = "change-me-provider-key"
     access_token_ttl_minutes: int = Field(default=15, ge=1)
     refresh_token_ttl_days: int = Field(default=7, ge=1)
+    refresh_reuse_grace_seconds: int = Field(default=10, ge=0, le=60)
     password_reset_ttl_minutes: int = Field(default=15, ge=5, le=60)
+    auth_login_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_login_requests_per_account: int = Field(default=5, ge=1, le=1000)
+    auth_password_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_password_requests_per_account: int = Field(default=3, ge=1, le=1000)
     api_v1_prefix: str = "/api/v1"
     max_upload_size_mb: int = Field(default=25, ge=1, le=500)
 
@@ -120,6 +125,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    turnstile_enabled: bool = False
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+    turnstile_expected_hostname: str = ""
 
     @field_validator("public_base_url")
     @classmethod
@@ -201,6 +210,14 @@ class Settings(BaseSettings):
             )
             if any(email_settings) and not all(email_settings):
                 raise ValueError("SMTP configuration must be complete when enabled")
+        if self.turnstile_enabled and not all(
+            (
+                self.turnstile_site_key,
+                self.turnstile_secret_key,
+                self.turnstile_expected_hostname,
+            )
+        ):
+            raise ValueError("Turnstile configuration must be complete when enabled")
         return self
 
     @property
