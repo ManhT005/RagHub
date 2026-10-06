@@ -30,6 +30,12 @@ import { NzButtonModule } from "ng-zorro-antd/button";
         >Giải pháp</a
       >
       <a
+        routerLink="/huong-dan"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+        >Hướng dẫn</a
+      >
+      <a
         routerLink="/lien-he"
         routerLinkActive="active"
         ariaCurrentWhenActive="page"
@@ -73,7 +79,7 @@ import { NzButtonModule } from "ng-zorro-antd/button";
     }
     .nav-links {
       display: flex;
-      gap: 28px;
+      gap: 24px;
       margin-left: auto;
       margin-right: 6%;
     }
