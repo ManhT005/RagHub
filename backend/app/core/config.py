@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     rag_embedding_batch_target_tokens: int = Field(default=10000, ge=100, le=100000)
     rag_ocr_enabled: bool = False
     rag_index_gc_enabled: bool = False
+    rag_telemetry_json_enabled: bool = False
 
     rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
@@ -89,6 +90,7 @@ class Settings(BaseSettings):
     rag_rerank_top_n: int = Field(default=8, ge=1, le=25)
     rag_rerank_source_count: int = Field(default=25, ge=5, le=100)
     rag_hardware_profile: Literal["custom", "lite_cpu", "standard_cpu", "gpu"] = "custom"
+    rag_worker_concurrency: int = Field(default=1, ge=1, le=8)
 
     @model_validator(mode="before")
     @classmethod

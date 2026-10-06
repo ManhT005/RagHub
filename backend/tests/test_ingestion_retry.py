@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from celery.exceptions import Retry
+from raghub_core.domain.ingestion.parser import ParsedSection
 
 from app.composition import worker as worker_composition
 from app.delivery.workers import ingestion as ingestion_runtime
@@ -117,7 +118,11 @@ async def test_pipeline_keeps_version_indexing_until_chunks_are_written(
 
     storage = SimpleNamespace(get=AsyncMock(return_value=b"text"))
     monkeypatch.setattr(worker_composition, "MinioObjectStorage", lambda _settings: storage)
-    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(
+        worker_composition,
+        "parse_document",
+        lambda _content, name: [ParsedSection("text", name, 0)],
+    )
     chunk = SimpleNamespace(content="text", chunk_id=uuid.uuid4())
     monkeypatch.setattr(
         worker_composition, "chunk_sections", lambda _sections, _version_id: [chunk]
@@ -141,10 +146,13 @@ async def test_pipeline_keeps_version_indexing_until_chunks_are_written(
     class Embeddings:
         def __init__(self, *args, **kwargs):
             pass
+
         async def execute(self, document, chunks, runtime):
             return await runtime.provider.embed_documents([c.content for c in chunks])
+
         async def complete(self, document, runtime):
             pass
+
     monkeypatch.setattr(worker_composition, "ResumableEmbedding", Embeddings)
 
     await tasks._run_pipeline(session, document, version, job)
@@ -204,7 +212,11 @@ async def test_transient_embedding_provider_failure_is_retryable(
         "MinioObjectStorage",
         lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(
+        worker_composition,
+        "parse_document",
+        lambda _content, name: [ParsedSection("text", name, 0)],
+    )
     monkeypatch.setattr(
         worker_composition,
         "chunk_sections",
@@ -233,7 +245,11 @@ async def test_auth_embedding_provider_failure_is_permanent(
         "MinioObjectStorage",
         lambda _settings: SimpleNamespace(get=AsyncMock(return_value=b"text")),
     )
-    monkeypatch.setattr(worker_composition, "parse_document", lambda _content, _name: [object()])
+    monkeypatch.setattr(
+        worker_composition,
+        "parse_document",
+        lambda _content, name: [ParsedSection("text", name, 0)],
+    )
     monkeypatch.setattr(
         worker_composition,
         "chunk_sections",

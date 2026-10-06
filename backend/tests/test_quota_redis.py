@@ -21,14 +21,14 @@ pytestmark = pytest.mark.integration
 pytest_plugins = ("pytest_asyncio",)
 
 
-def test_real_redis_prioritizes_upload_before_older_reindex_message():
+def test_real_redis_prioritizes_upload_before_older_reindex_message(monkeypatch):
     from kombu import Connection, Producer, Queue
 
     url = os.getenv("RAGHUB_TEST_REDIS_URL")
     if not url:
         pytest.skip("Set disposable Redis test URL.")
     name = "rag-priority-test-" + uuid.uuid4().hex
-    with Connection(url, transport_options={"priority_steps": [0, 1, 2, 3, 4]}) as connection:
+    with Connection(url, transport_options={"priority_steps": [0, 1, 2, 3, 4, 6, 9]}) as connection:
         with connection.channel() as channel:
             queue = Queue(name, routing_key=name)(channel)
             queue.declare()
@@ -40,11 +40,24 @@ def test_real_redis_prioritizes_upload_before_older_reindex_message():
                 producer.publish(
                     {"kind": "upload"}, routing_key=name, serializer="json", priority=1
                 )
+                producer.publish(
+                    {"kind": "legacy"}, routing_key=name, serializer="json", priority=9
+                )
+                from types import SimpleNamespace
+
+                from scripts import capture_rag_operations
+
+                monkeypatch.setattr(capture_rag_operations, "QUEUES", (name, name + "-undeclared"))
+                depths = capture_rag_operations.queue_depths(SimpleNamespace(celery_broker_url=url))
+                assert depths == {name: 3, name + "-undeclared": 0}
                 message = queue.get(no_ack=False)
                 assert message.payload == {"kind": "upload"}
                 message.ack()
                 message = queue.get(no_ack=False)
                 assert message.payload == {"kind": "reindex"}
+                message.ack()
+                message = queue.get(no_ack=False)
+                assert message.payload == {"kind": "legacy"}
                 message.ack()
             finally:
                 queue.delete()

@@ -39,7 +39,7 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     timezone="UTC",
     # Pull jobs can run for two hours; do not redeliver them after Redis's 1h default.
-    broker_transport_options={"visibility_timeout": 7500, "priority_steps": [0, 1, 2, 3, 4]},
+    broker_transport_options={"visibility_timeout": 7500, "priority_steps": [0, 1, 2, 3, 4, 6, 9]},
     result_backend_transport_options={"visibility_timeout": 7500},
     visibility_timeout=7500,
 )

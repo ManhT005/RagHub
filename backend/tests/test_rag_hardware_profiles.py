@@ -14,6 +14,7 @@ def test_profiles_are_opt_in_host_defaults_and_allow_explicit_overrides(
 ):
     settings = Settings(_env_file=None, rag_hardware_profile=profile)
     assert settings.rag_retrieval_candidates == candidates
+    assert settings.rag_worker_concurrency == (2 if profile == "gpu" else 1)
     assert settings.rag_rerank_source_count == source and settings.rag_rerank_top_n == top
     assert not settings.rag_reranker_enabled and not settings.rag_ocr_enabled
     assert (
@@ -37,4 +38,4 @@ def test_celery_priority_matches_upload_recovery_reindex_policy():
         < celery_app.conf.task_default_priority
         < routes["providers.reindex_workspace"]["priority"]
     )
-    assert celery_app.conf.broker_transport_options["priority_steps"] == [0, 1, 2, 3, 4]
+    assert celery_app.conf.broker_transport_options["priority_steps"] == [0, 1, 2, 3, 4, 6, 9]

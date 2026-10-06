@@ -2,6 +2,7 @@
 x-backend-environment: &backend-environment
   RAG_OCR_ENABLED: ${RAG_OCR_ENABLED:-false}
   RAG_INDEX_GC_ENABLED: ${RAG_INDEX_GC_ENABLED:-false}
+  RAG_TELEMETRY_JSON_ENABLED: ${RAG_TELEMETRY_JSON_ENABLED:-false}
   RAG_EMBEDDING_CACHE_ENABLED: ${RAG_EMBEDDING_CACHE_ENABLED:-false}
   RAG_EMBEDDING_BATCH_MAX_CHUNKS: ${RAG_EMBEDDING_BATCH_MAX_CHUNKS:-24}
   RAG_EMBEDDING_BATCH_TARGET_TOKENS: ${RAG_EMBEDDING_BATCH_TARGET_TOKENS:-10000}
@@ -11,6 +12,7 @@ x-backend-environment: &backend-environment
   RAG_ADAPTIVE_RERANK_ENABLED: ${RAG_ADAPTIVE_RERANK_ENABLED:-false}
   RAG_CONFIDENCE_HIGH_THRESHOLD: ${RAG_CONFIDENCE_HIGH_THRESHOLD:-0.85}
   RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-custom}
+  RAG_WORKER_CONCURRENCY: ${RAG_WORKER_CONCURRENCY:-1}
   RAG_RERANK_SOURCE_COUNT: ${RAG_RERANK_SOURCE_COUNT:-25}
   RAG_CLARIFICATION_MEDIUM_THRESHOLD: ${RAG_CLARIFICATION_MEDIUM_THRESHOLD:-0.75}
   RAG_RELEVANCE_GATE_ENABLED: ${RAG_RELEVANCE_GATE_ENABLED:-false}
@@ -246,7 +248,7 @@ services:
       - app.infrastructure.task_queue.celery_app:celery_app
       - worker
       - --loglevel=INFO
-      - --concurrency=1
+      - --concurrency=${RAG_WORKER_CONCURRENCY:-1}
       - --queues=celery,rag-ingestion,rag-reindex,rag-embedding
     volumes:
       - huggingface-cache:/app/.cache/huggingface

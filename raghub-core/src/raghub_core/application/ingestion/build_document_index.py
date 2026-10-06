@@ -23,6 +23,7 @@ from raghub_core.domain.ingestion.parser import (
     UnsupportedFileTypeError,
     UnsupportedOcrError,
 )
+from raghub_core.domain.ingestion.tokenizer import ENCODING
 from raghub_core.domain.providers.errors import (
     ProviderRateLimitError,
     ProviderTimeoutError,
@@ -122,6 +123,13 @@ class BuildDocumentIndexUseCase:
         if stage:
             await stage(IngestionStage.CHUNKING, 45)
         try:
+            # Bound allocation before building all chunks from oversized extracted text.
+            extracted = 0
+            for section in sections:
+                for offset in range(0, len(section.content), 8192):
+                    extracted += len(ENCODING.encode(section.content[offset : offset + 8192]))
+                    if extracted > MAX_EXTRACTED_TOKENS:
+                        raise DocumentLimitError(f"Document exceeds {MAX_EXTRACTED_TOKENS} tokens.")
             chunks = self.chunker(sections, document.version_id)
             if not chunks:
                 raise EmptyExtractedTextError("No chunks were extracted.")

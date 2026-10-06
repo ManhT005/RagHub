@@ -74,7 +74,7 @@ services:
       - watchfiles
       - --filter
       - python
-      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1 --queues=celery,rag-ingestion,rag-reindex,rag-embedding
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=${RAG_WORKER_CONCURRENCY:-1} --queues=celery,rag-ingestion,rag-reindex,rag-embedding
       - /app/app
       - /app/raghub_core
     environment:

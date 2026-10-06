@@ -6,8 +6,9 @@ from bisect import bisect_left
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
+from raghub_core.domain.ingestion.limits import MAX_CHUNKS
 from raghub_core.domain.ingestion.normalization import NormalizedBlock, SourceSpan
-from raghub_core.domain.ingestion.parser import ParsedSection
+from raghub_core.domain.ingestion.parser import DocumentLimitError, ParsedSection
 from raghub_core.domain.ingestion.tokenizer import ENCODING
 
 _ENCODING = ENCODING
@@ -125,6 +126,8 @@ def _chunk_text_sections(
             chunk_tokens = tokens[start:end]
             chunk_text = _ENCODING.decode(chunk_tokens).strip()
             if chunk_text:
+                if len(chunks) >= MAX_CHUNKS:
+                    raise DocumentLimitError(f"Document exceeds {MAX_CHUNKS} chunks.")
                 chunk_index = len(chunks)
                 digest = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
                 section_key = f"{section.section_index}:{section.page_number}:{section.heading}"
@@ -179,18 +182,23 @@ def chunk_sections(
         if groups and not is_table and not groups[-1][1]:
             previous = groups[-1][0]
             if (
-                previous.source_name,
-                previous.page_number,
-                previous.heading,
-                getattr(previous, "heading_path", ()),
-                getattr(previous, "type", "paragraph"),
-            ) == (
-                section.source_name,
-                section.page_number,
-                section.heading,
-                getattr(section, "heading_path", ()),
-                getattr(section, "type", "paragraph"),
-            ) and getattr(section, "type", "paragraph") in {"paragraph", "ocr_text"}:
+                (
+                    previous.source_name,
+                    previous.page_number,
+                    previous.heading,
+                    getattr(previous, "heading_path", ()),
+                    getattr(previous, "type", "paragraph"),
+                )
+                == (
+                    section.source_name,
+                    section.page_number,
+                    section.heading,
+                    getattr(section, "heading_path", ()),
+                    getattr(section, "type", "paragraph"),
+                )
+                and getattr(section, "type", "paragraph") in {"paragraph", "ocr_text"}
+                and isinstance(previous, NormalizedBlock) == isinstance(section, NormalizedBlock)
+            ):
                 extra = {}
                 if isinstance(previous, NormalizedBlock) and isinstance(section, NormalizedBlock):
                     normal_shift, raw_shift = (
@@ -263,6 +271,8 @@ def chunk_sections(
                 min_tokens=min_tokens,
             )
         for chunk in produced:
+            if len(chunks) >= MAX_CHUNKS:
+                raise DocumentLimitError(f"Document exceeds {MAX_CHUNKS} chunks.")
             index = len(chunks)
             key = (
                 f"{section.section_index}:{section.page_number}:{section.heading}:"
