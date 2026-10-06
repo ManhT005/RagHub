@@ -33,6 +33,7 @@ def prompt_budgeter_factory(model: str, provider_type: str) -> PromptBudgeter:
         max_output_tokens=settings.rag_max_output_tokens,
         safety_margin=settings.rag_prompt_safety_margin,
         count_tokens=counter,
+        max_context_tokens=settings.rag_max_context_tokens,
     )
 
 

@@ -29,7 +29,7 @@ from raghub_core.domain.rag.models import ChatUsageRecord, StreamChatCommand
 from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
 from raghub_core.domain.rag.prompt_budget import BudgetedPrompt, PromptBudgeter
 from raghub_core.domain.rag.timing import ChatStreamTiming
-from raghub_core.domain.retrieval.hybrid import build_context_bundle
+from raghub_core.domain.retrieval.hybrid import ContextBundle, build_context_bundle
 from raghub_core.ports.chatbots import ChatbotReadPort
 from raghub_core.ports.clarification import ClarificationPolicyPort
 from raghub_core.ports.conversations import ConversationRepositoryPort
@@ -153,9 +153,7 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
 
-        hits = await self.retrieval.retrieve(
-            chatbot.scope, question, chatbot.retrieval_limit
-        )
+        hits = await self.retrieval.retrieve(chatbot.scope, question, chatbot.retrieval_limit)
         if not hits:
             usage = ChatUsage(0, 0, 0, "none")
             message_id = await self.conversations.add_assistant(
@@ -172,19 +170,27 @@ class StreamRagChatUseCase:
             return
         runtime = await self.providers.resolve_chat(chatbot.scope)
         mark = _perf_now()
-        context = build_context_bundle(hits)
+        context = (
+            ContextBundle("", list(hits))
+            if self.budgeter_factory is not None
+            else build_context_bundle(hits)
+        )
         if self.telemetry is not None:
             self.telemetry.timing("context", (_perf_now() - mark) * 1000, {})
         budgeted: BudgetedPrompt | None = None
         if self.budgeter_factory is not None:
-            budgeter = self.budgeter_factory(
-                chatbot.model or runtime.model, runtime.provider_type
-            )
+            budgeter = self.budgeter_factory(chatbot.model or runtime.model, runtime.provider_type)
             budgeted = budgeter.budget(
                 system_text=chatbot.system_prompt,
                 question=question,
                 history=previous_history,
                 context_chunks=[hit.content for hit in context.hits],
+                render_prompt=lambda slices, history: build_prompt(
+                    chatbot.system_prompt,
+                    question,
+                    render_sliced_bundle(context.hits, [(s.index, s.text) for s in slices]),
+                    history,
+                ),
             )
         if budgeted is None:
             citations = resolve_trusted_citations(context.hits)
@@ -212,11 +218,30 @@ class StreamRagChatUseCase:
             )
             if self.telemetry is not None:
                 self.telemetry.timing("prompt", (_perf_now() - mark) * 1000, {})
+        if not citations:
+            usage = ChatUsage(0, 0, 0, "none")
+            message_id = await self.conversations.add_assistant(
+                conversation_id,
+                EMPTY_CONTEXT_ANSWER,
+                usage,
+                (),
+            )
+            await self.conversations.commit()
+            yield CitationsResolved(())
+            yield TokenDelta(EMPTY_CONTEXT_ANSWER)
+            yield UsageReported(usage)
+            yield ChatCompleted(message_id, None, 0)
+            return
         yield CitationsResolved(citations)
         timing = self.timing_factory()
         usage: ChatUsage | None = None
         stream = runtime.provider.stream_chat(
-            messages, ChatOptions(model=chatbot.model or runtime.model)
+            messages,
+            ChatOptions(
+                model=chatbot.model or runtime.model,
+                temperature=0.1,
+                max_tokens=budgeter.max_output_tokens if budgeted else None,
+            ),
         )
         try:
             async for delta in stream:

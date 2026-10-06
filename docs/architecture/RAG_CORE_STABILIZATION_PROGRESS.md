@@ -38,3 +38,13 @@ standardizes features and requires a fingerprint; artifact loading rejects
 nonfinite parameters, unknown features and invalid normalization arrays.
 
 Validation: host index/retry/readiness/reindex/hybrid/relevance suites 58 passed.
+
+## Phase 14: rendered prompt budgeting
+
+Budget selection counts final guardrail, citation metadata, context and history
+using the same renderer used for generation. Host context limits are explicit;
+there is no preliminary context truncation in model-aware chat. History also
+respects remaining space. An empty budgeted context skips generation. Output
+limits and a low factual-generation temperature reach ChatOptions.
+
+Validation: core 127 passed; host prompt/citation/empty/public chat suites 26 passed.

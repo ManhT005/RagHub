@@ -7,6 +7,7 @@ chronological order. Retrieved context fills the remainder whole-chunk;
 only the first chunk may be cut when nothing fits, and citations then
 reflect exactly the sent slice.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
@@ -83,9 +84,11 @@ class PromptBudgeter:
         safety_margin: int = 256,
         history_ratio: float = HISTORY_BUDGET_RATIO,
         count_tokens: Counter | None = None,
+        max_context_tokens: int | None = None,
     ) -> None:
         from raghub_core.domain.rag.model_profile import validate_budget_config
 
+        self.max_context_tokens = max_context_tokens
         self.input_budget = validate_budget_config(
             context_window=context_window,
             max_output_tokens=max_output_tokens,
@@ -103,7 +106,15 @@ class PromptBudgeter:
         question: str,
         history: Sequence[ChatMessage] = (),
         context_chunks: Sequence[str] = (),
+        render_prompt: Callable[
+            [Sequence[ContextSlice], Sequence[ChatMessage]], Sequence[ChatMessage]
+        ]
+        | None = None,
     ) -> BudgetedPrompt:
+        if render_prompt is not None:
+            return self._budget_rendered(
+                system_text, question, history, context_chunks, render_prompt
+            )
         system_tokens = self.count_tokens(system_text)
         question_tokens = self.count_tokens(question)
         if system_tokens + question_tokens > self.input_budget:
@@ -111,7 +122,10 @@ class PromptBudgeter:
                 "PROMPT_BUDGET_EXCEEDED",
                 "System prompt and question exceed the model input budget.",
             )
-        history_allowance = int(self.input_budget * self.history_ratio)
+        history_allowance = min(
+            int(self.input_budget * self.history_ratio),
+            self.input_budget - system_tokens - question_tokens,
+        )
         kept_pairs: list[tuple[ChatMessage, ...]] = []
         used_history = 0
         for pair in _pair_history(history):
@@ -147,4 +161,61 @@ class PromptBudgeter:
             context_slices=tuple(slices),
             input_budget=self.input_budget,
             used_tokens=system_tokens + question_tokens + used_history + used_context,
+        )
+
+    def _budget_rendered(self, system_text, question, history, chunks, render_prompt):
+        def cost(slices, messages):
+            return sum(self.count_tokens(m.content) for m in render_prompt(slices, messages))
+
+        fixed = cost([], [])
+        if fixed > self.input_budget:
+            raise CoreError(
+                "PROMPT_BUDGET_EXCEEDED",
+                "System prompt and question exceed the model input budget.",
+            )
+        kept_pairs = []
+        used_history = 0
+        for pair in _pair_history(history):
+            history_cost = sum(self.count_tokens(m.content) for m in pair)
+            if used_history + history_cost > min(
+                int(self.input_budget * self.history_ratio), self.input_budget - fixed
+            ):
+                break
+            kept_pairs.append(pair)
+            used_history += history_cost
+        kept_history = tuple(m for pair in reversed(kept_pairs) for m in pair)
+        base = cost([], kept_history)
+        slices = []
+
+        def fits(candidate):
+            used = cost(candidate, kept_history)
+            return used <= self.input_budget and (
+                self.max_context_tokens is None or used - base <= self.max_context_tokens
+            )
+
+        for index, text in enumerate(chunks):
+            candidate = [*slices, ContextSlice(index, text, False)]
+            if fits(candidate):
+                slices = candidate
+                continue
+            if not slices:
+                low, high, best = 1, len(text), ""
+                while low <= high:
+                    mid = (low + high) // 2
+                    prefix = text[:mid]
+                    if fits([ContextSlice(index, prefix, True)]):
+                        best = prefix
+                        low = mid + 1
+                    else:
+                        high = mid - 1
+                if best.strip():
+                    slices = [ContextSlice(index, best, True)]
+            break
+        return BudgetedPrompt(
+            system_text,
+            question,
+            kept_history,
+            tuple(slices),
+            self.input_budget,
+            cost(slices, kept_history),
         )
