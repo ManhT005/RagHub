@@ -96,6 +96,31 @@ def test_release_gate_passes_when_all_thresholds_are_met():
     assert all(item["passed"] for item in checks.values())
 
 
+def test_optional_quality_and_latency_gates_fail_on_missing_or_regressed_metrics():
+    module = _module()
+    summary = {
+        "rejection_f1": 1,
+        "citation_precision": 1,
+        "answerable_direct_pass_rate": 1,
+        "citation_coverage_mean": 1,
+        "facts_recall": 1,
+        "provider_errors": 0,
+        "mrr@5": 0.8,
+        "retrieval_p95_ms": 1000,
+    }
+    thresholds = {
+        **module.DEFAULT_GATE_THRESHOLDS,
+        "mrr@5": 0.85,
+        "retrieval_p95_ms": 500,
+        "citation_support_precision": 0.9,
+    }
+    passed, checks = module.evaluate_release_gate(summary, thresholds)
+    assert not passed
+    assert not checks["mrr@5"]["passed"]
+    assert not checks["retrieval_p95_ms"]["passed"]
+    assert not checks["citation_support_precision"]["passed"]
+
+
 def test_provider_error_detection_handles_nested_payloads():
     module = _module()
 

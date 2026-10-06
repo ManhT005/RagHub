@@ -84,6 +84,7 @@ def parse_pdf(
     *,
     ocr_enabled: bool = False,
     ocr_deadline: float | None = None,
+    telemetry=None,
 ) -> list[ParsedSection]:
     check_compressed_size(len(content))
     check_signature(content, ".pdf")
@@ -122,9 +123,13 @@ def parse_pdf(
                 if time.monotonic() > deadline:
                     raise OcrTimeoutError("OCR exceeded the document time budget.")
                 with _OCR_SLOT:
+                    mark = time.perf_counter()
                     pixmap = page.get_pixmap(dpi=200)
                     text = _ocr_page(pixmap.tobytes("png"))
                     kind = "ocr_text"
+                    if telemetry is not None:
+                        telemetry.timing("ocr", (time.perf_counter() - mark) * 1000, {})
+                        telemetry.counter("ocr_pages", {})
             if text:
                 sections.append(ParsedBlock(text, source_name, len(sections), index + 1, type=kind))
             for table in tables:

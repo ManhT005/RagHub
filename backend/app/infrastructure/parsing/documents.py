@@ -15,6 +15,9 @@ from app.infrastructure.parsing.xlsx import parse_xlsx
 
 
 class DocumentParser:
+    def __init__(self, telemetry=None):
+        self.telemetry = telemetry
+
     def parse(self, content: bytes, source_name: str) -> list[ParsedSection]:
         check_compressed_size(len(content))
         settings = get_settings()
@@ -22,7 +25,7 @@ class DocumentParser:
             content,
             source_name,
             pdf_parser=lambda data, name: parse_pdf(
-                data, name, ocr_enabled=settings.rag_ocr_enabled
+                data, name, ocr_enabled=settings.rag_ocr_enabled, telemetry=self.telemetry
             ),
             docx_parser=parse_docx,
             html_parser=parse_html,

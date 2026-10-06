@@ -117,12 +117,16 @@ def evaluate(dataset_path: Path = DEFAULT_DATASET) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
-    parser.add_argument("--out", type=Path, default=ROOT / "artifacts" / "rag_clarification_eval.json")
+    parser.add_argument(
+        "--out", type=Path, default=ROOT / "artifacts" / "rag_clarification_eval.json"
+    )
     args = parser.parse_args()
     result = evaluate(args.dataset)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps({"passed": result["passed"], "metrics": result["metrics"]}, ensure_ascii=False))
+    print(
+        json.dumps({"passed": result["passed"], "metrics": result["metrics"]}, ensure_ascii=False)
+    )
     if not result["passed"]:
         raise SystemExit(1)
 

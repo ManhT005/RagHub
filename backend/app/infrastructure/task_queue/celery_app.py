@@ -16,6 +16,15 @@ celery_app = Celery(
     ],
 )
 celery_app.conf.update(
+    task_routes={
+        "documents.ingest_version": {
+            "queue": "rag-ocr" if settings.rag_ocr_enabled else "rag-ingestion"
+        },
+        "providers.reindex_workspace": {
+            "queue": "rag-ocr" if settings.rag_ocr_enabled else "rag-reindex"
+        },
+        "embedding.process_work_item_batch": {"queue": "rag-embedding"},
+    },
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],

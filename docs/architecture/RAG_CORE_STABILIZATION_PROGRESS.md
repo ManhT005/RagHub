@@ -96,3 +96,24 @@ snapshot checksum before loading weights, never downloads models, bounds loading
 and inference, and limits outstanding inference even after a timeout. A preparation
 CLI supplies the deploy-time checksum. Approved artifacts and hardware performance
 measurements still need deployment-specific verification.
+
+## Phases 12, 17, 19: deployment and gates
+
+OCR uses a dedicated profile/queue, concurrency one, and optional Docker targets
+with English/Vietnamese Tesseract. When OCR is enabled, whole ingestion/reindex
+jobs route to that worker: mixed documents keep one durable pipeline, at the cost
+of throttling all ingestion in that deployment. Regular workers retain the legacy
+celery queue and consume the new ingestion/reindex/embedding queues. OCR timing
+and page counts contain no document content. Batch timing and cache counters are
+also available. Nightly service tests now include real ES/MinIO uploads.
+
+Reranker measurement uses configured DB/search services, explicit tenant IDs and
+reviewed local snapshots. It does not mint tokens for a hardcoded user or download
+unverified weights. Release gates accept optional MRR/nDCG/hit and latency limits;
+missing explicitly required evidence fails the gate. Citation ID validity remains
+separate from semantic support: reviewed claim-support labels are still needed.
+
+Remaining acceptance: the golden corpus currently contains 30 questions. Phase 18
+requires a curated 200-300 case corpus, support judgments, and deployment-specific
+calibration/CPU-GPU benchmarks. Do not inflate fixture counts or promote lexical
+compare-only reports to production quality evidence.

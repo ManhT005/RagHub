@@ -21,7 +21,7 @@ from app.infrastructure.resumable_embedding import ResumableEmbedding
 from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 
-parse_document = DocumentParser().parse
+parse_document = DocumentParser(telemetry=LoggingTelemetry()).parse
 
 
 class WorkerContainer:

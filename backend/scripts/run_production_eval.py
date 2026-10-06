@@ -121,9 +121,8 @@ def summarize_cases(cases: list[dict]) -> dict:
         "hit@5": sum(c["hit@5"] for c in cases) / max(1, len(cases)),
         "answerable_hit@5": sum(c["hit@5"] for c in answerable_cases)
         / max(1, len(answerable_cases)),
-        "answerable_direct_pass_rate": sum(
-            1 for c in answerable_cases if c["predicted_answerable"]
-        ) / max(1, len(answerable_cases)),
+        "answerable_direct_pass_rate": sum(1 for c in answerable_cases if c["predicted_answerable"])
+        / max(1, len(answerable_cases)),
         "mrr@5": sum(c["mrr@5"] for c in cases) / max(1, len(cases)),
         "ndcg@5": sum(c["ndcg@5"] for c in cases) / max(1, len(cases)),
         "rejection_f1": rej["f1"],
@@ -134,9 +133,7 @@ def summarize_cases(cases: list[dict]) -> dict:
         "citation_coverage_mean": sum(c["coverage"] for c in chat_quality)
         / max(1, len(chat_quality)),
         "facts_recall": round(
-            sum(c["facts_recalled"] for c in chat_answerable)
-            / max(1, len(chat_answerable)),
-            3
+            sum(c["facts_recalled"] for c in chat_answerable) / max(1, len(chat_answerable)), 3
         ),
         "forbidden_hits": sum(len(c["forbidden_hit"]) for c in chat_quality),
         "chat_errors": sum(1 for c in cases if c["chat_error"]),
@@ -182,7 +179,24 @@ def evaluate_release_gate(summary: dict, thresholds: dict) -> tuple[bool, dict[s
             "threshold": thresholds["provider_errors"],
         },
     }
+    for metric, op in {
+        "mrr@5": ">=",
+        "ndcg@5": ">=",
+        "answerable_hit@5": ">=",
+        "retrieval_p95_ms": "<=",
+        "chat_p95_ms": "<=",
+        "citation_support_precision": ">=",
+    }.items():
+        if thresholds.get(metric) is not None:
+            checks[metric] = {
+                "actual": summary.get(metric),
+                "op": op,
+                "threshold": thresholds[metric],
+            }
     for item in checks.values():
+        if item["actual"] is None:
+            item["passed"] = False
+            continue
         if item["op"] == ">=":
             item["passed"] = item["actual"] >= item["threshold"]
         else:
@@ -252,8 +266,8 @@ def upload_file(token: str, org: str, ws: str, path: Path):
     content = path.read_bytes()
     ctype = CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
     head = (
-        f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; "
-        f"filename=\"{path.name}\"\r\nContent-Type: {ctype}\r\n\r\n"
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; '
+        f'filename="{path.name}"\r\nContent-Type: {ctype}\r\n\r\n'
     ).encode()
     tail = f"\r\n--{boundary}--\r\n".encode()
     req = urllib.request.Request(
@@ -292,9 +306,9 @@ def _sse_chat_once(token: str, org: str, chatbot: str, message: str):
             for raw in resp:
                 line = raw.decode("utf-8", "replace").strip()
                 if line.startswith("event:"):
-                    event = line[len("event:"):].strip()
+                    event = line[len("event:") :].strip()
                 elif line.startswith("data:") and event:
-                    events.append((event, json.loads(line[len("data:"):].strip())))
+                    events.append((event, json.loads(line[len("data:") :].strip())))
                     event = None
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
@@ -323,7 +337,7 @@ def sse_chat(
         retryable = is_provider_error(err) or status in TRANSIENT_HTTP_CODES
         if not err or not retryable or attempt == attempts - 1:
             return events, total_ms, attempt + 1
-        time.sleep(backoff_s * (2 ** attempt))
+        time.sleep(backoff_s * (2**attempt))
     return last_events, total_ms, attempts
 
 
@@ -452,13 +466,19 @@ def ensure_chatbot(token: str, org: str, ws: str, *, model: str = CHAT_MODEL):
         if bot.get("name") == "Golden Eval":
             return bot["id"]
     status, bot = api(
-        "POST", f"/workspaces/{ws}/chatbots", token, org,
+        "POST",
+        f"/workspaces/{ws}/chatbots",
+        token,
+        org,
         {"name": "Golden Eval", "model": model, "retrieval_limit": 5},
     )
     if status != 201:
         raise SystemExit(f"create chatbot failed: {status} {bot}")
     status, pub = api(
-        "POST", f"/chatbots/{bot['id']}/publish", token, org,
+        "POST",
+        f"/chatbots/{bot['id']}/publish",
+        token,
+        org,
         {"allowed_origins": ["http://localhost:8081"]},
     )
     if status != 200:
@@ -470,10 +490,19 @@ def wait_ready(token: str, org: str, ws: str, needed: set[str], timeout_s: int =
     # Quota/rate-limit flaps pass through FAILED between patient retries; only
     # terminal parse/validation codes abort the wait. Golden .md files never hit those.
     terminal_codes = {
-        "INVALID_PDF", "TEXT_DECODE_FAILED", "EMPTY_EXTRACTED_TEXT",
-        "UNSUPPORTED_FILE_TYPE", "INVALID_FILE_SIGNATURE", "MACRO_BLOCKED",
-        "DECOMPRESSION_BOMB", "DOCUMENT_LIMIT_EXCEEDED", "OCR_REQUIRED",
-        "OCR_TIMEOUT", "CHUNKING_FAILED", "EMPTY_FILE", "STORAGE_UNAVAILABLE",
+        "INVALID_PDF",
+        "TEXT_DECODE_FAILED",
+        "EMPTY_EXTRACTED_TEXT",
+        "UNSUPPORTED_FILE_TYPE",
+        "INVALID_FILE_SIGNATURE",
+        "MACRO_BLOCKED",
+        "DECOMPRESSION_BOMB",
+        "DOCUMENT_LIMIT_EXCEEDED",
+        "OCR_REQUIRED",
+        "OCR_TIMEOUT",
+        "CHUNKING_FAILED",
+        "EMPTY_FILE",
+        "STORAGE_UNAVAILABLE",
     }
     t0 = time.time()
     while time.time() - t0 < timeout_s:
@@ -487,7 +516,8 @@ def wait_ready(token: str, org: str, ws: str, needed: set[str], timeout_s: int =
         ready_names = {d.get("name", "") for d in docs or [] if d.get("status") == "READY"}
         pending = {s for s in needed if s not in ready_names}
         failed = [
-            d for d in docs or []
+            d
+            for d in docs or []
             if d.get("status") == "FAILED" and d.get("error_code") in terminal_codes
         ]
         if failed:
@@ -558,6 +588,11 @@ def main() -> None:
     ap.add_argument(
         "--max-provider-errors", type=int, default=DEFAULT_GATE_THRESHOLDS["provider_errors"]
     )
+    ap.add_argument("--min-mrr", type=float)
+    ap.add_argument("--min-ndcg", type=float)
+    ap.add_argument("--min-answerable-hit", type=float)
+    ap.add_argument("--max-retrieval-p95-ms", type=float)
+    ap.add_argument("--max-chat-p95-ms", type=float)
     args = ap.parse_args()
 
     token = args.token or (mint_token(args.mint_email) if args.mint_email else None)
@@ -642,9 +677,7 @@ def main() -> None:
             base_url=args.local_ollama_base,
             config_json={"request_profile": "OLLAMA", "read_timeout": 120.0, "max_attempts": 1},
         )
-    ws = ensure_workspace(
-        token, org, emb, chat, slug=workspace_slug, name=workspace_name
-    )
+    ws = ensure_workspace(token, org, emb, chat, slug=workspace_slug, name=workspace_name)
     bot = ensure_chatbot(token, org, ws, model=chat_model)
 
     corpus_files = sorted((GOLDEN / "corpus").glob("*.md"))
@@ -659,12 +692,15 @@ def main() -> None:
     cases = []
     for case in qa:
         q = case["question"]
-        exp = expected_keys(case.get("expected_document_ids", []),
-                            case.get("expected_chunk_ids", []), file_of)
+        exp = expected_keys(
+            case.get("expected_document_ids", []), case.get("expected_chunk_ids", []), file_of
+        )
         t0 = time.perf_counter()
         s, search = api(
-            "GET", f"/workspaces/{ws}/search?q={urllib.parse.quote(q)}&limit=5",
-            token, org,
+            "GET",
+            f"/workspaces/{ws}/search?q={urllib.parse.quote(q)}&limit=5",
+            token,
+            org,
         )
         ret_ms = (time.perf_counter() - t0) * 1000
         ranked = []
@@ -702,40 +738,51 @@ def main() -> None:
         ans_digits = norm_digits(answer)
         recalled = (
             sum(fact_token_recall(f, ans_digits) for f in facts) / max(1, len(facts))
-            if facts else 1.0
+            if facts
+            else 1.0
         )
         forbidden_hit = [
             c for c in case.get("forbidden_claims", []) if norm(c) and norm(c) in ans_n
         ]
 
-        cases.append({
-            "id": case.get("id"),
-            "answerable": answerable,
-            "predicted_answerable": predicted_answerable,
-            "retrieval_ms": round(ret_ms, 1),
-            "chat_ms": round(chat_ms, 1),
-            "hit@5": hit_at_k(ranked, exp),
-            "mrr@5": mrr_at_k(ranked, exp),
-            "ndcg@5": ndcg_at_k(ranked, rel),
-            "cited_ids": cited,
-            "invalid_ids": list(report.invalid_ids),
-            "coverage": report.coverage,
-            "facts_recalled": round(recalled, 3),
-            "facts_total": len(facts),
-            "forbidden_hit": forbidden_hit,
-            "chat_error": err,
-            "provider_error": provider_error,
-            "chat_attempts": attempts,
-            "usage": usage,
-            "answer": answer,
-            "tags": case.get("tags", []),
-            "split": case.get("split"),
-        })
-        print(f"{case.get('id')} hit={cases[-1]['hit@5']} mrr={cases[-1]['mrr@5']:.2f} "
-              f"err={bool(err)}", flush=True)
+        cases.append(
+            {
+                "id": case.get("id"),
+                "answerable": answerable,
+                "predicted_answerable": predicted_answerable,
+                "retrieval_ms": round(ret_ms, 1),
+                "chat_ms": round(chat_ms, 1),
+                "hit@5": hit_at_k(ranked, exp),
+                "mrr@5": mrr_at_k(ranked, exp),
+                "ndcg@5": ndcg_at_k(ranked, rel),
+                "cited_ids": cited,
+                "invalid_ids": list(report.invalid_ids),
+                "coverage": report.coverage,
+                "facts_recalled": round(recalled, 3),
+                "facts_total": len(facts),
+                "forbidden_hit": forbidden_hit,
+                "chat_error": err,
+                "provider_error": provider_error,
+                "chat_attempts": attempts,
+                "usage": usage,
+                "answer": answer,
+                "tags": case.get("tags", []),
+                "split": case.get("split"),
+            }
+        )
+        print(
+            f"{case.get('id')} hit={cases[-1]['hit@5']} mrr={cases[-1]['mrr@5']:.2f} "
+            f"err={bool(err)}",
+            flush=True,
+        )
 
     summary = summarize_cases(cases)
     thresholds = {
+        "mrr@5": args.min_mrr,
+        "ndcg@5": args.min_ndcg,
+        "answerable_hit@5": args.min_answerable_hit,
+        "retrieval_p95_ms": args.max_retrieval_p95_ms,
+        "chat_p95_ms": args.max_chat_p95_ms,
         "rejection_f1": args.min_rejection_f1,
         "citation_precision": args.min_citation_precision,
         "answerable_direct_pass_rate": args.min_answerable_direct_pass_rate,
@@ -781,7 +828,10 @@ def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
         "release_gate": {"enabled": args.gate, "passed": gate_passed, "checks": gate_checks},
-        "provider_error_policy": "Provider/rate-limit errors are recorded separately and excluded from chat quality metrics.",
+        "provider_error_policy": (
+            "Provider/rate-limit errors are recorded separately "
+            "and excluded from chat quality metrics."
+        ),
         "cases": cases,
     }
     out = Path(args.out)

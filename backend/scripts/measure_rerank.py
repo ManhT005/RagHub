@@ -5,14 +5,13 @@ cross-encoder, on the live eval workspace. Reports hit/MRR/nDCG deltas
 plus rerank latency. Nothing is enabled in production.
 
 Usage (from backend/):
-    python scripts/measure_rerank.py --mint-email you@example.com
+    python scripts/measure_rerank.py --organization-id <UUID> --workspace-id <UUID>
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 import sys
 import time
@@ -24,25 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.run_production_eval import GOLDEN, expected_keys  # noqa: E402
 
 
-def snapshot_sha(model) -> str:
-    digest = hashlib.sha256()
-    base = Path(model.model_path) if hasattr(model, "model_path") else None
-    files = sorted(base.rglob("*")) if base else []
-    for path in files:
-        if path.is_file():
-            digest.update(path.name.encode())
-            with path.open("rb") as handle:
-                for block in iter(lambda: handle.read(1 << 20), b""):
-                    digest.update(block)
-    return digest.hexdigest()
-
-
 async def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mint-email", required=False, default=None)
+    ap.add_argument("--organization-id", type=UUID, required=True)
+    ap.add_argument("--workspace-id", type=UUID, required=True)
+    ap.add_argument("--timeout-seconds", type=float, default=120.0)
     args = ap.parse_args()
 
-    import asyncpg
     from raghub_core.api import RetrievalScope
     from raghub_core.domain.evaluation.metrics import hit_at_k, mrr_at_k, ndcg_at_k
     from raghub_core.domain.retrieval.hybrid import (
@@ -52,35 +39,17 @@ async def main() -> None:
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.pool import NullPool
 
+    from app.core.config import get_settings
     from app.infrastructure.ai.local_reranker import LocalCrossEncoderReranker
     from app.infrastructure.elasticsearch.chunks import ChunkSearch
     from app.infrastructure.providers import ProviderResolverAdapter
     from app.infrastructure.retrieval_mapping import fuse_branches_to_candidates
     from app.modules.ai_providers.resolver import ProviderResolver
 
-    conn = await asyncpg.connect(
-        "postgresql://raghub:raghub-local-only@127.0.0.1:5434/raghub"
-    )
-    try:
-        me = await conn.fetchval(
-            "SELECT id FROM users WHERE email='khactu731@gmail.com'"
-        )
-        if me is None:
-            raise SystemExit("eval user not found")
-        org = await conn.fetchval("SELECT id FROM organizations WHERE slug='eval-golden'")
-        ws = await conn.fetchval(
-            "SELECT id FROM workspaces WHERE slug='golden-test' AND organization_id=$1", org
-        )
-        index = await conn.fetchval(
-            """SELECT v.index_name FROM embedding_index_versions v
-               JOIN workspaces w ON w.active_embedding_index_version_id = v.id
-               WHERE w.id=$1""",
-            ws,
-        )
-    finally:
-        await conn.close()
-    print(f"index: {index}", flush=True)
-
+    host_settings = get_settings()
+    org, ws = args.organization_id, args.workspace_id
+    if not host_settings.rag_reranker_expected_sha256:
+        raise SystemExit("Set a reviewed RAG_RERANKER_EXPECTED_SHA256 before benchmarking")
     manifest = json.loads((GOLDEN / "corpus_manifest.json").read_text(encoding="utf-8"))
     docs = manifest if isinstance(manifest, list) else manifest.get("documents", [])
     file_of = {}
@@ -88,20 +57,12 @@ async def main() -> None:
         file_of[d["document_id"]] = (d.get("file") or "").split("/")[-1]
     qa = json.loads((GOLDEN / "qa.json").read_text(encoding="utf-8"))
 
-    try:
-        from sentence_transformers import CrossEncoder
-
-        model = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1", max_length=512)
-        sha = snapshot_sha(model)
-    except ImportError as exc:
-        raise SystemExit("sentence-transformers is required for measurement") from exc
-    reranker = LocalCrossEncoderReranker(expected_sha256=sha, timeout_seconds=120.0)
-
-    from app.core.config import Settings as AppSettings
-
-    db_url = "postgresql+asyncpg://raghub:raghub-local-only@127.0.0.1:5434/raghub"
-    host_settings = AppSettings(_env_file=None, elasticsearch_url="http://127.0.0.1:9200")
-    eng = create_async_engine(db_url, poolclass=NullPool)
+    reranker = LocalCrossEncoderReranker(
+        expected_sha256=host_settings.rag_reranker_expected_sha256,
+        snapshot_path=host_settings.rag_reranker_snapshot_path,
+        timeout_seconds=args.timeout_seconds,
+    )
+    eng = create_async_engine(host_settings.database_url, poolclass=NullPool)
     lat = []
     base_rows, re_rows = [], []
     try:
@@ -109,7 +70,7 @@ async def main() -> None:
             resolver = ProviderResolverAdapter(ProviderResolver(session))
             scope = RetrievalScope(UUID(str(org)), UUID(str(ws)))
             runtime = await resolver.resolve_embedding(scope)
-            search = ChunkSearch(index_name=index, settings=host_settings)
+            search = ChunkSearch(index_name=runtime.index_name, settings=host_settings)
             try:
                 for case in qa:
                     normed = normalize_query(case["question"])
@@ -125,7 +86,12 @@ async def main() -> None:
                         query=normed,
                         query_vector=vector,
                     )
-                    cands = fuse_branches_to_candidates(lexical, vec, limit=25, rrf_k=60)
+                    cands = fuse_branches_to_candidates(
+                        lexical,
+                        vec,
+                        limit=host_settings.rag_retrieval_candidates,
+                        rrf_k=host_settings.rag_rrf_k,
+                    )
                     fused_files = [c.chunk.source_name for c in cands[:5]]
                     t0 = time.perf_counter()
                     reranked = await reranker.rerank(
@@ -155,7 +121,7 @@ async def main() -> None:
         print(f"{name}: hit@5={hits:.3f} mrr@5={mrr:.3f} ndcg@5={ndcg:.3f}", flush=True)
     lat.sort()
     print(
-        f"rerank p50={lat[len(lat)//2]:.0f}ms p95={lat[int(len(lat)*0.95)-1]:.0f}ms",
+        f"rerank p50={lat[len(lat) // 2]:.0f}ms p95={lat[int(len(lat) * 0.95) - 1]:.0f}ms",
         flush=True,
     )
 

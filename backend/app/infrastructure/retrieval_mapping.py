@@ -16,6 +16,7 @@ def chunk_from_hit(hit: dict[str, object]) -> RetrievedChunk:
         hit.get("page_number"),
         hit.get("heading"),
         float(hit["score"]),
+        hit.get("chunk_index"),
     )
 
 
@@ -36,6 +37,7 @@ def fuse_branches_to_candidates(
 
 def chunk_to_hit(hit: RetrievedChunk) -> dict[str, object]:
     return {
+        **({"chunk_index": hit.chunk_index} if hit.chunk_index is not None else {}),
         "document_id": str(hit.document_id),
         "document_version_id": str(hit.document_version_id),
         "chunk_id": str(hit.chunk_id),
