@@ -52,7 +52,7 @@ def extract_features(
         "fused_1": first,
         "margin_12": first - second,
         "mean_top3": sum(top[:3]) / min(3, len(top)) if top else 0.0,
-        "n_results": float(len(fused_scores)),
+        "n_results": float(len(top)),
     }
     return {name: features[name] for name in feature_names if name in features}
 

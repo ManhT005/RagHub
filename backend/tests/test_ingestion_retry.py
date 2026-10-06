@@ -139,7 +139,7 @@ async def test_pipeline_keeps_version_indexing_until_chunks_are_written(
     monkeypatch.setattr(worker_composition, "ChunkIndexer", Indexer)
 
     class Embeddings:
-        def __init__(self, *args):
+        def __init__(self, *args, **kwargs):
             pass
         async def execute(self, document, chunks, runtime):
             return await runtime.provider.embed_documents([c.content for c in chunks])

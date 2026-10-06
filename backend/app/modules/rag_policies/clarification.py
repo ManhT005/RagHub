@@ -4,9 +4,9 @@ from app.modules.rag_policies.admissions import AdmissionsPolicy
 
 
 class HostClarificationPolicy:
-    def __init__(self):
+    def __init__(self, confidence_threshold=0.75):
         self.generic = ClarificationPolicy()
-        self.admissions = AdmissionsPolicy()
+        self.admissions = AdmissionsPolicy(confidence_threshold=confidence_threshold)
 
     def evaluate(self, question, *, domain_profile="generic", **kwargs):
         policy = self.admissions if domain_profile == "admissions" else self.generic

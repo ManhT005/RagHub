@@ -1,5 +1,6 @@
 """Compose retrieval hooks from feature flags (all default off)."""
 
+from functools import lru_cache
 from pathlib import Path
 
 from raghub_core.api import RetrieveContextUseCase
@@ -10,9 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.infrastructure.ai.local_reranker import LocalCrossEncoderReranker
 from app.infrastructure.elasticsearch.chunks import ChunkSearch
+from app.infrastructure.elasticsearch.neighbors import NeighborExpansion
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorSearch
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.redis.query_quota import QueryQuota
 from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.search.relevance import (
@@ -20,6 +23,15 @@ from app.modules.search.relevance import (
     load_relevance_artifact,
     retrieval_config_hash,
 )
+
+
+@lru_cache(maxsize=8)
+def local_reranker(snapshot_path, expected_sha256, timeout_seconds):
+    return LocalCrossEncoderReranker(
+        snapshot_path=snapshot_path,
+        expected_sha256=expected_sha256,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def _artifact_path() -> Path:
@@ -40,7 +52,11 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
     settings = get_settings()
     rerank = None
     if settings.rag_reranker_enabled:
-        adapter = LocalCrossEncoderReranker()
+        adapter = local_reranker(
+            snapshot_path=settings.rag_reranker_snapshot_path,
+            expected_sha256=settings.rag_reranker_expected_sha256,
+            timeout_seconds=settings.rag_reranker_timeout_seconds,
+        )
         top_n = settings.rag_rerank_top_n
 
         async def rerank(query: str, candidates: list, top_n: int = top_n):  # type: ignore[no-redef]
@@ -59,6 +75,7 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
             candidates=settings.rag_retrieval_candidates,
             rrf_k=settings.rag_rrf_k,
             mapping_version=MAPPING_VERSION,
+            max_per_document=settings.rag_max_chunks_per_document,
         )
 
         def relevance_factory(runtime):
@@ -89,4 +106,8 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         relevance_factory=relevance_factory,
         rerank_top_n=settings.rag_rerank_top_n,
         telemetry=telemetry,
+        quota=QueryQuota(settings),
+        neighbor_expansion=NeighborExpansion(settings).expand
+        if settings.rag_neighbor_expansion_enabled
+        else None,
     )

@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import aclosing
 from time import perf_counter as _perf_now
 from uuid import UUID
@@ -30,6 +30,7 @@ from raghub_core.domain.rag.prompt import EMPTY_CONTEXT_ANSWER, build_prompt
 from raghub_core.domain.rag.prompt_budget import BudgetedPrompt, PromptBudgeter
 from raghub_core.domain.rag.timing import ChatStreamTiming
 from raghub_core.domain.retrieval.hybrid import ContextBundle, build_context_bundle
+from raghub_core.domain.retrieval.models import RetrievalAssessment
 from raghub_core.ports.chatbots import ChatbotReadPort
 from raghub_core.ports.clarification import ClarificationPolicyPort
 from raghub_core.ports.conversations import ConversationRepositoryPort
@@ -55,6 +56,7 @@ class StreamRagChatUseCase:
         clarification_policy: ClarificationPolicyPort | None = None,
         clarification_mode: str = "conservative",
         max_clarifying_turns: int = 1,
+        retrieval_assessor: Callable[..., Awaitable[RetrievalAssessment]] | None = None,
     ) -> None:
         self.chatbots, self.retrieval, self.providers = chatbots, retrieval, providers
         self.conversations, self.usage, self.timing_factory = conversations, usage, timing_factory
@@ -64,6 +66,7 @@ class StreamRagChatUseCase:
         self.clarification_policy = clarification_policy or ClarificationPolicy()
         self.clarification_mode = clarification_mode
         self.max_clarifying_turns = max_clarifying_turns
+        self.retrieval_assessor = retrieval_assessor
 
     async def execute(self, command: StreamChatCommand) -> AsyncIterator[RagEvent]:
         chatbot = await self.chatbots.get(command.organization_id, command.chatbot_id)
@@ -153,7 +156,37 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
 
-        hits = await self.retrieval.retrieve(chatbot.scope, question, chatbot.retrieval_limit)
+        if self.retrieval_assessor is not None:
+            assessment = await self.retrieval_assessor(
+                chatbot.scope, question, chatbot.retrieval_limit
+            )
+            hits = list(assessment.hits)
+            if hits and assessment.confidence is not None:
+                post_decision = self.clarification_policy.evaluate(
+                    question,
+                    domain_profile=chatbot.domain_profile,
+                    mode=chatbot.clarification_mode or self.clarification_mode,
+                    clarifying_turns=self._clarifying_turns(previous_history),
+                    max_clarifying_turns=chatbot.max_clarifying_turns,
+                    retrieval_confidence=assessment.confidence,
+                )
+                if post_decision.action is IntentAction.CLARIFY:
+                    usage = ChatUsage(0, 0, 0, "none")
+                    message_id = await self.conversations.add_assistant(
+                        conversation_id, post_decision.message, usage, ()
+                    )
+                    await self.conversations.commit()
+                    yield ClarificationRequested(
+                        post_decision.message,
+                        post_decision.missing_slots,
+                        post_decision.suggestions,
+                        post_decision.reason,
+                    )
+                    yield UsageReported(usage)
+                    yield ChatCompleted(message_id, None, 0)
+                    return
+        else:
+            hits = await self.retrieval.retrieve(chatbot.scope, question, chatbot.retrieval_limit)
         if not hits:
             usage = ChatUsage(0, 0, 0, "none")
             message_id = await self.conversations.add_assistant(

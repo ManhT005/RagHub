@@ -18,6 +18,7 @@ from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.infrastructure.resumable_embedding import ResumableEmbedding
+from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 
 parse_document = DocumentParser().parse
@@ -31,7 +32,10 @@ class WorkerContainer:
 
     def builder(self):
         storage = MinioObjectStorage(self.settings)
-        embeddings = ResumableEmbedding(self.session, storage, self.settings, self.quota)
+        telemetry = LoggingTelemetry()
+        embeddings = ResumableEmbedding(
+            self.session, storage, self.settings, self.quota, telemetry=telemetry
+        )
         return MetadataIndexBuilder(
             BuildDocumentIndexUseCase(
                 storage,
@@ -42,6 +46,7 @@ class WorkerContainer:
             ),
             self.session,
             embeddings=embeddings,
+            telemetry=telemetry,
         )
 
     def make_store(self, runtime):
@@ -66,6 +71,7 @@ class WorkerContainer:
             self.providers(),
             self.make_store,
             pipeline=pipeline,
+            retry_limits={"EMBEDDING_QUOTA_WAIT": 48, "EMBEDDING_QUOTA_UNAVAILABLE": 48},
         )
 
     def reindex_workspace(self):

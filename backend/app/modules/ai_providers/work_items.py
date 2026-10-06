@@ -11,6 +11,7 @@ from __future__ import annotations
 import gzip
 import json
 import math
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -79,7 +80,7 @@ class WorkItemRepository:
         *,
         organization_id: UUID,
         workspace_id: UUID,
-        pool_id: UUID,
+        pool_id: UUID | None,
         kind: str = "upload",
         document_version_id: UUID | None = None,
         total_chunks: int = 0,
@@ -184,6 +185,17 @@ class WorkItemRepository:
             )
         )
         item.embedded_chunks = end
+        if item.document_version_id:
+            from app.modules.documents.models import IngestionJob
+
+            job = await self.session.scalar(
+                select(IngestionJob).where(
+                    IngestionJob.document_version_id == item.document_version_id
+                )
+            )
+            if job is not None:
+                job.embedded_chunks, job.total_chunks = end, item.total_chunks
+                job.progress = min(89, 50 + int(39 * end / max(1, item.total_chunks)))
         await self.session.flush()
 
     async def wait_quota(self, item: EmbeddingWorkItem, available_at_ms: int) -> None:
@@ -260,6 +272,7 @@ class WorkItemProcessor:
         target_tokens: int = 10_000,
         dimension: int = 0,
         complete_on_finalize: bool = True,
+        telemetry=None,
     ) -> None:
         self.repository = repository
         self.quota = quota
@@ -271,6 +284,7 @@ class WorkItemProcessor:
         self.target_tokens = target_tokens
         self.dimension = dimension
         self.complete_on_finalize = complete_on_finalize
+        self.telemetry = telemetry
 
     async def process_one(self, item_id: UUID) -> BatchOutcome:
         item = await self.repository.claim(item_id)
@@ -309,8 +323,17 @@ class WorkItemProcessor:
             }:
                 raise
             try:
+                mark = time.perf_counter()
                 await self.quota.acquire(scope=scope, tokens=batch_tokens, background=True)
+                if self.telemetry is not None:
+                    self.telemetry.timing("embedding_wait", (time.perf_counter() - mark) * 1000, {})
+                mark = time.perf_counter()
                 vectors = await self.embed_texts(texts)
+                if self.telemetry is not None:
+                    self.telemetry.timing(
+                        "embedding_batch", (time.perf_counter() - mark) * 1000, {}
+                    )
+                    self.telemetry.counter("embedding_batch_count", {})
             except QuotaDepletedError as exc:
                 await self.repository.wait_quota(item, exc.available_at_ms)
                 return BatchOutcome(done=False, embedded_chunks=item.embedded_chunks)

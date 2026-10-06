@@ -93,9 +93,7 @@ class ProviderResolver:
             raise ProviderConfigurationError("Workspace has no active embedding index.")
         _, version, config = row
         self._validate(config, ProviderCapability.EMBEDDING)
-        provider = self.registry.create(
-            provider_descriptor(config, version), self._secret(config, version.provider_type)
-        )
+        provider = await self._embedding_provider(config, version)
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
 
     async def chat_for_workspace(
@@ -127,10 +125,50 @@ class ProviderResolver:
             )
         )
         config = self._validate(config, ProviderCapability.EMBEDDING)
-        provider = self.registry.create(
-            provider_descriptor(config, version), self._secret(config, version.provider_type)
-        )
+        provider = await self._embedding_provider(config, version)
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
+
+    async def _embedding_provider(self, config, version):
+        from app.infrastructure.pool_embedding import PoolEmbeddingProvider
+
+        descriptor = provider_descriptor(config, version)
+        if not getattr(version, "embedding_fingerprint_v2", None):
+            return self.registry.create(descriptor, self._secret(config, version.provider_type))
+        from raghub_core.domain.providers.fingerprint import embedding_fingerprint_v2
+
+        actual = embedding_fingerprint_v2(
+            provider_type=descriptor.provider_type,
+            base_url=descriptor.base_url,
+            model=descriptor.model,
+            dimension=descriptor.dimension,
+            task_type=descriptor.options.get("task_type"),
+            embedding_options=descriptor.options,
+        )
+        if actual != version.embedding_fingerprint_v2:
+            raise FingerprintMismatchError("Immutable index snapshot fingerprint mismatch.")
+        pool, _ = await self.embedding_pool_for_version(version)
+        credentials = list(
+            await self.session.scalars(
+                select(ProviderCredential)
+                .where(
+                    ProviderCredential.pool_id == pool.id,
+                    ProviderCredential.enabled.is_(True),
+                    ProviderCredential.unhealthy.is_(False),
+                )
+                .order_by(ProviderCredential.created_at)
+            )
+        )
+        providers = [
+            self.registry.create(
+                descriptor, self.cipher.decrypt(c.encrypted_secret) if c.encrypted_secret else None
+            )
+            for c in credentials
+        ]
+        if not providers:
+            raise ProviderConfigurationError(
+                "No healthy embedding credential in the compatible pool."
+            )
+        return PoolEmbeddingProvider(providers, credentials, self.session)
 
     async def embedding_pool_for_version(
         self, version: EmbeddingIndexVersion
@@ -150,17 +188,18 @@ class ProviderResolver:
         pool: ProviderPool | None = None
         if binding is not None:
             pool = await self.session.get(ProviderPool, binding.pool_id)
+        if pool is not None and pool.fingerprint_v2 != expected:
+            pool = None  # A rebuild may target a new profile while the old binding stays active.
         if pool is None:
             pool = await self.session.scalar(
                 select(ProviderPool).where(
                     ProviderPool.organization_id == version.organization_id,
                     ProviderPool.fingerprint_v2 == expected,
+                    ProviderPool.capability == ProviderCapability.EMBEDDING,
                 )
             )
         if pool is None or (expected is not None and pool.fingerprint_v2 != expected):
-            raise FingerprintMismatchError(
-                "No managed pool matches the active index fingerprint."
-            )
+            raise FingerprintMismatchError("No managed pool matches the active index fingerprint.")
         credentials = list(
             await self.session.scalars(
                 select(ProviderCredential)
@@ -169,10 +208,7 @@ class ProviderResolver:
             )
         )
         credential = select_healthy_credential(
-            [
-                PoolCredential(id=c.id, enabled=c.enabled, unhealthy=c.unhealthy)
-                for c in credentials
-            ]
+            [PoolCredential(id=c.id, enabled=c.enabled, unhealthy=c.unhealthy) for c in credentials]
         )
         primary = next(c for c in credentials if c.id == credential.id)
         return pool, primary

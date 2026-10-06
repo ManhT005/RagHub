@@ -1,4 +1,5 @@
 """Relevance artifact loading: any problem keeps the gate off."""
+
 from __future__ import annotations
 
 import hashlib
@@ -14,8 +15,17 @@ def dataset_hash(qa_path: Path) -> str:
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
-def retrieval_config_hash(*, candidates: int, rrf_k: int, mapping_version: str) -> str:
-    cfg = {"candidates": candidates, "rrf_k": rrf_k, "mapping_version": mapping_version}
+def retrieval_config_hash(
+    *, candidates: int, rrf_k: int, mapping_version: str, max_per_document: int = 1
+) -> str:
+    cfg = {
+        "candidates": candidates,
+        "rrf_k": rrf_k,
+        "mapping_version": mapping_version,
+        "max_per_document": max_per_document,
+        "feature_window": 5,
+        "features_version": 2,
+    }
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -43,6 +53,7 @@ def load_relevance_artifact(path: Path, *, expected_version: str) -> RelevanceAr
             if not all(math.isfinite(x) for x in mean + std) or any(x <= 0 for x in std):
                 return None
         from raghub_core.domain.retrieval.relevance import default_features
+
         if len(set(names)) != len(names) or not set(names) <= set(default_features()):
             return None
         if not all(math.isfinite(x) for x in weights + (float(data["intercept"]),)):

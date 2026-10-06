@@ -49,7 +49,7 @@ limits and a low factual-generation temperature reach ChatOptions.
 
 Validation: core 127 passed; host prompt/citation/empty/public chat suites 26 passed.
 
-## Phases 3?4: structural representation and chunking
+## Phases 3-4: structural representation and chunking
 
 ParsedBlock extends the compatibility ParsedSection contract. DOCX/HTML keep
 heading paths; PDF tables are distinct blocks and OCR uses image/text signals.
@@ -61,7 +61,7 @@ than silently split; target size is soft for such rows.
 Validation: core 127 passed; parser/chunker suites 29 passed, including all-row
 coverage, nested hidden HTML, DOCX heading merging and safety limit regressions.
 
-## Phases 5?8: canonical durable embeddings and cache
+## Phases 5-8: canonical durable embeddings and cache
 
 Host upload and reindex both inject ResumableEmbedding into the core builder.
 The fallback engine also batches its requests. Work items persist fingerprint,
@@ -77,3 +77,22 @@ Validation: core 127 passed; embedding/claim/provider/ingestion/reindex suites 5
 passed; restart/cache tests 4 passed; real PostgreSQL claim + MinIO/Elasticsearch
 upload 2 passed; real Redis quota and ingestion concurrency 8 passed. Clean DB
 upgrade through 0026 succeeded on a disposable Docker project with isolated ports.
+
+## Phases 8-13: runtime policies
+
+Queries reserve interactive quota before calling Gemini, sharing project/model
+buckets with background batches. Local providers bypass cloud quota. Authentication
+failures disable a pool credential and permit failover only inside the immutable
+profile; 429 never hops keys. Snapshot fingerprint corruption fails before provider
+resolution. Quota deferrals receive their own patient retry budget.
+
+Optional neighbor expansion stays tenant/version scoped and readiness filtered.
+Adaptive clarification receives pre-rerank confidence without resolving a chat
+provider. Both remain disabled by default. Calibration features now match the
+five-candidate collection window and invalidate older configuration hashes.
+
+The local reranker revision is a full commit SHA. Runtime verifies a deployment
+snapshot checksum before loading weights, never downloads models, bounds loading
+and inference, and limits outstanding inference even after a timeout. A preparation
+CLI supplies the deploy-time checksum. Approved artifacts and hardware performance
+measurements still need deployment-specific verification.

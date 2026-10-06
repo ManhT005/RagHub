@@ -61,9 +61,15 @@ class Settings(BaseSettings):
     rag_retrieval_candidates: int = Field(default=25, ge=10, le=100)
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
     rag_max_chunks_per_document: int = Field(default=1, ge=1, le=25)
+    rag_adaptive_clarification_enabled: bool = False
+    rag_clarification_medium_threshold: float = Field(default=0.75, gt=0, lt=1)
+    rag_neighbor_expansion_enabled: bool = False
     rag_relevance_gate_enabled: bool = False
     rag_relevance_config_version: str = "baseline-v1"
     rag_relevance_artifact_path: str = ""
+    rag_reranker_snapshot_path: str = ""
+    rag_reranker_expected_sha256: str = ""
+    rag_reranker_timeout_seconds: float = Field(default=2, ge=0.1, le=120)
     rag_reranker_enabled: bool = False
     rag_rerank_top_n: int = Field(default=8, ge=1, le=25)
 

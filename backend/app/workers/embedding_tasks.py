@@ -28,31 +28,40 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
     quota = QuotaBucketStore(redis, settings)
     storage = MinioObjectStorage(settings)
 
-    async def embed_texts(texts: list[str]) -> list[list[float]]:
-        from sqlalchemy import select
+    from sqlalchemy import select
 
-        from app.infrastructure.providers import ProviderResolverAdapter
-        from app.modules.ai_providers.models import EmbeddingIndexVersion
-        from app.modules.ai_providers.resolver import ProviderResolver
+    from app.infrastructure.providers import ProviderResolverAdapter
+    from app.infrastructure.resumable_embedding import RuntimeQuota
+    from app.modules.ai_providers.models import EmbeddingIndexVersion
+    from app.modules.ai_providers.resolver import ProviderResolver
 
-        item = await session.get(EmbeddingWorkItem, item_id)
-        if item is None or not item.index_name or not item.embedding_fingerprint:
-            raise ValueError("Work item has no immutable embedding snapshot.")
-        version = await session.scalar(
-            select(EmbeddingIndexVersion).where(
-                EmbeddingIndexVersion.index_name == item.index_name,
-                EmbeddingIndexVersion.workspace_id == item.workspace_id,
-                EmbeddingIndexVersion.organization_id == item.organization_id,
-            )
+    item = await session.get(EmbeddingWorkItem, item_id)
+    if item is None:
+        await redis.aclose()
+        return True
+    if not item.index_name or not item.embedding_fingerprint:
+        await redis.aclose()
+        raise ValueError("Work item has no immutable embedding snapshot.")
+    version = await session.scalar(
+        select(EmbeddingIndexVersion).where(
+            EmbeddingIndexVersion.index_name == item.index_name,
+            EmbeddingIndexVersion.workspace_id == item.workspace_id,
+            EmbeddingIndexVersion.organization_id == item.organization_id,
         )
-        if version is None:
-            raise ValueError("Work-item index version is missing.")
+    )
+    if version is None:
+        await redis.aclose()
+        raise ValueError("Work-item index version is missing.")
+    try:
         runtime = await ProviderResolverAdapter(
             ProviderResolver(session)
         ).resolve_embedding_version(version.id)
-        if runtime.fingerprint != item.embedding_fingerprint:
-            raise ValueError("Work-item runtime fingerprint mismatch.")
-        return await runtime.provider.embed_documents(texts)
+    except BaseException:
+        await redis.aclose()
+        raise
+    if runtime.fingerprint != item.embedding_fingerprint:
+        await redis.aclose()
+        raise ValueError("Work-item runtime fingerprint mismatch.")
 
     async def finalize(item_id: uuid.UUID, vectors: list[list[float]]) -> None:
         from datetime import UTC, datetime
@@ -143,12 +152,14 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
 
     processor = WorkItemProcessor(
         repository,
-        quota,
+        RuntimeQuota(runtime, quota),
         load_blob=storage.get,
         store_blob=lambda key, blob: storage.put(key, blob, "application/gzip"),
-        embed_texts=embed_texts,
+        embed_texts=runtime.provider.embed_documents,
         finalize=finalize,
-        dimension=(await session.get(EmbeddingWorkItem, item_id)).dimension or 0,
+        dimension=item.dimension or 0,
+        max_chunks=settings.rag_embedding_batch_max_chunks,
+        target_tokens=settings.rag_embedding_batch_target_tokens,
     )
     try:
         outcome = await processor.process_one(item_id)

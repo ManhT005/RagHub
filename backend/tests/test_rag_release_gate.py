@@ -1,7 +1,6 @@
 import importlib.util
 from pathlib import Path
 
-
 SCRIPT = Path(__file__).parent.parent / "scripts" / "run_production_eval.py"
 
 
@@ -109,9 +108,10 @@ def test_retrieve_context_emits_readiness_timing_sync():
     import asyncio
     from uuid import uuid4
 
-    from app.infrastructure.telemetry.adapter import InMemoryTelemetry
     from raghub_core.api import RetrievalScope, RetrieveContextUseCase
     from raghub_core.domain.retrieval.models import RetrievedChunk
+
+    from app.infrastructure.telemetry.adapter import InMemoryTelemetry
     from tests.core.fakes import FakeProviderResolver, FakeVectorStore
 
     class Search(FakeVectorStore):

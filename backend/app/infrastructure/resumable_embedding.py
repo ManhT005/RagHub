@@ -40,9 +40,10 @@ def chunk_manifest(chunks):
 
 
 class ResumableEmbedding:
-    def __init__(self, session, storage, settings, quota=None):
+    def __init__(self, session, storage, settings, quota=None, telemetry=None):
         self.session, self.storage = session, storage
         self.settings, self.quota = settings, quota
+        self.telemetry = telemetry
         self.repository = WorkItemRepository(session, settings)
 
     @staticmethod
@@ -106,6 +107,7 @@ class ResumableEmbedding:
                     document.scope.organization_id,
                     runtime.fingerprint,
                     runtime.dimension,
+                    telemetry=self.telemetry,
                 )
                 return await cache.embed(texts, uncached)
             return await runtime.provider.embed_documents(texts)
@@ -123,6 +125,7 @@ class ResumableEmbedding:
             max_chunks=self.settings.rag_embedding_batch_max_chunks,
             target_tokens=self.settings.rag_embedding_batch_target_tokens,
             complete_on_finalize=False,
+            telemetry=self.telemetry,
         )
         if item.state in {"EMBEDDED", "COMPLETED"}:
             # Reassemble and validate immutable checkpoints, including retries after an ES failure.

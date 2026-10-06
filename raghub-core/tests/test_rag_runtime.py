@@ -125,6 +125,28 @@ def runtime():
     return command, chatbots, retrieval, providers, conversations, usage, use_case
 
 
+def test_post_retrieval_clarification_uses_confidence_without_generating():
+    from raghub_core.domain.retrieval.models import RetrievalAssessment
+
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+
+    class ConfidencePolicy(FakeClarificationPolicy):
+        def evaluate(self, question, **kwargs):
+            if kwargs.get("retrieval_confidence") == 0.6:
+                return IntentDecision(IntentAction.CLARIFY, message="Please clarify scope.")
+            return IntentDecision(IntentAction.ANSWER_NOW)
+
+    async def assess(*args):
+        return RetrievalAssessment(tuple(retrieval.hits), 0.6)
+
+    use_case.clarification_policy = ConfidencePolicy()
+    use_case.retrieval_assessor = assess
+    events = asyncio.run(_collect_events(use_case, command))
+    assert any(isinstance(event, ClarificationRequested) for event in events)
+    assert conversations.messages[-1] == ("assistant", "Please clarify scope.")
+    assert providers.chat_scopes == []
+
+
 async def _collect_events(use_case, command):
     return [event async for event in use_case.execute(command)]
 

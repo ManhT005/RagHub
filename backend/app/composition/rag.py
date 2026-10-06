@@ -40,9 +40,11 @@ def prompt_budgeter_factory(model: str, provider_type: str) -> PromptBudgeter:
 def rag_use_case(
     session, chatbot_loader, conversation_loader, history_loader, search_factory, resolver_factory
 ) -> StreamRagChatUseCase:
+    retrieval = RuntimeRetrievalAdapter(search_factory)
+    settings = get_settings()
     return StreamRagChatUseCase(
         ChatbotRuntimeReader(chatbot_loader),
-        RuntimeRetrievalAdapter(search_factory),
+        retrieval,
         LazyProviderResolverAdapter(resolver_factory),
         ConversationRepositoryAdapter(
             session, conversation_loader=conversation_loader, history_loader=history_loader
@@ -50,5 +52,8 @@ def rag_use_case(
         UsageRecorderAdapter(session),
         budgeter_factory=prompt_budgeter_factory,
         telemetry=LoggingTelemetry(),
-        clarification_policy=HostClarificationPolicy(),
+        clarification_policy=HostClarificationPolicy(settings.rag_clarification_medium_threshold),
+        retrieval_assessor=retrieval.assess
+        if settings.rag_adaptive_clarification_enabled
+        else None,
     )

@@ -1,4 +1,5 @@
 """Quota-aware resumable embedding: scheduler, buckets, batches, checkpoints."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -124,7 +125,6 @@ class FakeRepo:
         item.embedded_chunks = end
 
     async def wait_quota(self, item, available_at_ms):
-
         item.state = WAITING_QUOTA
         item.available_at = datetime.fromtimestamp(available_at_ms / 1000, tz=UTC)
         self.quota_waits.append(item.id)
@@ -267,6 +267,34 @@ async def test_processor_waits_on_quota_without_calling_provider():
     assert repo.quota_waits == [item_id]
 
 
+async def test_processor_reuses_artifact_saved_before_checkpoint_commit():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.modules.ai_providers.work_items import artifact_key
+
+    item = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        manifest_key="manifest",
+        total_chunks=3,
+        embedded_chunks=0,
+        state="QUEUED",
+    )
+    repo = FakeRepo()
+    repo.items[item.id] = item
+    quota = SimpleNamespace(acquire=AsyncMock(side_effect=AssertionError("No quota needed")))
+    processor, blobs, calls = _processor(repo, quota=quota)
+    blobs["manifest"] = _manifest(3)
+    blobs[artifact_key(item.organization_id, item.workspace_id, item.id, 0)] = encode_artifact(
+        [[1.0, 0.0]] * 3
+    )
+    assert (await processor.process_one(item.id)).done
+    assert calls["embed"] == 0 and calls["finalized"] == [(item.id, 3)]
+    quota.acquire.assert_not_awaited()
+
+
 async def test_build_use_case_fails_closed_without_provider_call():
     from uuid import uuid4
 
@@ -333,8 +361,11 @@ def test_progress_fields_are_additive_nullable():
 
 def test_queue_caps_use_settings():
     from app.core.config import Settings
-    settings = Settings(provider_pool_max_active_jobs_per_workspace=2,
-                        provider_pool_max_pending_jobs_per_workspace=7)
+
+    settings = Settings(
+        provider_pool_max_active_jobs_per_workspace=2,
+        provider_pool_max_pending_jobs_per_workspace=7,
+    )
     assert settings.provider_pool_max_active_jobs_per_workspace == 2
     assert settings.provider_pool_max_pending_jobs_per_workspace == 7
 
@@ -379,11 +410,13 @@ async def test_builder_quota_port_waits_instead_of_hammering():
 
     async def resolve():
         runtime = await providers.resolve_embedding(scope)
-        return EmbeddingRuntime(runtime.provider, runtime.index_name, runtime.dimension,
-                                quota_scope="gemini:m:proj")
+        return EmbeddingRuntime(
+            runtime.provider, runtime.index_name, runtime.dimension, quota_scope="gemini:m:proj"
+        )
 
-    document = IngestionDocument(scope=scope, document_id=uuid4(), version_id=uuid4(),
-                                 storage_key="k", source_name="doc.md")
+    document = IngestionDocument(
+        scope=scope, document_id=uuid4(), version_id=uuid4(), storage_key="k", source_name="doc.md"
+    )
     with pytest.raises(IngestionError) as exc:
         await use_case.execute(document, resolve, lambda runtime: FakeVectorStore())
     assert exc.value.code == "EMBEDDING_QUOTA_WAIT" and exc.value.retryable
@@ -407,8 +440,9 @@ async def test_builder_quota_port_skipped_without_scope():
         quota=_ScriptedQuota([]),
     )
     scope = RetrievalScope(uuid4(), uuid4())
-    document = IngestionDocument(scope=scope, document_id=uuid4(), version_id=uuid4(),
-                                 storage_key="k", source_name="doc.md")
+    document = IngestionDocument(
+        scope=scope, document_id=uuid4(), version_id=uuid4(), storage_key="k", source_name="doc.md"
+    )
 
     class NoScopeStore(FakeVectorStore):
         def replace(self, index):

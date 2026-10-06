@@ -254,7 +254,7 @@ def test_reranker_model_is_pinned():
     from app.infrastructure.ai.local_reranker import MODEL_ID, MODEL_REVISION
 
     assert MODEL_ID == "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
-    assert MODEL_REVISION == "main"
+    assert len(MODEL_REVISION) == 40 and MODEL_REVISION != "main"
 
 
 def test_calibration_cli_produces_loadable_artifact(tmp_path: Path):
@@ -325,6 +325,7 @@ def test_embedding_fingerprint_mismatch_disables_gate():
 async def test_relevance_observes_fused_order_before_rerank():
     from raghub_core.api import RetrievalScope, RetrieveContextUseCase
     from raghub_core.domain.retrieval.relevance import RelevanceDecision
+
     from tests.core.fakes import FakeProviderResolver, FakeVectorStore
 
     class Search(FakeVectorStore):

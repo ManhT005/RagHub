@@ -10,9 +10,10 @@ from app.modules.workspaces.models import Workspace
 
 
 class MetadataIndexBuilder:
-    def __init__(self, builder, session, embeddings=None):
+    def __init__(self, builder, session, embeddings=None, telemetry=None):
         self.builder, self.session = builder, session
         self.embeddings = embeddings
+        self.telemetry = telemetry
 
     async def execute(self, document, resolve_embedding, make_store, **kwargs):
         runtime = None
@@ -22,6 +23,7 @@ class MetadataIndexBuilder:
             runtime = await resolve_embedding()
             return runtime
 
+        kwargs.setdefault("telemetry", self.telemetry)
         index = await self.builder.execute(document, resolve, make_store, **kwargs)
         if self.embeddings is not None:
             await self.embeddings.complete(document, runtime)

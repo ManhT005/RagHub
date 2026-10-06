@@ -210,7 +210,9 @@ class BuildDocumentIndexUseCase:
             )
         except IngestionError:
             raise
-        except (ProviderTimeoutError, ProviderUnavailableError, ProviderRateLimitError) as exc:
+        except ProviderRateLimitError as exc:
+            raise IngestionError("EMBEDDING_QUOTA_WAIT", str(exc), retryable=True) from exc
+        except (ProviderTimeoutError, ProviderUnavailableError) as exc:
             raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
         except Exception as exc:
             raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc

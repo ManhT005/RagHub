@@ -376,6 +376,7 @@ class ChunkSearch:
     @staticmethod
     def _source_fields() -> list[str]:
         return [
+            "chunk_index",
             "document_id",
             "document_version_id",
             "chunk_id",

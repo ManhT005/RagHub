@@ -20,6 +20,13 @@ class RetrievedChunk:
     page_number: int | None
     heading: str | None
     score: float
+    chunk_index: int | None = None
+
+
+@dataclass(frozen=True)
+class RetrievalAssessment:
+    hits: tuple[RetrievedChunk, ...]
+    confidence: float | None
 
 
 @dataclass(frozen=True)
