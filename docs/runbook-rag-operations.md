@@ -98,8 +98,11 @@ full chunk allocation/provider resolution, and chunk count is bounded.
 
 ## Upgrade, durable resume and publication
 
+See [embedding execution](embedding-execution.md) for speed profiles, hard caps,
+batch retry isolation and document progress/wait states.
+
 Back up deployed databases, retained indices and object storage before upgrading.
-`python -m alembic upgrade head` reaches revision `0030`. The migration graph
+`python -m alembic upgrade head` reaches revision `0032`. The migration graph
 reconciles develop's `0021/0022` and legacy RAG `0026` histories. Empty, develop and
 legacy RAG database upgrades were tested; do not rename deployed revisions.
 

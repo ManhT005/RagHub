@@ -97,6 +97,7 @@ async def test_document_response_waiting_reason(stage, endpoint):
         list_document_jobs=AsyncMock(return_value={document.id: (version, job)}),
         embedding_snapshot=AsyncMock(return_value=None),
         active_metadata=AsyncMock(return_value={}),
+        embedding_work_items=AsyncMock(return_value={}),
     )
     organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
     if endpoint == "list":

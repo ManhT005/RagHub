@@ -266,7 +266,7 @@ async def test_canonical_upload_publishes_real_index_after_durable_batches(
         elasticsearch_url=os.environ["RAGHUB_TEST_ELASTICSEARCH_URL"],
         s3_endpoint=os.environ["RAGHUB_TEST_S3_ENDPOINT"],
         s3_access_key="raghub",
-        s3_secret_key="raghub-local-only",
+        s3_secret_key=os.getenv("RAGHUB_TEST_S3_SECRET_KEY", "raghub-local-only"),
         rag_embedding_batch_max_chunks=2,
     )
     async with isolated_sessions(expire_on_commit=False) as session:

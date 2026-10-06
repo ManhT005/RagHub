@@ -18,6 +18,30 @@ from app.modules.documents.schemas import DocumentAccepted, DocumentDetail, Docu
 logger = logging.getLogger(__name__)
 
 
+def attach_work_state(response, job, item=None):
+    response.work_state = "QUEUED" if job.stage == "QUEUED" else "RUNNING"
+    response.waiting_reason = "WAITING_FOR_WORKER" if job.stage == "QUEUED" else None
+    response.embedded_chunks = getattr(job, "embedded_chunks", None)
+    response.total_chunks = getattr(job, "total_chunks", None)
+    if item is not None:
+        response.embedded_chunks = max(response.embedded_chunks or 0, item.embedded_chunks)
+        response.total_chunks = item.total_chunks
+        response.work_state = item.state
+        if item.state in {"WAITING_QUOTA", "WAITING_PROVIDER", "RETRYING"}:
+            response.waiting_reason = item.error_code or "WAITING_FOR_QUOTA"
+            response.retry_at = item.available_at
+        elif item.state == "QUEUED":
+            response.waiting_reason = "WAITING_FOR_WORKER"
+        elif item.state == "EMBEDDED":
+            response.work_state = "VERIFYING"
+    if job.stage in {"READY", "FAILED"}:
+        response.work_state = "COMPLETED" if job.stage == "READY" else "FAILED"
+        response.waiting_reason = None
+        response.retry_at = None
+    elif job.stage == "INDEXING":
+        response.work_state = "VERIFYING" if not response.waiting_reason else response.work_state
+
+
 class DocumentService:
     def __init__(
         self,
@@ -69,6 +93,7 @@ class DocumentService:
         jobs = await self.repository.list_document_jobs(organization_id, workspace_id)
         snapshot = await self.repository.embedding_snapshot(organization_id, workspace_id)
         metadata = await self.repository.active_metadata(organization_id, workspace_id)
+        work_items = await self.repository.embedding_work_items(organization_id, workspace_id)
         result = []
         for document in documents:
             response = DocumentResponse.model_validate(document, from_attributes=True)
@@ -86,7 +111,7 @@ class DocumentService:
                 )
                 response.embedded_chunks = getattr(job, "embedded_chunks", None)
                 response.total_chunks = getattr(job, "total_chunks", None)
-                response.waiting_reason = "WAITING_FOR_WORKER" if job.stage == "QUEUED" else None
+                attach_work_state(response, job, work_items.get(version.id))
                 response.mime_type = getattr(version, "mime_type", None)
                 response.size_bytes = getattr(version, "size_bytes", None)
                 indexed = metadata.get(version.id)
@@ -108,6 +133,7 @@ class DocumentService:
         metadata = await self.repository.active_metadata(organization_id, workspace_id, document_id)
         snapshot = await self.repository.embedding_snapshot(organization_id, workspace_id)
         item = DocumentResponse.model_validate(document, from_attributes=True)
+        work_items = await self.repository.embedding_work_items(organization_id, workspace_id)
         if version:
             item.document_version_id = version.id
             item.mime_type, item.size_bytes = version.mime_type, version.size_bytes
@@ -124,7 +150,7 @@ class DocumentService:
             item.job_id, item.stage, item.progress = job.id, job.stage, job.progress
             item.attempts, item.error_code = job.attempts, job.error_code
             item.error_message = ingestion_error_message(job.error_code)
-            item.waiting_reason = "WAITING_FOR_WORKER" if job.stage == "QUEUED" else None
+            attach_work_state(item, job, work_items.get(latest.id))
             item.retryable = latest.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
         return DocumentDetail(**item.model_dump(), checksum=version.checksum if version else None)
 

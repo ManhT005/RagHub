@@ -70,8 +70,24 @@ class Settings(BaseSettings):
     rag_max_output_tokens: int = Field(default=1024, ge=1, le=32768)
     rag_prompt_safety_margin: int = Field(default=256, ge=0, le=8192)
     rag_embedding_cache_enabled: bool = False
-    rag_embedding_batch_max_chunks: int = Field(default=24, ge=1, le=100)
-    rag_embedding_batch_target_tokens: int = Field(default=10000, ge=100, le=100000)
+    rag_embedding_speed_profile: Literal["conservative", "balanced", "fast", "custom"] = "balanced"
+    rag_embedding_max_inflight_hard_cap: int = Field(default=4, ge=1, le=16)
+    rag_embedding_max_batch_chunks_hard_cap: int = Field(default=64, ge=1, le=100)
+    rag_embedding_max_batch_tokens_hard_cap: int = Field(default=50000, ge=1000, le=100000)
+    rag_embedding_max_inflight_requests: int | None = Field(default=None, ge=1, le=16)
+    rag_embedding_batch_max_chunks: int | None = Field(default=None, ge=1, le=100)
+    rag_embedding_batch_target_tokens: int | None = Field(default=None, ge=100, le=100000)
+
+    @field_validator(
+        "rag_embedding_max_inflight_requests",
+        "rag_embedding_batch_max_chunks",
+        "rag_embedding_batch_target_tokens",
+        mode="before",
+    )
+    @classmethod
+    def empty_execution_override(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
     rag_ocr_enabled: bool = False
     rag_index_gc_enabled: bool = False
     rag_telemetry_json_enabled: bool = False

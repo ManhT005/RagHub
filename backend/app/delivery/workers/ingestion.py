@@ -2,13 +2,17 @@ import logging
 import time
 import uuid
 
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.models import IngestionResult
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
 from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
+from app.infrastructure.embedding_execution import EmbeddingDeferred
 from app.infrastructure.ingestion_lock import try_ingestion_lock
 from app.infrastructure.persistence.ingestion import (
     _record_failure as _record_failure,
@@ -17,7 +21,9 @@ from app.infrastructure.persistence.ingestion import (
     _set_stage as _set_stage,
 )
 from app.infrastructure.redis.quota_buckets import QuotaBucketStore
+from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingWorkItem
 from app.modules.documents.models import Document, DocumentVersion, IngestionJob
+from app.modules.workspaces.models import Workspace
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +31,47 @@ logger = logging.getLogger(__name__)
 def _make_container(session: AsyncSession) -> tuple[WorkerContainer, Redis]:
     settings = get_settings()
     redis = Redis.from_url(settings.redis_url, socket_timeout=2)
-    return WorkerContainer(session, settings, quota=QuotaBucketStore(redis, settings)), redis
+    return WorkerContainer(
+        session, settings, quota=QuotaBucketStore(redis, settings), defer_uploads=True
+    ), redis
 
 
 async def _run_pipeline(
     session: AsyncSession, document: Document, version: DocumentVersion, job: IngestionJob
 ) -> None:
+    # Broker redelivery resumes the durable item, without reading/parsing the source.
+    if job.stage in {"EMBEDDING", "INDEXING"}:
+        item = await session.scalar(
+            select(EmbeddingWorkItem)
+            .join(
+                EmbeddingIndexVersion,
+                EmbeddingIndexVersion.index_name == EmbeddingWorkItem.index_name,
+            )
+            .join(
+                Workspace, Workspace.active_embedding_index_version_id == EmbeddingIndexVersion.id
+            )
+            .where(
+                EmbeddingWorkItem.document_version_id == version.id,
+                EmbeddingWorkItem.kind.in_(["upload", "recovery"]),
+                EmbeddingWorkItem.state != "COMPLETED",
+            )
+            .order_by(EmbeddingWorkItem.created_at.desc())
+            .limit(1)
+        )
+        if item is not None:
+            from app.workers.embedding_tasks import process_work_item_batch
+
+            if item.state == "FAILED":
+                raise IngestionError(
+                    "EMBEDDING_WORK_ITEM_FAILED", "Explicit retry required.", retryable=False
+                )
+            try:
+                process_work_item_batch.delay(str(item.id))
+            except Exception as exc:
+                raise IngestionError(
+                    "QUEUE_UNAVAILABLE", "Embedding dispatch failed.", retryable=True
+                ) from exc
+            raise EmbeddingDeferred()
     container, redis = _make_container(session)
     try:
         repository = container.ingestion_repository(document=document, version=version, job=job)
@@ -51,9 +92,12 @@ async def _run_attempt(
     async def pipeline(_document):
         await _run_pipeline(session, repository.document, repository.version, repository.job)
 
-    return await _make_use_case(session, repository, pipeline=pipeline).execute(
-        version_id, retries=retries, max_retries=max_retries
-    )
+    try:
+        return await _make_use_case(session, repository, pipeline=pipeline).execute(
+            version_id, retries=retries, max_retries=max_retries
+        )
+    except EmbeddingDeferred:
+        return IngestionResult(version_id, "EMBEDDING", False, reason="EMBEDDING_QUEUED")
 
 
 async def _process_document_version(

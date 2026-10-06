@@ -8,6 +8,7 @@ from raghub_core.domain.retrieval.models import RetrievalScope
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.infrastructure.ingestion_progress import advance_progress, advance_stage
 from app.modules.documents.models import Document, DocumentStatus, DocumentVersion, IngestionJob
 
 logger = logging.getLogger(__name__)
@@ -21,8 +22,8 @@ async def _set_stage(
     stage: DocumentStatus,
     progress: int,
 ) -> None:
-    document.status = version.status = job.stage = stage
-    job.progress = progress
+    document.status = version.status = job.stage = advance_stage(job.stage, stage)
+    job.progress = advance_progress(job.progress, progress)
     await session.commit()
 
 
@@ -100,14 +101,19 @@ class IngestionRepositoryAdapter:
     async def begin(self, version_id: uuid.UUID) -> None:
         self.job.attempts += 1
         self.job.error_code = self.job.error_message = self.job.error_details = None
-        await self.set_stage(version_id, IngestionStage.PARSING, 20)
+        if self.job.stage == "READY" and self.job.progress < 100:
+            self.document.status = self.version.status = self.job.stage = "INDEXING"
+        if self.job.stage in {"QUEUED", "UPLOADED"}:
+            await self.set_stage(version_id, IngestionStage.PARSING, 20)
+        else:
+            await self.session.commit()
 
     async def set_stage(self, version_id: uuid.UUID, stage: IngestionStage, progress: int) -> None:
         await _set_stage(self.session, self.document, self.version, self.job, stage, progress)
 
     async def expose_version(self, version_id: uuid.UUID) -> None:
         self.version.status = DocumentStatus.INDEXING
-        self.job.progress = 90
+        self.job.progress = advance_progress(self.job.progress, 90)
         await self.session.commit()
 
     async def complete(self, version_id: uuid.UUID) -> None:
@@ -117,4 +123,5 @@ class IngestionRepositoryAdapter:
     async def record_failure(
         self, version_id: uuid.UUID, error: IngestionError, *, failed: bool
     ) -> None:
-        await self.failure(self.session, version_id, error, failed=failed)
+        if error.code != "EMBEDDING_DEFERRED":
+            await self.failure(self.session, version_id, error, failed=failed)
