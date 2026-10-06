@@ -15,13 +15,34 @@ def test_valid_citation_id_does_not_imply_fact_support():
         observed_facts=[{"fact": "cost", "cited_chunk_ids": ["unrelated"]}],
         inventory_chunk_ids={"pricing", "unrelated"},
     )
-    assert scores == {"citation_support_precision": 0, "fact_support_recall": 0}
+    assert scores == {
+        "citation_support_precision": 0,
+        "fact_support_recall": 0,
+        "unsupported_claim_rate": 0,
+    }
     assert (
         fact_support_scores(expected_facts=[], observed_facts=[], inventory_chunk_ids=set())[
             "citation_support_precision"
         ]
         is None
     )
+
+
+def test_unanswerable_hallucination_is_included_in_semantic_review():
+    answer = "Invented fact [C1]."
+    case = {"id": "negative", "answerable": False, "answer": answer, "citation_inventory": []}
+    annotations = {
+        "negative": {
+            "answer_sha256": hashlib.sha256(answer.encode()).hexdigest(),
+            "expected_facts": [],
+            "observed_facts": [
+                {"fact": "invented", "claim_text": answer, "cited_chunk_ids": ["unknown"]}
+            ],
+        }
+    }
+    report = score_report({"cases": [case], "summary": {}}, annotations)
+    assert report["summary"]["unsupported_claim_rate"] == 1
+    assert report["summary"]["citation_support_precision"] is None
 
 
 def test_support_review_is_bound_to_the_exact_answer_and_inventory():

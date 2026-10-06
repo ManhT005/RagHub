@@ -1,10 +1,9 @@
 """Production hybrid eval runner (Stage A of the benchmark plan).
 
-Drives the REAL stack over HTTP: eval org/workspace/providers on the live
-system, ingests the golden corpus, runs all 30 QA through the hybrid
-retrieval API (BM25 + vector, RRF) and the chat SSE endpoint, then reports
-the 7 spec metrics plus latency. Paid Gemini usage is limited to the 9
-golden docs + 30 queries + 30 chats.
+Drives the live stack over HTTP and reports retrieval/chat quality and latency.
+The default corpus has 9 documents and 30 questions; --golden-dir supports
+multi-format datasets. Thresholds and reviewed-V2 requirements are opt-in.
+Local model/hardware measurements are diagnostic unless --gate is requested.
 
 Usage (from backend/):
     python scripts/run_production_eval.py --out ../artifacts/rag_production_eval.json --token <JWT>
@@ -16,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import subprocess
 import sys
 import time
@@ -25,6 +25,7 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -32,9 +33,13 @@ from raghub_core.domain.evaluation.metrics import (
     hit_at_k,
     mrr_at_k,
     ndcg_at_k,
+    recall_at_k,
     rejection_scores,
+    relevance_error_rates,
 )
 from raghub_core.domain.rag.citation_validator import validate_citations  # noqa: E402
+
+from scripts.rag_dataset_audit import audit_dataset  # noqa: E402
 
 BACKEND = Path(__file__).resolve().parents[1]
 REPO = BACKEND.parent
@@ -77,7 +82,7 @@ def percentile(values: list[float], pct: float) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    index = min(len(ordered) - 1, max(0, int(len(ordered) * pct) - 1))
+    index = min(len(ordered) - 1, max(0, math.ceil(len(ordered) * pct) - 1))
     return float(ordered[index])
 
 
@@ -105,12 +110,13 @@ def quality_cases(cases: list[dict]) -> list[dict]:
 
 
 def summarize_cases(cases: list[dict]) -> dict:
-    answerable_cases = [c for c in cases if c["answerable"]]
+    retrieval_quality = [c for c in cases if not c.get("retrieval_error")]
+    answerable_cases = [c for c in retrieval_quality if c["answerable"]]
     chat_quality = quality_cases(cases)
     chat_answerable = [c for c in chat_quality if c["answerable"]]
     rej = rejection_scores(
-        predicted_unanswerable=[not c["predicted_answerable"] for c in cases],
-        actual_unanswerable=[not c["answerable"] for c in cases],
+        predicted_unanswerable=[not c["predicted_answerable"] for c in retrieval_quality],
+        actual_unanswerable=[not c["answerable"] for c in retrieval_quality],
     )
     citation_used = sum(len(c.get("cited_ids", [])) for c in chat_quality)
     citation_invalid = sum(len(c.get("invalid_ids", [])) for c in chat_quality)
@@ -118,13 +124,16 @@ def summarize_cases(cases: list[dict]) -> dict:
         1.0 if citation_used == 0 else (citation_used - citation_invalid) / citation_used
     )
     return {
-        "hit@5": sum(c["hit@5"] for c in cases) / max(1, len(cases)),
+        "hit@5": sum(c["hit@5"] for c in retrieval_quality) / max(1, len(retrieval_quality)),
         "answerable_hit@5": sum(c["hit@5"] for c in answerable_cases)
         / max(1, len(answerable_cases)),
+        "recall@5": sum(c["recall@5"] for c in answerable_cases) / len(answerable_cases)
+        if answerable_cases and all(c.get("recall@5") is not None for c in answerable_cases)
+        else None,
         "answerable_direct_pass_rate": sum(1 for c in answerable_cases if c["predicted_answerable"])
         / max(1, len(answerable_cases)),
-        "mrr@5": sum(c["mrr@5"] for c in cases) / max(1, len(cases)),
-        "ndcg@5": sum(c["ndcg@5"] for c in cases) / max(1, len(cases)),
+        "mrr@5": sum(c["mrr@5"] for c in retrieval_quality) / max(1, len(retrieval_quality)),
+        "ndcg@5": sum(c["ndcg@5"] for c in retrieval_quality) / max(1, len(retrieval_quality)),
         "rejection_f1": rej["f1"],
         "rejection_precision": rej["precision"],
         "rejection_recall": rej["recall"],
@@ -138,11 +147,26 @@ def summarize_cases(cases: list[dict]) -> dict:
         "forbidden_hits": sum(len(c["forbidden_hit"]) for c in chat_quality),
         "chat_errors": sum(1 for c in cases if c["chat_error"]),
         "provider_errors": sum(1 for c in cases if c.get("provider_error")),
+        "retrieval_errors": sum(1 for c in cases if c.get("retrieval_error")),
         "quality_chat_cases": len(chat_quality),
         "retrieval_p50_ms": percentile([c["retrieval_ms"] for c in cases], 0.50),
         "retrieval_p95_ms": percentile([c["retrieval_ms"] for c in cases], 0.95),
         "chat_p50_ms": percentile([c["chat_ms"] for c in cases], 0.50),
         "chat_p95_ms": percentile([c["chat_ms"] for c in cases], 0.95),
+        "ttft_p50_ms": percentile(
+            [c["first_token_ms"] for c in chat_quality if c.get("first_token_ms") is not None], 0.50
+        )
+        if any(c.get("first_token_ms") is not None for c in chat_quality)
+        else None,
+        "ttft_p95_ms": percentile(
+            [c["first_token_ms"] for c in chat_quality if c.get("first_token_ms") is not None], 0.95
+        )
+        if any(c.get("first_token_ms") is not None for c in chat_quality)
+        else None,
+        **relevance_error_rates(
+            predicted_answerable=[c["predicted_answerable"] for c in retrieval_quality],
+            actual_answerable=[c["answerable"] for c in retrieval_quality],
+        ),
     }
 
 
@@ -187,6 +211,16 @@ def evaluate_release_gate(summary: dict, thresholds: dict) -> tuple[bool, dict[s
         "chat_p95_ms": "<=",
         "citation_support_precision": ">=",
         "fact_support_recall": ">=",
+        "unsupported_claim_rate": "<=",
+        "false_reject_rate": "<=",
+        "false_answer_rate": "<=",
+        "rejection_precision": ">=",
+        "rejection_recall": ">=",
+        "recall@5": ">=",
+        "ttft_p95_ms": "<=",
+        "rerank_p95_ms": "<=",
+        "dataset_release_eligible": ">=",
+        "retrieval_errors": "<=",
     }.items():
         if thresholds.get(metric) is not None:
             checks[metric] = {
@@ -262,6 +296,60 @@ CONTENT_TYPES = {
 }
 
 
+def corpus_paths(root, documents):
+    root = root.resolve()
+    paths = []
+    for document in documents:
+        path = (root / document["file"]).resolve()
+        if (
+            not path.is_relative_to(root)
+            or not path.is_file()
+            or path.suffix.lower() not in CONTENT_TYPES
+        ):
+            raise ValueError("Corpus manifest must reference supported files inside its directory.")
+        expected_hash = document.get("content_sha256")
+        if expected_hash and hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+            raise ValueError(f"Corpus source changed since labeling: {path.name}")
+        paths.append(path)
+    if len({p.name for p in paths}) != len(paths):
+        raise ValueError("Corpus source filenames must be unique in the evaluation workspace.")
+    return sorted(paths)
+
+
+def read_runtime_config(path):
+    supplied = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "candidates",
+        "rrf_k",
+        "max_per_document",
+        "mapping_version",
+        "embedding_fingerprint",
+    }
+    allowed = required | {
+        "document_pipeline",
+        "relevance_gate",
+        "reranker",
+        "neighbor_expansion",
+        "evidence_selection",
+        "hardware_profile",
+    }
+    if not required <= supplied.keys():
+        raise ValueError(
+            "Runtime snapshot must include candidates, RRF, document cap, mapping and fingerprint."
+        )
+    for key, low, high in (("candidates", 10, 100), ("rrf_k", 1, 200), ("max_per_document", 1, 25)):
+        if type(supplied[key]) is not int or not low <= supplied[key] <= high:
+            raise ValueError("Runtime snapshot contains an invalid retrieval bound.")
+    selected = {key: value for key, value in supplied.items() if key in allowed}
+    if (
+        any(not isinstance(value, str | int | float | bool) for value in selected.values())
+        or not supplied["mapping_version"]
+        or not supplied["embedding_fingerprint"]
+    ):
+        raise ValueError("Runtime snapshot must contain nonempty scalar identity/config fields.")
+    return selected
+
+
 def upload_file(token: str, org: str, ws: str, path: Path):
     boundary = "----evalboundary1234"
     content = path.read_bytes()
@@ -309,7 +397,10 @@ def _sse_chat_once(token: str, org: str, chatbot: str, message: str):
                 if line.startswith("event:"):
                     event = line[len("event:") :].strip()
                 elif line.startswith("data:") and event:
-                    events.append((event, json.loads(line[len("data:") :].strip())))
+                    payload = json.loads(line[len("data:") :].strip())
+                    if event == "token" and payload.get("text"):
+                        payload["_client_elapsed_ms"] = (time.perf_counter() - t0) * 1000
+                    events.append((event, payload))
                     event = None
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")
@@ -336,9 +427,15 @@ def sse_chat(
         err = next((payload for kind, payload in events if kind == "error"), None)
         status = err.get("http_status") if isinstance(err, dict) else None
         retryable = is_provider_error(err) or status in TRANSIENT_HTTP_CODES
-        if not err or not retryable or attempt == attempts - 1:
+        has_tokens = any(kind == "token" and payload.get("text") for kind, payload in events)
+        if not err or not retryable or has_tokens or attempt == attempts - 1:
+            for kind, payload in events:
+                if kind == "token" and payload.get("_client_elapsed_ms") is not None:
+                    payload["_client_elapsed_ms"] += total_ms - elapsed
             return events, total_ms, attempt + 1
-        time.sleep(backoff_s * (2**attempt))
+        delay = backoff_s * (2**attempt)
+        time.sleep(delay)
+        total_ms += delay * 1000
     return last_events, total_ms, attempts
 
 
@@ -555,6 +652,16 @@ def main() -> None:
     ap.add_argument("--token", default=None)
     ap.add_argument("--mint-email", default=None)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument(
+        "--require-reviewed-v2",
+        action="store_true",
+        help="Opt in to a reviewed 200-family multi-format corpus requirement.",
+    )
+    ap.add_argument("--golden-dir", type=Path, default=GOLDEN)
+    ap.add_argument("--evidence-map", type=Path, help="Case ID to reviewed actual chunk UUID list")
+    ap.add_argument(
+        "--runtime-config", type=Path, help="Operator-supplied non-secret retrieval config snapshot"
+    )
     ap.add_argument("--provider-mode", choices=["gemini", "local"], default="gemini")
     ap.add_argument("--local-embedding-model", default=LOCAL_EMBED_MODEL)
     ap.add_argument("--local-embedding-dim", type=int, default=LOCAL_EMBED_DIM)
@@ -594,19 +701,62 @@ def main() -> None:
     ap.add_argument("--min-answerable-hit", type=float)
     ap.add_argument("--max-retrieval-p95-ms", type=float)
     ap.add_argument("--max-chat-p95-ms", type=float)
+    ap.add_argument("--min-recall", type=float)
+    ap.add_argument("--max-false-reject-rate", type=float)
+    ap.add_argument("--max-false-answer-rate", type=float)
+    ap.add_argument("--max-ttft-p95-ms", type=float)
     args = ap.parse_args()
 
-    token = args.token or (mint_token(args.mint_email) if args.mint_email else None)
-    if not token:
-        raise SystemExit("pass --token or --mint-email")
-
-    manifest = json.loads((GOLDEN / "corpus_manifest.json").read_text(encoding="utf-8"))
+    golden = args.golden_dir
+    manifest = json.loads((golden / "corpus_manifest.json").read_text(encoding="utf-8"))
     docs = manifest if isinstance(manifest, list) else manifest.get("documents", [])
     file_of = {}
     for d in docs:
         f = (d.get("file") or "").split("/")[-1]
         file_of[d["document_id"]] = f
-    qa = json.loads((GOLDEN / "qa.json").read_text(encoding="utf-8"))
+    qa = json.loads((golden / "qa.json").read_text(encoding="utf-8"))
+    audit = audit_dataset(qa)
+    corpus_files = corpus_paths(golden, docs)
+    evidence_map = (
+        json.loads(args.evidence_map.read_text(encoding="utf-8")) if args.evidence_map else None
+    )
+    if evidence_map is not None:
+        for case in qa:
+            expected = [str(UUID(key)) for key in evidence_map.get(case["id"], [])]
+            if case["answerable"] and not expected:
+                raise ValueError(f"Missing reviewed runtime chunk mapping for {case['id']}")
+            evidence_map[case["id"]] = expected
+    declared_config = None
+    if args.runtime_config:
+        declared_config = read_runtime_config(args.runtime_config)
+    if args.require_reviewed_v2 and (
+        not audit["release_eligible"] or evidence_map is None or declared_config is None
+    ):
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(
+                {
+                    "dataset_audit": audit,
+                    "cases": [],
+                    "summary": {"dataset_release_eligible": audit["release_eligible"]},
+                    "release_gate": {
+                        "enabled": True,
+                        "passed": False,
+                        "reason": (
+                            "Reviewed V2 corpus, runtime evidence mapping "
+                            "and config snapshot are required."
+                        ),
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        raise SystemExit(2)
+    token = args.token or (mint_token(args.mint_email) if args.mint_email else None)
+    if not token:
+        raise SystemExit("pass --token or --mint-email")
 
     import os
 
@@ -681,7 +831,6 @@ def main() -> None:
     ws = ensure_workspace(token, org, emb, chat, slug=workspace_slug, name=workspace_name)
     bot = ensure_chatbot(token, org, ws, model=chat_model)
 
-    corpus_files = sorted((GOLDEN / "corpus").glob("*.md"))
     status, existing = api("GET", f"/workspaces/{ws}/documents", token, org)
     have = {d.get("name", "") for d in existing or []}
     for path in corpus_files:
@@ -696,6 +845,10 @@ def main() -> None:
         exp = expected_keys(
             case.get("expected_document_ids", []), case.get("expected_chunk_ids", []), file_of
         )
+        if evidence_map is not None:
+            exp = set(evidence_map.get(case["id"], []))
+            if case["answerable"] and not exp:
+                raise ValueError(f"Missing reviewed runtime chunk mapping for {case['id']}")
         t0 = time.perf_counter()
         s, search = api(
             "GET",
@@ -707,7 +860,11 @@ def main() -> None:
         ranked = []
         if s == 200:
             for hit in search.get("hits", []):
-                ranked.append(chunk_key(hit.get("source_name", ""), hit.get("page_number")))
+                ranked.append(
+                    str(hit["chunk_id"])
+                    if evidence_map is not None
+                    else chunk_key(hit.get("source_name", ""), hit.get("page_number"))
+                )
         rel = {k: 1.0 for k in exp}
         answerable = bool(case.get("answerable"))
         predicted_answerable = len(ranked) > 0
@@ -722,6 +879,7 @@ def main() -> None:
         )
         answer, inventory, usage, err = "", set(), None, None
         citation_inventory = []
+        first_token_ms = generation_first_token_ms = None
         for kind, payload in events:
             if kind == "citations":
                 citation_inventory = payload.get("citations", [])
@@ -729,11 +887,15 @@ def main() -> None:
                     inventory.add(c.get("citation_id", ""))
             elif kind == "token":
                 answer += payload.get("text", "")
+                if first_token_ms is None and payload.get("text"):
+                    first_token_ms = payload.get("_client_elapsed_ms")
             elif kind == "usage":
                 usage = payload
+            elif kind == "done":
+                generation_first_token_ms = payload.get("first_token_ms")
             elif kind == "error":
                 err = payload
-        provider_error = is_provider_error(err)
+        provider_error = is_provider_error(err) or (s != 200 and is_provider_error(search))
         report = validate_citations(answer, inventory_ids=inventory)
         cited = list(report.used_ids)
         facts = [f for f in case.get("reference_facts", [])]
@@ -754,7 +916,13 @@ def main() -> None:
                 "answerable": answerable,
                 "predicted_answerable": predicted_answerable,
                 "retrieval_ms": round(ret_ms, 1),
+                "retrieval_error": {"http_status": s, "code": error_code(search)}
+                if s != 200
+                else None,
                 "chat_ms": round(chat_ms, 1),
+                "first_token_ms": first_token_ms,
+                "generation_first_token_ms": generation_first_token_ms,
+                "recall@5": recall_at_k(ranked, exp) if evidence_map is not None else None,
                 "hit@5": hit_at_k(ranked, exp),
                 "mrr@5": mrr_at_k(ranked, exp),
                 "ndcg@5": ndcg_at_k(ranked, rel),
@@ -781,6 +949,7 @@ def main() -> None:
         )
 
     summary = summarize_cases(cases)
+    summary["dataset_release_eligible"] = audit["release_eligible"]
     thresholds = {
         "mrr@5": args.min_mrr,
         "ndcg@5": args.min_ndcg,
@@ -793,6 +962,12 @@ def main() -> None:
         "citation_coverage_mean": args.min_citation_coverage,
         "facts_recall": args.min_facts_recall,
         "provider_errors": args.max_provider_errors,
+        "recall@5": args.min_recall,
+        "false_reject_rate": args.max_false_reject_rate,
+        "false_answer_rate": args.max_false_answer_rate,
+        "ttft_p95_ms": args.max_ttft_p95_ms,
+        "dataset_release_eligible": True if args.require_reviewed_v2 else None,
+        "retrieval_errors": 0,
     }
     gate_passed, gate_checks = evaluate_release_gate(summary, thresholds)
 
@@ -800,8 +975,8 @@ def main() -> None:
         return hashlib.sha256(s.encode()).hexdigest()[:16]
 
     dataset = sha(
-        (GOLDEN / "qa.json").read_bytes().hex()
-        + (GOLDEN / "corpus_manifest.json").read_bytes().hex()
+        (golden / "qa.json").read_bytes().hex()
+        + (golden / "corpus_manifest.json").read_bytes().hex()
     )
     try:
         commit = subprocess.check_output(
@@ -814,20 +989,20 @@ def main() -> None:
         "mode": f"production-hybrid-{args.provider_mode}",
         "commit": commit,
         "dataset_hash": dataset,
-        "config_hash": sha(
-            f"provider={args.provider_mode} embedding={embedding_model} chat={chat_model} "
-            "candidates=25 rrf_k=60 mapping=vi_hybrid_v2"
-        ),
+        "config_hash": sha(json.dumps(declared_config, sort_keys=True))
+        if declared_config
+        else None,
+        "config_source": "operator_supplied" if declared_config else "unverified_http_runtime",
+        "dataset_audit": audit,
+        "retrieval_metric_scope": "actual_chunk_ids"
+        if evidence_map is not None
+        else "legacy_source_page_proxy",
         "model_ids": {"embedding": embedding_model, "chat": chat_model},
         "seed": args.seed,
         "retrieval_config": {
             "provider_mode": args.provider_mode,
             "workspace_slug": workspace_slug,
-            "candidates": 25,
-            "rrf_k": 60,
-            "mapping_version": "vi_hybrid_v2",
-            "relevance_gate": False,
-            "reranker": False,
+            **(declared_config or {}),
         },
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,

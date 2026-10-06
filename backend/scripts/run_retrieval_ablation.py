@@ -172,7 +172,9 @@ async def collect(session, settings, scope, cases, configs, evidence_map):
 
 async def run(args):
     cases = json.loads(args.qa.read_text(encoding="utf-8"))
-    evidence_map = json.loads(args.evidence_map.read_text(encoding="utf-8"))
+    evidence_map = (
+        json.loads(args.evidence_map.read_text(encoding="utf-8")) if args.evidence_map else None
+    )
     audit = audit_dataset(cases)
     if audit["issues"]:
         raise ValueError("Dataset audit failed: " + "; ".join(audit["issues"]))
@@ -194,9 +196,11 @@ async def run(args):
         mode="live-retrieval-ablation",
         created_at=datetime.now(UTC).isoformat(),
         dataset_hash=dataset_hash(args.qa),
-        evidence_map_sha256=hashlib.sha256(args.evidence_map.read_bytes()).hexdigest(),
+        evidence_map_sha256=hashlib.sha256(args.evidence_map.read_bytes()).hexdigest()
+        if args.evidence_map
+        else None,
         dataset_audit=audit,
-        release_eligible=audit["release_eligible"],
+        release_eligible=audit["release_eligible"] and evidence_map is not None,
         seed=0,
         facts_recall=None,
         citation_support_precision=None,
@@ -227,7 +231,11 @@ def main():
     parser.add_argument("--organization-id", type=UUID, required=True)
     parser.add_argument("--workspace-id", type=UUID, required=True)
     parser.add_argument("--qa", type=Path, default=DEFAULT_QA)
-    parser.add_argument("--evidence-map", type=Path, required=True)
+    parser.add_argument(
+        "--evidence-map",
+        type=Path,
+        help="Optional labels; omit for latency/capacity diagnostics only",
+    )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--candidates", type=int, nargs="+", default=[15, 25, 40])
     parser.add_argument("--rrf", type=int, nargs="+", default=[30, 60, 90])

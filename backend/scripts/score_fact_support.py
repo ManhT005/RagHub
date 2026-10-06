@@ -20,8 +20,9 @@ def score_report(report, annotations):
     # A verdict on the previous metrics cannot survive a new review.
     report.pop("release_gate", None)
     missing = []
-    eligible = [c for c in report["cases"] if c["answerable"] and not c.get("provider_error")]
-    for case in eligible:
+    reviewed = [c for c in report["cases"] if not c.get("provider_error")]
+    eligible = [c for c in reviewed if c["answerable"]]
+    for case in reviewed:
         case.pop("support_metrics", None)
         review = annotations.get(case["id"])
         digest = hashlib.sha256(case["answer"].encode()).hexdigest()
@@ -37,15 +38,20 @@ def score_report(report, annotations):
             observed_facts=review.get("observed_facts", []),
             inventory_chunk_ids=inventory,
         )
-    metrics = ["citation_support_precision", "fact_support_recall"]
+    metrics = ["citation_support_precision", "fact_support_recall", "unsupported_claim_rate"]
     for metric in metrics:
-        values = [c.get("support_metrics", {}).get(metric) for c in eligible]
+        metric_cases = reviewed if metric == "unsupported_claim_rate" else eligible
+        values = [c.get("support_metrics", {}).get(metric) for c in metric_cases]
         report["summary"][metric] = (
             sum(values) / len(values)
             if values and not missing and all(v is not None for v in values)
             else None
         )
-    report["support_review"] = {"eligible_cases": len(eligible), "missing_or_stale": missing}
+    report["support_review"] = {
+        "eligible_cases": len(reviewed),
+        "answerable_cases": len(eligible),
+        "missing_or_stale": missing,
+    }
     return report
 
 
@@ -55,6 +61,7 @@ def main():
     parser.add_argument("--annotations", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--gate", action="store_true")
+    parser.add_argument("--require-reviewed-v2", action="store_true")
     parser.add_argument("--thresholds", type=Path, help="JSON metric/threshold overrides")
     args = parser.parse_args()
     report = json.loads(args.report.read_text(encoding="utf-8"))
@@ -66,10 +73,13 @@ def main():
         **DEFAULT_GATE_THRESHOLDS,
         "citation_support_precision": 0.90,
         "fact_support_recall": 0.85,
+        "unsupported_claim_rate": 0.10,
         **previous_thresholds,
     }
     if args.thresholds:
         thresholds.update(json.loads(args.thresholds.read_text(encoding="utf-8")))
+    if args.require_reviewed_v2:
+        thresholds["dataset_release_eligible"] = True
     report = score_report(report, json.loads(args.annotations.read_text(encoding="utf-8")))
     passed, checks = evaluate_release_gate(report["summary"], thresholds)
     report["release_gate"] = {"enabled": args.gate, "passed": passed, "checks": checks}

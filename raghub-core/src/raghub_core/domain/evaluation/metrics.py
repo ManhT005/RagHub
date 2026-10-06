@@ -110,14 +110,20 @@ def fact_support_scores(
     Missing annotations are unavailable evidence, never a passing score.
     """
     if not expected_facts:
-        return {"citation_support_precision": None, "fact_support_recall": None}
+        return {
+            "citation_support_precision": None,
+            "fact_support_recall": None,
+            "unsupported_claim_rate": 1.0 if observed_facts else 0.0,
+        }
     support = {fact["fact"]: set(fact["supporting_chunk_ids"]) for fact in expected_facts}
     if len(support) != len(expected_facts) or any(not ids for ids in support.values()):
         raise ValueError("Expected facts need unique labels and supporting chunks.")
-    cited, supported, recalled = 0, 0, set()
+    cited, supported, recalled, unsupported = 0, 0, set(), 0
     for claim in observed_facts:
         chunks = set(claim.get("cited_chunk_ids", []))
         good = chunks & inventory_chunk_ids & support.get(claim["fact"], set())
+        # A claim can be grounded in the provided context despite a missing/wrong inline citation.
+        unsupported += not bool(inventory_chunk_ids & support.get(claim["fact"], set()))
         cited += len(chunks)
         supported += len(good)
         if good:
@@ -125,4 +131,5 @@ def fact_support_scores(
     return {
         "citation_support_precision": supported / cited if cited else None,
         "fact_support_recall": len(recalled) / len(expected_facts),
+        "unsupported_claim_rate": unsupported / len(observed_facts) if observed_facts else None,
     }

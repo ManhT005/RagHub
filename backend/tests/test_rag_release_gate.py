@@ -114,6 +114,8 @@ def test_optional_quality_and_latency_gates_fail_on_missing_or_regressed_metrics
         "retrieval_p95_ms": 500,
         "citation_support_precision": 0.9,
         "fact_support_recall": 0.85,
+        "unsupported_claim_rate": 0.10,
+        "ttft_p95_ms": 500,
     }
     passed, checks = module.evaluate_release_gate(summary, thresholds)
     assert not passed
@@ -121,6 +123,70 @@ def test_optional_quality_and_latency_gates_fail_on_missing_or_regressed_metrics
     assert not checks["retrieval_p95_ms"]["passed"]
     assert not checks["citation_support_precision"]["passed"]
     assert not checks["fact_support_recall"]["passed"]
+    assert not checks["unsupported_claim_rate"]["passed"]
+    assert not checks["ttft_p95_ms"]["passed"]
+
+
+def test_eval_never_retries_after_first_token_and_counts_backoff_in_end_to_end_time(monkeypatch):
+    module = _module()
+    calls = []
+
+    def partial(*args):
+        calls.append(1)
+        return [
+            ("token", {"text": "partial", "_client_elapsed_ms": 5}),
+            ("error", {"code": "PROVIDER_TIMEOUT"}),
+        ], 10
+
+    monkeypatch.setattr(module, "_sse_chat_once", partial)
+    result, elapsed, attempts = module.sse_chat("t", "o", "b", "q")
+    assert attempts == len(calls) == 1 and result[0][1]["text"] == "partial"
+
+    def retry(*args):
+        if len(calls) == 1:
+            calls.append(1)
+            return [("error", {"code": "PROVIDER_TIMEOUT"})], 10
+        return [("token", {"text": "final", "_client_elapsed_ms": 5})], 20
+
+    monkeypatch.setattr(module, "_sse_chat_once", retry)
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
+    result, elapsed, attempts = module.sse_chat("t", "o", "b", "q", backoff_s=2)
+    assert attempts == 2 and elapsed == 2030
+    assert result[0][1]["_client_elapsed_ms"] == 2015
+
+
+def test_manifest_upload_paths_support_all_formats_and_verify_source_hash(tmp_path):
+    import hashlib
+
+    import pytest
+
+    module = _module()
+    for name in ("a.pdf", "b.docx", "c.xlsx", "d.html"):
+        (tmp_path / name).write_bytes(b"source")
+    docs = [
+        {"file": name, "content_sha256": hashlib.sha256(b"source").hexdigest()}
+        for name in ("a.pdf", "b.docx", "c.xlsx", "d.html")
+    ]
+    assert len(module.corpus_paths(tmp_path, docs)) == 4
+    (tmp_path / "a.pdf").write_bytes(b"changed")
+    with pytest.raises(ValueError, match="changed since labeling"):
+        module.corpus_paths(tmp_path, docs)
+
+
+def test_small_sample_p95_does_not_hide_the_slowest_observation():
+    module = _module()
+    assert module.percentile([10, 1000], 0.95) == 1000
+    assert module.percentile([10, 100, 1000], 0.50) == 100
+
+
+def test_retrieval_service_failure_is_not_scored_as_a_false_rejection():
+    module = _module()
+    cases = [
+        _case(),
+        _case({"predicted_answerable": False, "retrieval_error": {"code": "SEARCH_UNAVAILABLE"}}),
+    ]
+    summary = module.summarize_cases(cases)
+    assert summary["false_reject_rate"] == 0 and summary["retrieval_errors"] == 1
 
 
 def test_provider_error_detection_handles_nested_payloads():
