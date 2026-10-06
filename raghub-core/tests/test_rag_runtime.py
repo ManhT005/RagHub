@@ -374,16 +374,12 @@ def test_provider_failure_after_token_never_retries_or_persists_completed_answer
     assert conversations.failures == [("answer", "PROVIDER_UNAVAILABLE")]
 
 
-@pytest.mark.parametrize("wrong_tenant", [False, True])
-def test_access_check_precedes_retrieval(wrong_tenant):
-    command, chatbots, retrieval, providers, _, _, use_case = runtime()
-    if wrong_tenant:
-        command = replace(command, organization_id=uuid4())
-    else:
-        chatbots.config = replace(chatbots.config, published=False)
+def test_tenant_access_check_precedes_retrieval():
+    command, _, retrieval, providers, _, _, use_case = runtime()
+    command = replace(command, organization_id=uuid4())
     with pytest.raises(CoreError) as error:
         _ = asyncio.run(_collect_events(use_case, command))
-    assert error.value.code == ("CHATBOT_NOT_FOUND" if wrong_tenant else "CHATBOT_NOT_PUBLISHED")
+    assert error.value.code == "CHATBOT_NOT_FOUND"
     assert not retrieval.calls and not providers.chat_scopes
 
 

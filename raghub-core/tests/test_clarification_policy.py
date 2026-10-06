@@ -3,7 +3,6 @@ import pytest
 from raghub_core.domain.rag.clarification import ClarificationPolicy, normalize_query
 from raghub_core.domain.rag.intent import IntentAction
 
-
 CLARIFY = IntentAction.CLARIFY
 ANSWER_NOW = IntentAction.ANSWER_NOW
 REFUSE = IntentAction.REFUSE_OR_REDIRECT

@@ -1,5 +1,5 @@
-import uuid
 import time
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,10 +11,10 @@ from raghub_core.domain.retrieval.hybrid import (
     fuse_rrf,
     resolve_candidate_count,
 )
+from raghub_core.ports.telemetry import TelemetryPort
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
-from raghub_core.ports.telemetry import TelemetryPort
 
 BOOST_EXACT = 1.0
 BOOST_FOLDED = 0.8

@@ -244,11 +244,11 @@ def test_migration_chain_and_flag():
         Path(__file__).parent.parent
         / "alembic"
         / "versions"
-        / "20261005_0023_index_gc_audit.py"
+        / "20261005_0025_index_gc_audit.py"
     )
-    spec = importlib.util.spec_from_file_location("migration_0023", path)
+    spec = importlib.util.spec_from_file_location("migration_0025", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    assert (migration.revision, migration.down_revision) == ("20261005_0023", "20261005_0022")
+    assert (migration.revision, migration.down_revision) == ("20261005_0025", "20261005_0024")
     assert Settings(_env_file=None).rag_index_gc_enabled is False

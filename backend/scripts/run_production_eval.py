@@ -781,7 +781,10 @@ def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "summary": summary,
         "release_gate": {"enabled": args.gate, "passed": gate_passed, "checks": gate_checks},
-        "provider_error_policy": "Provider/rate-limit errors are recorded separately and excluded from chat quality metrics.",
+        "provider_error_policy": (
+            "Provider/rate-limit errors are recorded separately and excluded "
+            "from chat quality metrics."
+        ),
         "cases": cases,
     }
     out = Path(args.out)

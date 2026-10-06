@@ -202,6 +202,24 @@
         "title": "AdminUserWorkspace",
         "type": "object"
       },
+      "AuthSecurityConfigResponse": {
+        "properties": {
+          "turnstile_enabled": {
+            "title": "Turnstile Enabled",
+            "type": "boolean"
+          },
+          "turnstile_site_key": {
+            "title": "Turnstile Site Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "turnstile_enabled",
+          "turnstile_site_key"
+        ],
+        "title": "AuthSecurityConfigResponse",
+        "type": "object"
+      },
       "Body_upload_document_api_v1_workspaces__workspace_id__documents_post": {
         "properties": {
           "file": {
@@ -218,6 +236,17 @@
       },
       "CatalogItem": {
         "properties": {
+          "access_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Tier"
+          },
           "api_key_url": {
             "anyOf": [
               {
@@ -277,13 +306,81 @@
             "title": "Endpoint Scope",
             "type": "string"
           },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "free_tier_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Tier Note"
+          },
+          "icon_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Key"
+          },
           "id": {
             "title": "Id",
             "type": "string"
           },
+          "last_verified_at": {
+            "default": "2026-10-05",
+            "title": "Last Verified At",
+            "type": "string"
+          },
+          "locked_base_url": {
+            "default": false,
+            "title": "Locked Base Url",
+            "type": "boolean"
+          },
+          "migration_guidance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migration Guidance"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
+          "pricing_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Url"
           },
           "provider_type": {
             "anyOf": [
@@ -320,6 +417,55 @@
           "capabilities"
         ],
         "title": "CatalogItem",
+        "type": "object"
+      },
+      "CatalogModel": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "deprecated": {
+            "default": false,
+            "title": "Deprecated",
+            "type": "boolean"
+          },
+          "dimension": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dimension"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_dimensions": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Output Dimensions",
+            "type": "array"
+          },
+          "recommended": {
+            "default": true,
+            "title": "Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model",
+          "capabilities"
+        ],
+        "title": "CatalogModel",
         "type": "object"
       },
       "ChatRequest": {
@@ -363,6 +509,30 @@
       },
       "ChatbotInput": {
         "properties": {
+          "clarification_mode": {
+            "default": "conservative",
+            "enum": [
+              "off",
+              "conservative",
+              "proactive"
+            ],
+            "title": "Clarification Mode",
+            "type": "string"
+          },
+          "domain_profile": {
+            "default": "admissions",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Domain Profile",
+            "type": "string"
+          },
+          "max_clarifying_turns": {
+            "default": 1,
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Clarifying Turns",
+            "type": "integer"
+          },
           "model": {
             "anyOf": [
               {
@@ -409,6 +579,48 @@
       },
       "ChatbotPatch": {
         "properties": {
+          "clarification_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "conservative",
+                  "proactive"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clarification Mode"
+          },
+          "domain_profile": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Profile"
+          },
+          "max_clarifying_turns": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Clarifying Turns"
+          },
           "model": {
             "anyOf": [
               {
@@ -485,9 +697,24 @@
             "title": "Allowed Origins",
             "type": "array"
           },
+          "clarification_mode": {
+            "default": "conservative",
+            "enum": [
+              "off",
+              "conservative",
+              "proactive"
+            ],
+            "title": "Clarification Mode",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
+            "type": "string"
+          },
+          "domain_profile": {
+            "default": "admissions",
+            "title": "Domain Profile",
             "type": "string"
           },
           "embed_greeting": {
@@ -509,6 +736,11 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "max_clarifying_turns": {
+            "default": 1,
+            "title": "Max Clarifying Turns",
+            "type": "integer"
           },
           "model": {
             "anyOf": [
@@ -567,6 +799,34 @@
           "updated_at"
         ],
         "title": "ChatbotResponse",
+        "type": "object"
+      },
+      "ConnectionField": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "default": "text",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "ConnectionField",
         "type": "object"
       },
       "ConnectionInput": {
@@ -738,6 +998,11 @@
             ],
             "title": "Catalog Id"
           },
+          "config_json": {
+            "additionalProperties": true,
+            "title": "Config Json",
+            "type": "object"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -898,6 +1163,12 @@
             "minLength": 8,
             "title": "Password",
             "type": "string"
+          },
+          "turnstile_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Turnstile Token",
+            "type": "string"
           }
         },
         "required": [
@@ -940,6 +1211,22 @@
             "title": "Capabilities",
             "type": "array"
           },
+          "context_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Tokens"
+          },
+          "deprecated": {
+            "default": false,
+            "title": "Deprecated",
+            "type": "boolean"
+          },
           "dimension": {
             "anyOf": [
               {
@@ -963,11 +1250,45 @@
             ],
             "title": "Display Name"
           },
+          "free": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free"
+          },
           "model": {
             "maxLength": 255,
             "minLength": 1,
             "title": "Model",
             "type": "string"
+          },
+          "output_dimensions": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Output Dimensions",
+            "type": "array"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          },
+          "recommended": {
+            "default": false,
+            "title": "Recommended",
+            "type": "boolean"
           },
           "size_bytes": {
             "anyOf": [
@@ -1522,6 +1843,12 @@
             "format": "email",
             "title": "Email",
             "type": "string"
+          },
+          "turnstile_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Turnstile Token",
+            "type": "string"
           }
         },
         "required": [
@@ -1533,8 +1860,20 @@
       "EmbedCodeResponse": {
         "properties": {
           "code": {
-            "title": "Code",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "has_embed_key": {
+            "default": false,
+            "title": "Has Embed Key",
+            "type": "boolean"
           },
           "key": {
             "anyOf": [
@@ -1546,10 +1885,19 @@
               }
             ],
             "title": "Key"
+          },
+          "public_base_url": {
+            "title": "Public Base Url",
+            "type": "string"
+          },
+          "script_src": {
+            "title": "Script Src",
+            "type": "string"
           }
         },
         "required": [
-          "code"
+          "script_src",
+          "public_base_url"
         ],
         "title": "EmbedCodeResponse",
         "type": "object"
@@ -2421,6 +2769,12 @@
             "minLength": 40,
             "title": "Token",
             "type": "string"
+          },
+          "turnstile_token": {
+            "default": "",
+            "maxLength": 2048,
+            "title": "Turnstile Token",
+            "type": "string"
           }
         },
         "required": [
@@ -2447,7 +2801,8 @@
       "ProviderCapability": {
         "enum": [
           "EMBEDDING",
-          "CHAT"
+          "CHAT",
+          "RERANK"
         ],
         "title": "ProviderCapability",
         "type": "string"
@@ -2773,10 +3128,53 @@
           "GOOGLE_GEMINI",
           "LOCAL_TOKEN_HASH",
           "LOCAL_SENTENCE_TRANSFORMER",
-          "OLLAMA"
+          "OLLAMA",
+          "VOYAGE",
+          "HUGGINGFACE_INFERENCE",
+          "CLOUDFLARE_WORKERS_AI"
         ],
         "title": "ProviderType",
         "type": "string"
+      },
+      "RerankSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_limit": {
+            "default": 40,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Candidate Limit",
+            "type": "integer"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "timeout_seconds": {
+            "default": 5,
+            "maximum": 30.0,
+            "minimum": 0.1,
+            "title": "Timeout Seconds",
+            "type": "number"
+          },
+          "top_n": {
+            "default": 8,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Top N",
+            "type": "integer"
+          }
+        },
+        "title": "RerankSelection",
+        "type": "object"
       },
       "SearchHit": {
         "properties": {
@@ -3884,6 +4282,27 @@
         ]
       }
     },
+    "/api/v1/auth/security-config": {
+      "get": {
+        "operationId": "security_config_api_v1_auth_security_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSecurityConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Security Config",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/chatbots/{chatbot_id}": {
       "delete": {
         "operationId": "delete_chatbot_api_v1_chatbots__chatbot_id__delete",
@@ -4672,6 +5091,127 @@
         ]
       }
     },
+    "/api/v1/organizations/{organization_id}/local-ai/models": {
+      "get": {
+        "operationId": "models_api_v1_organizations__organization_id__local_ai_models_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Models",
+        "tags": [
+          "Local AI"
+        ]
+      }
+    },
+    "/api/v1/organizations/{organization_id}/local-ai/models/{catalog_id}/download": {
+      "post": {
+        "operationId": "download_api_v1_organizations__organization_id__local_ai_models__catalog_id__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Download",
+        "tags": [
+          "Local AI"
+        ]
+      }
+    },
     "/api/v1/organizations/{organization_id}/members": {
       "get": {
         "operationId": "list_members_api_v1_organizations__organization_id__members_get",
@@ -5161,6 +5701,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "create_provider_api_v1_organizations__organization_id__providers_post",
         "parameters": [
           {
@@ -5893,6 +6434,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "update_provider_api_v1_providers__provider_id__patch",
         "parameters": [
           {
@@ -7956,6 +8498,126 @@
         "summary": "Bind Workspace Providers",
         "tags": [
           "AI providers"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/rerank-model": {
+      "get": {
+        "operationId": "get_rerank_api_v1_workspaces__workspace_id__rerank_model_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Rerank",
+        "tags": [
+          "workspace AI"
+        ]
+      },
+      "put": {
+        "operationId": "change_rerank_api_v1_workspaces__workspace_id__rerank_model_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerankSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change Rerank",
+        "tags": [
+          "workspace AI"
         ]
       }
     },

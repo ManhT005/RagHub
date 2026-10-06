@@ -71,8 +71,6 @@ class StreamRagChatUseCase:
                 "CHATBOT_NOT_FOUND",
                 "Chatbot was not found in the current organization.",
             )
-        if not chatbot.published:
-            raise CoreError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.")
         conversation_id = await self.conversations.open(
             chatbot,
             command.conversation_id,

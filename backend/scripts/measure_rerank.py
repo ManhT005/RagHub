@@ -39,7 +39,7 @@ def snapshot_sha(model) -> str:
 
 async def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mint-email", required=False, default=None)
+    ap.add_argument("--mint-email", default="khactu731@gmail.com")
     args = ap.parse_args()
 
     import asyncpg
@@ -62,9 +62,7 @@ async def main() -> None:
         "postgresql://raghub:raghub-local-only@127.0.0.1:5434/raghub"
     )
     try:
-        me = await conn.fetchval(
-            "SELECT id FROM users WHERE email='khactu731@gmail.com'"
-        )
+        me = await conn.fetchval("SELECT id FROM users WHERE email=$1", args.mint_email)
         if me is None:
             raise SystemExit("eval user not found")
         org = await conn.fetchval("SELECT id FROM organizations WHERE slug='eval-golden'")

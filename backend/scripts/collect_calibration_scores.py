@@ -37,7 +37,11 @@ def main() -> None:
         )
         scores = [h.get("score", 0.0) for h in search.get("hits", [])] if s == 200 else []
         rows.setdefault(split, []).append(
-            {"id": case.get("id"), "fused_scores": scores, "answerable": bool(case.get("answerable"))}
+            {
+                "id": case.get("id"),
+                "fused_scores": scores,
+                "answerable": bool(case.get("answerable")),
+            }
         )
         print(f"{case.get('id')} n={len(scores)}", flush=True)
     out = Path(args.out)

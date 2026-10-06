@@ -346,14 +346,14 @@ def test_migration_chain_is_linked():
         Path(__file__).parent.parent
         / "alembic"
         / "versions"
-        / "20261005_0022_embedding_work_items.py"
+        / "20261005_0024_embedding_work_items.py"
     )
-    spec = importlib.util.spec_from_file_location("migration_0022", path)
+    spec = importlib.util.spec_from_file_location("migration_0024", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    assert migration.revision == "20261005_0022"
-    assert migration.down_revision == "20261005_0021"
+    assert migration.revision == "20261005_0024"
+    assert migration.down_revision == "20261005_0023"
 
 
 async def test_builder_quota_port_waits_instead_of_hammering():
