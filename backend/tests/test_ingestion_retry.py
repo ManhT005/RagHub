@@ -131,7 +131,8 @@ async def test_incomplete_ready_redelivery_resumes_indexing(
     await tasks._run_attempt(session, version.id, retries=0, max_retries=3)
 
     assert job.attempts == 1
-    assert document.status == version.status == job.stage == "PARSING"
+    assert document.status == version.status == job.stage == "INDEXING"
+    assert job.progress == 90
     pipeline.assert_awaited_once_with(session, document, version, job)
 
 

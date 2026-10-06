@@ -1,3 +1,4 @@
+import { documentPollDelay, processingLabel, waitMessage } from "../../documents/document-progress";
 import { DatePipe } from "@angular/common";
 import {
   ChangeDetectionStrategy,
@@ -30,11 +31,11 @@ import {
   Subject,
   catchError,
   concatMap,
-  exhaustMap,
+  expand,
+  switchMap,
   finalize,
   from,
   of,
-  takeWhile,
   takeUntil,
   timer,
   toArray,
@@ -75,6 +76,9 @@ import { EmbeddingProfileComponent } from "../workspace-ai/embedding-profile.com
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceDocumentsComponent {
+  protected readonly processingLabel = processingLabel;
+  protected readonly clock = signal(Date.now());
+  protected waitMessage(doc: DocumentMetadata) { return waitMessage(doc, this.clock()); }
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly documents = signal<DocumentMetadata[]>([]);
   protected readonly loading = signal(false);
@@ -128,6 +132,9 @@ export class WorkspaceDocumentsComponent {
   private readonly workspaceChanged = new Subject<void>();
   private workspaceId = "";
   constructor() {
+    timer(1000, 1000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.documents().some(doc => doc.retry_at)) this.clock.set(Date.now());
+    });
     this.destroyRef.onDestroy(() => this.clearPreview());
     effect(() => {
       const id = this.context.workspace()?.id ?? "";
@@ -191,14 +198,13 @@ export class WorkspaceDocumentsComponent {
       });
   }
   private poll() {
-    this.polling = timer(3000, 3000)
+    const next = (items: DocumentMetadata[]) => {
+      const delay = documentPollDelay(items);
+      return delay === null ? EMPTY : timer(delay).pipe(switchMap(() => this.api.list(this.workspaceId)));
+    };
+    this.polling = next(this.documents())
       .pipe(
-        exhaustMap(() => this.api.list(this.workspaceId)),
-        takeWhile(
-          (items) =>
-            items.some((doc) => !DOCUMENT_TERMINAL.includes(doc.status)),
-          true,
-        ),
+        expand(items => next(items)),
         catchError((error) => {
           this.error.set(apiError(error));
           return EMPTY;
@@ -208,6 +214,9 @@ export class WorkspaceDocumentsComponent {
       )
       .subscribe((items) => {
         this.documents.set(items);
+        const current = this.detail();
+        const updated = current && items.find(item => item.id === current.id);
+        if (updated) this.detail.set({ ...current!, ...updated });
         if (!items.some((doc) => !DOCUMENT_TERMINAL.includes(doc.status)))
           this.context
             .refresh()

@@ -1,0 +1,167 @@
+{
+  "measurement": "controlled simulated latency; not a live provider benchmark",
+  "timestamp": "2026-10-06T17:16:36.578467+00:00",
+  "chunks": 192,
+  "results": [
+    {
+      "provider_type": "OPENAI_COMPATIBLE",
+      "profile": "legacy_sequential",
+      "duration_ms": 189.15,
+      "first_batch_ms": 17.25,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OPENAI_COMPATIBLE",
+      "profile": "conservative",
+      "duration_ms": 283.02,
+      "first_batch_ms": 29.1,
+      "provider_request_count": 12,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OPENAI_COMPATIBLE",
+      "profile": "balanced",
+      "duration_ms": 60.04,
+      "first_batch_ms": 11.53,
+      "provider_request_count": 6,
+      "peak_inflight": 2,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OPENAI_COMPATIBLE",
+      "profile": "fast",
+      "duration_ms": 13.72,
+      "first_batch_ms": 13.27,
+      "provider_request_count": 4,
+      "peak_inflight": 4,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "GOOGLE_GEMINI",
+      "profile": "legacy_sequential",
+      "duration_ms": 502.88,
+      "first_batch_ms": 59.42,
+      "provider_request_count": 192,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "GOOGLE_GEMINI",
+      "profile": "conservative",
+      "duration_ms": 553.07,
+      "first_batch_ms": 40.21,
+      "provider_request_count": 192,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "GOOGLE_GEMINI",
+      "profile": "balanced",
+      "duration_ms": 239.26,
+      "first_batch_ms": 80.61,
+      "provider_request_count": 192,
+      "peak_inflight": 2,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "GOOGLE_GEMINI",
+      "profile": "fast",
+      "duration_ms": 108.2,
+      "first_batch_ms": 107.74,
+      "provider_request_count": 192,
+      "peak_inflight": 4,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "LOCAL_SENTENCE_TRANSFORMER",
+      "profile": "legacy_sequential",
+      "duration_ms": 125.87,
+      "first_batch_ms": 14.43,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "LOCAL_SENTENCE_TRANSFORMER",
+      "profile": "conservative",
+      "duration_ms": 264.0,
+      "first_batch_ms": 26.42,
+      "provider_request_count": 12,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "LOCAL_SENTENCE_TRANSFORMER",
+      "profile": "balanced",
+      "duration_ms": 145.33,
+      "first_batch_ms": 17.95,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "LOCAL_SENTENCE_TRANSFORMER",
+      "profile": "fast",
+      "duration_ms": 183.65,
+      "first_batch_ms": 28.0,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OLLAMA",
+      "profile": "legacy_sequential",
+      "duration_ms": 204.93,
+      "first_batch_ms": 32.03,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OLLAMA",
+      "profile": "conservative",
+      "duration_ms": 282.81,
+      "first_batch_ms": 13.21,
+      "provider_request_count": 12,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OLLAMA",
+      "profile": "balanced",
+      "duration_ms": 180.37,
+      "first_batch_ms": 27.61,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    },
+    {
+      "provider_type": "OLLAMA",
+      "profile": "fast",
+      "duration_ms": 183.41,
+      "first_batch_ms": 26.7,
+      "provider_request_count": 8,
+      "peak_inflight": 1,
+      "retry_count": 0,
+      "cache_hit_ratio": 0
+    }
+  ]
+}

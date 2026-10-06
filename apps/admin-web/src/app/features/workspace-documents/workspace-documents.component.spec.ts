@@ -49,6 +49,25 @@ describe("Workspace documents", () => {
     }).compileComponents();
   });
   afterEach(() => vi.useRealTimers());
+  it("renders rate-limit details and slows polling until the document completes", () => {
+    vi.useFakeTimers();
+    const waiting = { ...doc, status: "EMBEDDING", stage: "EMBEDDING", progress: 77,
+      embedded_chunks: 34, total_chunks: 49, work_state: "WAITING_QUOTA",
+      waiting_reason: "PROVIDER_RATE_LIMIT" };
+    api.list.mockReturnValueOnce(of([waiting])).mockReturnValue(of([doc]));
+    const view = TestBed.createComponent(WorkspaceDocumentsComponent);
+    view.detectChanges();
+    expect(view.nativeElement.textContent).toContain("Đang chờ API");
+    expect(view.nativeElement.textContent).toContain("34 / 49 chunks");
+    expect(view.nativeElement.textContent).toContain("77%");
+    vi.advanceTimersByTime(3000);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(7000);
+    expect(api.list).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(20000);
+    expect(api.list).toHaveBeenCalledTimes(2);
+    view.destroy();
+  });
   it("loads documents for a document-only user without requesting provider administration", () => {
     const view = TestBed.createComponent(WorkspaceDocumentsComponent);
     view.detectChanges();

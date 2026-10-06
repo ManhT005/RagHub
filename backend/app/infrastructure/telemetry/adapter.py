@@ -32,7 +32,7 @@ _SAFE_VALUE = re.compile(r"^[A-Za-z0-9_.\-:]{1,64}$")
 def sanitize_labels(labels: Mapping[str, str]) -> dict[str, str]:
     clean: dict[str, str] = {}
     for key, value in labels.items():
-        if key not in ALLOWED_LABEL_KEYS:
+        if key not in ALLOWED_LABEL_KEYS | {"provider_type", "speed_profile", "result"}:
             continue
         text = str(value)
         clean[key] = text if _SAFE_VALUE.match(text) else "other"
@@ -79,6 +79,14 @@ class LoggingTelemetry:
                     "value": value,
                     "labels": sanitize_labels(labels),
                 },
+            )
+        except Exception:
+            pass
+
+    def gauge(self, name, value, labels):
+        try:
+            self.emit(
+                "metric_gauge", {"metric": name, "value": value, "labels": sanitize_labels(labels)}
             )
         except Exception:
             pass

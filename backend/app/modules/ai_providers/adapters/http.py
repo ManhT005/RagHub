@@ -42,7 +42,7 @@ def response_error(status, headers=None):
         try:
             seconds = float((headers or {}).get("Retry-After", 0))
             if math.isfinite(seconds):
-                error.details["retry_after_seconds"] = min(60, max(0, seconds))
+                error.details["retry_after_seconds"] = min(120, max(0, seconds))
         except (ValueError, TypeError):
             pass
         return error
