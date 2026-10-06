@@ -50,11 +50,13 @@ class BuildDocumentIndexUseCase:
         *,
         chunker: Callable[..., list[TextChunk]] = chunk_sections,
         quota: EmbeddingQuotaPort | None = None,
+        embedding_executor: Callable[..., Awaitable[list[list[float]]]] | None = None,
     ) -> None:
         self.storage = storage
         self.parser = parser
         self.chunker = chunker
         self.quota = quota
+        self.embedding_executor = embedding_executor
 
     async def execute(
         self,
@@ -77,6 +79,7 @@ class BuildDocumentIndexUseCase:
             if telemetry is not None:
                 telemetry.timing(stage, (now - checkpoint) * 1000, {})
             checkpoint = now
+
         try:
             content = await self.storage.get(document.storage_key)
         except Exception as exc:
@@ -151,7 +154,11 @@ class BuildDocumentIndexUseCase:
                         "Quota coordinator unreachable; refusing blind provider call.",
                         retryable=True,
                     ) from exc
-            elif quota is not None and runtime.quota_scope is not None:
+            elif (
+                self.embedding_executor is None
+                and quota is not None
+                and runtime.quota_scope is not None
+            ):
                 estimated = max(1, sum(len(chunk.content) for chunk in chunks) // 4)
                 try:
                     await quota.acquire(scope=runtime.quota_scope, tokens=estimated)
@@ -167,7 +174,22 @@ class BuildDocumentIndexUseCase:
                         "Quota coordinator unreachable; refusing blind provider call.",
                         retryable=True,
                     ) from exc
-            vectors = await runtime.provider.embed_documents([chunk.content for chunk in chunks])
+            if self.embedding_executor is not None:
+                vectors = await self.embedding_executor(document, chunks, runtime)
+            else:
+                from raghub_core.domain.embedding.batching import split_batches
+
+                vectors = []
+                for start, end in split_batches(
+                    [max(1, getattr(c, "token_count", 1)) for c in chunks],
+                    max_chunks=24,
+                    target_tokens=10000,
+                ):
+                    vectors.extend(
+                        await runtime.provider.embed_documents(
+                            [chunk.content for chunk in chunks[start:end]]
+                        )
+                    )
             if len(vectors) != len(chunks):
                 raise ValueError("Embedding response count does not match chunks")
             if any(

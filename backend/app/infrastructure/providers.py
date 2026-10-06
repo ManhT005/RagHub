@@ -26,10 +26,14 @@ class ProviderResolverAdapter:
         )
 
     async def _pool_scope(self, version: EmbeddingIndexVersion) -> str | None:
-        try:
-            pool, _ = await self.resolver.embedding_pool_for_version(version)
-        except Exception:
+        from raghub_core.domain.providers.enums import ProviderType
+        from raghub_core.domain.providers.fingerprint import quota_scope
+        provider_type = getattr(version, "provider_type", "")
+        if provider_type != ProviderType.GOOGLE_GEMINI:
             return None
+        if not getattr(version, "embedding_fingerprint_v2", None):
+            return quota_scope(provider_type=provider_type, model=version.model)
+        pool, _ = await self.resolver.embedding_pool_for_version(version)
         return pool.quota_scope
 
     async def resolve_embedding_version(self, version_id: UUID) -> EmbeddingRuntime:

@@ -39,16 +39,18 @@ def test_provider_error_is_excluded_from_chat_quality_metrics():
     module = _module()
     cases = [
         _case(),
-        _case({
-            "answerable": True,
-            "predicted_answerable": True,
-            "cited_ids": ["C99"],
-            "invalid_ids": ["C99"],
-            "coverage": 0.0,
-            "facts_recalled": 0.0,
-            "chat_error": {"code": "PROVIDER_RATE_LIMITED"},
-            "provider_error": True,
-        }),
+        _case(
+            {
+                "answerable": True,
+                "predicted_answerable": True,
+                "cited_ids": ["C99"],
+                "invalid_ids": ["C99"],
+                "coverage": 0.0,
+                "facts_recalled": 0.0,
+                "chat_error": {"code": "PROVIDER_RATE_LIMITED"},
+                "provider_error": True,
+            }
+        ),
     ]
 
     summary = module.summarize_cases(cases)
@@ -102,6 +104,7 @@ def test_provider_error_detection_handles_nested_payloads():
     assert module.is_provider_error({"code": "PUBLIC_CHAT_RATE_LIMITED"})
     assert not module.is_provider_error({"code": "VALIDATION_ERROR"})
 
+
 def test_retrieve_context_emits_readiness_timing_sync():
     import asyncio
     from uuid import uuid4
@@ -133,6 +136,7 @@ def test_retrieve_context_emits_readiness_timing_sync():
     assert {"query_embedding", "search", "readiness_filter"} <= stages
     assert ("retrieval_ready_hits", {"stage": "readiness"}, 1) in telemetry.counters
 
+
 def test_chunk_search_emits_branch_and_fusion_telemetry_sync():
     import asyncio
     from types import SimpleNamespace
@@ -162,7 +166,9 @@ def test_chunk_search_emits_branch_and_fusion_telemetry_sync():
 
     telemetry = InMemoryTelemetry()
     search = object.__new__(ChunkSearch)
-    search.settings = SimpleNamespace(rag_retrieval_candidates=25, rag_max_chunks_per_document=1)
+    search.settings = SimpleNamespace(
+        rag_retrieval_candidates=25, rag_max_chunks_per_document=1, rag_rrf_k=17
+    )
     search.index_name = "idx"
     search.telemetry = telemetry
     search.client = Client()
@@ -178,5 +184,10 @@ def test_chunk_search_emits_branch_and_fusion_telemetry_sync():
     )
 
     stages = {stage for stage, _, _ in telemetry.timings}
-    assert {"retrieval_es_bm25", "retrieval_es_vector", "retrieval_rrf_diversity", "retrieval_es_total"} <= stages
+    assert {
+        "retrieval_es_bm25",
+        "retrieval_es_vector",
+        "retrieval_rrf_diversity",
+        "retrieval_es_total",
+    } <= stages
     assert ("retrieval_fused_hits", {"stage": "retrieval"}, 1) in telemetry.counters

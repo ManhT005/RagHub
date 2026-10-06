@@ -4,7 +4,6 @@ import asyncio
 import uuid
 
 from celery import Task
-from raghub_core.domain.providers.descriptor import ProviderDescriptor
 from raghub_core.ports.embedding_quota import QuotaBackendUnavailableError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -15,10 +14,7 @@ from app.core.config import get_settings
 from app.infrastructure.object_storage.minio import MinioObjectStorage
 from app.infrastructure.redis.quota_buckets import QuotaBucketStore
 from app.infrastructure.task_queue.celery_app import celery_app
-from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.models import EmbeddingWorkItem
-from app.modules.ai_providers.pools import PoolCredential, select_healthy_credential
-from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.work_items import (
     WorkItemProcessor,
     WorkItemRepository,
@@ -31,54 +27,119 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
     redis = Redis.from_url(settings.redis_url, socket_timeout=2)
     quota = QuotaBucketStore(redis, settings)
     storage = MinioObjectStorage(settings)
-    cipher = ProviderSecretCipher(settings.provider_master_key)
-    registry = ProviderRegistry()
 
     async def embed_texts(texts: list[str]) -> list[list[float]]:
+        from sqlalchemy import select
+
+        from app.infrastructure.providers import ProviderResolverAdapter
+        from app.modules.ai_providers.models import EmbeddingIndexVersion
+        from app.modules.ai_providers.resolver import ProviderResolver
+
         item = await session.get(EmbeddingWorkItem, item_id)
-        assert item is not None
-        pool = await repository.pool_for(item)
-        rows = await repository.credentials_for(pool.id)
-        picked = select_healthy_credential(
-            [PoolCredential(id=r.id, enabled=r.enabled, unhealthy=r.unhealthy) for r in rows]
+        if item is None or not item.index_name or not item.embedding_fingerprint:
+            raise ValueError("Work item has no immutable embedding snapshot.")
+        version = await session.scalar(
+            select(EmbeddingIndexVersion).where(
+                EmbeddingIndexVersion.index_name == item.index_name,
+                EmbeddingIndexVersion.workspace_id == item.workspace_id,
+                EmbeddingIndexVersion.organization_id == item.organization_id,
+            )
         )
-        credential = next(r for r in rows if r.id == picked.id)
-        secret = (
-            cipher.decrypt(credential.encrypted_secret) if credential.encrypted_secret else None
-        )
-        provider = registry.create(
-            ProviderDescriptor(
-                provider_type=pool.provider_type,
-                capability=pool.capability,
-                model=pool.model,
-                base_url=None,
-                dimension=pool.dimension,
-                options=pool.embedding_options or {},
-            ),
-            secret,
-        )
-        return await provider.embed_documents(texts)
+        if version is None:
+            raise ValueError("Work-item index version is missing.")
+        runtime = await ProviderResolverAdapter(
+            ProviderResolver(session)
+        ).resolve_embedding_version(version.id)
+        if runtime.fingerprint != item.embedding_fingerprint:
+            raise ValueError("Work-item runtime fingerprint mismatch.")
+        return await runtime.provider.embed_documents(texts)
 
     async def finalize(item_id: uuid.UUID, vectors: list[list[float]]) -> None:
-        import gzip
-        import hashlib
-        import json
+        from datetime import UTC, datetime
 
-        receipt = json.dumps(
-            {
-                "work_item_id": str(item_id),
-                "batches": len(vectors),
-                "dimension": len(vectors[0]) if vectors else 0,
-                "sha256": hashlib.sha256(json.dumps(vectors).encode()).hexdigest(),
-            }
-        ).encode()
+        from raghub_core.domain.ingestion.chunker import TextChunk
+        from sqlalchemy import select
+
+        from app.infrastructure.elasticsearch.chunks import ChunkIndexer
+        from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
+        from app.modules.ai_providers.models import EmbeddingIndexVersion
+        from app.modules.ai_providers.work_items import decode_manifest
+        from app.modules.documents.models import Document, DocumentIndexMetadata, DocumentVersion
+
         item = await session.get(EmbeddingWorkItem, item_id)
-        assert item is not None
-        await storage.put(
-            f"{item.organization_id}/{item.workspace_id}/embedding-batches/{item_id}/completed.json.gz",
-            gzip.compress(receipt),
-            "application/gzip",
+        if (
+            item is None
+            or not item.index_name
+            or not item.embedding_fingerprint
+            or not item.dimension
+        ):
+            raise ValueError("Work item has no immutable index snapshot; cannot publish.")
+        pool = await repository.pool_for(item) if item.pool_id else None
+        if pool is not None and pool.fingerprint_v2 != item.embedding_fingerprint:
+            raise ValueError("Work-item pool fingerprint mismatch.")
+        version = await session.get(DocumentVersion, item.document_version_id)
+        document = await session.get(Document, version.document_id) if version else None
+        if document is None or document.deleted_at is not None:
+            raise ValueError("Document is no longer available for publication.")
+        manifest = decode_manifest(await storage.get(item.manifest_key))
+        chunks = [
+            TextChunk(
+                uuid.UUID(c["chunk_id"]),
+                c["chunk_index"],
+                c["content"],
+                c["token_count"],
+                c["source_name"],
+                c["page_number"],
+                c["heading"],
+                c["content_hash"],
+            )
+            for c in manifest
+        ]
+        if len(chunks) != len(vectors) or any(len(v) != item.dimension for v in vectors):
+            raise ValueError("Final vectors do not match the manifest.")
+        indexer = ChunkIndexer(
+            index_name=item.index_name, dimension=item.dimension, settings=settings
         )
+        try:
+            indexer.replace_document_version(
+                organization_id=item.organization_id,
+                workspace_id=item.workspace_id,
+                document_id=document.id,
+                document_version_id=version.id,
+                source_name=document.name,
+                chunks=chunks,
+                embeddings={str(c.chunk_id): v for c, v in zip(chunks, vectors, strict=True)},
+            )
+        finally:
+            indexer.close()
+        index_version = await session.scalar(
+            select(EmbeddingIndexVersion).where(
+                EmbeddingIndexVersion.index_name == item.index_name,
+                EmbeddingIndexVersion.workspace_id == item.workspace_id,
+                EmbeddingIndexVersion.organization_id == item.organization_id,
+            )
+        )
+        if index_version is None:
+            raise ValueError("Index version is no longer available.")
+        metadata = await session.get(DocumentIndexMetadata, (version.id, index_version.id))
+        if metadata is None:
+            metadata = DocumentIndexMetadata(
+                document_version_id=version.id, embedding_index_version_id=index_version.id
+            )
+            session.add(metadata)
+        metadata.chunk_count = len(chunks)
+        metadata.indexed_at = datetime.now(UTC)
+        if item.kind == "upload":
+            ingestion = IngestionRepositoryAdapter(session)
+            if await ingestion.load(version.id) is not None:
+                from app.modules.documents.models import DocumentStatus
+
+                document.status = version.status = ingestion.job.stage = DocumentStatus.READY
+                ingestion.job.progress = 100
+                ingestion.job.error_code = ingestion.job.error_message = (
+                    ingestion.job.error_details
+                ) = None
+                version.chunk_count, version.indexed_at = metadata.chunk_count, metadata.indexed_at
 
     processor = WorkItemProcessor(
         repository,
@@ -87,9 +148,11 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
         store_blob=lambda key, blob: storage.put(key, blob, "application/gzip"),
         embed_texts=embed_texts,
         finalize=finalize,
+        dimension=(await session.get(EmbeddingWorkItem, item_id)).dimension or 0,
     )
     try:
         outcome = await processor.process_one(item_id)
+        await session.commit()
     finally:
         await redis.aclose()
     return outcome.done

@@ -245,9 +245,12 @@ class EmbeddingWorkItem(Base):
     document_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("document_versions.id", ondelete="CASCADE"), index=True
     )
-    pool_id: Mapped[uuid.UUID] = mapped_column(
+    pool_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("provider_pools.id", ondelete="RESTRICT")
     )
+    embedding_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    index_name: Mapped[str | None] = mapped_column(String(255))
+    dimension: Mapped[int | None] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(String(32), default="upload")
     state: Mapped[str] = mapped_column(String(32), default="QUEUED", index=True)
     total_chunks: Mapped[int] = mapped_column(Integer, default=0)

@@ -10,8 +10,9 @@ from app.modules.workspaces.models import Workspace
 
 
 class MetadataIndexBuilder:
-    def __init__(self, builder, session):
+    def __init__(self, builder, session, embeddings=None):
         self.builder, self.session = builder, session
+        self.embeddings = embeddings
 
     async def execute(self, document, resolve_embedding, make_store, **kwargs):
         runtime = None
@@ -22,6 +23,8 @@ class MetadataIndexBuilder:
             return runtime
 
         index = await self.builder.execute(document, resolve, make_store, **kwargs)
+        if self.embeddings is not None:
+            await self.embeddings.complete(document, runtime)
         version_id = await self.session.scalar(
             select(EmbeddingIndexVersion.id).where(
                 EmbeddingIndexVersion.index_name == runtime.index_name,

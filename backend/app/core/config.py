@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     rag_model_context_window: int | None = Field(default=None, ge=2048)
     rag_max_output_tokens: int = Field(default=1024, ge=1, le=32768)
     rag_prompt_safety_margin: int = Field(default=256, ge=0, le=8192)
+    rag_embedding_cache_enabled: bool = False
+    rag_embedding_batch_max_chunks: int = Field(default=24, ge=1, le=100)
+    rag_embedding_batch_target_tokens: int = Field(default=10000, ge=100, le=100000)
     rag_ocr_enabled: bool = False
     rag_index_gc_enabled: bool = False
 

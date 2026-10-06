@@ -88,7 +88,7 @@ def embedding_fingerprint_v2(
 def quota_scope(*, provider_type: str, model: str, project: str | None = None) -> str:
     """Quota scope shared by credentials billed to the same project/account.
 
-    Multiple Gemini keys inside one Google project share one quota bucket,
+    Multiple keys inside one provider project share one quota bucket,
     so they must never be counted as independent capacity.
     """
     return ":".join(

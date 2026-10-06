@@ -173,7 +173,10 @@ def chunk_sections(
             )
         for chunk in produced:
             index = len(chunks)
-            key = f"{section.section_index}:{section.page_number}:{section.heading}:{index}:{chunk.content_hash}"
+            key = (
+                f"{section.section_index}:{section.page_number}:{section.heading}:"
+                f"{index}:{chunk.content_hash}"
+            )
             chunks.append(
                 replace(chunk, chunk_index=index, chunk_id=uuid.uuid5(document_version_id, key))
             )

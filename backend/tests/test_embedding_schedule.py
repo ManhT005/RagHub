@@ -18,8 +18,6 @@ from raghub_core.ports.embedding_quota import (
 
 from app.modules.ai_providers.quota_profiles import GEMINI_EMBEDDING
 from app.modules.ai_providers.work_items import (
-    MAX_ACTIVE_PER_WORKSPACE,
-    MAX_PENDING_PER_WORKSPACE,
     WAITING_QUOTA,
     WorkItemProcessor,
     decode_artifact,
@@ -333,9 +331,12 @@ def test_progress_fields_are_additive_nullable():
     }
 
 
-def test_queue_caps_constants():
-    assert MAX_ACTIVE_PER_WORKSPACE == 1
-    assert MAX_PENDING_PER_WORKSPACE == 5
+def test_queue_caps_use_settings():
+    from app.core.config import Settings
+    settings = Settings(provider_pool_max_active_jobs_per_workspace=2,
+                        provider_pool_max_pending_jobs_per_workspace=7)
+    assert settings.provider_pool_max_active_jobs_per_workspace == 2
+    assert settings.provider_pool_max_pending_jobs_per_workspace == 7
 
 
 def test_migration_chain_is_linked():

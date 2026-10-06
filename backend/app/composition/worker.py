@@ -17,6 +17,7 @@ from app.infrastructure.persistence.index_metadata import MetadataIndexBuilder
 from app.infrastructure.persistence.ingestion import IngestionRepositoryAdapter
 from app.infrastructure.persistence.reindex import ReindexRepositoryAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.resumable_embedding import ResumableEmbedding
 from app.modules.ai_providers.resolver import ProviderResolver
 
 parse_document = DocumentParser().parse
@@ -29,14 +30,18 @@ class WorkerContainer:
         self.quota = quota
 
     def builder(self):
+        storage = MinioObjectStorage(self.settings)
+        embeddings = ResumableEmbedding(self.session, storage, self.settings, self.quota)
         return MetadataIndexBuilder(
             BuildDocumentIndexUseCase(
-                MinioObjectStorage(self.settings),
+                storage,
                 parse_document,
                 chunker=chunk_sections,
                 quota=self.quota,
+                embedding_executor=embeddings.execute,
             ),
             self.session,
+            embeddings=embeddings,
         )
 
     def make_store(self, runtime):

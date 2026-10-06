@@ -138,6 +138,15 @@ async def test_pipeline_keeps_version_indexing_until_chunks_are_written(
     monkeypatch.setattr(worker_composition, "ProviderResolver", Resolver)
     monkeypatch.setattr(worker_composition, "ChunkIndexer", Indexer)
 
+    class Embeddings:
+        def __init__(self, *args):
+            pass
+        async def execute(self, document, chunks, runtime):
+            return await runtime.provider.embed_documents([c.content for c in chunks])
+        async def complete(self, document, runtime):
+            pass
+    monkeypatch.setattr(worker_composition, "ResumableEmbedding", Embeddings)
+
     await tasks._run_pipeline(session, document, version, job)
 
     assert observed == [("INDEXING", "INDEXING", "INDEXING", 90)]

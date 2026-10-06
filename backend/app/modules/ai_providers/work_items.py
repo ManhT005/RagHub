@@ -5,6 +5,7 @@ batches remain. Vector artifacts persist before the checkpoint row, so a
 crash between provider response and persistence can cost quota but never
 duplicates indexed data (replay skips checkpointed batches).
 """
+
 from __future__ import annotations
 
 import gzip
@@ -21,24 +22,23 @@ from raghub_core.ports.embedding_quota import (
     EmbeddingQuotaPort,
     QuotaDepletedError,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.modules.ai_providers.models import (
     EmbeddingBatchCheckpoint,
     EmbeddingWorkItem,
     ProviderCredential,
     ProviderPool,
 )
+from app.modules.workspaces.models import Workspace
 
 QUEUED = "QUEUED"
 WAITING_QUOTA = "WAITING_QUOTA"
 RUNNING = "RUNNING"
 COMPLETED = "COMPLETED"
 FAILED = "FAILED"
-
-MAX_ACTIVE_PER_WORKSPACE = 1
-MAX_PENDING_PER_WORKSPACE = 5
 
 
 def manifest_key(organization_id: UUID, workspace_id: UUID, item_id: UUID) -> str:
@@ -70,8 +70,9 @@ def decode_artifact(payload: bytes) -> list[list[float]]:
 
 
 class WorkItemRepository:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, settings=None) -> None:
         self.session = session
+        self.settings = settings or get_settings()
 
     async def create(
         self,
@@ -84,11 +85,11 @@ class WorkItemRepository:
         total_chunks: int = 0,
         manifest_key: str | None = None,
     ) -> EmbeddingWorkItem:
-        active = await self.session.scalar(
-            select(func.count(EmbeddingWorkItem.id)).where(
-                EmbeddingWorkItem.workspace_id == workspace_id,
-                EmbeddingWorkItem.state.in_([QUEUED, WAITING_QUOTA, RUNNING]),
-            )
+        # Serialize admission and claims for a workspace in the current transaction.
+        await self.session.scalar(
+            select(Workspace.id)
+            .where(Workspace.id == workspace_id, Workspace.organization_id == organization_id)
+            .with_for_update()
         )
         pending = await self.session.scalar(
             select(func.count(EmbeddingWorkItem.id)).where(
@@ -96,7 +97,7 @@ class WorkItemRepository:
                 EmbeddingWorkItem.state.in_([QUEUED, WAITING_QUOTA]),
             )
         )
-        if (active or 0) > MAX_ACTIVE_PER_WORKSPACE or (pending or 0) >= MAX_PENDING_PER_WORKSPACE:
+        if (pending or 0) >= self.settings.provider_pool_max_pending_jobs_per_workspace:
             raise ValueError("Workspace embedding queue is full.")
         item = EmbeddingWorkItem(
             organization_id=organization_id,
@@ -115,16 +116,51 @@ class WorkItemRepository:
     async def claim(
         self, item_id: UUID, *, now: datetime | None = None
     ) -> EmbeddingWorkItem | None:
-        item = await self.session.get(EmbeddingWorkItem, item_id)
-        if item is None or item.state == COMPLETED:
-            return None
         moment = now or datetime.now(UTC)
-        if item.state == WAITING_QUOTA and item.available_at and item.available_at > moment:
+        workspace_id = await self.session.scalar(
+            select(EmbeddingWorkItem.workspace_id).where(EmbeddingWorkItem.id == item_id)
+        )
+        if workspace_id is None:
+            return None
+        workspace = await self.session.scalar(
+            select(Workspace.id)
+            .where(Workspace.id == workspace_id)
+            .with_for_update(skip_locked=True)
+        )
+        if workspace is None:
+            return None
+        active = await self.session.scalar(
+            select(func.count(EmbeddingWorkItem.id)).where(
+                EmbeddingWorkItem.workspace_id == workspace_id, EmbeddingWorkItem.state == RUNNING
+            )
+        )
+        if (active or 0) >= self.settings.provider_pool_max_active_jobs_per_workspace:
+            return None
+        item = await self.session.scalar(
+            select(EmbeddingWorkItem)
+            .where(
+                EmbeddingWorkItem.id == item_id,
+                EmbeddingWorkItem.state.in_([QUEUED, WAITING_QUOTA]),
+                or_(
+                    EmbeddingWorkItem.available_at.is_(None),
+                    EmbeddingWorkItem.available_at <= moment,
+                ),
+            )
+            .with_for_update(skip_locked=True)
+        )
+        if item is None:
             return None
         item.state = RUNNING
+        item.available_at = None
         item.attempts += 1
         await self.session.flush()
         return item
+
+    async def terminal(self, item_id: UUID) -> bool:
+        state = await self.session.scalar(
+            select(EmbeddingWorkItem.state).where(EmbeddingWorkItem.id == item_id)
+        )
+        return state is None or state in {COMPLETED, FAILED}
 
     async def completed_batches(self, item_id: UUID) -> set[int]:
         rows = await self.session.scalars(
@@ -223,6 +259,7 @@ class WorkItemProcessor:
         max_chunks: int = 24,
         target_tokens: int = 10_000,
         dimension: int = 0,
+        complete_on_finalize: bool = True,
     ) -> None:
         self.repository = repository
         self.quota = quota
@@ -233,16 +270,20 @@ class WorkItemProcessor:
         self.max_chunks = max_chunks
         self.target_tokens = target_tokens
         self.dimension = dimension
+        self.complete_on_finalize = complete_on_finalize
 
     async def process_one(self, item_id: UUID) -> BatchOutcome:
         item = await self.repository.claim(item_id)
         if item is None:
-            return BatchOutcome(done=True, embedded_chunks=0)
-        scope = await self.repository.pool_scope(item)
+            terminal = getattr(self.repository, "terminal", None)
+            return BatchOutcome(
+                done=await terminal(item_id) if terminal else False, embedded_chunks=0
+            )
+        scope = await self.repository.pool_scope(item) if getattr(item, "pool_id", None) else ""
         raw = await self.load_blob(item.manifest_key or "")
         chunks = decode_manifest(raw)
         if item.total_chunks != len(chunks):
-            item.total_chunks = len(chunks)
+            raise ValueError("Work-item manifest count mismatch.")
         token_counts = [
             max(1, c.get("tokens") or estimate_tokens(len(c.get("text", "")))) for c in chunks
         ]
@@ -258,22 +299,29 @@ class WorkItemProcessor:
         start, end = batches[batch]
         texts = [chunks[i]["text"] for i in range(start, end)]
         batch_tokens = sum(token_counts[start:end])
+        key = artifact_key(item.organization_id, item.workspace_id, item.id, batch)
         try:
-            await self.quota.acquire(scope=scope, tokens=batch_tokens, background=True)
-        except QuotaDepletedError as exc:
-            await self.repository.wait_quota(item, exc.available_at_ms)
-            return BatchOutcome(done=False, embedded_chunks=item.embedded_chunks)
-        vectors = await self.embed_texts(texts)
+            vectors = decode_artifact(await self.load_blob(key))
+        except Exception as exc:
+            if not isinstance(exc, KeyError) and getattr(exc, "code", None) not in {
+                "NoSuchKey",
+                "NoSuchObject",
+            }:
+                raise
+            try:
+                await self.quota.acquire(scope=scope, tokens=batch_tokens, background=True)
+                vectors = await self.embed_texts(texts)
+            except QuotaDepletedError as exc:
+                await self.repository.wait_quota(item, exc.available_at_ms)
+                return BatchOutcome(done=False, embedded_chunks=item.embedded_chunks)
         if len(vectors) != len(texts) or any(
-            (self.dimension and len(v) != self.dimension)
-            or not all(math.isfinite(x) for x in v)
+            (self.dimension and len(v) != self.dimension) or not all(math.isfinite(x) for x in v)
             for v in vectors
         ):
             await self.repository.fail(
                 item, "EMBEDDING_INVALID_RESPONSE", "Batch failed validation."
             )
             raise ValueError("Embedding batch failed dimension/finite validation.")
-        key = artifact_key(item.organization_id, item.workspace_id, item.id, batch)
         await self.store_blob(key, encode_artifact(vectors))
         await self.repository.record_batch(item, batch=batch, start=start, end=end, artifact=key)
         left = remaining_batches(len(batches), done | {batch})
@@ -293,7 +341,16 @@ class WorkItemProcessor:
                 raise ValueError(f"Missing checkpoint for batch {batch}.")
             raw = await self.load_blob(key)
             vectors = decode_artifact(raw)
-            assert len(vectors) == end - start, "Checkpoint artifact diverged from manifest."
+            if len(vectors) != end - start or any(
+                (self.dimension and len(vector) != self.dimension)
+                or not vector
+                or not all(math.isfinite(x) for x in vector)
+                for vector in vectors
+            ):
+                raise ValueError("Checkpoint artifact diverged from manifest or dimension.")
             ordered.extend(vectors)
         await self.finalize(item.id, ordered)
-        await self.repository.complete(item)
+        if self.complete_on_finalize:
+            await self.repository.complete(item)
+        else:
+            item.state = "EMBEDDED"

@@ -1,4 +1,5 @@
 """Extended parsers and document limits: happy paths, bombs, timeouts, isolation."""
+
 import io
 import zipfile
 from uuid import uuid4
@@ -178,11 +179,13 @@ def test_xlsx_sheet_cap_and_macro_rejected():
 
 
 def test_upload_types_and_mime_mismatch():
-    name, ext, mime = validate_upload_metadata("a.docx",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    name, ext, mime = validate_upload_metadata(
+        "a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
     assert ext == ".docx"
-    name, ext, mime = validate_upload_metadata("a.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    name, ext, mime = validate_upload_metadata(
+        "a.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     assert ext == ".xlsx"
     with pytest.raises(CoreError):
         validate_upload_metadata("a.docx", "text/plain")
@@ -221,7 +224,10 @@ def test_chunk_and_token_caps_reject_before_embedding():
 
     import asyncio
 
-    many = [ParsedSection(f"section {i} content here", "d.md", i, page_number=i+1) for i in range(MAX_CHUNKS + 1)]
+    many = [
+        ParsedSection(f"section {i} content here", "d.md", i, page_number=i + 1)
+        for i in range(MAX_CHUNKS + 1)
+    ]
     assert asyncio.run(run(many)) == "DOCUMENT_LIMIT_EXCEEDED"
 
 

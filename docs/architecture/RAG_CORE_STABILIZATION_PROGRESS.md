@@ -60,3 +60,20 @@ than silently split; target size is soft for such rows.
 
 Validation: core 127 passed; parser/chunker suites 29 passed, including all-row
 coverage, nested hidden HTML, DOCX heading merging and safety limit regressions.
+
+## Phases 5?8: canonical durable embeddings and cache
+
+Host upload and reindex both inject ResumableEmbedding into the core builder.
+The fallback engine also batches its requests. Work items persist fingerprint,
+index and dimension; local providers use the same work-item/checkpoint mechanism
+without a cloud quota. Index completion is required before COMPLETED. The batch
+worker now commits checkpoints and publishes actual document vectors rather than
+writing a receipt. Conditional SKIP LOCKED claims and workspace admission locks
+serialize work; caps come from settings. Retry reuses completed artifacts,
+including an artifact saved before a checkpoint commit. Optional tenant-scoped
+embedding cache keys include fingerprint and content hash.
+
+Validation: core 127 passed; embedding/claim/provider/ingestion/reindex suites 55
+passed; restart/cache tests 4 passed; real PostgreSQL claim + MinIO/Elasticsearch
+upload 2 passed; real Redis quota and ingestion concurrency 8 passed. Clean DB
+upgrade through 0026 succeeded on a disposable Docker project with isolated ports.
