@@ -1,11 +1,11 @@
 import { signal } from '@angular/core';
-const tokenKey = 'raghub.access-token';
 const organizationKey = 'raghub.organization-id';
+let inMemoryAccessToken: string | null = null;
 export const organizationSelection = signal<string | null>(sessionStorage.getItem(organizationKey));
 export const session = {
-  get accessToken(): string | null { return sessionStorage.getItem(tokenKey); },
+  get accessToken(): string | null { return inMemoryAccessToken; },
   set accessToken(value: string | null) {
-    value ? sessionStorage.setItem(tokenKey, value) : sessionStorage.removeItem(tokenKey);
+    inMemoryAccessToken = value;
   },
   get organizationId(): string | null {
     organizationSelection();

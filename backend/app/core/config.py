@@ -21,7 +21,12 @@ class Settings(BaseSettings):
     provider_master_key: str = "change-me-provider-key"
     access_token_ttl_minutes: int = Field(default=15, ge=1)
     refresh_token_ttl_days: int = Field(default=7, ge=1)
+    refresh_reuse_grace_seconds: int = Field(default=10, ge=0, le=60)
     password_reset_ttl_minutes: int = Field(default=15, ge=5, le=60)
+    auth_login_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_login_requests_per_account: int = Field(default=5, ge=1, le=1000)
+    auth_password_requests_per_ip: int = Field(default=10, ge=1, le=1000)
+    auth_password_requests_per_account: int = Field(default=3, ge=1, le=1000)
     api_v1_prefix: str = "/api/v1"
     max_upload_size_mb: int = Field(default=25, ge=1, le=500)
 
