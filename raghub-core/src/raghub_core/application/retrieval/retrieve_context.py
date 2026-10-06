@@ -51,12 +51,16 @@ class RetrieveContextUseCase:
         adaptive_rerank: bool = False,
         confidence_high_threshold: float = 0.85,
         candidate_count: int = RETRIEVAL_CANDIDATES,
+        rerank_source_count: int = RERANK_SOURCE_COUNT,
+        rerank_candidate_cap: int | None = None,
         evidence_selector: Callable[[str, list[RetrievedChunk], int], list[RetrievedChunk]]
         | None = None,
     ) -> None:
         self.adaptive_rerank = adaptive_rerank
         self.confidence_high_threshold = confidence_high_threshold
         self.candidate_count = candidate_count
+        self.rerank_source_count = rerank_source_count
+        self.rerank_candidate_cap = rerank_candidate_cap
         self.evidence_selector = evidence_selector
         self.providers, self.readiness, self.make_search = providers, readiness, make_search
         self.rerank, self.relevance, self.rerank_top_n = rerank, relevance, rerank_top_n
@@ -120,7 +124,7 @@ class RetrieveContextUseCase:
             fetch = max(
                 limit,
                 self.candidate_count * (2 if self.adaptive_rerank else 1),
-                RERANK_SOURCE_COUNT if rerank else 0,
+                self.rerank_source_count if rerank else 0,
             )
             if rerank_runtime is not None:
                 fetch = max(fetch, min(200, rerank_runtime.candidate_limit))
@@ -177,7 +181,9 @@ class RetrieveContextUseCase:
                 except Exception:
                     self._rerank_status("DEGRADED_RESOLUTION")
             if should_rerank and rerank_runtime is not None and ready:
-                selected = ready[: min(200, rerank_runtime.candidate_limit)]
+                selected = ready[
+                    : min(200, rerank_runtime.candidate_limit, self.rerank_candidate_cap or 200)
+                ]
                 selected_count = min(limit, rerank_runtime.top_n, len(selected))
                 mark = time.perf_counter()
                 try:
@@ -200,7 +206,7 @@ class RetrieveContextUseCase:
             elif should_rerank and rerank is not None and ready:
                 mark = time.perf_counter()
                 try:
-                    candidates = ready[:RERANK_SOURCE_COUNT]
+                    candidates = ready[: self.rerank_source_count]
                     result = await rerank(normalized, candidates, top_n)
                     allowed = {hit.chunk_id for hit in candidates}
                     if (

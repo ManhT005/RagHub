@@ -3,6 +3,7 @@ import math
 from collections.abc import Callable
 from threading import Lock
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from raghub_core.domain.providers.contracts import EmbeddingMetadata
 from raghub_core.domain.providers.errors import (
@@ -31,7 +32,7 @@ class SentenceTransformerModelRegistry:
 
 class LocalSentenceTransformerProvider:
     provider_name = "LOCAL_SENTENCE_TRANSFORMER"
-    _semaphores: dict[int, asyncio.Semaphore] = {}
+    _semaphores = WeakKeyDictionary()
 
     def __init__(
         self,
@@ -49,8 +50,11 @@ class LocalSentenceTransformerProvider:
         self._max_concurrency = max(1, max_concurrency)
 
     def _semaphore(self) -> asyncio.Semaphore:
-        loop_id = id(asyncio.get_running_loop())
-        return self._semaphores.setdefault(loop_id, asyncio.Semaphore(self._max_concurrency))
+        loop = asyncio.get_running_loop()
+        buckets = self._semaphores.setdefault(loop, {})
+        return buckets.setdefault(
+            (self.model, self._max_concurrency), asyncio.Semaphore(self._max_concurrency)
+        )
 
     def _encode(self, texts: list[str]) -> list[list[float]]:
         model = self._model_loader(self.model)
@@ -74,8 +78,22 @@ class LocalSentenceTransformerProvider:
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        async with self._semaphore():
-            return await asyncio.to_thread(self._encode, texts)
+        semaphore = self._semaphore()
+        await semaphore.acquire()
+        try:
+            task = asyncio.create_task(asyncio.to_thread(self._encode, texts))
+        except BaseException:
+            semaphore.release()
+            raise
+
+        def completed(task):
+            semaphore.release()
+            if not task.cancelled():
+                task.exception()  # Consume failures if the caller cancelled its shield.
+
+        task.add_done_callback(completed)
+        # Caller cancellation cannot release capacity while its native thread still runs.
+        return await asyncio.shield(task)
 
     async def embed_query(self, text: str) -> list[float]:
         return (await self.embed_documents([text]))[0]

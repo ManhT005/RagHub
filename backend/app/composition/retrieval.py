@@ -115,6 +115,10 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         adaptive_rerank=settings.rag_adaptive_rerank_enabled,
         confidence_high_threshold=settings.rag_confidence_high_threshold,
         candidate_count=settings.rag_retrieval_candidates,
+        rerank_source_count=settings.rag_rerank_source_count,
+        rerank_candidate_cap=settings.rag_rerank_source_count
+        if settings.rag_hardware_profile != "custom"
+        else None,
         evidence_selector=(
             lambda query, hits, limit: select_evidence(
                 query, hits, limit, max_tokens=settings.rag_max_context_tokens

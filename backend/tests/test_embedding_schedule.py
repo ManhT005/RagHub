@@ -50,6 +50,9 @@ def test_weighted_round_robin_cycles_workspaces():
             workspaces.append(lookup[item_id])
     assert workspaces == [workspace_ids["a"], workspace_ids["b"], workspace_ids["c"]]
     assert len(order) == 4
+    assert [lookup[item_id] for item_id in order] == [
+        workspace_ids[key] for key in ("a", "b", "c", "a")
+    ]
 
 
 def test_query_priority_beats_upload_flood():

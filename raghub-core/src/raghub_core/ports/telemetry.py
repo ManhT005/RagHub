@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Protocol
 
 ALLOWED_LABEL_KEYS = frozenset(
-    {"provider", "model", "parser", "stage", "outcome", "config_version", "kind"}
+    {"provider", "model", "parser", "stage", "outcome", "config_version", "kind", "band", "status"}
 )
 
 

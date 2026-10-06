@@ -71,3 +71,19 @@ async def test_cache_deduplicates_content_and_never_crosses_fingerprints():
     assert embed.await_count == 1
     await EmbeddingCache(storage, organization_id, "fp-b", 2).embed(["same"], embed)
     assert embed.await_count == 2
+
+
+async def test_cache_records_actual_saved_embedding_calls_and_tokens():
+    from app.infrastructure.telemetry.adapter import InMemoryTelemetry
+
+    telemetry = InMemoryTelemetry()
+    storage = FakeObjectStorage()
+    embed = AsyncMock(side_effect=lambda texts: [[1.0, 0.0] for _ in texts])
+    cache = EmbeddingCache(storage, uuid4(), "fp", 2, telemetry=telemetry)
+    await cache.embed(["a useful fact"], embed)
+    await cache.embed(["a useful fact", "a useful fact"], embed)
+    assert embed.await_count == 1
+    assert ("embedding_provider_calls_saved", {}, 1) in telemetry.counters
+    assert any(
+        name == "embedding_tokens_saved" and value > 0 for name, labels, value in telemetry.counters
+    )

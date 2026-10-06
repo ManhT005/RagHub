@@ -191,6 +191,25 @@ async def test_real_database_claim_is_exclusive_and_recovers_after_rollback(isol
             await third.rollback()
 
 
+async def test_reindex_reserves_upload_admission_and_yields_claim_priority(isolated_sessions):
+    async with isolated_sessions(expire_on_commit=False) as session:
+        org, ws, _, version = await seed(session)
+        repo = WorkItemRepository(session, Settings(provider_pool_max_pending_jobs_per_workspace=2))
+        kwargs = dict(
+            organization_id=org.id, workspace_id=ws.id, pool_id=None, document_version_id=version.id
+        )
+        background = await repo.create(**kwargs, kind="reindex")
+        with pytest.raises(ValueError, match="queue is full"):
+            await repo.create(**kwargs, kind="reindex")
+        upload = await repo.create(**kwargs, kind="upload")
+        await session.commit()
+        assert await repo.claim(background.id) is None
+        assert await repo.claim(upload.id) is not None
+        await repo.complete(upload)
+        assert await repo.claim(background.id) is not None
+        await session.rollback()
+
+
 @pytest.mark.parametrize(
     "managed_pool,document_pipeline",
     [(False, "legacy"), (True, "legacy"), (True, "normalized-v1"), (True, "context-v1")],

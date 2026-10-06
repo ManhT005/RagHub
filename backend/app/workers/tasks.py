@@ -55,7 +55,11 @@ def ingest_document_version(self: Task, document_version_id: str) -> None:
         plan = quota_retry_plan(exc, self.request.retries)
         if plan is not None:
             countdown, max_retries = plan
-            raise self.retry(exc=exc, countdown=countdown, max_retries=max_retries) from exc
+            raise self.retry(
+                exc=exc, countdown=countdown, max_retries=max_retries, priority=2
+            ) from exc
         if exc.retryable and self.request.retries < self.max_retries:
-            raise self.retry(exc=exc, countdown=min(60, 2 ** (self.request.retries + 1))) from exc
+            raise self.retry(
+                exc=exc, countdown=min(60, 2 ** (self.request.retries + 1)), priority=2
+            ) from exc
         raise

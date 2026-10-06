@@ -1,5 +1,6 @@
 from functools import lru_cache
 from ipaddress import ip_network
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -86,6 +87,15 @@ class Settings(BaseSettings):
     rag_reranker_timeout_seconds: float = Field(default=2, ge=0.1, le=120)
     rag_reranker_enabled: bool = False
     rag_rerank_top_n: int = Field(default=8, ge=1, le=25)
+    rag_rerank_source_count: int = Field(default=25, ge=5, le=100)
+    rag_hardware_profile: Literal["custom", "lite_cpu", "standard_cpu", "gpu"] = "custom"
+
+    @model_validator(mode="before")
+    @classmethod
+    def hardware_profile_defaults(cls, values):
+        from app.composition.hardware_profiles import apply_profile
+
+        return apply_profile(values)
 
     provider_pool_max_active_jobs_per_workspace: int = Field(default=1, ge=1, le=10)
     provider_pool_max_pending_jobs_per_workspace: int = Field(default=5, ge=1, le=100)

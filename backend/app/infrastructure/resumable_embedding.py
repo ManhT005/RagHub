@@ -73,6 +73,7 @@ class ResumableEmbedding:
                 item = await self.repository.create(
                     organization_id=document.scope.organization_id,
                     workspace_id=document.scope.workspace_id,
+                    kind=document.kind,
                     pool_id=None,
                     document_version_id=document.version_id,
                     total_chunks=len(chunks),

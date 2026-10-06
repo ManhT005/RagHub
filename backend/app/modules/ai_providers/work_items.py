@@ -19,11 +19,12 @@ from uuid import UUID
 
 from raghub_core.domain.embedding.batching import remaining_batches, split_batches
 from raghub_core.domain.embedding.quota import estimate_tokens
+from raghub_core.domain.embedding.scheduler import KIND_PRIORITY
 from raghub_core.ports.embedding_quota import (
     EmbeddingQuotaPort,
     QuotaDepletedError,
 )
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -98,7 +99,10 @@ class WorkItemRepository:
                 EmbeddingWorkItem.state.in_([QUEUED, WAITING_QUOTA]),
             )
         )
-        if (pending or 0) >= self.settings.provider_pool_max_pending_jobs_per_workspace:
+        limit = self.settings.provider_pool_max_pending_jobs_per_workspace
+        if kind == "reindex" and limit > 1:
+            limit -= 1  # Keep one pending slot available for foreground uploads.
+        if (pending or 0) >= limit:
             raise ValueError("Workspace embedding queue is full.")
         item = EmbeddingWorkItem(
             organization_id=organization_id,
@@ -150,6 +154,22 @@ class WorkItemRepository:
             .with_for_update(skip_locked=True)
         )
         if item is None:
+            return None
+        priority = case(KIND_PRIORITY, value=EmbeddingWorkItem.kind, else_=99)
+        ahead = await self.session.scalar(
+            select(EmbeddingWorkItem.id)
+            .where(
+                EmbeddingWorkItem.workspace_id == workspace_id,
+                EmbeddingWorkItem.state.in_([QUEUED, WAITING_QUOTA]),
+                or_(
+                    EmbeddingWorkItem.available_at.is_(None),
+                    EmbeddingWorkItem.available_at <= moment,
+                ),
+                priority < KIND_PRIORITY.get(item.kind, 99),
+            )
+            .limit(1)
+        )
+        if ahead is not None:
             return None
         item.state = RUNNING
         item.available_at = None
