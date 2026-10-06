@@ -3,7 +3,9 @@
 from dataclasses import asdict
 from uuid import uuid5
 
+from raghub_core.domain.ingestion.chunker import embedding_text
 from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.ingestion.tokenizer import ENCODING
 
 from app.infrastructure.embedding_cache import EmbeddingCache
 from app.modules.ai_providers.models import EmbeddingWorkItem
@@ -34,7 +36,15 @@ class RuntimeQuota:
 
 def chunk_manifest(chunks):
     return [
-        {**asdict(c), "chunk_id": str(c.chunk_id), "text": c.content, "tokens": c.token_count}
+        {
+            **asdict(c),
+            "chunk_id": str(c.chunk_id),
+            "parent_section_id": str(c.parent_section_id) if c.parent_section_id else None,
+            "previous_chunk_id": str(c.previous_chunk_id) if c.previous_chunk_id else None,
+            "next_chunk_id": str(c.next_chunk_id) if c.next_chunk_id else None,
+            "text": embedding_text(c),
+            "tokens": len(ENCODING.encode(embedding_text(c))),
+        }
         for c in chunks
     ]
 
@@ -83,7 +93,12 @@ class ResumableEmbedding:
                 runtime.dimension,
             ):
                 raise ValueError("Work-item embedding fingerprint mismatch.")
-            if decode_manifest(await self.storage.get(item.manifest_key)) != manifest:
+            stored = decode_manifest(await self.storage.get(item.manifest_key))
+            # Additive structural metadata must not invalidate safe legacy checkpoints.
+            identity_fields = ("chunk_id", "text", "tokens", "content", "content_hash")
+            if [[c.get(k) for k in identity_fields] for c in stored] != [
+                [c.get(k) for k in identity_fields] for c in manifest
+            ]:
                 raise ValueError("Document chunk manifest changed during resume.")
         collected = []
 

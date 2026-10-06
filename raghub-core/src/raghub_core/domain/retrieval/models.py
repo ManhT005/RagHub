@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from raghub_core.domain.ingestion.chunker import TextChunk
@@ -21,6 +22,12 @@ class RetrievedChunk:
     heading: str | None
     score: float
     chunk_index: int | None = None
+    normalized_content: str | None = None
+    heading_path: tuple[str, ...] = ()
+    parent_section_id: UUID | None = None
+    previous_chunk_id: UUID | None = None
+    next_chunk_id: UUID | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,4 @@
+import math
 import time
 import uuid
 from datetime import UTC, datetime
@@ -51,6 +52,12 @@ def chunk_index_mapping(
                     "fields": {"folded": {"type": "text", "analyzer": "vi_folded"}},
                 },
                 "content_hash": {"type": "keyword"},
+                "raw_content": {"type": "text", "index": False},
+                "heading_path": {"type": "keyword"},
+                "parent_section_id": {"type": "keyword"},
+                "previous_chunk_id": {"type": "keyword"},
+                "next_chunk_id": {"type": "keyword"},
+                "metadata": {"type": "object", "enabled": False},
                 "token_count": {"type": "integer"},
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
                 "embedding": {
@@ -164,6 +171,13 @@ class ChunkIndexer:
         chunks: list[TextChunk],
         embeddings: dict[str, list[float]],
     ) -> None:
+        if len({chunk.chunk_id for chunk in chunks}) != len(chunks):
+            raise ValueError("Duplicate chunk identity in index manifest.")
+        if set(embeddings) != {str(chunk.chunk_id) for chunk in chunks} or any(
+            len(vector) != self.dimension or not all(math.isfinite(x) for x in vector)
+            for vector in embeddings.values()
+        ):
+            raise ValueError("Index vectors do not match the manifest or index dimension.")
         self.ensure_index()
         index = self.index_name
         self.client.delete_by_query(
@@ -184,7 +198,19 @@ class ChunkIndexer:
                     "document_id": str(document_id),
                     "document_version_id": str(document_version_id),
                     "chunk_id": str(chunk.chunk_id),
-                    "content": chunk.content,
+                    "content": chunk.normalized_content
+                    if chunk.normalized_content is not None
+                    else chunk.content,
+                    "raw_content": chunk.content,
+                    "heading_path": list(chunk.heading_path),
+                    "parent_section_id": str(chunk.parent_section_id)
+                    if chunk.parent_section_id
+                    else None,
+                    "previous_chunk_id": str(chunk.previous_chunk_id)
+                    if chunk.previous_chunk_id
+                    else None,
+                    "next_chunk_id": str(chunk.next_chunk_id) if chunk.next_chunk_id else None,
+                    "metadata": dict(chunk.metadata),
                     "source_name": chunk.source_name,
                     "page_number": chunk.page_number,
                     "heading": chunk.heading,
@@ -208,11 +234,16 @@ class ChunkIndexer:
         )
         if result["count"] != len(chunks):
             raise ValueError("Indexed chunk count does not match the document manifest.")
-        self.set_version_retrievable(document_version_id, retrievable=True)
+        try:
+            self.set_version_retrievable(document_version_id, retrievable=True)
+        except Exception:
+            try:
+                self.set_version_retrievable(document_version_id, retrievable=False)
+            except Exception:
+                pass  # Readiness filtering still hides the uncommitted version.
+            raise
 
-    def set_version_retrievable(
-        self, document_version_id: uuid.UUID, *, retrievable: bool
-    ) -> None:
+    def set_version_retrievable(self, document_version_id: uuid.UUID, *, retrievable: bool) -> None:
         """Flip the pre-cutoff retrievable flag without reindexing content."""
         self.ensure_index()
         result = self.client.update_by_query(
@@ -389,6 +420,12 @@ class ChunkSearch:
             "source_name",
             "page_number",
             "heading",
+            "raw_content",
+            "heading_path",
+            "parent_section_id",
+            "previous_chunk_id",
+            "next_chunk_id",
+            "metadata",
         ]
 
     @staticmethod

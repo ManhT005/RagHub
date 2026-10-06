@@ -101,6 +101,17 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
                 c["page_number"],
                 c["heading"],
                 c["content_hash"],
+                normalized_content=c.get("normalized_content"),
+                embedding_content=c.get("embedding_content"),
+                heading_path=tuple(c.get("heading_path") or ()),
+                parent_section_id=uuid.UUID(c["parent_section_id"])
+                if c.get("parent_section_id")
+                else None,
+                previous_chunk_id=uuid.UUID(c["previous_chunk_id"])
+                if c.get("previous_chunk_id")
+                else None,
+                next_chunk_id=uuid.UUID(c["next_chunk_id"]) if c.get("next_chunk_id") else None,
+                metadata=c.get("metadata") or {},
             )
             for c in manifest
         ]

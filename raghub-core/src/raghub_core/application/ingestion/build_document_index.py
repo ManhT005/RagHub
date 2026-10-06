@@ -1,11 +1,14 @@
 import math
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 
-from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections
+from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections, embedding_text
+from raghub_core.domain.ingestion.embedding_text import DOCUMENT_PIPELINES, build_embedding_text
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.limits import MAX_CHUNKS, MAX_EXTRACTED_TOKENS
 from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
+from raghub_core.domain.ingestion.normalization import normalize_sections
 from raghub_core.domain.ingestion.parser import (
     DecompressionBombError,
     DocumentLimitError,
@@ -132,14 +135,61 @@ class BuildDocumentIndexUseCase:
             raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
+        observe("chunk_preflight")
+        try:
+            runtime = await resolve_embedding()
+        except ProviderRateLimitError as exc:
+            raise IngestionError("EMBEDDING_QUOTA_WAIT", str(exc), retryable=True) from exc
+        except (ProviderTimeoutError, ProviderUnavailableError) as exc:
+            raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
+        except Exception as exc:
+            raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
+        observe("resolve_embedding")
+        if runtime.document_pipeline not in DOCUMENT_PIPELINES:
+            raise IngestionError(
+                "EMBEDDING_FAILED", "Unsupported document pipeline.", retryable=False
+            )
+        try:
+            if runtime.document_pipeline != "legacy":
+                sections = normalize_sections(sections)
+            observe("normalize")
+            if runtime.document_pipeline != "legacy":
+                chunks = self.chunker(sections, document.version_id)
+                chunks = [
+                    replace(
+                        c,
+                        embedding_content=build_embedding_text(
+                            c, pipeline=runtime.document_pipeline
+                        ),
+                    )
+                    for c in chunks
+                ]
+                if (
+                    len(chunks) > MAX_CHUNKS
+                    or sum(c.token_count for c in chunks) > MAX_EXTRACTED_TOKENS
+                ):
+                    raise IngestionError(
+                        "DOCUMENT_LIMIT_EXCEEDED",
+                        "Normalized chunks exceed document limits.",
+                        retryable=False,
+                    )
+                if not chunks:
+                    raise IngestionError(
+                        "EMPTY_EXTRACTED_TEXT",
+                        "No normalized chunks were extracted.",
+                        retryable=False,
+                    )
+        except IngestionError:
+            raise
+        except Exception as exc:
+            raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
         observe("chunk")
         if stage:
             await stage(IngestionStage.EMBEDDING, 65)
         try:
-            runtime = await resolve_embedding()
             quota = self.quota
             if acquire_quota is not None:
-                estimated = max(1, sum(len(chunk.content) for chunk in chunks) // 4)
+                estimated = max(1, sum(len(embedding_text(chunk)) for chunk in chunks) // 4)
                 try:
                     await acquire_quota(estimated)
                 except QuotaDepletedError as exc:
@@ -159,7 +209,7 @@ class BuildDocumentIndexUseCase:
                 and quota is not None
                 and runtime.quota_scope is not None
             ):
-                estimated = max(1, sum(len(chunk.content) for chunk in chunks) // 4)
+                estimated = max(1, sum(len(embedding_text(chunk)) for chunk in chunks) // 4)
                 try:
                     await quota.acquire(scope=runtime.quota_scope, tokens=estimated)
                 except QuotaDepletedError as exc:
@@ -187,7 +237,7 @@ class BuildDocumentIndexUseCase:
                 ):
                     vectors.extend(
                         await runtime.provider.embed_documents(
-                            [chunk.content for chunk in chunks[start:end]]
+                            [embedding_text(chunk) for chunk in chunks[start:end]]
                         )
                     )
             if len(vectors) != len(chunks):

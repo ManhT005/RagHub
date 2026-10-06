@@ -66,3 +66,17 @@ def test_physical_index_name_is_workspace_scoped_and_versioned() -> None:
 
     assert workspace_id.hex in name
     assert version_id.hex[:12] in name
+
+
+def test_document_pipeline_changes_semantic_fingerprint_and_requires_new_index():
+    from raghub_core.domain.providers.fingerprint import embedding_fingerprint_v2
+
+    profile = dict(provider_type="LOCAL_EMBEDDING", base_url=None, model="model", dimension=384)
+    legacy = embedding_fingerprint_v2(**profile)
+    normalized = embedding_fingerprint_v2(
+        **profile, embedding_options={"document_pipeline": "normalized-v1"}
+    )
+    enriched = embedding_fingerprint_v2(
+        **profile, embedding_options={"document_pipeline": "context-v1"}
+    )
+    assert len({legacy, normalized, enriched}) == 3

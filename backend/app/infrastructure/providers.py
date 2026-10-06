@@ -23,6 +23,9 @@ class ProviderResolverAdapter:
             quota_scope=await self._pool_scope(resolved.index_version),
             fingerprint=getattr(resolved.index_version, "embedding_fingerprint_v2", None)
             or getattr(resolved.index_version, "embedding_fingerprint", ""),
+            document_pipeline=(getattr(resolved.index_version, "config_json", None) or {}).get(
+                "document_pipeline", "legacy"
+            ),
         )
 
     async def _pool_scope(self, version: EmbeddingIndexVersion) -> str | None:
@@ -53,6 +56,7 @@ class ProviderResolverAdapter:
             version.dimension,
             quota_scope=await self._pool_scope(version),
             fingerprint=version.embedding_fingerprint_v2 or version.embedding_fingerprint,
+            document_pipeline=(version.config_json or {}).get("document_pipeline", "legacy"),
         )
 
     async def resolve_chat(self, scope: RetrievalScope) -> ChatRuntime:
