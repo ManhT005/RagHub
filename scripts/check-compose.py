@@ -27,7 +27,7 @@ def resolve(entrypoint, env_file, overrides=None, expect_success=True):
     result = subprocess.run(
         ["docker", "compose", "--env-file", env_file,
          *[arg for path in ([entrypoint] if isinstance(entrypoint, str) else entrypoint) for arg in ("-f", path)],
-         "--profile", "local-ai", "config", "--format", "json"],
+         "--profile", "local-ai", "--profile", "ocr", "config", "--format", "json"],
         cwd=ROOT, env={**CLEAN_ENV, **(overrides or {})},
         capture_output=True, text=True, encoding="utf-8", check=False,
     )
@@ -47,6 +47,8 @@ def check_shared(model):
     assert services["api"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
     assert "alembic" not in services["api"]["command"]
     assert services["worker"]["healthcheck"]
+    assert services["worker-ocr"]["command"][-1] == "--queues=rag-ocr"
+    assert "rag-ocr" not in " ".join(services["worker"]["command"])
     assert "postgres-data" in model["volumes"]
     for service in services.values():
         assert service["logging"]["options"]["max-size"] == "10m"

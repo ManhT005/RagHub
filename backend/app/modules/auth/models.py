@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -54,6 +54,8 @@ class UserSession(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     refresh_token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    family_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(

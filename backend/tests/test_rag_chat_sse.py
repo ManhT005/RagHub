@@ -20,6 +20,48 @@ from app.modules.chatbots.router import chat
 from app.modules.chatbots.schemas import ChatRequest
 
 
+@pytest.mark.parametrize(
+    "role,permissions,allowed",
+    [
+        ("ADMIN", [], True),
+        ("WORKSPACE_ADMIN", ["chat.use"], True),
+        ("WORKSPACE_ADMIN", [], False),
+    ],
+)
+async def test_draft_preview_requires_workspace_chat_permission(
+    monkeypatch, role, permissions, allowed
+):
+    import app.modules.chatbots.router as chat_router
+
+    class DraftService:
+        def __init__(self, session):
+            pass
+
+        async def get(self, *args):
+            return SimpleNamespace(workspace_id=uuid4(), published=False)
+
+        async def stream_events(self, command):
+            yield TokenDelta("Draft preview")
+            yield ChatCompleted(uuid4(), None, 0)
+
+    monkeypatch.setattr(chat_router, "ChatbotService", DraftService)
+    context = SimpleNamespace(
+        organization_id=uuid4(), membership=SimpleNamespace(role=role, user_id=uuid4())
+    )
+    session = SimpleNamespace(
+        scalar=AsyncMock(return_value=uuid4()), scalars=AsyncMock(return_value=permissions)
+    )
+    args = (uuid4(), ChatRequest(message="Preview"), context, SimpleNamespace(id=uuid4()), session)
+    if not allowed:
+        with pytest.raises(AppError) as error:
+            await chat(*args)
+        assert error.value.code == "WORKSPACE_PERMISSION_DENIED"
+    else:
+        response = await chat(*args)
+        body = "".join([chunk async for chunk in response.body_iterator])
+        assert "Draft preview" in body and "event: done" in body
+
+
 @pytest.mark.asyncio
 async def test_chat_sse_emits_contract_events(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeService:

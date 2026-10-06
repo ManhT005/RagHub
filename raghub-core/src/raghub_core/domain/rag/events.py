@@ -17,6 +17,14 @@ class CitationsResolved:
 
 
 @dataclass(frozen=True)
+class ClarificationRequested:
+    message: str
+    missing_slots: tuple[str, ...]
+    suggestions: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class TokenDelta:
     text: str
 
@@ -42,6 +50,7 @@ class ChatFailed:
 RagEvent = (
     ConversationStarted
     | CitationsResolved
+    | ClarificationRequested
     | TokenDelta
     | UsageReported
     | ChatCompleted

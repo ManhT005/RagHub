@@ -15,7 +15,7 @@ import { NzAlertModule } from "ng-zorro-antd/alert";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { finalize, switchMap } from "rxjs";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
-import { WorkspaceApiService } from "../../core/api/workspace-api.service";
+import { WorkspaceApiService, workspaceAiLabel } from "../../core/api/workspace-api.service";
 import { apiError } from "../../core/api/api-error";
 import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
 import { shortModelName } from "../../core/provider-brand/provider-brand.registry";
@@ -96,6 +96,18 @@ import { NzTagModule } from "ng-zorro-antd/tag";
           } @else {
             <p>Chưa cấu hình</p>
           }
+          <p class="eyebrow">Chat model của workspace</p>
+          @if (workspace.chat_model; as model) {
+            <div class="provider-model">
+              <raghub-provider-logo [catalogId]="model.provider_catalog_id" size="sm" />
+              <div class="summary-model-identity">
+                <strong [title]="model.model">{{ model.provider_name }} / {{ shortModelName(model.model) }}</strong>
+                <nz-tag [nzColor]="workspace.chat_status === 'READY' ? 'green' : 'orange'">{{ workspace.chat_status === 'READY' ? 'Sẵn sàng' : 'Cần kiểm tra' }}</nz-tag>
+              </div>
+            </div>
+          } @else {
+            <p>Chưa cấu hình</p>
+          }
           @if (context.can("ai.view")) {
             <a routerLink="../ai">AI &amp; Models →</a>
           }
@@ -133,15 +145,7 @@ import { NzTagModule } from "ng-zorro-antd/tag";
                   ? 'blue'
                   : 'default'
             "
-            >{{
-              workspace.status === "ACTIVE"
-                ? "Hoạt động"
-                : workspace.status === "REINDEXING"
-                  ? "Đang lập chỉ mục"
-                  : workspace.status === "AI_NOT_CONFIGURED"
-                    ? "AI chưa cấu hình"
-                    : "Cần kiểm tra"
-            }}</nz-tag
+            >{{ workspaceAiLabel(workspace) }}</nz-tag
           >
         </div>
       </section>
@@ -174,6 +178,7 @@ import { NzTagModule } from "ng-zorro-antd/tag";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceOverviewComponent {
+  protected readonly workspaceAiLabel = workspaceAiLabel;
   protected readonly shortModelName = shortModelName;
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly editorOpen = signal(false);

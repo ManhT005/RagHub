@@ -15,11 +15,14 @@ from app.core.auth import (
 )
 from app.core.database import get_session
 from app.core.exceptions import AppError
+from app.modules.ai_providers.service import ProviderConfigService
+from app.modules.ai_providers.workspace_ai_router import available
 from app.modules.memberships.models import (
     MembershipRole,
     WorkspaceMembership,
     WorkspaceMembershipPermission,
 )
+from app.modules.organizations.models import OrganizationAiDefaults
 from app.modules.workspaces.models import Workspace
 from app.modules.workspaces.summary import summary_data, summary_statement
 
@@ -42,6 +45,10 @@ class WorkspaceResponse(WorkspaceInput):
     last_indexed_at: datetime | None = None
     embedding_model: dict | None = None
     chat_provider_id: UUID | None = None
+    chat_model: dict | None = None
+    embedding_status: str = "NOT_CONFIGURED"
+    chat_status: str = "NOT_CONFIGURED"
+    ai_status: str = "NOT_CONFIGURED"
     status: str = "AI_NOT_CONFIGURED"
     reindex_job_id: UUID | None = None
     reindex_status: str | None = None
@@ -49,6 +56,24 @@ class WorkspaceResponse(WorkspaceInput):
 
 def response(workspace: Workspace) -> WorkspaceResponse:
     return WorkspaceResponse.model_validate(workspace, from_attributes=True)
+
+
+class WorkspaceCreateInput(WorkspaceInput):
+    embedding_model_id: UUID | None = None
+    chat_model_id: UUID | None = None
+
+
+@router.get("/ai-defaults")
+async def ai_defaults(
+    context: Annotated[OrganizationContext, Depends(get_organization_context)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    require_role(context, MembershipRole.ADMIN)
+    defaults = await session.get(OrganizationAiDefaults, context.organization_id)
+    return {
+        "default_embedding_model_id": defaults.default_embedding_model_id if defaults else None,
+        "default_chat_model_id": defaults.default_chat_model_id if defaults else None,
+    }
 
 
 @router.get("", response_model=list[WorkspaceResponse])
@@ -74,7 +99,7 @@ async def list_workspaces(
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
 async def create_workspace(
-    payload: WorkspaceInput,
+    payload: WorkspaceCreateInput,
     context: Annotated[OrganizationContext, Depends(get_organization_context)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> WorkspaceResponse:
@@ -92,9 +117,33 @@ async def create_workspace(
         organization_id=context.organization_id, name=payload.name.strip(), slug=payload.slug
     )
     session.add(workspace)
+    await session.flush()
+    defaults = await session.get(OrganizationAiDefaults, context.organization_id)
+    service = ProviderConfigService(session)
+    for field, capability in (("embedding_model_id", "EMBEDDING"), ("chat_model_id", "CHAT")):
+        model_id = getattr(payload, field)
+        explicit = field in payload.model_fields_set
+        if not explicit and defaults:
+            model_id = getattr(defaults, "default_" + field)
+        if model_id:
+            try:
+                config = await service.get(context.organization_id, model_id)
+                available(config, capability)
+            except AppError:
+                if explicit:
+                    raise
+                continue
+            if capability == "CHAT":
+                workspace.chat_provider_id = config.id
+            else:
+                await service._stage_embedding_version(workspace, config)
     await session.commit()
-    await session.refresh(workspace)
-    return response(workspace)
+    row = (
+        await session.execute(
+            summary_statement(context.organization_id).where(Workspace.id == workspace.id)
+        )
+    ).one()
+    return WorkspaceResponse(**summary_data(row))
 
 
 async def get_workspace(

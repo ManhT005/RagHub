@@ -1,12 +1,16 @@
 from typing import Annotated
 
 from fastapi import Depends
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_session
+from app.core.redis import get_redis
 from app.modules.auth.email import build_email_sender
+from app.modules.auth.rate_limit import AuthRateLimiter
 from app.modules.auth.service import AuthService
+from app.modules.auth.turnstile import TurnstileVerifier
 
 
 def get_auth_service(
@@ -18,3 +22,16 @@ def get_auth_service(
         email_sender=build_email_sender(settings),
         settings=settings,
     )
+
+
+def get_auth_rate_limiter(
+    redis: Annotated[Redis, Depends(get_redis)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AuthRateLimiter:
+    return AuthRateLimiter(redis, settings)
+
+
+def get_turnstile_verifier(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TurnstileVerifier:
+    return TurnstileVerifier(settings)

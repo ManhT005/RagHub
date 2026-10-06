@@ -1,13 +1,31 @@
 """Compatibility imports; new callers should use raghub_core.domain.ingestion.parser."""
 
 from raghub_core.domain.ingestion.parser import (
+    DecompressionBombError as DecompressionBombError,
+)
+from raghub_core.domain.ingestion.parser import (
+    DocumentLimitError as DocumentLimitError,
+)
+from raghub_core.domain.ingestion.parser import (
     EmptyExtractedTextError as EmptyExtractedTextError,
 )
 from raghub_core.domain.ingestion.parser import (
     InvalidPdfError as InvalidPdfError,
 )
 from raghub_core.domain.ingestion.parser import (
+    MacroBlockedError as MacroBlockedError,
+)
+from raghub_core.domain.ingestion.parser import (
+    OcrRequiredError as OcrRequiredError,
+)
+from raghub_core.domain.ingestion.parser import (
+    OcrTimeoutError as OcrTimeoutError,
+)
+from raghub_core.domain.ingestion.parser import (
     ParsedSection as ParsedSection,
+)
+from raghub_core.domain.ingestion.parser import (
+    SignatureMismatchError as SignatureMismatchError,
 )
 from raghub_core.domain.ingestion.parser import (
     TextDecodeError as TextDecodeError,

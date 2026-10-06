@@ -1,10 +1,18 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.ai_providers.gc_models import IndexGcItem, IndexGcRun
+from app.modules.ai_providers.local_models import LocalModelDownload
 from app.modules.ai_providers.models import (
+    EmbeddingBatchCheckpoint,
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
+    EmbeddingWorkItem,
+    OllamaModelPull,
     ProviderConfig,
     ProviderConnection,
+    ProviderCredential,
+    ProviderPool,
+    WorkspaceProviderBinding,
 )
 from app.modules.auth.models import PasswordResetToken, UserIdentity, UserSession
 from app.modules.chatbots.models import Chatbot, Conversation, Message, MessageCitation, UsageEvent
@@ -14,16 +22,19 @@ from app.modules.documents.models import (
     DocumentVersion,
     IngestionJob,
 )
+from app.modules.installation.models import InstallationState
 from app.modules.memberships.models import (
     Membership,
     WorkspaceMembership,
     WorkspaceMembershipPermission,
 )
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationAiDefaults
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
 __all__ = [
+    "LocalModelDownload",
+    "InstallationState",
     "Document",
     "DocumentVersion",
     "DocumentIndexMetadata",
@@ -32,6 +43,7 @@ __all__ = [
     "WorkspaceMembership",
     "WorkspaceMembershipPermission",
     "Organization",
+    "OrganizationAiDefaults",
     "User",
     "Workspace",
     "Chatbot",
@@ -41,6 +53,14 @@ __all__ = [
     "UsageEvent",
     "ProviderConfig",
     "ProviderConnection",
+    "ProviderCredential",
+    "ProviderPool",
+    "EmbeddingBatchCheckpoint",
+    "EmbeddingWorkItem",
+    "IndexGcRun",
+    "IndexGcItem",
+    "WorkspaceProviderBinding",
+    "OllamaModelPull",
     "EmbeddingIndexVersion",
     "EmbeddingReindexJob",
     "UserIdentity",

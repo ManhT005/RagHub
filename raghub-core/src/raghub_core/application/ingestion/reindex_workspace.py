@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 from uuid import UUID
 
 from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
@@ -46,7 +47,7 @@ class ReindexWorkspaceUseCase:
                 store.ensure_index()
                 for document in documents:
                     await self.builder.execute(
-                        document,
+                        replace(document, kind="reindex"),
                         resolved,
                         lambda _: store,
                         close_store=False,

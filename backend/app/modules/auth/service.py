@@ -73,7 +73,7 @@ class AuthService:
         now = datetime.now(UTC)
         user.last_login_at = now
         identity.last_used_at = now
-        result = await self._create_session(user)
+        result = await self.issue_session(user)
         await self.session.commit()
         return result
 
@@ -157,22 +157,26 @@ class AuthService:
         identity.password_hash = hash_password(new_password)
         user.auth_version += 1
         await self._revoke_user_sessions(user.id, now)
-        result = await self._create_session(user)
+        result = await self.issue_session(user)
         await self.session.commit()
         return result
 
     async def refresh(self, refresh_token: str) -> AuthResult:
         now = datetime.now(UTC)
         current = await self.session.scalar(
-            select(UserSession).where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            select(UserSession)
+            .where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            .with_for_update()
         )
         if current is None:
             raise AppError(
                 "INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired.", status_code=401
             )
         if current.revoked_at is not None:
-            await self._revoke_user_sessions(current.user_id, now)
-            await self.session.commit()
+            grace = timedelta(seconds=self.settings.refresh_reuse_grace_seconds)
+            if current.replaced_by_id is None or current.revoked_at < now - grace:
+                await self._revoke_session_family(current.family_id, now)
+                await self.session.commit()
             raise AppError(
                 "REFRESH_TOKEN_REUSED", "Refresh token reuse was detected.", status_code=401
             )
@@ -183,12 +187,12 @@ class AuthService:
                 "INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired.", status_code=401
             )
         user = await self.session.get(User, current.user_id)
-        if user is None or user.status != "ACTIVE":
+        if user is None or user.status != "ACTIVE" or current.auth_version != user.auth_version:
             raise AppError(
                 "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
             )
         current.revoked_at = now
-        result = await self._create_session(user)
+        result = await self.issue_session(user, family_id=current.family_id)
         current.replaced_by_id = result.session_id
         await self.session.commit()
         return result
@@ -197,20 +201,26 @@ class AuthService:
         if not refresh_token:
             return
         current = await self.session.scalar(
-            select(UserSession).where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            select(UserSession)
+            .where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            .with_for_update()
         )
         if current and current.revoked_at is None:
             current.revoked_at = datetime.now(UTC)
             await self.session.commit()
 
-    async def _create_session(self, user: User) -> AuthResult:
+    async def issue_session(self, user: User, *, family_id: uuid.UUID | None = None) -> AuthResult:
+        """Issue a session inside the caller's transaction; the caller commits."""
         raw_refresh = generate_opaque_token()
         session_id = uuid.uuid4()
+        family_id = family_id or session_id
         self.session.add(
             UserSession(
                 id=session_id,
                 user_id=user.id,
                 refresh_token_hash=hash_token(raw_refresh),
+                family_id=family_id,
+                auth_version=user.auth_version,
                 expires_at=datetime.now(UTC) + timedelta(days=self.settings.refresh_token_ttl_days),
             )
         )
@@ -227,5 +237,12 @@ class AuthService:
         await self.session.execute(
             update(UserSession)
             .where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+
+    async def _revoke_session_family(self, family_id: uuid.UUID, now: datetime) -> None:
+        await self.session.execute(
+            update(UserSession)
+            .where(UserSession.family_id == family_id, UserSession.revoked_at.is_(None))
             .values(revoked_at=now)
         )

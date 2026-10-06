@@ -108,7 +108,8 @@ async def test_gemini_discovery_pagination_and_capabilities():
         )
 
     connection = SimpleNamespace(
-        provider_type="GOOGLE_GEMINI", base_url="https://provider.test/v1beta/openai"
+        provider_type="GOOGLE_GEMINI",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai"
     )
     models = await discover_models(
         connection, "private-key", transport=httpx.MockTransport(handler)

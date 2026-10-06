@@ -24,10 +24,11 @@ import {
 } from "../../core/raghub-api.service";
 import { WorkspaceContextStore } from "../../core/workspace-context/workspace-context.store";
 import { apiError } from "../../core/api/api-error";
+import { chatError } from "../../core/api/chat-error";
 interface Message {
   role: "user" | "assistant";
   text: string;
-  citations?: { document_name?: string; page_number?: number }[];
+  citations?: { document_name?: string; page?: number }[];
 }
 @Component({
   selector: "raghub-workspace-chat",
@@ -133,6 +134,14 @@ export class WorkspaceChatComponent implements OnDestroy {
         typeof event.data["conversation_id"] === "string"
           ? event.data["conversation_id"]
           : null;
+    if (event.event === "clarification" && typeof event.data["message"] === "string")
+      this.messages.update((items) =>
+        items.map((item, index) =>
+          index === items.length - 1
+            ? { ...item, text: event.data["message"] as string }
+            : item,
+        ),
+      );
     if (event.event === "token" && typeof event.data["text"] === "string")
       this.messages.update((items) =>
         items.map((item, index) =>
@@ -153,9 +162,7 @@ export class WorkspaceChatComponent implements OnDestroy {
         ),
       );
     if (event.event === "error")
-      this.error.set(
-        "Không thể tạo câu trả lời. Kiểm tra tài liệu, cấu hình AI và kết nối provider rồi thử lại.",
-      );
+      this.error.set(chatError(event.data));
   }
   protected create() {
     if (

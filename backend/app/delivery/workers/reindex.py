@@ -7,12 +7,14 @@ from raghub_core.domain.providers.errors import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
 from app.composition.worker import WorkerContainer
 from app.core.config import get_settings
+from app.infrastructure.redis.quota_buckets import QuotaBucketStore
 from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingReindexJob
 from app.modules.workspaces.models import Workspace
 
@@ -54,9 +56,14 @@ def _reset_attempt_progress(job: EmbeddingReindexJob, total_documents: int) -> N
 async def _run_reindex(job_id: uuid.UUID, *, fail_transient: bool = False) -> None:
     settings = get_settings()
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    redis = Redis.from_url(settings.redis_url, socket_timeout=2)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            use_case = WorkerContainer(session, settings).reindex_workspace()
+            container = WorkerContainer(
+                session, settings, quota=QuotaBucketStore(redis, settings)
+            )
+            use_case = container.reindex_workspace()
             await use_case.execute(job_id, fail_transient=fail_transient)
     finally:
+        await redis.aclose()
         await engine.dispose()

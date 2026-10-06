@@ -18,7 +18,8 @@ import { NzIconModule } from "ng-zorro-antd/icon";
 import { NzLayoutModule } from "ng-zorro-antd/layout";
 import { NzMenuModule } from "ng-zorro-antd/menu";
 
-import { session } from "../core/api-auth.interceptor";
+import { HttpErrorResponse } from "@angular/common/http";
+import { AuthSessionService } from "../core/auth-session.service";
 import { consoleOrganization } from "../core/console-organization";
 import { WorkspaceContextStore } from "../core/workspace-context/workspace-context.store";
 import {
@@ -51,6 +52,7 @@ export class ConsoleLayoutComponent {
   });
 
   protected readonly user = signal<CurrentUser | null>(null);
+  protected readonly accountError = signal("");
   protected readonly accountMenuOpen = signal(false);
   protected readonly sidebarCollapsed = signal(false);
   protected readonly darkMode = signal(false);
@@ -62,6 +64,7 @@ export class ConsoleLayoutComponent {
   );
 
   private readonly api = inject(RaghubApiService);
+  private readonly auth = inject(AuthSessionService);
   private readonly router = inject(Router);
 
   constructor() {
@@ -75,9 +78,21 @@ export class ConsoleLayoutComponent {
       next: (organizations) => this.organizations.set(organizations),
       error: () => this.organizations.set([]),
     });
+    this.loadAccount();
+  }
+
+  protected loadAccount(): void {
+    this.accountError.set("");
     this.api.me().subscribe({
       next: (user) => this.user.set(user),
-      error: () => this.logout(),
+      error: (error) => {
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+          this.auth.clearLocalSession();
+          void this.router.navigateByUrl("/auth");
+        } else {
+          this.accountError.set(error.status === 403 ? "Tài khoản không có quyền truy cập." : "Kết nối tạm thời gián đoạn. Vui lòng thử lại.");
+        }
+      },
     });
   }
 
@@ -103,8 +118,7 @@ export class ConsoleLayoutComponent {
 
   protected logout(): void {
     this.closeAccountMenu();
-    session.accessToken = null;
-    session.organizationId = null;
+    this.auth.logout().subscribe();
     void this.router.navigateByUrl("/auth");
   }
 

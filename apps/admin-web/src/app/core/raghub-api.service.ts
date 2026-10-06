@@ -1,5 +1,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Injectable, inject } from "@angular/core";
+import { firstValueFrom } from "rxjs";
+import { AuthSessionService } from "./auth-session.service";
 
 import { session } from "./api-auth.interceptor";
 
@@ -57,13 +59,16 @@ export interface DocumentItem {
   error_message: string | null;
   retryable: boolean;
 }
-export type ProviderCapability = "EMBEDDING" | "CHAT";
+export type ProviderCapability = "EMBEDDING" | "CHAT" | "RERANK";
 export type ProviderType =
   | "OPENAI_COMPATIBLE"
   | "GOOGLE_GEMINI"
   | "LOCAL_TOKEN_HASH"
   | "LOCAL_SENTENCE_TRANSFORMER"
-  | "OLLAMA";
+  | "OLLAMA"
+  | "VOYAGE"
+  | "CLOUDFLARE_WORKERS_AI"
+  | "HUGGINGFACE_INFERENCE";
 export interface ProviderConfig {
   id: string;
   organization_id: string;
@@ -114,6 +119,9 @@ export interface Chatbot {
   embed_primary_color: string;
   embed_title: string;
   embed_greeting: string;
+  clarification_mode: "off" | "conservative" | "proactive";
+  max_clarifying_turns: number;
+  domain_profile: string;
 }
 export interface ChatbotInput {
   name: string;
@@ -121,6 +129,9 @@ export interface ChatbotInput {
   model?: string | null;
   retrieval_limit: number;
   published: boolean;
+  clarification_mode?: "off" | "conservative" | "proactive";
+  max_clarifying_turns?: number;
+  domain_profile?: string;
 }
 export interface ChatRequest {
   message: string;
@@ -134,12 +145,16 @@ export interface EmbedPublishInput {
   greeting: string;
 }
 export interface EmbedCode {
-  code: string;
+  code: string | null;
   key?: string | null;
+  script_src: string;
+  public_base_url: string;
+  has_embed_key: boolean;
 }
 export type ChatStreamEventName =
   | "conversation"
   | "citations"
+  | "clarification"
   | "token"
   | "usage"
   | "done"
@@ -156,6 +171,10 @@ export interface CurrentUser {
   id: string;
   email: string;
   email_verified: boolean;
+}
+export interface AuthSecurityConfig {
+  turnstile_enabled: boolean;
+  turnstile_site_key: string;
 }
 
 export class SseEventParser {
@@ -195,6 +214,7 @@ export class SseEventParser {
 @Injectable({ providedIn: "root" })
 export class RaghubApiService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthSessionService);
   private readonly base = "/api/v1";
 
   login(email: string, password: string) {
@@ -206,16 +226,20 @@ export class RaghubApiService {
   me() {
     return this.http.get<CurrentUser>(`${this.base}/auth/me`);
   }
-  forgotPassword(email: string) {
+  authSecurityConfig() {
+    return this.http.get<AuthSecurityConfig>(`${this.base}/auth/security-config`);
+  }
+  forgotPassword(email: string, turnstileToken = "") {
     return this.http.post<{ message: string }>(
       `${this.base}/auth/password/forgot`,
-      { email },
+      { email, turnstile_token: turnstileToken },
     );
   }
-  resetPassword(token: string, newPassword: string) {
+  resetPassword(token: string, newPassword: string, turnstileToken = "") {
     return this.http.post<void>(`${this.base}/auth/password/reset`, {
       token,
       new_password: newPassword,
+      turnstile_token: turnstileToken,
     });
   }
   changePassword(currentPassword: string, newPassword: string) {
@@ -331,7 +355,7 @@ export class RaghubApiService {
     );
   }
   testProvider(providerId: string) {
-    return this.http.post(`${this.base}/providers/${providerId}/test`, {});
+    return this.http.post<{ status: string }>(`${this.base}/providers/${providerId}/test`, {});
   }
   bindWorkspaceProviders(
     workspaceId: string,
@@ -403,17 +427,25 @@ export class RaghubApiService {
       headers["X-Organization-ID"] = session.organizationId;
 
     try {
-      const response = await fetch(`${this.base}/chatbots/${chatbotId}/chat`, {
+      const send = () => fetch(`${this.base}/chatbots/${chatbotId}/chat`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
         credentials: "include",
         signal,
       });
+      let response = await send();
+      if (response.status === 401 && !signal?.aborted) {
+        const token = await firstValueFrom(this.auth.refresh());
+        headers["Authorization"] = `Bearer ${token}`;
+        response = await send();
+      }
       if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => null);
         onEvent({
           event: "error",
           data: {
+            code: body?.error?.code ?? "CHAT_CONNECTION_FAILED",
             message: `Không thể kết nối chatbot (HTTP ${response.status}).`,
           },
         });
@@ -435,7 +467,7 @@ export class RaghubApiService {
       if (signal?.aborted) return;
       onEvent({
         event: "error",
-        data: { message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
+        data: { code: "CHAT_CONNECTION_FAILED", message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
       });
     }
   }

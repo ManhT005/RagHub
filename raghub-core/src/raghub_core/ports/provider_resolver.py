@@ -11,6 +11,9 @@ class EmbeddingRuntime:
     provider: EmbeddingProvider
     index_name: str
     dimension: int
+    quota_scope: str | None = None
+    fingerprint: str = ""
+    document_pipeline: str = "legacy"
 
 
 @dataclass(frozen=True)

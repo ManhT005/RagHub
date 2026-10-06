@@ -44,12 +44,11 @@
         </article>
       </section>
       <section class="development">
-        <h2>Định hướng phát triển</h2>
+        <h2>Phát hành chatbot lên website</h2>
         <p>
-          Theo đề án của DoubleT, RAGHub hướng tới widget nhúng bằng script,
-          Allowed Origins, giới hạn tần suất và số request đồng thời. Những nội
-          dung này là kế hoạch phát triển, chưa phải tính năng được cung cấp đầy
-          đủ trong bản web hiện tại.
+          Phát hành chatbot bằng widget nhúng, giới hạn website được phép gọi
+          qua Allowed Origins và rotate embed key khi cần. Hãy kiểm thử câu trả
+          lời và nguồn trích dẫn trước khi đưa chatbot lên website chính thức.
         </p>
       </section>
       <div class="actions">
@@ -120,6 +119,110 @@
           >Trao đổi với DoubleT</a
         ><a nz-button routerLink="/tinh-nang">Xem tính năng</a>
       </div>
+    }
+    @case ("guide") {
+      <header class="guide-header">
+        <span class="eyebrow">BẮT ĐẦU VỚI RAGHUB</span>
+        <h1>Hướng dẫn theo vai trò của bạn</h1>
+        <p>
+          Chọn đúng vai trò để đi theo quy trình ngắn nhất. Quản trị viên thiết
+          lập hệ thống và phân quyền; người phụ trách nội dung quản lý tài liệu;
+          người dùng cuối đặt câu hỏi; đội kỹ thuật đưa chatbot lên website.
+        </p>
+        <nav class="guide-jump" aria-label="Chọn đối tượng sử dụng">
+          <a href="/huong-dan#system-admin">Quản trị hệ thống</a>
+          <a href="/huong-dan#workspace-admin">Quản trị workspace</a>
+          <a href="/huong-dan#content-user">Người quản lý nội dung</a>
+          <a href="/huong-dan#chat-user">Người tra cứu</a>
+          <a href="/huong-dan#web-integrator">Đội tích hợp website</a>
+        </nav>
+      </header>
+
+      <section class="quick-start" aria-labelledby="quick-start-title">
+        <div>
+          <span class="step-number">01</span>
+          <h2 id="quick-start-title">Luồng khởi tạo chuẩn</h2>
+        </div>
+        <ol>
+          <li><b>Kết nối AI</b><span>Đăng ký provider, model chat và model embedding.</span></li>
+          <li><b>Tạo workspace</b><span>Tách tri thức theo đơn vị, phòng ban hoặc nghiệp vụ.</span></li>
+          <li><b>Nạp tài liệu</b><span>Tải lên tài liệu và chờ trạng thái lập chỉ mục hoàn tất.</span></li>
+          <li><b>Kiểm tra câu trả lời</b><span>Chat thử, xem nguồn trích dẫn và điều chỉnh dữ liệu.</span></li>
+          <li><b>Tạo chatbot</b><span>Chọn model, cấu hình lời chào và phạm vi truy xuất.</span></li>
+          <li><b>Phát hành</b><span>Giới hạn origin rồi lấy mã nhúng cho website.</span></li>
+        </ol>
+      </section>
+
+      <section class="persona-guides" aria-label="Hướng dẫn chi tiết theo vai trò">
+        <article id="system-admin">
+          <div class="persona-title"><span>01</span><div><p>THIẾT LẬP & VẬN HÀNH</p><h2>Quản trị hệ thống</h2></div></div>
+          <p class="persona-summary">Dành cho người chịu trách nhiệm tài khoản, AI provider và cấu trúc toàn hệ thống.</p>
+          <ol>
+            <li>Vào <b>Hệ thống → AI Providers</b>, thêm provider và kiểm tra kết nối.</li>
+            <li>Đăng ký model chat và embedding; với Sentence Transformer, chọn model chạy cục bộ phù hợp.</li>
+            <li>Tạo workspace tại <b>Workspaces</b>, đặt tên theo đơn vị hoặc miền tri thức.</li>
+            <li>Vào <b>Hệ thống → Người dùng</b> để tạo tài khoản quản trị workspace.</li>
+            <li>Chỉ cấp đúng workspace và quyền cần dùng; rà soát lại khi nhân sự đổi nhiệm vụ.</li>
+          </ol>
+          <aside><b>Hoàn thành khi:</b> provider kết nối thành công, workspace đã có quản trị viên và model sẵn sàng để chọn.</aside>
+        </article>
+
+        <article id="workspace-admin">
+          <div class="persona-title"><span>02</span><div><p>QUẢN LÝ KHÔNG GIAN TRI THỨC</p><h2>Quản trị workspace</h2></div></div>
+          <p class="persona-summary">Dành cho trưởng nhóm hoặc người sở hữu một miền dữ liệu như tuyển sinh, sản phẩm hay quy trình nội bộ.</p>
+          <ol>
+            <li>Mở workspace và kiểm tra mục <b>Tổng quan</b>, AI và quyền thành viên.</li>
+            <li>Tại <b>AI</b>, chọn embedding model trước khi lập chỉ mục tài liệu.</li>
+            <li>Thêm thành viên, cấp riêng các quyền xem, tải lên, lập chỉ mục, chat hoặc quản lý thành viên.</li>
+            <li>Theo dõi chất lượng tài liệu và yêu cầu lập chỉ mục lại sau thay đổi lớn.</li>
+            <li>Tạo chatbot, kiểm tra trong trang Chat rồi mới phát hành công khai.</li>
+          </ol>
+          <aside><b>Không nên:</b> đổi embedding model thường xuyên vì tài liệu cần được lập chỉ mục lại để giữ cùng không gian vector.</aside>
+        </article>
+
+        <article id="content-user">
+          <div class="persona-title"><span>03</span><div><p>CHUẨN HÓA DỮ LIỆU</p><h2>Người quản lý nội dung</h2></div></div>
+          <p class="persona-summary">Dành cho người cập nhật quy định, FAQ, tài liệu sản phẩm hoặc tài liệu đào tạo.</p>
+          <ol>
+            <li>Chuẩn bị PDF, DOCX, XLSX hoặc PPTX có tiêu đề và nội dung rõ ràng.</li>
+            <li>Vào <b>Tài liệu → Tải tài liệu</b>, chọn đúng workspace và tải file lên.</li>
+            <li>Chờ trạng thái xử lý hoàn tất; nếu lỗi, kiểm tra định dạng hoặc thử lại với file nhỏ hơn.</li>
+            <li>Dùng trang <b>Chat</b> hỏi các câu thực tế và kiểm tra nguồn trích dẫn.</li>
+            <li>Xóa hoặc thay thế phiên bản cũ để tránh hai nguồn có nội dung mâu thuẫn.</li>
+          </ol>
+          <aside><b>Mẹo chất lượng:</b> mỗi tài liệu nên có ngày hiệu lực, đơn vị ban hành và các đề mục cụ thể để câu trả lời dễ truy xuất đúng.</aside>
+        </article>
+
+        <article id="chat-user">
+          <div class="persona-title"><span>04</span><div><p>HỎI ĐÁP TRÊN TRI THỨC</p><h2>Người tra cứu</h2></div></div>
+          <p class="persona-summary">Dành cho nhân viên, sinh viên hoặc khách truy cập cần tìm câu trả lời từ tài liệu đã được duyệt.</p>
+          <ol>
+            <li>Chọn đúng workspace hoặc chatbot đúng chủ đề.</li>
+            <li>Đặt câu hỏi cụ thể, nêu đối tượng, thời gian hoặc trường hợp cần áp dụng.</li>
+            <li>Đọc nguồn trích dẫn đi kèm trước khi dùng câu trả lời cho quyết định quan trọng.</li>
+            <li>Nếu câu trả lời chưa đủ, hỏi tiếp để làm rõ hoặc báo người quản lý bổ sung tài liệu.</li>
+          </ol>
+          <aside><b>Ví dụ tốt:</b> “Hồ sơ tuyển sinh hệ chính quy năm 2026 gồm những giấy tờ nào?” rõ hơn “Cần giấy tờ gì?”.</aside>
+        </article>
+
+        <article id="web-integrator">
+          <div class="persona-title"><span>05</span><div><p>PHÁT HÀNH CHATBOT</p><h2>Đội tích hợp website</h2></div></div>
+          <p class="persona-summary">Dành cho người đưa chatbot đã kiểm thử lên website chính thức.</p>
+          <ol>
+            <li>Mở cấu hình chatbot, nhập chính xác các <b>Allowed Origins</b> sử dụng HTTPS.</li>
+            <li>Phát hành chatbot và sao chép mã nhúng; embed key phải được xem như một thông tin truy cập.</li>
+            <li>Đặt script trước thẻ đóng <code>&lt;/body&gt;</code> và kiểm tra trên domain đã cho phép.</li>
+            <li>Khi key bị lộ, chọn rotate key và cập nhật mã nhúng trên mọi website đang dùng.</li>
+            <li>Không ghi embed key vào ticket công khai, ảnh chụp màn hình hoặc log ứng dụng.</li>
+          </ol>
+          <aside><b>Kiểm tra trước khi mở thật:</b> origin hợp lệ, câu hỏi thử có nguồn, giao diện mobile dùng được và key cũ đã bị gỡ.</aside>
+        </article>
+      </section>
+
+      <section class="guide-help">
+        <div><span class="eyebrow">CẦN HỖ TRỢ?</span><h2>Bắt đầu từ bài toán của tổ chức</h2><p>Nếu chưa rõ cách chia workspace, chọn model hoặc chuẩn hóa tài liệu, hãy mô tả nguồn dữ liệu và nhóm người dùng cần phục vụ.</p></div>
+        <a nz-button nzType="primary" routerLink="/lien-he">Liên hệ DoubleT</a>
+      </section>
     }
     @case ("contact") {
       <header>

@@ -1,0 +1,13 @@
+{
+  "name": "RagHub local",
+  "values": [
+    {"key": "base_url", "value": "http://localhost:8000", "enabled": true},
+    {"key": "admin_token", "value": "REPLACE_WITH_ADMIN_TOKEN", "enabled": true},
+    {"key": "organization_id", "value": "REPLACE_WITH_ORG_ID", "enabled": true},
+    {"key": "workspace_id", "value": "REPLACE_WITH_WORKSPACE_ID", "enabled": true},
+    {"key": "chatbot_id", "value": "REPLACE_WITH_CHATBOT_ID", "enabled": true},
+    {"key": "document_id", "value": "REPLACE_WITH_DOCUMENT_ID", "enabled": true},
+    {"key": "embed_key", "value": "REPLACE_WITH_EMBED_KEY", "enabled": true},
+    {"key": "search_query", "value": "tuyen sinh", "enabled": true}
+  ]
+}

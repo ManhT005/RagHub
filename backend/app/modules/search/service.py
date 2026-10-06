@@ -33,3 +33,8 @@ class SearchService:
             limit,
         )
         return [chunk_to_hit(hit) for hit in results]
+
+    async def assess(self, organization_id, workspace_id, query, limit):
+        return await self.container.retrieve_context().assess(
+            RetrievalScope(organization_id, workspace_id), query, limit
+        )

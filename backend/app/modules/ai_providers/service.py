@@ -14,6 +14,11 @@ from raghub_core.domain.providers.enums import (
     ReindexJobStatus,
 )
 from raghub_core.domain.providers.errors import ProviderConfigurationError
+from raghub_core.domain.providers.fingerprint import (
+    FINGERPRINT_VERSION,
+    embedding_fingerprint_v2,
+    quota_scope,
+)
 from raghub_core.ports.task_queue import TaskQueuePort
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +33,8 @@ from app.modules.ai_providers.models import (
     EmbeddingReindexJob,
     ProviderConfig,
     ProviderConnection,
+    ProviderCredential,
+    ProviderPool,
 )
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.ai_providers.repository import ProviderConfigRepository
@@ -58,6 +65,27 @@ def workspace_index_name(workspace_id: UUID, version_id: UUID) -> str:
     return f"raghub_chunks_{workspace_id.hex}_v{version_id.hex[:12]}"
 
 
+def config_fingerprint_v2(config: ProviderConfig) -> str:
+    options = config.config_json or {}
+    return embedding_fingerprint_v2(
+        provider_type=config.provider_type,
+        base_url=config.base_url,
+        model=config.model,
+        dimension=config.dimension,
+        task_type=options.get("task_type"),
+        embedding_options=options,
+    )
+
+
+def config_quota_scope(config: ProviderConfig) -> str:
+    options = config.config_json or {}
+    return quota_scope(
+        provider_type=config.provider_type,
+        model=config.model,
+        project=options.get("quota_project") or options.get("project_id"),
+    )
+
+
 class ProviderConfigService:
     def __init__(self, session: AsyncSession, *, task_queue: TaskQueuePort | None = None) -> None:
         self.session = session
@@ -75,7 +103,9 @@ class ProviderConfigService:
             raise AppError("PROVIDER_NOT_FOUND", "Provider was not found.", status_code=404)
         return config
 
-    async def create(self, organization_id: UUID, payload: ProviderConfigInput) -> ProviderConfig:
+    async def create(
+        self, organization_id: UUID, payload: ProviderConfigInput, *, commit: bool = True
+    ) -> ProviderConfig:
         connection = ProviderConnection(
             organization_id=organization_id,
             name=payload.name.strip(),
@@ -99,8 +129,13 @@ class ProviderConfigService:
             enabled=payload.enabled,
         )
         self.session.add(config)
+        if not commit:
+            await self.session.flush()
+            return config
         await self.session.commit()
         await self.session.refresh(config)
+        await self._ensure_pool(config)
+        await self.session.commit()
         return config
 
     async def update(
@@ -149,6 +184,7 @@ class ProviderConfigService:
         if config.capability == ProviderCapability.EMBEDDING and not config.dimension:
             raise ProviderConfigurationError("Embedding providers require dimension.")
         await self.session.flush()
+        await self._sync_primary_credential(config)
         if old_fingerprint and old_fingerprint != embedding_fingerprint(config):
             workspaces = await self.session.scalars(
                 select(Workspace).where(
@@ -167,6 +203,75 @@ class ProviderConfigService:
         await self.session.refresh(config)
         return config
 
+    async def _ensure_pool(self, config: ProviderConfig) -> ProviderPool:
+        """Dual-write: every legacy config owns exactly one pool + primary credential."""
+        pool = await self.session.scalar(
+            select(ProviderPool).where(
+                ProviderPool.organization_id == config.organization_id,
+                ProviderPool.fingerprint_v2 == config_fingerprint_v2(config),
+                ProviderPool.capability == config.capability,
+            )
+        )
+        if pool is None:
+            options = config.config_json or {}
+            pool = ProviderPool(
+                organization_id=config.organization_id,
+                provider_type=config.provider_type,
+                capability=config.capability,
+                model=config.model,
+                dimension=config.dimension,
+                task_type=options.get("task_type"),
+                embedding_options=options,
+                quota_scope=config_quota_scope(config),
+                fingerprint_v2=config_fingerprint_v2(config),
+            )
+            self.session.add(pool)
+            await self.session.flush()
+        credential = await self.session.scalar(
+            select(ProviderCredential).where(
+                ProviderCredential.pool_id == pool.id,
+                ProviderCredential.provider_config_id == config.id,
+            )
+        )
+        if credential is None:
+            self.session.add(
+                ProviderCredential(
+                    pool_id=pool.id,
+                    provider_config_id=config.id,
+                    name=f"config:{config.id}",
+                    # Connections remain the authority for rotation and bootstrap secrets.
+                    encrypted_secret=None if config.connection else config.encrypted_secret,
+                    enabled=config.enabled,
+                )
+            )
+            await self.session.flush()
+        return pool
+
+    async def _sync_primary_credential(self, config: ProviderConfig) -> None:
+        pool = await self._ensure_pool(config)
+        credential = await self.session.scalar(
+            select(ProviderCredential)
+            .where(
+                ProviderCredential.pool_id == pool.id,
+                ProviderCredential.provider_config_id == config.id,
+            )
+            .order_by(ProviderCredential.created_at)
+        )
+        if credential is None:
+            self.session.add(
+                ProviderCredential(
+                    pool_id=pool.id,
+                    provider_config_id=config.id,
+                    name=f"config:{config.id}",
+                    encrypted_secret=None if config.connection else config.encrypted_secret,
+                    enabled=config.enabled,
+                )
+            )
+        else:
+            # Ciphertext copied verbatim; no decrypt/re-encrypt on sync.
+            credential.encrypted_secret = None if config.connection else config.encrypted_secret
+            credential.enabled = config.enabled
+
     async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
         indexes = select(EmbeddingIndexVersion.id).where(
             EmbeddingIndexVersion.organization_id == organization_id,
@@ -179,6 +284,7 @@ class ProviderConfigService:
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
                     | (Workspace.chat_provider_id == provider_id)
+                    | (Workspace.rerank_provider_id == provider_id)
                     | Workspace.active_embedding_index_version_id.in_(indexes)
                     | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
@@ -225,6 +331,13 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Provider embedding dimension does not match config."
                 )
+        elif config.capability == ProviderCapability.RERANK:
+            from raghub_core.domain.providers.rerank import validated_rerank_indices
+
+            result = await provider.rerank(
+                query="RagHub", documents=["RagHub documentation", "A different topic"], top_n=2
+            )
+            validated_rerank_indices(result, count=2, top_n=2)
         else:
             received = False
             async for delta in provider.stream_chat(  # type: ignore[attr-defined]
@@ -348,6 +461,7 @@ class ProviderConfigService:
     async def _stage_embedding_version(
         self, workspace: Workspace, config: ProviderConfig
     ) -> EmbeddingReindexJob | None:
+        await self._sync_primary_credential(config)
         version_id = uuid.uuid4()
         version = EmbeddingIndexVersion(
             id=version_id,
@@ -360,6 +474,8 @@ class ProviderConfigService:
             dimension=config.dimension,
             config_json=config.config_json or {},
             embedding_fingerprint=embedding_fingerprint(config),
+            embedding_fingerprint_v2=config_fingerprint_v2(config),
+            fingerprint_version=FINGERPRINT_VERSION,
             index_name=workspace_index_name(workspace.id, version_id),
             status=IndexVersionStatus.BUILDING,
         )

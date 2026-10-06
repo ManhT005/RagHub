@@ -17,15 +17,47 @@ class ProviderResolverAdapter:
             scope.organization_id, scope.workspace_id
         )
         return EmbeddingRuntime(
-            resolved.provider, resolved.index_version.index_name, resolved.index_version.dimension
+            resolved.provider,
+            resolved.index_version.index_name,
+            resolved.index_version.dimension,
+            quota_scope=await self._pool_scope(resolved.index_version),
+            fingerprint=getattr(resolved.index_version, "embedding_fingerprint_v2", None)
+            or getattr(resolved.index_version, "embedding_fingerprint", ""),
+            document_pipeline=(getattr(resolved.index_version, "config_json", None) or {}).get(
+                "document_pipeline", "legacy"
+            ),
         )
+
+    async def _pool_scope(self, version: EmbeddingIndexVersion) -> str | None:
+        from raghub_core.domain.providers.enums import ProviderType
+        from raghub_core.domain.providers.fingerprint import quota_scope
+
+        provider_type = getattr(version, "provider_type", "")
+        if provider_type != ProviderType.GOOGLE_GEMINI:
+            return None
+        if not getattr(version, "embedding_fingerprint_v2", None):
+            options = version.config_json or {}
+            return quota_scope(
+                provider_type=provider_type,
+                model=version.model,
+                project=options.get("quota_project") or options.get("project_id"),
+            )
+        pool, _ = await self.resolver.embedding_pool_for_version(version)
+        return pool.quota_scope
 
     async def resolve_embedding_version(self, version_id: UUID) -> EmbeddingRuntime:
         version = await self.resolver.session.get(EmbeddingIndexVersion, version_id)
         if version is None:
             raise ProviderConfigurationError("Embedding index version was not found.")
         resolved = await self.resolver.embedding_for_version(version)
-        return EmbeddingRuntime(resolved.provider, version.index_name, version.dimension)
+        return EmbeddingRuntime(
+            resolved.provider,
+            version.index_name,
+            version.dimension,
+            quota_scope=await self._pool_scope(version),
+            fingerprint=version.embedding_fingerprint_v2 or version.embedding_fingerprint,
+            document_pipeline=(version.config_json or {}).get("document_pipeline", "legacy"),
+        )
 
     async def resolve_chat(self, scope: RetrievalScope) -> ChatRuntime:
         resolved = await self.resolver.chat_for_workspace(scope.organization_id, scope.workspace_id)

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from raghub_core.domain.errors import CoreError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -23,6 +24,8 @@ from app.modules.ai_providers.control_schemas import (
     ModelInput,
     ModelPatch,
     ModelResponse,
+    OllamaPullInput,
+    OllamaPullResponse,
 )
 from app.modules.ai_providers.control_service import (
     ProviderControlService,
@@ -30,6 +33,9 @@ from app.modules.ai_providers.control_service import (
     health_error,
     model_response,
 )
+from app.modules.ai_providers.models import OllamaModelPull
+from app.modules.ai_providers.ollama_manager import OllamaModelManager, ollama_connection
+from app.modules.ai_providers.ollama_recommendations import RECOMMENDATIONS
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.memberships.models import MembershipRole
 
@@ -110,6 +116,58 @@ async def test(connection_id: UUID, context: Context, session: Session):
 async def discover(connection_id: UUID, context: Context, session: Session):
     admin(context)
     return await ProviderControlService(session).discover(context.organization_id, connection_id)
+
+
+@router.get("/provider-connections/{connection_id}/ollama/recommendations")
+async def ollama_recommendations(connection_id: UUID, context: Context, session: Session):
+    admin(context)
+    ollama_connection(
+        await ProviderControlService(session).get(context.organization_id, connection_id)
+    )
+    return RECOMMENDATIONS
+
+
+@router.post(
+    "/provider-connections/{connection_id}/ollama/models/pull",
+    response_model=OllamaPullResponse,
+    status_code=202,
+)
+async def pull_ollama_model(
+    connection_id: UUID, payload: OllamaPullInput, context: Context, session: Session
+):
+    admin(context)
+    return await OllamaModelManager(session).start(context.organization_id, connection_id, payload)
+
+
+@router.get(
+    "/provider-connections/{connection_id}/ollama/model-pulls/{job_id}",
+    response_model=OllamaPullResponse,
+)
+async def ollama_pull_status(connection_id: UUID, job_id: UUID, context: Context, session: Session):
+    admin(context)
+    return await OllamaModelManager(session).get(context.organization_id, connection_id, job_id)
+
+
+@router.get(
+    "/provider-connections/{connection_id}/ollama/model-pulls",
+    response_model=list[OllamaPullResponse],
+)
+async def ollama_pulls(connection_id: UUID, context: Context, session: Session):
+    admin(context)
+    ollama_connection(
+        await ProviderControlService(session).get(context.organization_id, connection_id)
+    )
+    return list(
+        await session.scalars(
+            select(OllamaModelPull)
+            .where(
+                OllamaModelPull.connection_id == connection_id,
+                OllamaModelPull.organization_id == context.organization_id,
+            )
+            .order_by(OllamaModelPull.created_at.desc())
+            .limit(10)
+        )
+    )
 
 
 @router.post(

@@ -29,5 +29,7 @@ def reindex_workspace(self: Task, job_id: str) -> None:
         )
     except Exception as exc:
         if _is_transient_error(exc) and self.request.retries < self.max_retries:
-            raise self.retry(exc=exc, countdown=min(60, 2 ** (self.request.retries + 1))) from exc
+            raise self.retry(
+                exc=exc, countdown=min(60, 2 ** (self.request.retries + 1)), priority=2
+            ) from exc
         raise

@@ -14,6 +14,7 @@ describe("Workspace aggregate list", () => {
     create: vi.fn(),
     update: vi.fn(),
     changeEmbedding: vi.fn(),
+    aiDefaults: vi.fn(() => of({ default_embedding_model_id: null, default_chat_model_id: null })),
     remove: vi.fn(),
   };
   const providers = { models: vi.fn() };
@@ -93,7 +94,7 @@ describe("Workspace aggregate list", () => {
     component["name"] = "New workspace";
     component["slug"] = "new-workspace";
     component["save"]();
-    expect(api.create).toHaveBeenCalledWith("New workspace", "new-workspace");
+    expect(api.create).toHaveBeenCalledWith("New workspace", "new-workspace", null, null);
     component["remove"](workspaceFixture);
     expect(api.remove).toHaveBeenCalledWith(workspaceFixture.id);
     expect(session.organizationId).toBe("org-1");

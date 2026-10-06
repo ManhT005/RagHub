@@ -8,6 +8,7 @@ from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
     CitationsResolved,
+    ClarificationRequested,
     ConversationStarted,
     RagEvent,
     TokenDelta,
@@ -31,6 +32,13 @@ def event_payload(event: RagEvent) -> tuple[str, dict[str, object]]:
                 }
                 for citation in event.citations
             ]
+        }
+    if isinstance(event, ClarificationRequested):
+        return "clarification", {
+            "message": event.message,
+            "missing_slots": list(event.missing_slots),
+            "suggestions": list(event.suggestions),
+            "reason": event.reason,
         }
     if isinstance(event, TokenDelta):
         return "token", {"text": event.text}

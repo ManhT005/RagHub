@@ -1,6 +1,7 @@
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import Literal
 
 
 class InvalidPdfError(ValueError):
@@ -23,6 +24,30 @@ class UnsupportedFileTypeError(ValueError):
     pass
 
 
+class DocumentLimitError(ValueError):
+    pass
+
+
+class DecompressionBombError(DocumentLimitError):
+    pass
+
+
+class MacroBlockedError(ValueError):
+    pass
+
+
+class SignatureMismatchError(ValueError):
+    pass
+
+
+class OcrRequiredError(ValueError):
+    pass
+
+
+class OcrTimeoutError(ValueError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class ParsedSection:
     content: str
@@ -30,6 +55,13 @@ class ParsedSection:
     section_index: int
     page_number: int | None = None
     heading: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedBlock(ParsedSection):
+    type: Literal["heading", "paragraph", "table", "list", "code", "ocr_text"] = "paragraph"
+    heading_path: tuple[str, ...] = ()
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 def _decode(content: bytes) -> str:
@@ -95,6 +127,9 @@ def parse_document(
     source_name: str,
     *,
     pdf_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    docx_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    html_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
+    xlsx_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
 ) -> list[ParsedSection]:
     extension = source_name.rsplit(".", 1)[-1].lower()
     if extension == "pdf":
@@ -105,4 +140,16 @@ def parse_document(
         return parse_txt(content, source_name)
     if extension == "md":
         return parse_markdown(content, source_name)
+    if extension == "docx":
+        if docx_parser is None:
+            raise ValueError("DOCX decoding requires a DOCX parser adapter.")
+        return docx_parser(content, source_name)
+    if extension in {"html", "htm"}:
+        if html_parser is None:
+            raise ValueError("HTML decoding requires an HTML parser adapter.")
+        return html_parser(content, source_name)
+    if extension == "xlsx":
+        if xlsx_parser is None:
+            raise ValueError("XLSX decoding requires an XLSX parser adapter.")
+        return xlsx_parser(content, source_name)
     raise UnsupportedFileTypeError("Unsupported document type.")

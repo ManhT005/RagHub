@@ -74,7 +74,7 @@ services:
       - watchfiles
       - --filter
       - python
-      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=${RAG_WORKER_CONCURRENCY:-1} --queues=celery,rag-ingestion,rag-reindex,rag-embedding
       - /app/app
       - /app/raghub_core
     environment:
@@ -82,6 +82,20 @@ services:
     volumes:
       - ../backend/app:/app/app
       - ../raghub-core/src/raghub_core:/app/raghub_core
+  worker-ocr:
+    extends:
+      file: docker-compose.base.yml
+      service: worker-ocr
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}-ocr
+    pull_policy: build
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      target: ${OCR_BACKEND_IMAGE_TARGET:-ocr}
+    volumes:
+      - ../backend/app:/app/app
+      - ../raghub-core/src/raghub_core:/app/raghub_core
+
   admin-web:
     extends:
       file: docker-compose.base.yml

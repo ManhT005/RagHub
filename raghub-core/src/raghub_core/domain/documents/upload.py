@@ -9,6 +9,12 @@ SUPPORTED_TYPES = {
     ".pdf": {"application/pdf", "application/x-pdf"},
     ".txt": {"text/plain"},
     ".md": {"text/markdown", "text/plain"},
+    ".docx": {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    },
+    ".html": {"text/html"},
+    ".htm": {"text/html"},
+    ".xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
 }
 
 
@@ -40,7 +46,10 @@ def validate_upload_metadata(filename: str, content_type: str) -> tuple[str, str
     filename = PurePosixPath(filename.replace("\\", "/")).name
     extension = PurePosixPath(filename).suffix.lower()
     if not filename or extension not in SUPPORTED_TYPES:
-        raise CoreError("UNSUPPORTED_FILE_TYPE", "Only PDF, TXT and Markdown files are supported.")
+        raise CoreError(
+            "UNSUPPORTED_FILE_TYPE",
+            "Only PDF, TXT, Markdown, DOCX, HTML and XLSX files are supported.",
+        )
     mime = content_type.split(";", 1)[0].strip().lower()
     if mime not in SUPPORTED_TYPES[extension]:
         raise CoreError(
@@ -56,3 +65,5 @@ def validate_upload_content(content: bytes, extension: str, max_size_mb: int) ->
         raise CoreError("EMPTY_FILE", "The uploaded file is empty.")
     if extension == ".pdf" and not content.startswith(b"%PDF-"):
         raise CoreError("INVALID_PDF", "The uploaded file is not a valid PDF.")
+    if extension in {".docx", ".xlsx"} and not content.startswith(b"PK\x03\x04"):
+        raise CoreError("INVALID_FILE_SIGNATURE", "The file signature is not a valid Office file.")

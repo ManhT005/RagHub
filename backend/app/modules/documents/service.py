@@ -84,6 +84,8 @@ class DocumentService:
                 response.retryable = (
                     version.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
                 )
+                response.embedded_chunks = getattr(job, "embedded_chunks", None)
+                response.total_chunks = getattr(job, "total_chunks", None)
                 response.mime_type = getattr(version, "mime_type", None)
                 response.size_bytes = getattr(version, "size_bytes", None)
                 indexed = metadata.get(version.id)

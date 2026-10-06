@@ -14,7 +14,18 @@ from app.core.config import get_settings
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.provider_credentials import resolve_provider_secret
 from app.modules.ai_providers.crypto import ProviderSecretCipher
-from app.modules.ai_providers.models import EmbeddingIndexVersion, ProviderConfig
+from app.modules.ai_providers.models import (
+    EmbeddingIndexVersion,
+    ProviderConfig,
+    ProviderCredential,
+    ProviderPool,
+    WorkspaceProviderBinding,
+)
+from app.modules.ai_providers.pools import (
+    FingerprintMismatchError,
+    PoolCredential,
+    select_healthy_credential,
+)
 from app.modules.ai_providers.registry import ProviderRegistry
 from app.modules.workspaces.models import Workspace
 
@@ -82,9 +93,7 @@ class ProviderResolver:
             raise ProviderConfigurationError("Workspace has no active embedding index.")
         _, version, config = row
         self._validate(config, ProviderCapability.EMBEDDING)
-        provider = self.registry.create(
-            provider_descriptor(config, version), self._secret(config, version.provider_type)
-        )
+        provider = await self._embedding_provider(config, version)
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
 
     async def chat_for_workspace(
@@ -116,7 +125,134 @@ class ProviderResolver:
             )
         )
         config = self._validate(config, ProviderCapability.EMBEDDING)
-        provider = self.registry.create(
-            provider_descriptor(config, version), self._secret(config, version.provider_type)
-        )
+        provider = await self._embedding_provider(config, version)
         return ResolvedEmbeddingProvider(provider, config, version)  # type: ignore[arg-type]
+
+    async def _embedding_provider(self, config, version):
+        from app.infrastructure.pool_embedding import PoolEmbeddingProvider
+
+        descriptor = provider_descriptor(config, version)
+        if not getattr(version, "embedding_fingerprint_v2", None):
+            return self.registry.create(descriptor, self._secret(config, version.provider_type))
+        from raghub_core.domain.providers.fingerprint import embedding_fingerprint_v2
+
+        actual = embedding_fingerprint_v2(
+            provider_type=descriptor.provider_type,
+            base_url=descriptor.base_url,
+            model=descriptor.model,
+            dimension=descriptor.dimension,
+            task_type=descriptor.options.get("task_type"),
+            embedding_options=descriptor.options,
+        )
+        if actual != version.embedding_fingerprint_v2:
+            raise FingerprintMismatchError("Immutable index snapshot fingerprint mismatch.")
+        pool, _ = await self.embedding_pool_for_version(version)
+        credentials = list(
+            await self.session.scalars(
+                select(ProviderCredential)
+                .where(
+                    ProviderCredential.pool_id == pool.id,
+                    ProviderCredential.enabled.is_(True),
+                    ProviderCredential.unhealthy.is_(False),
+                )
+                .order_by(ProviderCredential.created_at)
+            )
+        )
+        providers, usable = [], []
+        for credential in credentials:
+            if credential.provider_config_id:
+                owner = await self.session.scalar(
+                    select(ProviderConfig).where(
+                        ProviderConfig.id == credential.provider_config_id,
+                        ProviderConfig.organization_id == version.organization_id,
+                    )
+                )
+                if (
+                    owner is None
+                    or not owner.enabled
+                    or (owner.connection is not None and not owner.connection.enabled)
+                ):
+                    continue
+                # A rotated connection secret takes effect immediately, without copies.
+                secret = self._secret(owner, version.provider_type)
+            else:
+                secret = (
+                    self.cipher.decrypt(credential.encrypted_secret)
+                    if credential.encrypted_secret
+                    else None
+                )
+            providers.append(self.registry.create(descriptor, secret))
+            usable.append(credential)
+        credentials = usable
+        if not providers:
+            raise ProviderConfigurationError(
+                "No healthy embedding credential in the compatible pool."
+            )
+
+        async def mark_unhealthy(credential):
+            from sqlalchemy import update
+            from sqlalchemy.ext.asyncio import AsyncConnection
+
+            bind = self.session.bind
+            if isinstance(bind, AsyncConnection):
+                bind = bind.engine
+            # Health survives read-only search rollback and does not commit a work-item claim.
+            async with AsyncSession(bind=bind) as health_session:
+                await health_session.execute(
+                    update(ProviderCredential)
+                    .where(
+                        ProviderCredential.id == credential.id,
+                        ProviderCredential.pool_id == pool.id,
+                    )
+                    .values(unhealthy=True)
+                )
+                await health_session.commit()
+
+        return PoolEmbeddingProvider(providers, credentials, self.session, mark_unhealthy)
+
+    async def embedding_pool_for_version(
+        self, version: EmbeddingIndexVersion
+    ) -> tuple[ProviderPool, ProviderCredential]:
+        """Dual-read: binding pool first, legacy config pool when unmigrated.
+
+        The pool must serve the version's fingerprint; otherwise resolution
+        fails closed instead of routing across models.
+        """
+        expected = version.embedding_fingerprint_v2
+        binding = await self.session.scalar(
+            select(WorkspaceProviderBinding).where(
+                WorkspaceProviderBinding.workspace_id == version.workspace_id,
+                WorkspaceProviderBinding.capability == ProviderCapability.EMBEDDING,
+            )
+        )
+        pool: ProviderPool | None = None
+        if binding is not None:
+            pool = await self.session.get(ProviderPool, binding.pool_id)
+        if pool is not None and (
+            pool.fingerprint_v2 != expected
+            or pool.organization_id != version.organization_id
+            or pool.capability != ProviderCapability.EMBEDDING
+        ):
+            pool = None  # A rebuild may target a new profile while the old binding stays active.
+        if pool is None:
+            pool = await self.session.scalar(
+                select(ProviderPool).where(
+                    ProviderPool.organization_id == version.organization_id,
+                    ProviderPool.fingerprint_v2 == expected,
+                    ProviderPool.capability == ProviderCapability.EMBEDDING,
+                )
+            )
+        if pool is None or (expected is not None and pool.fingerprint_v2 != expected):
+            raise FingerprintMismatchError("No managed pool matches the active index fingerprint.")
+        credentials = list(
+            await self.session.scalars(
+                select(ProviderCredential)
+                .where(ProviderCredential.pool_id == pool.id)
+                .order_by(ProviderCredential.created_at)
+            )
+        )
+        credential = select_healthy_credential(
+            [PoolCredential(id=c.id, enabled=c.enabled, unhealthy=c.unhealthy) for c in credentials]
+        )
+        primary = next(c for c in credentials if c.id == credential.id)
+        return pool, primary

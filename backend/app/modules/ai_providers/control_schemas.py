@@ -11,6 +11,7 @@ from app.modules.ai_providers.schemas import (
     _validate_provider_options,
     _validate_safe_config,
     validate_public_provider_url,
+    validate_trusted_local_provider_url,
 )
 
 
@@ -33,13 +34,34 @@ class ConnectionInput(BaseModel):
         if not self.name:
             raise ValueError("Connection name is required")
         self.base_url = _validate_base_url(self.base_url or item.default_base_url)
-        if item.category != "Local":
+        if item.id == "cloudflare-workers-ai":
+            import re
+
+            account = self.config_json.get("account_id", "")
+            if not isinstance(account, str) or not re.fullmatch(r"[a-fA-F0-9]{32}", account):
+                raise ValueError("Cloudflare Account ID must be 32 hexadecimal characters")
+            self.base_url = f"{item.default_base_url}/accounts/{account}/ai"
+        elif item.locked_base_url and self.base_url.rstrip("/") != item.default_base_url:
+            raise ValueError(
+                "Use the catalog endpoint; custom URLs require an OpenAI-compatible connection"
+            )
+        if (
+            item.endpoint_scope == "LOCAL_TRUSTED"
+            and self.provider_type != "LOCAL_SENTENCE_TRANSFORMER"
+        ):
+            self.base_url = validate_trusted_local_provider_url(
+                self.base_url, ollama=self.provider_type == "OLLAMA"
+            )
+        elif item.endpoint_scope == "PUBLIC":
             self.base_url = validate_public_provider_url(self.base_url)
         if self.provider_type == "OPENAI_COMPATIBLE" and not self.base_url:
             raise ValueError("Custom provider requires base URL")
         if item.auth_type == "NONE" and self.secret:
             raise ValueError("Local providers do not accept credentials")
         self.config_json = _validate_provider_options(_validate_safe_config(self.config_json))
+        self.config_json.update(
+            endpoint_scope=item.endpoint_scope, request_profile=item.request_profile
+        )
         return self
 
 
@@ -79,6 +101,7 @@ class ConnectionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
     model_count: int = 0
+    config_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class DiscoveredModel(BaseModel):
@@ -86,6 +109,38 @@ class DiscoveredModel(BaseModel):
     display_name: str | None = Field(default=None, max_length=200)
     capabilities: list[ProviderCapability] = Field(default_factory=list)
     dimension: int | None = None
+    size_bytes: int | None = None
+    context_tokens: int | None = None
+    free: bool | None = None
+    reasoning: bool | None = None
+    deprecated: bool = False
+    recommended: bool = False
+    output_dimensions: list[int] = Field(default_factory=list)
+
+
+class OllamaPullInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^(?:[a-zA-Z0-9_-]+/)?[a-zA-Z0-9][a-zA-Z0-9._-]*(?::[a-zA-Z0-9][a-zA-Z0-9._-]*)?$",
+    )
+    register_after_pull: bool = True
+
+
+class OllamaPullResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    connection_id: UUID
+    model: str
+    status: str
+    register_after_pull: bool
+    completed_bytes: int
+    total_bytes: int
+    error_code: str | None
+    registered_model_id: UUID | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class ModelInput(BaseModel):

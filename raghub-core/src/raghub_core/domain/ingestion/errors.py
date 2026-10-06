@@ -5,6 +5,7 @@ RETRYABLE_ERROR_CODES = frozenset(
         "STORAGE_UNAVAILABLE",
         "QUEUE_UNAVAILABLE",
         "EMBEDDING_UNAVAILABLE",
+        "EMBEDDING_WORK_ITEM_FAILED",
         "INDEX_UNAVAILABLE",
     }
 )
@@ -13,6 +14,7 @@ ERROR_MESSAGES = {
     "STORAGE_UNAVAILABLE": "Document storage is temporarily unavailable. Try again later.",
     "QUEUE_UNAVAILABLE": "Ingestion could not be queued. Try again later.",
     "EMBEDDING_UNAVAILABLE": "Embedding is temporarily unavailable. Try again later.",
+    "EMBEDDING_WORK_ITEM_FAILED": "Embedding did not finish. Retry to resume processing.",
     "INDEX_UNAVAILABLE": "Search indexing is temporarily unavailable. Try again later.",
     "INVALID_PDF": "This PDF cannot be read. Upload a valid PDF.",
     "FAILED_UNSUPPORTED_OCR": "This PDF has no selectable text. OCR is not supported.",

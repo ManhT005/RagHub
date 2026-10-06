@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "mode": "operations-diagnostic",
+  "created_at": "2026-10-06T10:30:49.572939+00:00",
+  "hardware_profile": "custom",
+  "worker_concurrency": 1,
+  "issues": [],
+  "work_item_states": {},
+  "ingestion_stages": {},
+  "queue_depths": {
+    "celery": 0,
+    "rag-ingestion": 0,
+    "rag-reindex": 0,
+    "rag-embedding": 0,
+    "rag-ocr": 0
+  },
+  "validation_context": {
+    "environment": "disposable Docker stack",
+    "compose_project": "raghub-rag-validation",
+    "ai_models_called": false,
+    "purpose": "Queue and work-item health smoke; no model quality or hardware performance assertion."
+  }
+}

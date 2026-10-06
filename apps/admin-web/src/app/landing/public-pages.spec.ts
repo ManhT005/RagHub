@@ -1,11 +1,14 @@
 import { TestBed } from "@angular/core/testing";
+import { signal } from "@angular/core";
+import { of } from "rxjs";
+import { SetupStateService } from "../setup/setup-state.service";
 import { provideRouter } from "@angular/router";
 import { RouterTestingHarness } from "@angular/router/testing";
 import { routes } from "../app.routes";
 
 describe("Public pages", () => {
   beforeEach(() =>
-    TestBed.configureTestingModule({ providers: [provideRouter(routes)] }),
+    TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: SetupStateService, useValue: { status: () => of({ initialized: true }), unavailable: signal(false) } }] }),
   );
 
   it("links home navigation to separate public pages", async () => {
@@ -15,10 +18,22 @@ describe("Public pages", () => {
       Array.from(element.querySelectorAll(".nav-links a")).map((a) =>
         a.getAttribute("href"),
       ),
-    ).toEqual(["/", "/tinh-nang", "/giai-phap", "/lien-he"]);
+    ).toEqual(["/", "/tinh-nang", "/giai-phap", "/huong-dan", "/lien-he"]);
     expect(
       element.querySelector(".hero-actions a:last-child")?.getAttribute("href"),
     ).toBe("/tinh-nang");
+  });
+
+  it("provides task-based guidance for every RagHub audience", async () => {
+    const harness = await RouterTestingHarness.create("/huong-dan");
+    const element = harness.routeNativeElement!;
+    expect(element.querySelector("h1")?.textContent).toContain("Hướng dẫn");
+    expect(element.querySelectorAll(".persona-guides article").length).toBe(5);
+    expect(element.textContent).toContain("Quản trị hệ thống");
+    expect(element.textContent).toContain("Người quản lý nội dung");
+    expect(element.textContent).toContain("Người tra cứu");
+    expect(element.textContent).toContain("Đội tích hợp website");
+    expect(element.querySelector('a[href="/lien-he"]')).not.toBeNull();
   });
 
   it("renders features with planned embedding clearly labeled", async () => {
@@ -27,7 +42,7 @@ describe("Public pages", () => {
       harness.routeNativeElement!.querySelector("h1")?.textContent,
     ).toContain("Tính năng");
     expect(harness.routeNativeElement!.textContent).toContain(
-      "Định hướng phát triển",
+      "Phát hành chatbot",
     );
     expect(harness.routeNativeElement!.textContent).toContain(
       "nguồn tham chiếu",

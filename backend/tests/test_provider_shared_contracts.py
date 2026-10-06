@@ -129,7 +129,7 @@ def create(provider_type, capability, *, attempts=1):
             provider_type,
             capability,
             "model",
-            "https://provider.test",
+            "http://ollama:11434" if provider_type == "OLLAMA" else "https://provider.test",
             2,
             {"max_attempts": attempts, "backoff_seconds": 0},
         ),
