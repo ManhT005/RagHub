@@ -74,7 +74,25 @@ services:
       - watchfiles
       - --filter
       - python
-      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=${RAG_WORKER_CONCURRENCY:-1} --queues=celery,rag-ingestion,rag-reindex,rag-embedding
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --hostname=rag@%h --queues=rag-ingestion,rag-embedding,rag-reindex
+      - /app/app
+      - /app/raghub_core
+    environment:
+      WATCHFILES_FORCE_POLLING: 'true'
+    volumes:
+      - ../backend/app:/app/app
+      - ../raghub-core/src/raghub_core:/app/raghub_core
+  worker-provider:
+    extends:
+      file: docker-compose.base.yml
+      service: worker-provider
+    image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
+    pull_policy: never
+    command:
+      - watchfiles
+      - --filter
+      - python
+      - celery -A app.infrastructure.task_queue.celery_app:celery_app worker --loglevel=INFO --concurrency=1 --hostname=provider@%h --queues=rag-provider,celery
       - /app/app
       - /app/raghub_core
     environment:

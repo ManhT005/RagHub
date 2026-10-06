@@ -244,7 +244,7 @@ jobs:
           python -m pip install --no-deps -e ./raghub-core
 
       - name: Start ingestion services
-        run: docker compose -f infrastructure/docker-compose.yml up -d --build --wait api worker nginx
+        run: docker compose -f infrastructure/docker-compose.yml up -d --build --wait api worker worker-provider nginx
 
       - name: Test ingestion and concurrent delivery
         working-directory: backend

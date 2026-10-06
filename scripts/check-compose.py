@@ -8,7 +8,17 @@ from ipaddress import ip_address, ip_network
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_SERVICES = ("api", "worker", "migrate", "admin-web", "chat-widget", "widget-demo", "nginx")
+APP_SERVICES = (
+    "api", "worker", "worker-provider", "migrate", "admin-web", "chat-widget", "widget-demo",
+    "nginx",
+)
+BACKEND_SERVICES = ("api", "worker", "worker-provider", "migrate")
+RAG_QUEUES = {"rag-ingestion", "rag-embedding", "rag-reindex"}
+PROFILE_OWNED_KEYS = (
+    "RAG_WORKER_CONCURRENCY", "RAG_RETRIEVAL_CANDIDATES", "RAG_RERANK_SOURCE_COUNT",
+    "RAG_RERANK_TOP_N", "RAG_RERANKER_ENABLED", "RAG_ADAPTIVE_RERANK_ENABLED",
+    "PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE",
+)
 CONFIG_KEYS = set()
 for path in (ROOT / "infrastructure").glob("docker-compose*.yml"):
     CONFIG_KEYS.update(re.findall(r"\$\{([A-Z][A-Z0-9_]*)", path.read_text(encoding="utf-8")))
@@ -40,15 +50,32 @@ def resolve(entrypoint, env_file, overrides=None, expect_success=True):
     return json.loads(result.stdout)
 
 
+def queues(service):
+    args = " ".join(service["command"]).split()
+    value = next(arg for arg in args if arg.startswith("--queues="))
+    return set(value.removeprefix("--queues=").split(","))
+
+
 def check_shared(model):
     services = model["services"]
-    assert len({services[name]["image"] for name in ("api", "worker", "migrate")}) == 1
+    assert len({services[name]["image"] for name in BACKEND_SERVICES}) == 1
     assert services["migrate"]["command"] == ["alembic", "upgrade", "head"]
     assert services["api"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
     assert "alembic" not in services["api"]["command"]
     assert services["worker"]["healthcheck"]
+    assert services["worker-provider"]["healthcheck"]
     assert services["worker-ocr"]["command"][-1] == "--queues=rag-ocr"
     assert "rag-ocr" not in " ".join(services["worker"]["command"])
+    # Provider jobs must never share an execution slot with user-facing ingestion.
+    assert queues(services["worker"]) == RAG_QUEUES
+    assert "rag-provider" in queues(services["worker-provider"])
+    assert not queues(services["worker-provider"]) & RAG_QUEUES
+    assert "--concurrency=1" in " ".join(services["worker-provider"]["command"])
+    # RAG_HARDWARE_PROFILE owns these keys; Compose must not inject competing defaults.
+    for name in BACKEND_SERVICES:
+        environment = services[name]["environment"]
+        for key in PROFILE_OWNED_KEYS:
+            assert environment.get(key) in (None, ""), f"{name} hard-codes {key}"
     assert "postgres-data" in model["volumes"]
     for service in services.values():
         assert service["logging"]["options"]["max-size"] == "10m"
@@ -62,14 +89,14 @@ def main():
         check_shared(local)
         for name in ("api", "admin-web", "chat-widget", "widget-demo", "nginx"):
             assert local["services"][name]["build"]
-        for name in ("worker", "migrate"):
+        for name in ("worker", "worker-provider", "migrate"):
             assert "build" not in local["services"][name]
             assert local["services"][name]["pull_policy"] == "never"
         assert local["services"]["api"]["build"]["target"] == target
         api_build = local["services"]["api"]["build"]
         assert Path(api_build["context"]).resolve() == ROOT
         assert api_build["dockerfile"] == "backend/Dockerfile"
-        for name in ("api", "worker"):
+        for name in ("api", "worker", "worker-provider"):
             mounts = {
                 volume["target"]: Path(volume["source"]).resolve()
                 for volume in local["services"][name]["volumes"]
@@ -95,7 +122,7 @@ def main():
             image = deployment["services"][name]["image"]
             assert image.startswith(DEPLOY_ENV["RAGHUB_IMAGE_PREFIX"] + "/")
             assert image.endswith(DEPLOY_ENV["RAGHUB_IMAGE_TAG"] + (
-                suffix if name in ("api", "worker", "migrate") else ""
+                suffix if name in BACKEND_SERVICES else ""
             ))
         api = deployment["services"]["api"]
         assert DEPLOY_ENV["POSTGRES_PASSWORD"] in api["environment"]["DATABASE_URL"]
@@ -112,6 +139,9 @@ def main():
         assert not service.get("deploy", {}).get("resources", {}).get("reservations", {}).get("devices")
     assert selfhost["services"]["api"]["environment"]["APP_ENV"] == "selfhost"
     assert selfhost["services"]["api"]["image"].endswith("-local-ai")
+    for name in BACKEND_SERVICES:
+        profile = selfhost["services"][name]["environment"]["RAG_HARDWARE_PROFILE"]
+        assert profile in {"lite_cpu", "standard_cpu", "gpu"}, f"{name} profile {profile}"
     gpu = resolve([selfhost_path, "infrastructure/docker-compose.gpu.yml"], selfhost_env, DEPLOY_ENV)
     devices = gpu["services"]["ollama"]["deploy"]["resources"]["reservations"]["devices"]
     assert devices[0]["driver"] == "nvidia"
