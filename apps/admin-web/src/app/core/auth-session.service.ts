@@ -22,8 +22,8 @@ export class AuthSessionService {
     this.knownUnauthenticated = false;
     this.restoreError.set(false);
   }
-  login(email: string, password: string): Observable<void> {
-    return this.withCookieLock(() => this.http.post<{ access_token: string }>('/api/v1/auth/login', { email, password }, { withCredentials: true })).pipe(
+  login(email: string, password: string, turnstileToken = ''): Observable<void> {
+    return this.withCookieLock(() => this.http.post<{ access_token: string }>('/api/v1/auth/login', { email, password, turnstile_token: turnstileToken }, { withCredentials: true })).pipe(
       tap(result => this.acceptToken(result.access_token)), map(() => undefined),
     );
   }

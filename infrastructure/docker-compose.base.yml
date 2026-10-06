@@ -42,6 +42,10 @@ x-backend-environment: &backend-environment
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
   SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+  TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
+  TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+  TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+  TURNSTILE_EXPECTED_HOSTNAME: ${TURNSTILE_EXPECTED_HOSTNAME:-}
 x-logging: &default-logging
   driver: json-file
   options:

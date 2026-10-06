@@ -10,6 +10,7 @@ from app.core.redis import get_redis
 from app.modules.auth.email import build_email_sender
 from app.modules.auth.rate_limit import AuthRateLimiter
 from app.modules.auth.service import AuthService
+from app.modules.auth.turnstile import TurnstileVerifier
 
 
 def get_auth_service(
@@ -28,3 +29,9 @@ def get_auth_rate_limiter(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthRateLimiter:
     return AuthRateLimiter(redis, settings)
+
+
+def get_turnstile_verifier(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TurnstileVerifier:
+    return TurnstileVerifier(settings)
