@@ -50,7 +50,7 @@ type EventPayload = Record<string, unknown>;
     ) {
       this.root.innerHTML = `<style>
       :host{--rgh:${config.primary_color};font-family:Inter,system-ui,sans-serif;color:#122545;position:fixed;z-index:2147483647;right:20px;bottom:20px;font-size:14px;line-height:1.45}
-      *{box-sizing:border-box}.fab{width:58px;height:58px;border:0;border-radius:50%;background:var(--rgh);color:#fff;box-shadow:0 12px 30px #0e3b884d;font-size:24px;cursor:pointer;float:right}.panel{display:none;width:360px;height:min(560px,calc(100vh - 110px));margin-bottom:14px;background:#fff;border:1px solid #dce8fb;border-radius:18px;overflow:hidden;box-shadow:0 22px 60px #12315a2e;flex-direction:column}.panel.open{display:flex}.head{padding:16px 18px;background:var(--rgh);color:white;display:flex;align-items:center;justify-content:space-between}.head b{font-size:15px}.head button{background:none;border:0;color:#fff;font-size:22px;cursor:pointer}.history{flex:1;overflow:auto;padding:16px;background:#f7faff}.msg{max-width:88%;padding:10px 12px;margin:0 0 10px;border-radius:13px;white-space:pre-wrap}.user{margin-left:auto;background:var(--rgh);color:#fff;border-bottom-right-radius:3px}.assistant{background:#fff;border:1px solid #e0e9f6;border-bottom-left-radius:3px}.citations{font-size:12px;margin:-4px 0 12px 0}.citation{display:block;color:#235cc0;text-decoration:none;padding:4px 0}.status{padding:0 16px;color:#607492;font-size:12px}.composer{display:flex;gap:8px;padding:12px;border-top:1px solid #e3edf9}.composer input{min-width:0;flex:1;border:1px solid #c9d9ef;border-radius:10px;padding:10px;color:#122545;font:inherit}.composer button{border:0;border-radius:10px;padding:0 13px;background:var(--rgh);color:#fff;font-weight:700;cursor:pointer}.composer button[disabled]{opacity:.55;cursor:not-allowed}@media(max-width:480px){:host{right:12px;bottom:12px}.panel{width:calc(100vw - 24px);height:calc(100vh - 92px);border-radius:16px}}
+      *{box-sizing:border-box}.fab{width:58px;height:58px;border:0;border-radius:50%;background:var(--rgh);color:#fff;box-shadow:0 12px 30px #0e3b884d;font-size:24px;cursor:pointer;float:right}.panel{display:none;width:360px;height:min(560px,calc(100vh - 110px));margin-bottom:14px;background:#fff;border:1px solid #dce8fb;border-radius:18px;overflow:hidden;box-shadow:0 22px 60px #12315a2e;flex-direction:column}.panel.open{display:flex}.head{padding:16px 18px;background:var(--rgh);color:white;display:flex;align-items:center;justify-content:space-between}.head b{font-size:15px}.head button{background:none;border:0;color:#fff;font-size:22px;cursor:pointer}.history{flex:1;overflow:auto;padding:16px;background:#f7faff}.msg{max-width:88%;padding:10px 12px;margin:0 0 10px;border-radius:13px;white-space:pre-wrap}.user{margin-left:auto;background:var(--rgh);color:#fff;border-bottom-right-radius:3px}.assistant{background:#fff;border:1px solid #e0e9f6;border-bottom-left-radius:3px}.status{padding:0 16px;color:#607492;font-size:12px}.composer{display:flex;gap:8px;padding:12px;border-top:1px solid #e3edf9}.composer input{min-width:0;flex:1;border:1px solid #c9d9ef;border-radius:10px;padding:10px;color:#122545;font:inherit}.composer button{border:0;border-radius:10px;padding:0 13px;background:var(--rgh);color:#fff;font-weight:700;cursor:pointer}.composer button[disabled]{opacity:.55;cursor:not-allowed}@media(max-width:480px){:host{right:12px;bottom:12px}.panel{width:calc(100vw - 24px);height:calc(100vh - 92px);border-radius:16px}}
     </style><section class="panel"><header class="head"><b>${this.escape(config.title)}</b><button aria-label="Đóng chat">×</button></header><div class="history"><div class="msg assistant">${this.escape(config.greeting)}</div></div><p class="status" aria-live="polite"></p><form class="composer"><input aria-label="Câu hỏi" placeholder="Nhập câu hỏi..." ${unavailable ? "disabled" : ""}/><button ${unavailable ? "disabled" : ""}>Gửi</button></form></section><button class="fab" aria-label="Mở chat">◌</button>`;
       const panel = this.root.querySelector(".panel")!;
       this.root
@@ -79,10 +79,10 @@ type EventPayload = Record<string, unknown>;
       send.type = "button";
       send.onclick = () => this.controller?.abort();
       const answer = this.add("assistant", "");
+      let answerText = "";
       const status = this.root.querySelector(".status")!;
       status.textContent = "Đang trả lời…";
       this.controller = new AbortController();
-      let citations: EventPayload[] = [];
       try {
         const response = await fetch(
           `${this.api}${encodeURIComponent(this.key)}/chat`,
@@ -119,28 +119,27 @@ type EventPayload = Record<string, unknown>;
               raw = frame.match(/^data:\s*(.+)$/m)?.[1];
             if (!event || !raw) continue;
             const data = JSON.parse(raw) as EventPayload;
-            if (event === "token")
-              answer.textContent += String(data.text || "");
-            if (event === "clarification" && typeof data.message === "string")
-              answer.textContent = data.message;
+            if (event === "token") {
+              answerText += String(data.text || "");
+              this.setAssistantContent(answer, answerText);
+            }
+            if (event === "clarification" && typeof data.message === "string") {
+              answerText = data.message;
+              this.setAssistantContent(answer, answerText);
+            }
             if (event === "conversation")
               this.conversationId = String(data.conversation_id);
-            if (event === "citations")
-              citations = Array.isArray(data.citations)
-                ? (data.citations as EventPayload[])
-                : [];
             if (event === "error")
               throw new Error(String(data.code || "CONNECTION"));
           }
           if (done) break;
         }
-        if (citations.length) this.addCitations(citations);
         status.textContent = "";
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           status.textContent = "Đã dừng câu trả lời.";
         } else {
-          answer.textContent = this.messageFor((error as Error).message);
+          this.setAssistantContent(answer, this.messageFor((error as Error).message));
           status.textContent = "Bạn có thể thử lại.";
         }
       } finally {
@@ -156,22 +155,37 @@ type EventPayload = Record<string, unknown>;
     private add(kind: "user" | "assistant", text: string) {
       const node = document.createElement("div");
       node.className = `msg ${kind}`;
-      node.textContent = text;
+      if (kind === "assistant") this.setAssistantContent(node, text);
+      else node.textContent = text;
       this.root.querySelector(".history")!.append(node);
       node.scrollIntoView({ block: "end" });
       return node;
     }
-    private addCitations(citations: EventPayload[]) {
-      const box = document.createElement("div");
-      box.className = "citations";
-      box.innerHTML = "<b>Nguồn tham khảo</b>";
-      citations.forEach((citation) => {
-        const item = document.createElement("span");
-        item.className = "citation";
-        item.textContent = `${String(citation.citation_id || "Nguồn")}: ${String(citation.document_name || "")}${citation.page ? `, trang ${citation.page}` : ""}`;
-        box.append(item);
-      });
-      this.root.querySelector(".history")!.append(box);
+    private setAssistantContent(node: HTMLElement, text: string) {
+      node.replaceChildren(this.renderAssistantText(text));
+      node.scrollIntoView({ block: "end" });
+    }
+    private renderAssistantText(text: string) {
+      const fragment = document.createDocumentFragment();
+      const cleaned = this.cleanAssistantText(text);
+      const boldPattern = /(\*\*\*|___)([\s\S]+?)\1|(\*\*|__)([\s\S]+?)\3/g;
+      let cursor = 0;
+      for (const match of cleaned.matchAll(boldPattern)) {
+        const index = match.index ?? 0;
+        if (index > cursor) fragment.append(document.createTextNode(cleaned.slice(cursor, index)));
+        const strong = document.createElement("strong");
+        strong.textContent = match[2] || match[4] || "";
+        fragment.append(strong);
+        cursor = index + match[0].length;
+      }
+      if (cursor < cleaned.length) fragment.append(document.createTextNode(cleaned.slice(cursor)));
+      return fragment;
+    }
+    private cleanAssistantText(text: string) {
+      return text
+        .replace(/\s*\[(?:C\d+(?:\s*,\s*C?\d+)*)\]/gi, "")
+        .replace(/[ \t]+([.,;:!?])/g, "$1")
+        .replace(/[ \t]{2,}/g, " ");
     }
     private messageFor(code: string) {
       return code.includes("TIMEOUT")

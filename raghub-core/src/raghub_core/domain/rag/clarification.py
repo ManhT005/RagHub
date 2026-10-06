@@ -78,13 +78,13 @@ class ClarificationPolicy:
             return IntentDecision(
                 IntentAction.REFUSE_OR_REDIRECT,
                 reason="prompt_injection",
-                message="Minh chi co the tra loi dua tren tai lieu duoc cung cap.",
+                message="Mình chỉ có thể trả lời dựa trên tài liệu được cung cấp.",
             )
         if self._is_out_of_scope(normalized):
             return IntentDecision(
                 IntentAction.REFUSE_OR_REDIRECT,
                 reason="out_of_scope",
-                message="Cau hoi nay nam ngoai pham vi tai lieu hien co.",
+                message="Câu hỏi này nằm ngoài phạm vi tài liệu hiện có.",
             )
 
         detected = self.detect_slots(question)
@@ -220,25 +220,25 @@ class ClarificationPolicy:
     def _suggestions(self, missing: tuple[str, ...]) -> tuple[str, ...]:
         values: list[str] = []
         if "program_type" in missing:
-            values.extend(["Chuong trinh chuan", "Chuong trinh tieng Anh"])
+            values.extend(["Chương trình chuẩn", "Chương trình tiếng Anh"])
         if "major" in missing:
-            values.extend(["Cong nghe thong tin", "Ke toan", "Ngon ngu Anh"])
+            values.extend(["Công nghệ thông tin", "Kế toán", "Ngôn ngữ Anh"])
         if "year" in missing:
-            values.append("Nam 2026")
+            values.append("Năm 2026")
         if "method" in missing:
             values.extend(["PT1", "PT2", "PT3", "PT4", "PT5"])
         if "info_type" in missing:
-            values.extend(["Hoc phi", "Diem chuan", "Phuong thuc tuyen sinh"])
+            values.extend(["Học phí", "Điểm chuẩn", "Phương thức tuyển sinh"])
         return tuple(dict.fromkeys(values))
 
     def _message(self, missing: tuple[str, ...]) -> str:
         labels = {
-            "year": "nam tuyen sinh",
-            "major": "nganh/chuong trinh",
-            "admission_round": "dot tuyen sinh",
-            "method": "phuong thuc xet tuyen",
-            "program_type": "chuong trinh chuan hay tieng Anh",
-            "info_type": "noi dung ban muon hoi",
+            "year": "năm tuyển sinh",
+            "major": "ngành/chương trình",
+            "admission_round": "đợt tuyển sinh",
+            "method": "phương thức xét tuyển",
+            "program_type": "chương trình chuẩn hay tiếng Anh",
+            "info_type": "nội dung bạn muốn hỏi",
         }
         wanted = ", ".join(labels.get(slot, slot) for slot in missing)
-        return f"Ban vui long cho biet them {wanted} de minh tra loi dung hon."
+        return f"Bạn vui lòng cho biết thêm {wanted} để mình trả lời đúng hơn."

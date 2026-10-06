@@ -13,7 +13,7 @@ from raghub_core.domain.rag.citations import (
     resolve_sliced_citations,
     resolve_trusted_citations,
 )
-from raghub_core.domain.rag.clarification import ClarificationPolicy
+from raghub_core.domain.rag.clarification import ClarificationPolicy, normalize_query
 from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
@@ -286,6 +286,6 @@ class StreamRagChatUseCase:
         return sum(1 for message in history if self._is_clarification_message(message))
 
     def _is_clarification_message(self, message: ChatMessage) -> bool:
-        return message.role == "assistant" and message.content.startswith(
-            "Ban vui long cho biet them "
-        )
+        if message.role != "assistant":
+            return False
+        return normalize_query(message.content).startswith("ban vui long cho biet them ")

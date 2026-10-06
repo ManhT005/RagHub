@@ -127,3 +127,10 @@ def test_invalid_mode_is_rejected() -> None:
 
 def test_normalize_query_removes_vietnamese_accents_and_d_stroke() -> None:
     assert normalize_query("\u0110i\u1ec3m chu\u1ea9n") == "diem chuan"
+
+def test_clarification_message_and_suggestions_use_vietnamese_diacritics() -> None:
+    decision = ClarificationPolicy().evaluate("đăng ký khi nào?")
+
+    assert decision.action is IntentAction.CLARIFY
+    assert decision.message == "Bạn vui lòng cho biết thêm năm tuyển sinh để mình trả lời đúng hơn."
+    assert "Năm 2026" in decision.suggestions

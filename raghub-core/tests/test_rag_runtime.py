@@ -173,6 +173,28 @@ def test_ambiguous_question_emits_clarification_without_retrieval_or_provider():
 def test_clarification_limit_falls_back_to_retrieval_answer_path():
     command, _, retrieval, providers, conversations, _, use_case = runtime()
     conversations.messages = [
+        ("assistant", "Bạn vui lòng cho biết thêm ngành/chương trình."),
+    ]
+    command = replace(command, question="hoc phi?")
+
+    events = asyncio.run(_collect_events(use_case, command))
+
+    assert [type(event) for event in events] == [
+        ConversationStarted,
+        CitationsResolved,
+        TokenDelta,
+        UsageReported,
+        ChatCompleted,
+    ]
+    assert retrieval.calls
+    assert providers.chat_scopes
+    assert not any(isinstance(event, ClarificationRequested) for event in events)
+
+
+
+def test_legacy_ascii_clarification_prefix_still_counts_toward_limit() -> None:
+    command, _, retrieval, providers, conversations, _, use_case = runtime()
+    conversations.messages = [
         ("assistant", "Ban vui long cho biet them nganh/chuong trinh."),
     ]
     command = replace(command, question="hoc phi?")
@@ -231,7 +253,7 @@ def test_refuse_or_redirect_keeps_legacy_visible_token_stream():
     assert not retrieval.calls and not providers.chat_scopes and not providers.chat.calls
     assert not usage.records
     assert events[1] == CitationsResolved(())
-    assert events[2].text == "Minh chi co the tra loi dua tren tai lieu duoc cung cap."
+    assert events[2].text == "Mình chỉ có thể trả lời dựa trên tài liệu được cung cấp."
     assert events[3].usage == ChatUsage(0, 0, 0, "none")
     assert conversations.messages[-1] == ("assistant", events[2].text)
 
