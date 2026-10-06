@@ -63,3 +63,28 @@ def test_history_cannot_overrun_remaining_input_budget():
     )
     assert result.used_tokens <= result.input_budget
     assert not result.history
+
+
+@pytest.mark.parametrize("rendered", [False, True])
+def test_evidence_is_preserved_before_older_history(rendered):
+    budgeter = PromptBudgeter(
+        context_window=100, max_output_tokens=10, safety_margin=0, count_tokens=len
+    )
+
+    def render(slices, history):
+        return [
+            ChatMessage("system", "s" * 5 + "".join(s.text for s in slices)),
+            *history,
+            ChatMessage("user", "q" * 5),
+        ]
+
+    result = budgeter.budget(
+        system_text="s" * 5,
+        question="q" * 5,
+        context_chunks=["e" * 70],
+        history=[ChatMessage("user", "h" * 9), ChatMessage("assistant", "a" * 9)],
+        render_prompt=render if rendered else None,
+    )
+    assert result.context_slices[0].text == "e" * 70
+    assert not result.context_slices[0].truncated and not result.history
+    assert result.used_tokens == 80
