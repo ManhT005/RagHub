@@ -80,8 +80,19 @@ async def test_pipeline_runs_without_celery_and_preserves_stage_order():
 async def test_terminal_redelivery_does_not_repeat_work(status, progress):
     document, repository, providers, store, use_case = pipeline()
     repository.attempt = IngestionAttempt(None, status, progress)
-    assert not (await use_case.execute(document.version_id)).processed
+    result = await use_case.execute(document.version_id)
+    assert not result.processed
+    assert result.reason in ("TERMINAL_REDELIVERY", "ALREADY_FAILED")
     assert not repository.stages and not providers.scopes and not store.indexes
+
+
+async def test_missing_attempt_returns_skipped_with_reason():
+    document, repository, providers, store, use_case = pipeline()
+    repository.attempt = None
+    result = await use_case.execute(document.version_id)
+    assert not result.processed
+    assert result.status == "SKIPPED"
+    assert result.reason == "MISSING_ATTEMPT"
 
 
 async def test_nonterminal_attempt_requires_metadata_before_starting_work():
