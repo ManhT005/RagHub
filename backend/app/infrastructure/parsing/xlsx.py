@@ -1,4 +1,5 @@
 """XLSX adapter: read-only + data-only via openpyxl, no macro/formula execution."""
+
 from __future__ import annotations
 
 import io
@@ -14,6 +15,7 @@ from raghub_core.domain.ingestion.limits import (
 from raghub_core.domain.ingestion.parser import (
     DocumentLimitError,
     EmptyExtractedTextError,
+    ParsedBlock,
     ParsedSection,
 )
 
@@ -37,9 +39,13 @@ def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[Parse
             rows: list[str] = []
             min_row, max_row = view.min_row, view.max_row
             min_col, max_col = view.min_column, view.max_column
-            for row in view.iter_rows(min_row=min_row, max_row=max_row,
-                                      min_col=min_col, max_col=max_col, values_only=True):
-                values = ["" if value is None else str(value).strip() for value in row]
+            for row in view.iter_rows(
+                min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col, values_only=True
+            ):
+                values = [
+                    "" if value is None else str(value).strip().replace("|", "/").replace("\n", " ")
+                    for value in row
+                ]
                 while values and not values[-1]:
                     values.pop()
                 if any(values):
@@ -53,11 +59,14 @@ def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[Parse
                 width = max(row.count("|") - 1 for row in rows)
                 table = [rows[0], "| " + " | ".join(["---"] * width) + " |", *rows[1:]]
                 sections.append(
-                    ParsedSection(
+                    ParsedBlock(
                         "\n".join(table),
                         source_name,
                         len(sections),
                         heading=f"Sheet: {sheet} (rows {min_row}-{max_row})",
+                        type="table",
+                        heading_path=(sheet,),
+                        metadata={"sheet": sheet, "row_start": min_row, "row_end": max_row},
                     )
                 )
         if not sections:

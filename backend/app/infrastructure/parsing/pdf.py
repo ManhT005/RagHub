@@ -5,6 +5,7 @@ OCR runs at most one page at a time per worker (process-local slot) with a
 a page that needs OCR while disabled fails with a clear code instead of a
 half-built index.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -27,6 +28,7 @@ from raghub_core.domain.ingestion.parser import (
     InvalidPdfError,
     OcrRequiredError,
     OcrTimeoutError,
+    ParsedBlock,
     ParsedSection,
     UnsupportedOcrError,
 )
@@ -98,7 +100,18 @@ def parse_pdf(
         for index, page in enumerate(document):
             text = page.get_text("text").strip()
             tables = _table_markdown(page)
-            if _useful_chars(text) < OCR_USEFUL_CHARS_THRESHOLD and not tables:
+            kind = "paragraph"
+            text_blocks = page.get_text("blocks")
+            image_area = sum(
+                pymupdf.Rect(info["bbox"]).get_area() for info in page.get_image_info()
+            )
+            image_ratio = image_area / max(1, page.rect.get_area())
+            useful = _useful_chars(text)
+            needs_ocr = not tables and (
+                useful < OCR_USEFUL_CHARS_THRESHOLD
+                or (image_ratio > 0.8 and useful < 80 and len(text_blocks) < 3)
+            )
+            if needs_ocr:
                 if not ocr_enabled:
                     raise UnsupportedOcrError(
                         "The PDF needs OCR, which is disabled (RAG_OCR_ENABLED)."
@@ -111,11 +124,13 @@ def parse_pdf(
                 with _OCR_SLOT:
                     pixmap = page.get_pixmap(dpi=200)
                     text = _ocr_page(pixmap.tobytes("png"))
-            body = text
-            if tables:
-                body = (body + "\n\n" + "\n\n".join(tables)).strip()
-            if body:
-                sections.append(ParsedSection(body, source_name, len(sections), index + 1))
+                    kind = "ocr_text"
+            if text:
+                sections.append(ParsedBlock(text, source_name, len(sections), index + 1, type=kind))
+            for table in tables:
+                sections.append(
+                    ParsedBlock(table, source_name, len(sections), index + 1, type="table")
+                )
         return sections
     finally:
         document.close()

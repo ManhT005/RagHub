@@ -48,3 +48,15 @@ respects remaining space. An empty budgeted context skips generation. Output
 limits and a low factual-generation temperature reach ChatOptions.
 
 Validation: core 127 passed; host prompt/citation/empty/public chat suites 26 passed.
+
+## Phases 3?4: structural representation and chunking
+
+ParsedBlock extends the compatibility ParsedSection contract. DOCX/HTML keep
+heading paths; PDF tables are distinct blocks and OCR uses image/text signals.
+Adjacent paragraphs merge within the same heading/page. Chunking prefers sentence
+and paragraph boundaries, uses 60-token overlap, and preserves table rows while
+repeating headers and row ranges. A single oversized row is kept intact rather
+than silently split; target size is soft for such rows.
+
+Validation: core 127 passed; parser/chunker suites 29 passed, including all-row
+coverage, nested hidden HTML, DOCX heading merging and safety limit regressions.

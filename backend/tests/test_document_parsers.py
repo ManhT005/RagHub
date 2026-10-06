@@ -221,7 +221,7 @@ def test_chunk_and_token_caps_reject_before_embedding():
 
     import asyncio
 
-    many = [ParsedSection(f"section {i} content here", "d.md", i) for i in range(MAX_CHUNKS + 1)]
+    many = [ParsedSection(f"section {i} content here", "d.md", i, page_number=i+1) for i in range(MAX_CHUNKS + 1)]
     assert asyncio.run(run(many)) == "DOCUMENT_LIMIT_EXCEEDED"
 
 

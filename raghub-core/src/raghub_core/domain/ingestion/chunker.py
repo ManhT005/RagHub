@@ -2,7 +2,7 @@ import codecs
 import hashlib
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from raghub_core.domain.ingestion.parser import ParsedSection
 from raghub_core.domain.ingestion.tokenizer import ENCODING
@@ -32,7 +32,7 @@ class TextChunk:
     content_hash: str
 
 
-def chunk_sections(
+def _chunk_text_sections(
     sections: list[ParsedSection],
     document_version_id: uuid.UUID,
     *,
@@ -58,7 +58,10 @@ def chunk_sections(
         for paragraph in paragraphs:
             if tokens:
                 tokens.extend(_ENCODING.encode("\n\n"))
-            tokens.extend(_ENCODING.encode(paragraph))
+            sentences = re.split(r"(?<=[.!?])(?=\s)", paragraph)
+            for sentence in sentences:
+                tokens.extend(_ENCODING.encode(sentence))
+                boundaries.append(len(tokens))
             boundaries.append(len(tokens))
         safe_boundaries = _utf8_boundaries(tokens)
         start = 0
@@ -106,5 +109,99 @@ def chunk_sections(
     return chunks
 
 
-# Existing callers can migrate without changing the name in one release.
+def chunk_sections(
+    sections, document_version_id, *, target_tokens=450, overlap_tokens=60, min_tokens=80
+):
+    if (
+        target_tokens <= 0
+        or not 0 <= overlap_tokens < target_tokens
+        or not 0 <= min_tokens <= target_tokens
+    ):
+        raise ValueError("Invalid token chunking parameters.")
+    groups = []
+    for section in sections:
+        if not section.content.strip() or getattr(section, "type", "paragraph") == "heading":
+            continue
+        is_table = getattr(section, "type", "") == "table"
+        if not is_table:
+            lines = section.content.splitlines()
+            is_table = len(lines) > 1 and bool(re.match(r"^\s*\|[ :|-]+\|\s*$", lines[1]))
+        if groups and not is_table and not groups[-1][1]:
+            previous = groups[-1][0]
+            if (
+                previous.source_name,
+                previous.page_number,
+                previous.heading,
+                getattr(previous, "heading_path", ()),
+            ) == (
+                section.source_name,
+                section.page_number,
+                section.heading,
+                getattr(section, "heading_path", ()),
+            ):
+                groups[-1] = (
+                    replace(previous, content=previous.content + "\n\n" + section.content),
+                    False,
+                )
+                continue
+        groups.append((section, is_table))
+    chunks = []
+    for section, is_table in groups:
+        if is_table:
+            pieces = _table_pieces(section, target_tokens)
+            produced = []
+            for text in pieces:
+                produced.append(
+                    TextChunk(
+                        uuid.UUID(int=0),
+                        0,
+                        text,
+                        len(_ENCODING.encode(text)),
+                        section.source_name,
+                        section.page_number,
+                        section.heading,
+                        hashlib.sha256(text.encode()).hexdigest(),
+                    )
+                )
+        else:
+            produced = _chunk_text_sections(
+                [section],
+                document_version_id,
+                target_tokens=target_tokens,
+                overlap_tokens=overlap_tokens,
+                min_tokens=min_tokens,
+            )
+        for chunk in produced:
+            index = len(chunks)
+            key = f"{section.section_index}:{section.page_number}:{section.heading}:{index}:{chunk.content_hash}"
+            chunks.append(
+                replace(chunk, chunk_index=index, chunk_id=uuid.uuid5(document_version_id, key))
+            )
+    return chunks
+
+
+def _table_pieces(section, target_tokens):
+    lines = [line for line in section.content.splitlines() if line.strip()]
+    if len(lines) <= 2:
+        return [section.content]
+    header, rows = lines[:2], lines[2:]
+    prefix = section.heading + "\n\n" if section.heading else ""
+    pieces, kept = [], []
+    start = 1
+    for row in rows:
+        trial = prefix + "\n".join([*header, *kept, row])
+        if kept and len(_ENCODING.encode(trial)) > max(1, target_tokens - 16):
+            pieces.append(
+                prefix + f"Rows {start}-{start + len(kept) - 1}\n" + "\n".join([*header, *kept])
+            )
+            start += len(kept)
+            kept = []
+        kept.append(row)
+    if kept:
+        pieces.append(
+            prefix + f"Rows {start}-{start + len(kept) - 1}\n" + "\n".join([*header, *kept])
+        )
+    return pieces
+
+
 chunk_pages = chunk_sections

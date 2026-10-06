@@ -1,6 +1,7 @@
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import Literal
 
 
 class InvalidPdfError(ValueError):
@@ -54,6 +55,13 @@ class ParsedSection:
     section_index: int
     page_number: int | None = None
     heading: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedBlock(ParsedSection):
+    type: Literal["heading", "paragraph", "table", "list", "code", "ocr_text"] = "paragraph"
+    heading_path: tuple[str, ...] = ()
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 def _decode(content: bytes) -> str:

@@ -3,6 +3,7 @@
 Adapter isolation: a malformed file in one format raises a file-scoped
 error and never affects other formats.
 """
+
 from raghub_core.domain.ingestion.limits import check_compressed_size
 from raghub_core.domain.ingestion.parser import ParsedSection, parse_document
 

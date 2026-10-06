@@ -3,6 +3,7 @@
 All checks run before parsing/embedding so oversized or hostile files fail
 with a clear code and never activate a half-built index.
 """
+
 from __future__ import annotations
 
 import io

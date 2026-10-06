@@ -1,134 +1,134 @@
-"""Sanitized HTML adapter: stdlib only, never fetches external resources.
-
-Drops script/style/form and hidden content, keeps headings, lists and
-tables in reading order. External URLs are preserved as plain text and
-never dereferenced: the parser performs zero network I/O by construction.
-"""
-from __future__ import annotations
+"""Offline structural HTML extraction with nested hidden subtree removal."""
 
 from html.parser import HTMLParser
 
 from raghub_core.domain.ingestion.limits import check_compressed_size
-from raghub_core.domain.ingestion.parser import EmptyExtractedTextError, ParsedSection
+from raghub_core.domain.ingestion.parser import EmptyExtractedTextError, ParsedBlock
 
-_SKIP_TAGS = {"script", "style", "form", "noscript", "template"}
-_HEADING_TAGS = {"h1": 1, "h2": 2, "h3": 3, "h4": 4, "h5": 5, "h6": 6}
+_SKIP = {"script", "style", "form", "noscript", "template", "head"}
+_VOID = {"br", "hr", "img", "input", "meta", "link", "source", "wbr"}
 
 
 class _Sanitizer(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.skip_depth = 0
-        self.blocks: list[tuple[str, str]] = []
-        self._text: list[str] = []
-        self._in_cell = False
-        self._row: list[str] = []
-        self._cell: list[str] = []
-        self._in_li = False
-        self.fetched: list[str] = []
+        self.stack = []
+        self.blocks = []
+        self.text = []
+        self.kind = "paragraph"
+        self.row = []
+        self.cell = None
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in _SKIP_TAGS:
-            self.skip_depth += 1
-            return
-        if self.skip_depth:
-            return
-        attrs_d = dict(attrs)
-        style = (attrs_d.get("style") or "").replace(" ", "").lower()
-        if attrs_d.get("hidden") is not None or "display:none" in style:
-            self.skip_depth += 1
-            self._text.append("\x00hidden\x00")
-            return
-        if tag == "br":
-            self._text.append("\n")
-        elif tag == "li":
-            self._flush()
-            self._in_li = True
-        elif tag in ("td", "th"):
-            self._in_cell = True
-            self._cell = []
-        elif tag == "tr":
-            self._row = []
-        elif tag in ("p", "div", "section", "article", "ul", "ol", "table"):
-            self._flush()
-
-    def handle_endtag(self, tag: str) -> None:
-        if self.skip_depth:
-            self.skip_depth -= 1
-            return
-        if tag in ("td", "th") and self._in_cell:
-            self._in_cell = False
-            self._row.append(" ".join(self._cell).strip())
-        elif tag == "tr" and self._row:
-            cells = [cell.replace("|", "/") for cell in self._row]
-            self.blocks.append(("row", "| " + " | ".join(cells) + " |"))
-            self._row = []
-        elif tag == "li" and self._in_li:
-            self._in_li = False
-            text = " ".join(self._text).strip()
-            self._text = []
-            if text:
-                self.blocks.append(("bullet", f"- {text}"))
-        elif tag in ("p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6"):
-            self._flush()
-
-    def handle_data(self, data: str) -> None:
-        if self.skip_depth:
-            return
-        text = data.strip()
-        if not text:
-            return
-        if self._in_cell:
-            self._cell.append(text)
-        else:
-            self._text.append(text)
-
-    def _flush(self) -> None:
-        # Hidden subtrees pushed a sentinel; drop everything they collected.
-        if "\x00hidden\x00" in self._text:
-            self._text = []
-            return
-        text = " ".join(self._text).strip()
-        self._text = []
+    def flush(self):
+        text = " ".join(self.text).strip()
+        self.text = []
         if text:
-            self.blocks.append(("text", text))
+            self.blocks.append((self.kind, "- " + text if self.kind == "list" else text))
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        hidden = (self.stack and self.stack[-1][1]) or tag in _SKIP or "hidden" in attrs
+        style = (attrs.get("style") or "").replace(" ", "").lower()
+        hidden = bool(hidden or "display:none" in style or "visibility:hidden" in style)
+        if tag not in _VOID:
+            self.stack.append((tag, hidden))
+        if hidden:
+            return
+        if tag in {"p", "div", "section", "article", "ul", "ol", "table", "li"} or tag in {
+            f"h{i}" for i in range(1, 7)
+        }:
+            self.flush()
+            self.kind = (
+                tag
+                if tag.startswith("h") and len(tag) == 2
+                else "list"
+                if tag == "li"
+                else "paragraph"
+            )
+        if tag == "tr":
+            self.row = []
+        if tag in {"td", "th"}:
+            self.cell = []
+        if tag == "br":
+            self.text.append("\n")
+
+    def handle_endtag(self, tag):
+        hidden = self.stack and self.stack[-1][1]
+        if not hidden:
+            if tag in {"td", "th"} and self.cell is not None:
+                self.row.append(" ".join(self.cell).strip().replace("|", "/"))
+                self.cell = None
+            elif tag == "tr" and self.row:
+                self.blocks.append(("row", "| " + " | ".join(self.row) + " |"))
+                self.row = []
+            elif tag in {"p", "div", "section", "article", "li", "table"} or tag in {
+                f"h{i}" for i in range(1, 7)
+            }:
+                self.flush()
+                if tag == "table":
+                    self.blocks.append(("boundary", ""))
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                break
+
+    def handle_data(self, data):
+        if self.stack and self.stack[-1][1]:
+            return
+        if data.strip():
+            (self.cell if self.cell is not None else self.text).append(data.strip())
 
 
-def parse_html(content: bytes, source_name: str = "document.html") -> list[ParsedSection]:
+def parse_html(content, source_name="document.html"):
     check_compressed_size(len(content))
     try:
-        html = content.decode("utf-8-sig")
+        text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
-        html = content.decode("windows-1252", errors="replace")
+        text = content.decode("windows-1252", errors="replace")
     parser = _Sanitizer()
-    parser.feed(html)
-    parser._flush()
-    assert parser.fetched == [], "HTML adapter must never fetch external resources."
-    sections: list[ParsedSection] = []
-    rows: list[str] = []
-    heading: str | None = None
+    parser.feed(text)
+    parser.flush()
+    sections, path, rows = [], [], []
 
-    def flush_rows() -> None:
+    def flush_rows():
         if rows:
             width = max(row.count("|") - 1 for row in rows)
-            table = [rows[0], "| " + " | ".join(["---"] * width) + " |", *rows[1:]]
-            sections.append(ParsedSection("\n".join(table), source_name, len(sections),
-                                          heading=heading))
+            body = "\n".join([rows[0], "| " + " | ".join(["---"] * width) + " |", *rows[1:]])
+            sections.append(
+                ParsedBlock(
+                    body,
+                    source_name,
+                    len(sections),
+                    type="table",
+                    heading=" / ".join(path) or None,
+                    heading_path=tuple(path),
+                )
+            )
             rows.clear()
 
     for kind, text in parser.blocks:
         if kind == "row":
             rows.append(text)
+            continue
+        flush_rows()
+        if kind == "boundary":
+            continue
+        if kind in {f"h{i}" for i in range(1, 7)}:
+            path = path[: int(kind[1]) - 1] + [text]
+            block_type = "heading"
         else:
-            flush_rows()
-            if kind == "bullet":
-                sections.append(ParsedSection(text, source_name, len(sections), heading=heading))
-            else:
-                if len(text) < 120 and not text.endswith((".", "!", "?", ":", ";")):
-                    heading = text
-                sections.append(ParsedSection(text, source_name, len(sections), heading=heading))
+            block_type = kind
+        sections.append(
+            ParsedBlock(
+                text,
+                source_name,
+                len(sections),
+                type=block_type,
+                heading=" / ".join(path) or None,
+                heading_path=tuple(path),
+            )
+        )
     flush_rows()
-    sections = [s for s in sections if s.content]
     if not sections:
         raise EmptyExtractedTextError("The HTML file contains no text.")
     return sections

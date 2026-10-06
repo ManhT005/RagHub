@@ -69,7 +69,7 @@ def test_chunk_limits_overlap_and_stable_ids() -> None:
     assert first[0].chunk_id != chunk_sections([section], uuid.uuid4())[0].chunk_id
     a = ENCODING.encode(first[0].content)
     b = ENCODING.encode(first[1].content)
-    assert ENCODING.decode(a[-80:]).strip() == ENCODING.decode(b[:80]).strip()
+    assert ENCODING.decode(a[-60:]).strip() == ENCODING.decode(b[:60]).strip()
 
 
 def test_invalid_and_image_only_pdf() -> None:
