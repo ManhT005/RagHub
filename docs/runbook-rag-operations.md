@@ -47,26 +47,23 @@ starting configurations, not throughput or quality guarantees:
 Use a supplied overlay so Compose's explicit defaults do not mask preset values:
 
 ```text
-docker compose --env-file .env --env-file .env.rag-lite-cpu.example -f infrastructure/docker-compose.yml up -d
+```sh
+# Select preset in .env or .env.self-host (e.g. RAG_HARDWARE_PROFILE=lite_cpu)
+docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai up -d
 ```
 
-Alternatives are `.env.rag-standard-cpu.example` and `.env.rag-gpu.example`.
-`python scripts/print_rag_profile.py lite_cpu` prints the preset environment.
-Explicit configuration overrides preset defaults. No preset downloads models or
-enables OCR. `RAG_WORKER_CONCURRENCY` controls the regular worker; the OCR worker
-stays at concurrency one. Local inference capacity is bounded per process/model;
-multiple worker processes can still increase aggregate RAM/VRAM consumption.
+Presets: `RAG_HARDWARE_PROFILE=lite_cpu` (default), `standard_cpu`, or `gpu`.
+Explicit configuration in the env file overrides preset defaults. Empty values
+fall back to the selected preset.
 
-Work priorities are query, upload, retry/recovery, reindex, then maintenance.
-Within a class, scheduling interleaves workspaces. Shared provider quota reserves
-query capacity. When the pending limit exceeds one, reindex admission leaves one
-slot for uploads. Workspace/work-item locks protect claims, and eligible queued
-higher-priority work in the same workspace takes precedence.
-
-The regular worker consumes `celery`, `rag-ingestion`, `rag-reindex` and
-`rag-embedding`. Redis priority buckets include legacy 6/9 buckets so older queued
-messages remain drainable. With `RAG_OCR_ENABLED=true`, ingestion/reindex route to
-`rag-ocr`; start the Compose `ocr` profile too. API and worker settings must agree.
+Workload isolation separates user-facing ingestion from long-running model operations:
+- The RAG worker (`worker`) consumes `rag-ingestion`, `rag-embedding` and `rag-reindex`.
+  Its concurrency defaults to the hardware preset (1 on CPU, 2 on GPU).
+- The dedicated provider worker (`worker-provider`) consumes `rag-provider` and `celery`
+  at concurrency 1, handling downloads, Ollama pulls and fail-fast health probes without
+  starving document uploads.
+- With `RAG_OCR_ENABLED=true`, ingestion/reindex route to `rag-ocr` on the `worker-ocr`
+  service (start with `--profile ocr`).
 Queue caps use `PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE` and
 `PROVIDER_POOL_MAX_PENDING_JOBS_PER_WORKSPACE`.
 
