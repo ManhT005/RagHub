@@ -11,11 +11,15 @@ Workspace reranking, local model downloads, provider validation and widget updat
 are preserved alongside the stabilization changes.
 
 Develop keeps revisions 0021/0022. RAG pools/work items move to unique 0027/0028;
-0023 depends on 0028. New head 0029 repairs missing upstream tables on previously
+0023 depends on 0028. Revision 0029 repairs missing upstream tables on previously
 stamped RAG databases. Already applied pool/work-item schemas are detected rather
 than recreated. Migration order follows Alembic ancestry, not numeric sorting.
 Verified upgrade: empty DB, origin/develop head 0022, and pre-merge RAG head 0026.
-All reach 0029 with both upstream and RAG structures present.
+All reach head **0030** with both upstream and RAG structures present. Revision
+0030 links managed pool credentials to provider configuration authority, so key
+rotation uses the current secret rather than a stale copied connection string.
+Authentication health is committed independently of read-only search sessions.
+Merge commit: `6f3de24`; `HEAD...origin/develop` has zero missing upstream commits.
 
 ## Phase 1: core boundaries
 
@@ -119,10 +123,76 @@ also available. Nightly service tests now include real ES/MinIO uploads.
 Reranker measurement uses configured DB/search services, explicit tenant IDs and
 reviewed local snapshots. It does not mint tokens for a hardcoded user or download
 unverified weights. Release gates accept optional MRR/nDCG/hit and latency limits;
-missing explicitly required evidence fails the gate. Citation ID validity remains
-separate from semantic support: reviewed claim-support labels are still needed.
+missing explicitly required evidence fails the gate. The semantic support review
+tool binds annotations to the exact answer SHA-256 and citation inventory, measures
+citation support precision/fact support recall, and invalidates stale verdicts.
+Reviewed claim-support labels are still needed; no automatic semantic approval is
+inferred from a valid citation ID or lexical fact overlap.
 
-Remaining acceptance: the golden corpus currently contains 30 questions. Phase 18
-requires a curated 200-300 case corpus, support judgments, and deployment-specific
-calibration/CPU-GPU benchmarks. Do not inflate fixture counts or promote lexical
-compare-only reports to production quality evidence.
+The original golden corpus remains 30 questions. At the user's request, generated
+210 draft variants in `backend/tests/fixtures/rag_golden_v2/qa.draft.json`, with
+30 families and no family crossing the calibration/holdout split. None are reviewed
+V2 labels. Phase 18 still requires distinct format coverage and verified per-fact
+support. Deployment-specific calibration/CPU-GPU benchmarks remain outstanding.
+
+## Final verification on October 6, 2026
+
+- Core: 144 passed after develop reconciliation.
+- Backend: 538 passed with PostgreSQL; 51 integration cases deselected.
+- Service integration selection: 15 passed against isolated PostgreSQL, Redis,
+  Elasticsearch and MinIO. Includes clean/develop/legacy migrations, current
+  provider-secret rotation, persistent authentication health, durable upload,
+  claim concurrency and shared quota.
+- Frontend: 180 passed; widget: 12 passed; widget TypeScript compilation passed.
+- Additional evaluation/review/calibration regression selection: 12 passed.
+- Ruff, Compose configuration and generated API contract checks passed.
+- OCR Docker target built and image-only PDF parsing passed with real Tesseract
+  `eng+vie`, page metadata and page timing/count telemetry.
+  The same image-only PDF smoke is now included in the nightly workflow.
+
+No production provider benchmark, reviewed V2 dataset or deploy was performed.
+Disposable services used separate project names, volumes and ports.
+Their containers, four temporary data volumes and OCR image tag were removed
+after verification.
+
+## Implementation commits
+
+| Commit | Change |
+|---|---|
+| `24b58ff` | Host clarification policies, quota profiles and model catalog boundaries |
+| `1caabe8` | Index publication validation, configured RRF and relevance artifact checks |
+| `9d6ec01` | Budget final rendered prompts and citation wrappers |
+| `09580e3` | Preserve headings and chunk tables by row |
+| `406a69b` | Canonical resumable host embeddings and real work-item finalization |
+| `a5972dc` | Query quota, compatible runtime policies, neighbors and reranker checks |
+| `702caa5` | OCR isolation, deploy-time reranker tooling and release thresholds |
+| `6f3de24` | Develop merge, compatible migration histories and current credential authority |
+| `973ace3` | Reviewed fact-support gates, calibration split handling and 210 QA drafts |
+
+The final operations commit contains the real OCR smoke, nightly wiring and this
+progress/runbook documentation. No commits were pushed.
+
+## Acceptance status by phase
+
+| Phase | Current result | Evidence still needed |
+|---|---|---|
+| 0 | Develop reconciled; three migration histories tested | Deployment backup/upgrade rehearsal |
+| 1 | Host policies/catalogs/quota profiles extracted from Core | None for the boundary change |
+| 2 | Index validation precedes READY and publication | Deployment failure monitoring |
+| 3–4 | Structural parsers and row-aware chunks tested | Reviewed real document format corpus |
+| 5–6 | Canonical durable embeddings, atomic claims, limits and real finalization | Sustained production load |
+| 7 | Optional tenant/fingerprint/content cache implemented, default off | Deployment hit rate and cost measurements |
+| 8–9 | Immutable compatible pools, current credential authority and shared query quota tested | Provider-specific operating capacity |
+| 10 | Configured RRF and optional scoped neighbors implemented | Diversity/neighbor ablation quality and latency |
+| 11 | Pre-rerank gate, fingerprint/hash checks and training standardization implemented | Reviewed calibration/holdout artifact; richer-feature ablations |
+| 12 | Pinned/checksummed local reranker loader and preparation CLI | Approved snapshot and CPU/GPU benchmarks |
+| 13 | Optional generic post-retrieval clarification hook | Domain policy quality/latency evaluation |
+| 14–15 | Rendered prompt budgeting and bounded factual generation tested | Model-specific deployed measurements |
+| 16 | Citation inventory validation and manual semantic scoring implemented | Reviewed claim/source annotations |
+| 17 | Dedicated OCR queue/image and real OCR smoke passed | Queue-depth/timeout/document-total dashboards and load test |
+| 18 | 210 draft cases generated, original baseline preserved | 200–300 reviewed cases with missing format coverage |
+| 19 | Explicit retrieval/latency/support thresholds supported; infrastructure nightly retained | Production quality evidence, TTFT/rerank gates and approved baselines |
+
+Implementation and regression coverage do not satisfy the remaining production
+acceptance criteria. Deployment commands and review format are documented in
+`docs/runbook-rag-operations.md`.

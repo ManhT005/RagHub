@@ -42,6 +42,10 @@ jobs:
       - name: Integration suite
         working-directory: backend
         run: python -m pytest -p no:cacheprovider -m integration
+      - name: Real OCR runtime smoke
+        run: |
+          docker build --target ocr -t raghub-nightly-ocr -f backend/Dockerfile .
+          docker run --rm -i raghub-nightly-ocr python - < backend/scripts/verify_ocr_runtime.py
       - name: Golden baseline report (compare-only, never blocks on thresholds)
         working-directory: backend
         run: python scripts/rag_golden_eval.py --out ../artifacts/rag_nightly_baseline.json
