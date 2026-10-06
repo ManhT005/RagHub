@@ -1,4 +1,10 @@
 const MESSAGES: Record<string, string> = {
+  PROVIDER_MODEL_NOT_FOUND: 'Provider không phục vụ Model ID này. Tìm model đang khả dụng hoặc kiểm tra ID.',
+  PROVIDER_RATE_LIMITED: 'Provider đang giới hạn request hoặc quota. Thử lại sau hoặc kiểm tra tài khoản provider.',
+  PROVIDER_IDENTITY_IMMUTABLE: 'Tạo connection mới để chuyển sang provider khác.',
+  DEPRECATED_PROVIDER_API: 'Quản lý thông qua AI Providers và Model Registry.',
+  LOCAL_MODEL_DISK_FULL: 'Máy chủ không đủ dung lượng để tải model.',
+  LOCAL_DOWNLOAD_QUEUE_UNAVAILABLE: 'Không thể tạo tác vụ tải model. Kiểm tra worker và hàng đợi.',
   PROVIDER_AUTH_FAILED: "Không thể xác thực provider. Kiểm tra API key.",
   PROVIDER_UNREACHABLE:
     "Không thể kết nối provider. Kiểm tra endpoint và dịch vụ.",

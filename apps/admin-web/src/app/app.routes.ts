@@ -188,6 +188,11 @@ export const routes: Routes = [
         canActivate: [adminOnly],
       },
       {
+        path: "ai/local",
+        loadComponent: () => import("./features/ai-providers/local-ai.component").then(m => m.LocalAiComponent),
+        canActivate: [adminOnly],
+      },
+      {
         path: "users",
         loadComponent: () =>
           import("./users/users.component").then((m) => m.UsersComponent),

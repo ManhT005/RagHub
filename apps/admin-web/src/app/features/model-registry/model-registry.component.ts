@@ -67,7 +67,7 @@ import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.
       >
         <option value="">Tất cả chức năng</option>
         <option>CHAT</option>
-        <option>EMBEDDING</option></select
+        <option>EMBEDDING</option><option>RERANK</option></select
       ><select
         aria-label="Trạng thái model"
         [ngModel]="availability()"

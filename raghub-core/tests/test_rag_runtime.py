@@ -1,5 +1,4 @@
 import asyncio
-
 from dataclasses import replace
 from uuid import uuid4
 
@@ -149,6 +148,7 @@ def test_empty_context_skips_chat_resolution_and_usage_recording():
     assert events[4].first_token_ms is None and events[4].latency_ms == 0
     assert conversations.messages[-1] == ("assistant", EMPTY_CONTEXT_ANSWER)
 
+
 def test_ambiguous_question_emits_clarification_without_retrieval_or_provider():
     command, _, retrieval, providers, conversations, usage, use_case = runtime()
     command = replace(command, question="hoc phi?")
@@ -191,7 +191,6 @@ def test_clarification_limit_falls_back_to_retrieval_answer_path():
     assert not any(isinstance(event, ClarificationRequested) for event in events)
 
 
-
 def test_legacy_ascii_clarification_prefix_still_counts_toward_limit() -> None:
     command, _, retrieval, providers, conversations, _, use_case = runtime()
     conversations.messages = [
@@ -211,6 +210,7 @@ def test_legacy_ascii_clarification_prefix_still_counts_toward_limit() -> None:
     assert retrieval.calls
     assert providers.chat_scopes
     assert not any(isinstance(event, ClarificationRequested) for event in events)
+
 
 def test_followup_after_clarification_uses_resolved_question_for_retrieval_and_prompt():
     command, _, retrieval, providers, conversations, _, use_case = runtime()
@@ -256,6 +256,7 @@ def test_refuse_or_redirect_keeps_legacy_visible_token_stream():
     assert events[2].text == "Mình chỉ có thể trả lời dựa trên tài liệu được cung cấp."
     assert events[3].usage == ChatUsage(0, 0, 0, "none")
     assert conversations.messages[-1] == ("assistant", events[2].text)
+
 
 def test_chatbot_off_mode_uses_legacy_answer_path_for_ambiguous_question():
     command, chatbots, retrieval, providers, _, _, use_case = runtime()

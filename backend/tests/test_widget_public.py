@@ -70,6 +70,38 @@ def test_public_cors_echoes_the_verified_origin() -> None:
     assert headers["Vary"] == "Origin"
 
 
+@pytest.mark.parametrize(
+    "published,origin,status",
+    [
+        (False, "https://example.com", 404),
+        (True, "https://example.com", 200),
+        (True, "https://wrong.example", 403),
+    ],
+)
+async def test_public_resolver_keeps_publication_and_origin_gates(published, origin, status):
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import AppError
+    from app.delivery.security.public_chat import PublicChatResolver
+
+    bot = SimpleNamespace(allowed_origins=["https://example.com"])
+
+    async def select_published(statement):
+        # A historical key must only match published chatbots in a live workspace.
+        sql = str(statement)
+        assert "chatbots.published IS true" in sql
+        assert "workspaces.deleted_at IS NULL" in sql
+        return bot if published else None
+
+    resolver = PublicChatResolver(SimpleNamespace(scalar=AsyncMock(side_effect=select_published)))
+    if status == 200:
+        assert await resolver.resolve("rgh_historical", origin) is bot
+    else:
+        with pytest.raises(AppError) as error:
+            await resolver.resolve("rgh_historical", origin)
+        assert error.value.status_code == status
+
+
 @pytest.mark.asyncio
 async def test_public_chat_uses_real_sse_frame_delimiters(monkeypatch: pytest.MonkeyPatch) -> None:
     import json

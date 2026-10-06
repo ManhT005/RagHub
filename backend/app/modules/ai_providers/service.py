@@ -270,6 +270,7 @@ class ProviderConfigService:
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
                     | (Workspace.chat_provider_id == provider_id)
+                    | (Workspace.rerank_provider_id == provider_id)
                     | Workspace.active_embedding_index_version_id.in_(indexes)
                     | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
@@ -316,6 +317,13 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Provider embedding dimension does not match config."
                 )
+        elif config.capability == ProviderCapability.RERANK:
+            from raghub_core.domain.providers.rerank import validated_rerank_indices
+
+            result = await provider.rerank(
+                query="RagHub", documents=["RagHub documentation", "A different topic"], top_n=2
+            )
+            validated_rerank_indices(result, count=2, top_n=2)
         else:
             received = False
             async for delta in provider.stream_chat(  # type: ignore[attr-defined]

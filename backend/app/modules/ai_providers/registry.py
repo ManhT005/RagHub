@@ -15,6 +15,7 @@ from app.modules.ai_providers.adapters import (
     OpenAICompatibleEmbeddingProvider,
 )
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from app.modules.ai_providers.vendor_profiles import embedding_batch_limit, vendor_headers
 
 ProviderFactory = Callable[[ProviderDescriptor, str | None], object]
 
@@ -45,6 +46,94 @@ class ProviderRegistry:
             self._local_embedding,
         )
         self.register(ProviderType.OLLAMA, ProviderCapability.CHAT, self._ollama_chat)
+        self.register(
+            ProviderType.OPENAI_COMPATIBLE, ProviderCapability.RERANK, self._siliconflow_rerank
+        )
+        for runtime, capability, factory in (
+            (ProviderType.VOYAGE, ProviderCapability.EMBEDDING, self._voyage_embedding),
+            (ProviderType.VOYAGE, ProviderCapability.RERANK, self._voyage_rerank),
+            (
+                ProviderType.CLOUDFLARE_WORKERS_AI,
+                ProviderCapability.EMBEDDING,
+                self._cloudflare_embedding,
+            ),
+            (ProviderType.CLOUDFLARE_WORKERS_AI, ProviderCapability.CHAT, self._cloudflare_chat),
+            (
+                ProviderType.CLOUDFLARE_WORKERS_AI,
+                ProviderCapability.RERANK,
+                self._cloudflare_rerank,
+            ),
+            (ProviderType.HUGGINGFACE_INFERENCE, ProviderCapability.EMBEDDING, self._hf_embedding),
+            (ProviderType.HUGGINGFACE_INFERENCE, ProviderCapability.CHAT, self._hf_chat),
+        ):
+            self.register(runtime, capability, factory)
+
+    @classmethod
+    def _remote_kwargs(cls, config, secret):
+        return {
+            "base_url": config.base_url,
+            "model": config.model,
+            "secret": secret,
+            "policy": cls._policy(config),
+        }
+
+    @classmethod
+    def _voyage_embedding(cls, config, secret):
+        from app.modules.ai_providers.adapters.voyage import VoyageEmbeddingProvider
+
+        return VoyageEmbeddingProvider(
+            **cls._remote_kwargs(config, secret), dimension=config.dimension or 0
+        )
+
+    @classmethod
+    def _voyage_rerank(cls, config, secret):
+        from app.modules.ai_providers.adapters.voyage import VoyageRerankProvider
+
+        return VoyageRerankProvider(**cls._remote_kwargs(config, secret))
+
+    @classmethod
+    def _siliconflow_rerank(cls, config, secret):
+        from app.modules.ai_providers.adapters.siliconflow_rerank import SiliconFlowRerankProvider
+
+        if (config.options or {}).get("request_profile") != "SILICONFLOW":
+            raise ProviderConfigurationError("This catalog does not support reranking.")
+        return SiliconFlowRerankProvider(**cls._remote_kwargs(config, secret))
+
+    @classmethod
+    def _cloudflare_embedding(cls, config, secret):
+        from app.modules.ai_providers.adapters.cloudflare_workers_ai import (
+            CloudflareEmbeddingProvider,
+        )
+
+        return CloudflareEmbeddingProvider(
+            **cls._remote_kwargs(config, secret), dimension=config.dimension or 0
+        )
+
+    @classmethod
+    def _cloudflare_chat(cls, config, secret):
+        from app.modules.ai_providers.adapters.cloudflare_workers_ai import CloudflareChatProvider
+
+        return CloudflareChatProvider(**cls._remote_kwargs(config, secret))
+
+    @classmethod
+    def _cloudflare_rerank(cls, config, secret):
+        from app.modules.ai_providers.adapters.cloudflare_workers_ai import CloudflareRerankProvider
+
+        return CloudflareRerankProvider(**cls._remote_kwargs(config, secret))
+
+    @classmethod
+    def _hf_embedding(cls, config, secret):
+        from app.modules.ai_providers.adapters.huggingface import HuggingFaceEmbeddingProvider
+
+        return HuggingFaceEmbeddingProvider(
+            **cls._remote_kwargs(config, secret), dimension=config.dimension or 0
+        )
+
+    @classmethod
+    def _hf_chat(cls, config, secret):
+        from app.modules.ai_providers.adapters.huggingface import HuggingFaceChatProvider
+
+        return HuggingFaceChatProvider(**cls._remote_kwargs(config, secret))
 
     def register(
         self, provider_type: ProviderType, capability: ProviderCapability, factory: ProviderFactory
@@ -78,9 +167,13 @@ class ProviderRegistry:
             model=config.model,
             dimension=config.dimension or 0,
             secret=secret,
+            provider_name=cls._vendor_name(config),
             policy=cls._policy(config),
             endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
             request_profile=(config.options or {}).get("request_profile", "OPENAI_STANDARD"),
+            batch_limit=embedding_batch_limit(
+                (config.options or {}).get("request_profile"), config.options or {}
+            ),
         )
 
     @classmethod
@@ -89,9 +182,22 @@ class ProviderRegistry:
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,
             secret=secret,
+            provider_name=cls._vendor_name(config),
             policy=cls._policy(config),
             include_stream_usage=cls._include_stream_usage(config),
             endpoint_scope=(config.options or {}).get("endpoint_scope", "PUBLIC"),
+            static_headers=vendor_headers(
+                (config.options or {}).get("request_profile"), config.options or {}
+            ),
+        )
+
+    @staticmethod
+    def _vendor_name(config):
+        profile = (config.options or {}).get("request_profile")
+        return (
+            profile
+            if profile in {"GROQ", "OPENROUTER", "CEREBRAS", "SILICONFLOW"}
+            else "OPENAI_COMPATIBLE"
         )
 
     @classmethod

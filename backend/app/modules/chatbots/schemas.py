@@ -76,5 +76,8 @@ class EmbedPublishInput(BaseModel):
 
 
 class EmbedCodeResponse(BaseModel):
-    code: str
+    code: str | None = None
     key: str | None = None
+    script_src: str
+    public_base_url: str
+    has_embed_key: bool = False

@@ -92,6 +92,7 @@ async def list_providers(
     "/organizations/{organization_id}/providers",
     response_model=ProviderConfigResponse,
     status_code=status.HTTP_201_CREATED,
+    deprecated=True,
 )
 async def create_provider(
     organization_id: UUID,
@@ -104,10 +105,16 @@ async def create_provider(
             "ORGANIZATION_SCOPE_MISMATCH", "Organization scope mismatch.", status_code=400
         )
     _manage(context)
+    if payload.provider_type not in {"LOCAL_TOKEN_HASH", "LOCAL_SENTENCE_TRANSFORMER", "OLLAMA"}:
+        raise AppError(
+            "DEPRECATED_PROVIDER_API",
+            "Create a connection and register its models.",
+            status_code=410,
+        )
     return provider_response(await ProviderConfigService(session).create(organization_id, payload))
 
 
-@router.patch("/providers/{provider_id}", response_model=ProviderConfigResponse)
+@router.patch("/providers/{provider_id}", response_model=ProviderConfigResponse, deprecated=True)
 async def update_provider(
     provider_id: UUID,
     payload: ProviderConfigPatch,
@@ -115,6 +122,11 @@ async def update_provider(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ProviderConfigResponse:
     _manage(context)
+    config = await ProviderConfigService(session).get(context.organization_id, provider_id)
+    if config.provider_type not in {"LOCAL_TOKEN_HASH", "LOCAL_SENTENCE_TRANSFORMER", "OLLAMA"}:
+        raise AppError(
+            "DEPRECATED_PROVIDER_API", "Update the connection or registered model.", status_code=410
+        )
     return provider_response(
         await ProviderConfigService(session).update(context.organization_id, provider_id, payload)
     )

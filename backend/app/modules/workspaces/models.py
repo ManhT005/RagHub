@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -23,6 +23,10 @@ class Workspace(Base):
     chat_provider_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("provider_configs.id", ondelete="SET NULL"), index=True
     )
+    rerank_provider_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("provider_configs.id", ondelete="SET NULL"), index=True
+    )
+    rerank_config: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     active_embedding_index_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("embedding_index_versions.id", ondelete="SET NULL"), index=True
     )

@@ -59,13 +59,16 @@ export interface DocumentItem {
   error_message: string | null;
   retryable: boolean;
 }
-export type ProviderCapability = "EMBEDDING" | "CHAT";
+export type ProviderCapability = "EMBEDDING" | "CHAT" | "RERANK";
 export type ProviderType =
   | "OPENAI_COMPATIBLE"
   | "GOOGLE_GEMINI"
   | "LOCAL_TOKEN_HASH"
   | "LOCAL_SENTENCE_TRANSFORMER"
-  | "OLLAMA";
+  | "OLLAMA"
+  | "VOYAGE"
+  | "CLOUDFLARE_WORKERS_AI"
+  | "HUGGINGFACE_INFERENCE";
 export interface ProviderConfig {
   id: string;
   organization_id: string;
@@ -142,8 +145,11 @@ export interface EmbedPublishInput {
   greeting: string;
 }
 export interface EmbedCode {
-  code: string;
+  code: string | null;
   key?: string | null;
+  script_src: string;
+  public_base_url: string;
+  has_embed_key: boolean;
 }
 export type ChatStreamEventName =
   | "conversation"
@@ -435,9 +441,11 @@ export class RaghubApiService {
         response = await send();
       }
       if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => null);
         onEvent({
           event: "error",
           data: {
+            code: body?.error?.code ?? "CHAT_CONNECTION_FAILED",
             message: `Không thể kết nối chatbot (HTTP ${response.status}).`,
           },
         });
@@ -459,7 +467,7 @@ export class RaghubApiService {
       if (signal?.aborted) return;
       onEvent({
         event: "error",
-        data: { message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
+        data: { code: "CHAT_CONNECTION_FAILED", message: "Kết nối chat bị gián đoạn. Hãy thử lại." },
       });
     }
   }

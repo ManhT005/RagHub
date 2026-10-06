@@ -1,4 +1,5 @@
 """Compose retrieval hooks from feature flags (all default off)."""
+
 from pathlib import Path
 
 from raghub_core.api import RetrieveContextUseCase
@@ -12,6 +13,7 @@ from app.infrastructure.elasticsearch.chunks import ChunkSearch
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorSearch
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
+from app.infrastructure.rerank import WorkspaceRerankResolver, record_rerank_status
 from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.search.relevance import (
@@ -37,6 +39,7 @@ def _artifact_path() -> Path:
 
 def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
     settings = get_settings()
+    providers = ProviderResolver(session)
     rerank = None
     if settings.rag_reranker_enabled:
         adapter = LocalCrossEncoderReranker()
@@ -51,11 +54,7 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
             _artifact_path(), expected_version=settings.rag_relevance_config_version
         )
         qa_path = (
-            Path(__file__).resolve().parents[2]
-            / "tests"
-            / "fixtures"
-            / "rag_golden"
-            / "qa.json"
+            Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "rag_golden" / "qa.json"
         )
         live_dataset = dataset_hash(qa_path) if qa_path.exists() else ""
         live_config = retrieval_config_hash(
@@ -79,11 +78,13 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
 
     telemetry = LoggingTelemetry()
     return RetrieveContextUseCase(
-        ProviderResolverAdapter(ProviderResolver(session)),
+        ProviderResolverAdapter(providers),
         DocumentReadinessAdapter(session),
         lambda runtime: ElasticsearchVectorSearch(
             ChunkSearch(index_name=runtime.index_name, telemetry=telemetry)
         ),
+        WorkspaceRerankResolver(session, providers),
+        record_rerank_status,
         rerank=rerank,
         relevance=relevance,
         rerank_top_n=settings.rag_rerank_top_n,

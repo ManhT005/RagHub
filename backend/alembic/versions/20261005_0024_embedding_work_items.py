@@ -1,15 +1,15 @@
 """Quota-aware resumable embedding work items and batch checkpoints.
 
-Revision ID: 20261005_0022
-Revises: 20261005_0021
+Revision ID: 20261005_0024
+Revises: 20261005_0023
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "20261005_0022"
-down_revision = "20261005_0021"
+revision = "20261005_0024"
+down_revision = "20261005_0023"
 branch_labels = None
 depends_on = None
 

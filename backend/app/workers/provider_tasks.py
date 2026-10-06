@@ -45,3 +45,19 @@ async def ollama_pull(job_id):
 )
 def run_ollama_pull(job_id):
     asyncio.run(ollama_pull(job_id))
+
+
+async def local_download(job_id):
+    from app.modules.ai_providers.local_manager import LocalModelManager
+
+    engine = create_async_engine(get_settings().database_url, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as session:
+            await LocalModelManager(session).run(UUID(job_id))
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="providers.local_download", soft_time_limit=3500, time_limit=3600)
+def run_local_download(job_id):
+    asyncio.run(local_download(job_id))

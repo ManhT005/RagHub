@@ -152,9 +152,7 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
 
-        hits = await self.retrieval.retrieve(
-            chatbot.scope, question, chatbot.retrieval_limit
-        )
+        hits = await self.retrieval.retrieve(chatbot.scope, question, chatbot.retrieval_limit)
         if not hits:
             usage = ChatUsage(0, 0, 0, "none")
             message_id = await self.conversations.add_assistant(
@@ -176,9 +174,7 @@ class StreamRagChatUseCase:
             self.telemetry.timing("context", (_perf_now() - mark) * 1000, {})
         budgeted: BudgetedPrompt | None = None
         if self.budgeter_factory is not None:
-            budgeter = self.budgeter_factory(
-                chatbot.model or runtime.model, runtime.provider_type
-            )
+            budgeter = self.budgeter_factory(chatbot.model or runtime.model, runtime.provider_type)
             budgeted = budgeter.budget(
                 system_text=chatbot.system_prompt,
                 question=question,
@@ -186,7 +182,7 @@ class StreamRagChatUseCase:
                 context_chunks=[hit.content for hit in context.hits],
             )
         if budgeted is None:
-            citations = resolve_trusted_citations(context.hits)
+            citations = resolve_trusted_citations(context.hits[:5])
             inventory = {citation.citation_id for citation in citations}
             mark = _perf_now()
             messages = build_prompt(
