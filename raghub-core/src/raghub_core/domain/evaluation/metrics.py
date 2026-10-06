@@ -74,3 +74,30 @@ def citation_coverage(*, supported_claims: int, total_claims: int) -> float:
     if total_claims == 0:
         return 1.0
     return supported_claims / total_claims
+
+
+def fact_support_scores(
+    *, expected_facts: list[dict], observed_facts: list[dict], inventory_chunk_ids: set[str]
+) -> dict[str, float | None]:
+    """Score reviewed fact-to-source mappings independently from citation ID validity.
+
+    Fact labels identify reviewer-matched claims, not automatic semantic judgments.
+    Missing annotations are unavailable evidence, never a passing score.
+    """
+    if not expected_facts:
+        return {"citation_support_precision": None, "fact_support_recall": None}
+    support = {fact["fact"]: set(fact["supporting_chunk_ids"]) for fact in expected_facts}
+    if len(support) != len(expected_facts) or any(not ids for ids in support.values()):
+        raise ValueError("Expected facts need unique labels and supporting chunks.")
+    cited, supported, recalled = 0, 0, set()
+    for claim in observed_facts:
+        chunks = set(claim.get("cited_chunk_ids", []))
+        good = chunks & inventory_chunk_ids & support.get(claim["fact"], set())
+        cited += len(chunks)
+        supported += len(good)
+        if good:
+            recalled.add(claim["fact"])
+    return {
+        "citation_support_precision": supported / cited if cited else None,
+        "fact_support_recall": len(recalled) / len(expected_facts),
+    }

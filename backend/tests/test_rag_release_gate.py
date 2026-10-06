@@ -113,12 +113,14 @@ def test_optional_quality_and_latency_gates_fail_on_missing_or_regressed_metrics
         "mrr@5": 0.85,
         "retrieval_p95_ms": 500,
         "citation_support_precision": 0.9,
+        "fact_support_recall": 0.85,
     }
     passed, checks = module.evaluate_release_gate(summary, thresholds)
     assert not passed
     assert not checks["mrr@5"]["passed"]
     assert not checks["retrieval_p95_ms"]["passed"]
     assert not checks["citation_support_precision"]["passed"]
+    assert not checks["fact_support_recall"]["passed"]
 
 
 def test_provider_error_detection_handles_nested_payloads():

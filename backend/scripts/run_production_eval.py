@@ -186,6 +186,7 @@ def evaluate_release_gate(summary: dict, thresholds: dict) -> tuple[bool, dict[s
         "retrieval_p95_ms": "<=",
         "chat_p95_ms": "<=",
         "citation_support_precision": ">=",
+        "fact_support_recall": ">=",
     }.items():
         if thresholds.get(metric) is not None:
             checks[metric] = {
@@ -720,8 +721,10 @@ def main() -> None:
             backoff_s=args.retry_backoff_seconds,
         )
         answer, inventory, usage, err = "", set(), None, None
+        citation_inventory = []
         for kind, payload in events:
             if kind == "citations":
+                citation_inventory = payload.get("citations", [])
                 for c in payload.get("citations", []):
                     inventory.add(c.get("citation_id", ""))
             elif kind == "token":
@@ -756,6 +759,7 @@ def main() -> None:
                 "mrr@5": mrr_at_k(ranked, exp),
                 "ndcg@5": ndcg_at_k(ranked, rel),
                 "cited_ids": cited,
+                "citation_inventory": citation_inventory,
                 "invalid_ids": list(report.invalid_ids),
                 "coverage": report.coverage,
                 "facts_recalled": round(recalled, 3),

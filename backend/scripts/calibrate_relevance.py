@@ -38,6 +38,16 @@ def _design(rows: list[dict], names: tuple[str, ...]) -> tuple[list[list[float]]
     return matrix, labels
 
 
+def calibration_rows(payload) -> list[dict]:
+    """Accept collector output without mixing holdout observations into training."""
+    rows = payload.get("calibration") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list) or any(
+        row.get("split", "calibration") != "calibration" for row in rows
+    ):
+        raise ValueError("Expected calibration rows only; holdout must be evaluated separately.")
+    return rows
+
+
 def fit_logistic(
     matrix: list[list[float]], labels: list[int], *, steps: int = 2000, rate: float = 0.1
 ) -> tuple[list[float], float]:
@@ -83,7 +93,7 @@ def main() -> None:
     parser.add_argument("--fingerprint", required=True)
     args = parser.parse_args()
 
-    rows = json.loads(Path(args.scores).read_text(encoding="utf-8"))
+    rows = calibration_rows(json.loads(Path(args.scores).read_text(encoding="utf-8")))
     names = default_features()
     matrix, labels = _design(rows, names)
     if not matrix or len(set(labels)) != 2:
