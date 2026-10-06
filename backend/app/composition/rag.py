@@ -1,7 +1,6 @@
 from raghub_core.api import StreamRagChatUseCase
 from raghub_core.domain.rag.model_profile import (
     count_tokens_exact,
-    resolve_profile,
 )
 from raghub_core.domain.rag.prompt_budget import PromptBudgeter
 
@@ -16,12 +15,14 @@ from app.infrastructure.persistence.conversations import (
     UsageRecorderAdapter,
 )
 from app.infrastructure.telemetry.adapter import LoggingTelemetry
+from app.modules.ai_providers.model_profiles import resolve_profile
+from app.modules.rag_policies.clarification import HostClarificationPolicy
 
 
 def prompt_budgeter_factory(model: str, provider_type: str) -> PromptBudgeter:
     """Build the global prompt budgeter from the model profile and settings."""
     settings = get_settings()
-    resolved = resolve_profile(model)
+    resolved = resolve_profile(model, context_window=settings.rag_model_context_window)
     counter = count_tokens_exact if resolved.profile.exact_tokenizer else None
     if counter is None:
         from raghub_core.domain.rag.model_profile import count_tokens_fallback
@@ -48,4 +49,5 @@ def rag_use_case(
         UsageRecorderAdapter(session),
         budgeter_factory=prompt_budgeter_factory,
         telemetry=LoggingTelemetry(),
+        clarification_policy=HostClarificationPolicy(),
     )

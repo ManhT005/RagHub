@@ -9,7 +9,7 @@ def test_chatbot_clarification_defaults_are_backward_compatible() -> None:
 
     assert payload.clarification_mode == "conservative"
     assert payload.max_clarifying_turns == 1
-    assert payload.domain_profile == "admissions"
+    assert payload.domain_profile == "generic"
 
 
 def test_chatbot_clarification_accepts_three_modes() -> None:

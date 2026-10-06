@@ -21,7 +21,7 @@ def chatbot_record(chatbot: Chatbot) -> ChatbotRecord:
         chatbot.updated_at,
         getattr(chatbot, "clarification_mode", "conservative"),
         getattr(chatbot, "max_clarifying_turns", 1),
-        getattr(chatbot, "domain_profile", "admissions"),
+        getattr(chatbot, "domain_profile", "generic"),
     )
 
 

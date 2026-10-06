@@ -21,7 +21,7 @@ class ChatbotRuntimeReader:
             getattr(chatbot, "model", None),
             getattr(chatbot, "clarification_mode", "conservative"),
             getattr(chatbot, "max_clarifying_turns", 1),
-            getattr(chatbot, "domain_profile", "admissions"),
+            getattr(chatbot, "domain_profile", "generic"),
         )
 
 

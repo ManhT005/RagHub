@@ -13,7 +13,7 @@ from raghub_core.domain.rag.citations import (
     resolve_sliced_citations,
     resolve_trusted_citations,
 )
-from raghub_core.domain.rag.clarification import ClarificationPolicy, normalize_query
+from raghub_core.domain.rag.clarification import ClarificationPolicy
 from raghub_core.domain.rag.events import (
     ChatCompleted,
     ChatFailed,
@@ -31,6 +31,7 @@ from raghub_core.domain.rag.prompt_budget import BudgetedPrompt, PromptBudgeter
 from raghub_core.domain.rag.timing import ChatStreamTiming
 from raghub_core.domain.retrieval.hybrid import build_context_bundle
 from raghub_core.ports.chatbots import ChatbotReadPort
+from raghub_core.ports.clarification import ClarificationPolicyPort
 from raghub_core.ports.conversations import ConversationRepositoryPort
 from raghub_core.ports.provider_resolver import ProviderResolverPort
 from raghub_core.ports.retrieval import RetrievalPort
@@ -51,7 +52,7 @@ class StreamRagChatUseCase:
         budgeter_factory: Callable[[str, str], PromptBudgeter] | None = None,
         citation_observer: Callable[[CitationReport], None] | None = None,
         telemetry: TelemetryPort | None = None,
-        clarification_policy: ClarificationPolicy | None = None,
+        clarification_policy: ClarificationPolicyPort | None = None,
         clarification_mode: str = "conservative",
         max_clarifying_turns: int = 1,
     ) -> None:
@@ -288,4 +289,4 @@ class StreamRagChatUseCase:
     def _is_clarification_message(self, message: ChatMessage) -> bool:
         if message.role != "assistant":
             return False
-        return normalize_query(message.content).startswith("ban vui long cho biet them ")
+        return self.clarification_policy.is_clarification(message.content)

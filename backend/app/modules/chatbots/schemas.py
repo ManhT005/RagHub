@@ -17,7 +17,7 @@ class ChatbotInput(BaseModel):
     published: bool = False
     clarification_mode: ClarificationMode = "conservative"
     max_clarifying_turns: int = Field(default=1, ge=0, le=5)
-    domain_profile: str = Field(default="admissions", min_length=1, max_length=64)
+    domain_profile: str = Field(default="generic", min_length=1, max_length=64)
 
 
 class ChatbotPatch(BaseModel):
@@ -41,7 +41,7 @@ class ChatbotResponse(BaseModel):
     published: bool
     clarification_mode: ClarificationMode = "conservative"
     max_clarifying_turns: int = 1
-    domain_profile: str = "admissions"
+    domain_profile: str = "generic"
     allowed_origins: list[str] = []
     embed_primary_color: str = "#1463ff"
     embed_title: str = "RagHub Assistant"

@@ -6,7 +6,6 @@ import pytest
 from raghub_core.application.ingestion.build_document_index import BuildDocumentIndexUseCase
 from raghub_core.domain.embedding.batching import remaining_batches, split_batches
 from raghub_core.domain.embedding.quota import (
-    GEMINI_EMBEDDING,
     RollingQuotaBucket,
     estimate_tokens,
     retry_after_delay,
@@ -17,6 +16,7 @@ from raghub_core.ports.embedding_quota import (
     QuotaDepletedError,
 )
 
+from app.modules.ai_providers.quota_profiles import GEMINI_EMBEDDING
 from app.modules.ai_providers.work_items import (
     MAX_ACTIVE_PER_WORKSPACE,
     MAX_PENDING_PER_WORKSPACE,

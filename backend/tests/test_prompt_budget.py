@@ -12,11 +12,12 @@ from raghub_core.domain.rag.citations import (
 from raghub_core.domain.rag.model_profile import (
     count_tokens_exact,
     count_tokens_fallback,
-    resolve_profile,
     validate_budget_config,
 )
 from raghub_core.domain.rag.prompt_budget import PromptBudgeter
 from raghub_core.domain.retrieval.models import RetrievedChunk
+
+from app.modules.ai_providers.model_profiles import resolve_profile
 
 
 def _hit(content: str) -> RetrievedChunk:

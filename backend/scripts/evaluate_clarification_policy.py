@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from raghub_core.domain.rag.clarification import ClarificationPolicy
+from app.modules.rag_policies.admissions import AdmissionsPolicy as ClarificationPolicy
 
 BACKEND = Path(__file__).resolve().parents[1]
 ROOT = BACKEND.parent

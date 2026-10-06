@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     public_chat_trusted_proxy_cidrs: str = ""
     ollama_base_url: str = "http://ollama:11434"
 
+    rag_model_context_window: int | None = Field(default=None, ge=2048)
     rag_max_output_tokens: int = Field(default=1024, ge=1, le=32768)
     rag_prompt_safety_margin: int = Field(default=256, ge=0, le=8192)
     rag_ocr_enabled: bool = False

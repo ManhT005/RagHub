@@ -1,6 +1,6 @@
 """Shared Redis rolling quota buckets. Keys carry pool scope only, never content."""
 
-from raghub_core.domain.embedding.quota import GEMINI_EMBEDDING, QuotaProfile
+from raghub_core.domain.embedding.quota import QuotaProfile
 from raghub_core.ports.embedding_quota import (
     QuotaBackendUnavailableError,
     QuotaDepletedError,
@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import Settings
+from app.modules.ai_providers.quota_profiles import GEMINI_EMBEDDING
 
 # Atomic across replicas: prune windows, check RPM/TPM/RPD, reserve one slot.
 # Returns 0 when reserved, otherwise wait milliseconds until capacity frees.

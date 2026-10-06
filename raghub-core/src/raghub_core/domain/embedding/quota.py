@@ -1,7 +1,7 @@
 """Quota profiles and rolling-bucket decisions for shared provider pools.
 
 Pure logic: the Redis adapter implements the same windows against Redis TIME.
-Local embedding providers never use these Gemini-tuned defaults.
+The host supplies provider quota profiles.
 """
 from __future__ import annotations
 
@@ -20,11 +20,6 @@ class QuotaConfig:
     quota: QuotaProfile
     background: QuotaProfile
 
-
-GEMINI_EMBEDDING = QuotaConfig(
-    quota=QuotaProfile(rpm=100, tpm=30_000, rpd=1_000),
-    background=QuotaProfile(rpm=80, tpm=21_000, rpd=900),
-)
 
 TOKEN_SAFETY_FACTOR = 1.2
 

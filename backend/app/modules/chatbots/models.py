@@ -26,7 +26,7 @@ class Chatbot(Base):
     published: Mapped[bool] = mapped_column(default=False)
     clarification_mode: Mapped[str] = mapped_column(String(32), default="conservative")
     max_clarifying_turns: Mapped[int] = mapped_column(Integer, default=1)
-    domain_profile: Mapped[str] = mapped_column(String(64), default="admissions")
+    domain_profile: Mapped[str] = mapped_column(String(64), default="generic")
     embed_key_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     allowed_origins: Mapped[list[str]] = mapped_column(JSON, default=list)
     embed_primary_color: Mapped[str] = mapped_column(String(16), default="#1463ff")

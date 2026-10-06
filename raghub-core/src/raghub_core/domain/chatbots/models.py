@@ -17,7 +17,7 @@ class ChatbotConfig:
     model: str | None = None
     clarification_mode: str = "conservative"
     max_clarifying_turns: int = 1
-    domain_profile: str = "admissions"
+    domain_profile: str = "generic"
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class ChatbotRecord:
     updated_at: datetime | None
     clarification_mode: str = "conservative"
     max_clarifying_turns: int = 1
-    domain_profile: str = "admissions"
+    domain_profile: str = "generic"
 
     @property
     def scope(self) -> RetrievalScope:
@@ -51,7 +51,7 @@ class CreateChatbotCommand:
     published: bool = False
     clarification_mode: str = "conservative"
     max_clarifying_turns: int = 1
-    domain_profile: str = "admissions"
+    domain_profile: str = "generic"
 
 
 class Unset(Enum):
