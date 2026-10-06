@@ -42,9 +42,9 @@ def quota_retry_plan(exc: IngestionError, retries: int) -> tuple[float, int] | N
 
 
 @celery_app.task(bind=True, max_retries=3, name="documents.ingest_version")
-def ingest_document_version(self: Task, document_version_id: str) -> None:
+def ingest_document_version(self: Task, document_version_id: str) -> dict[str, object]:
     try:
-        asyncio.run(
+        return asyncio.run(
             _process_document_version(
                 uuid.UUID(document_version_id),
                 retries=self.request.retries,

@@ -29,6 +29,7 @@ class DocumentResponse(BaseModel):
     embedded_chunks: int | None = None
     total_chunks: int | None = None
     queue_position: int | None = None
+    waiting_reason: str | None = None
     mime_type: str | None = None
     size_bytes: int | None = None
     chunk_count: int | None = None

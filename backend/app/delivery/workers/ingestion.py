@@ -42,33 +42,59 @@ def _make_use_case(session, repository, *, pipeline=None, container=None):
     return (container or WorkerContainer(session)).run_ingestion(repository, pipeline=pipeline)
 
 
+import time
+
 async def _run_attempt(
     session: AsyncSession, version_id: uuid.UUID, *, retries: int, max_retries: int
-) -> None:
+):
     repository = WorkerContainer(session).ingestion_repository(failure=_record_failure)
 
     async def pipeline(_document):
         await _run_pipeline(session, repository.document, repository.version, repository.job)
 
-    await _make_use_case(session, repository, pipeline=pipeline).execute(
+    return await _make_use_case(session, repository, pipeline=pipeline).execute(
         version_id, retries=retries, max_retries=max_retries
     )
 
 
 async def _process_document_version(
     version_id: uuid.UUID, *, retries: int = 0, max_retries: int = 3
-) -> None:
+) -> dict[str, object]:
+    started = time.monotonic()
     engine = create_async_engine(get_settings().database_url, poolclass=NullPool)
     try:
         async with engine.connect() as connection:
             async with try_ingestion_lock(connection, version_id) as acquired:
                 if not acquired:
                     logger.info("Ignoring concurrent delivery for version %s", version_id)
-                    return
+                    return {
+                        "version_id": str(version_id),
+                        "status": "SKIPPED",
+                        "processed": False,
+                        "reason": "CONCURRENT_LOCK_HELD",
+                        "duration_ms": int((time.monotonic() - started) * 1000),
+                    }
                 # The session and lock share a pinned connection. Commits cannot release the lock.
                 async with AsyncSession(bind=connection, expire_on_commit=False) as session:
-                    await _run_attempt(
+                    result = await _run_attempt(
                         session, version_id, retries=retries, max_retries=max_retries
                     )
+                    duration_ms = int((time.monotonic() - started) * 1000)
+                    logger.info(
+                        "Ingestion complete: document_version_id=%s status=%s processed=%s reason=%s attempt=%d duration_ms=%d",
+                        version_id,
+                        result.status,
+                        result.processed,
+                        result.reason,
+                        retries,
+                        duration_ms,
+                    )
+                    return {
+                        "version_id": str(result.version_id),
+                        "status": str(result.status),
+                        "processed": result.processed,
+                        "reason": result.reason,
+                        "duration_ms": duration_ms,
+                    }
     finally:
         await engine.dispose()

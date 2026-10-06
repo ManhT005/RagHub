@@ -63,7 +63,11 @@ class IngestionRepositoryAdapter:
 
     async def load(self, version_id: uuid.UUID) -> IngestionAttempt | None:
         version = await self.session.get(DocumentVersion, version_id)
-        if version is None or version.status == DocumentStatus.FAILED:
+        if version is None:
+            logger.info("Ingestion load: document_version_id=%s not found", version_id)
+            return None
+        if version.status == DocumentStatus.FAILED:
+            logger.info("Ingestion load: document_version_id=%s status is already FAILED", version_id)
             return None
         job = await self.session.scalar(
             select(IngestionJob).where(IngestionJob.document_version_id == version_id)
@@ -72,7 +76,14 @@ class IngestionRepositoryAdapter:
             # Terminal redelivery avoids loading or mutating any other entity.
             return IngestionAttempt(None, version.status, job.progress)
         document = await self.session.get(Document, version.document_id)
-        if document is None or document.deleted_at is not None or job is None:
+        if document is None:
+            logger.info("Ingestion load: document not found for version_id=%s", version_id)
+            return None
+        if document.deleted_at is not None:
+            logger.info("Ingestion load: document deleted for version_id=%s", version_id)
+            return None
+        if job is None:
+            logger.info("Ingestion load: job missing for version_id=%s", version_id)
             return None
         self.document, self.version, self.job = document, version, job
         return IngestionAttempt(self.snapshot(), version.status, job.progress)

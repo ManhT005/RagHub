@@ -37,3 +37,4 @@ class IngestionResult:
     version_id: UUID
     status: str
     processed: bool
+    reason: str | None = None

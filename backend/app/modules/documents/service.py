@@ -86,6 +86,7 @@ class DocumentService:
                 )
                 response.embedded_chunks = getattr(job, "embedded_chunks", None)
                 response.total_chunks = getattr(job, "total_chunks", None)
+                response.waiting_reason = "WAITING_FOR_WORKER" if job.stage == "QUEUED" else None
                 response.mime_type = getattr(version, "mime_type", None)
                 response.size_bytes = getattr(version, "size_bytes", None)
                 indexed = metadata.get(version.id)
@@ -123,6 +124,7 @@ class DocumentService:
             item.job_id, item.stage, item.progress = job.id, job.stage, job.progress
             item.attempts, item.error_code = job.attempts, job.error_code
             item.error_message = ingestion_error_message(job.error_code)
+            item.waiting_reason = "WAITING_FOR_WORKER" if job.stage == "QUEUED" else None
             item.retryable = latest.status == "FAILED" and job.error_code in RETRYABLE_ERROR_CODES
         return DocumentDetail(**item.model_dump(), checksum=version.checksum if version else None)
 
