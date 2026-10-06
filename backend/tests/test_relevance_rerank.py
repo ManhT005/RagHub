@@ -1,4 +1,5 @@
 """Relevance rejection and reranker canary (offline, flags default off)."""
+
 import json
 import subprocess
 import sys
@@ -35,36 +36,98 @@ def _artifact(**overrides) -> RelevanceArtifact:
 
 def test_sigmoid_pure_math_and_threshold_boundary():
     assert sigmoid(1000.0) == 1.0 and sigmoid(-1000.0) == 0.0
-    strong = decide(_artifact(), [0.5, 0.1, 0.05], enabled_flag=True,
-                    dataset_hash="qa1", retrieval_config_hash="cfg1")
+    strong = decide(
+        _artifact(),
+        [0.5, 0.1, 0.05],
+        enabled_flag=True,
+        embedding_fingerprint="fp",
+        dataset_hash="qa1",
+        retrieval_config_hash="cfg1",
+    )
     assert strong.accepted and 0.0 <= strong.confidence <= 1.0
-    weak = decide(_artifact(), [0.001], enabled_flag=True,
-                  dataset_hash="qa1", retrieval_config_hash="cfg1")
+    weak = decide(
+        _artifact(),
+        [0.001],
+        enabled_flag=True,
+        embedding_fingerprint="fp",
+        dataset_hash="qa1",
+        retrieval_config_hash="cfg1",
+    )
     assert not weak.accepted
-    assert decide(_artifact(), [], enabled_flag=True,
-                  dataset_hash="qa1", retrieval_config_hash="cfg1").accepted is False
+    assert (
+        decide(
+            _artifact(),
+            [],
+            enabled_flag=True,
+            embedding_fingerprint="fp",
+            dataset_hash="qa1",
+            retrieval_config_hash="cfg1",
+        ).accepted
+        is False
+    )
 
 
 def test_hash_mismatch_keeps_gate_off():
     artifact = _artifact()
-    assert gate_enabled(artifact, enabled_flag=True, dataset_hash="qa1",
-                        retrieval_config_hash="cfg1") is True
-    assert gate_enabled(artifact, enabled_flag=False, dataset_hash="qa1",
-                        retrieval_config_hash="cfg1") is False
-    assert gate_enabled(None, enabled_flag=True, dataset_hash="qa1",
-                        retrieval_config_hash="cfg1") is False
-    assert gate_enabled(artifact, enabled_flag=True, dataset_hash="other",
-                        retrieval_config_hash="cfg1") is False
+    assert (
+        gate_enabled(
+            artifact,
+            enabled_flag=True,
+            embedding_fingerprint="fp",
+            dataset_hash="qa1",
+            retrieval_config_hash="cfg1",
+        )
+        is True
+    )
+    assert (
+        gate_enabled(artifact, enabled_flag=False, dataset_hash="qa1", retrieval_config_hash="cfg1")
+        is False
+    )
+    assert (
+        gate_enabled(
+            None,
+            enabled_flag=True,
+            embedding_fingerprint="fp",
+            dataset_hash="qa1",
+            retrieval_config_hash="cfg1",
+        )
+        is False
+    )
+    assert (
+        gate_enabled(
+            artifact,
+            enabled_flag=True,
+            embedding_fingerprint="fp",
+            dataset_hash="other",
+            retrieval_config_hash="cfg1",
+        )
+        is False
+    )
     # Mismatch never rejects: legacy top-k behavior.
-    decision = decide(artifact, [0.0001], enabled_flag=True,
-                      dataset_hash="other", retrieval_config_hash="cfg1")
+    decision = decide(
+        artifact,
+        [0.0001],
+        enabled_flag=True,
+        embedding_fingerprint="fp",
+        dataset_hash="other",
+        retrieval_config_hash="cfg1",
+    )
     assert decision.accepted is True
 
 
 def test_empty_artifact_never_rejects():
     artifact = empty_artifact("baseline-v1")
-    assert decide(artifact, [0.0], enabled_flag=True,
-                  dataset_hash="", retrieval_config_hash="").accepted is True
+    assert (
+        decide(
+            artifact,
+            [0.0],
+            enabled_flag=True,
+            embedding_fingerprint="fp",
+            dataset_hash="",
+            retrieval_config_hash="",
+        ).accepted
+        is True
+    )
 
 
 def test_score_monotonic_in_top_score():
@@ -88,8 +151,7 @@ def test_artifact_loader_rejects_bad_files(tmp_path: Path):
     assert load_relevance_artifact(path, expected_version="baseline-v1") is not None
     assert load_relevance_artifact(path, expected_version="other") is None
     assert (
-        load_relevance_artifact(tmp_path / "missing.json", expected_version="baseline-v1")
-        is None
+        load_relevance_artifact(tmp_path / "missing.json", expected_version="baseline-v1") is None
     )
     bad = dict(good, threshold=1.5)
     path.write_text(json.dumps(bad), encoding="utf-8")
@@ -196,17 +258,30 @@ def test_reranker_model_is_pinned():
 
 
 def test_calibration_cli_produces_loadable_artifact(tmp_path: Path):
-    rows = (
-        [{"fused_scores": [0.4 + i * 0.01, 0.2], "answerable": True} for i in range(10)]
-        + [{"fused_scores": [0.01, 0.005], "answerable": False} for _ in range(10)]
-    )
+    rows = [{"fused_scores": [0.4 + i * 0.01, 0.2], "answerable": True} for i in range(10)] + [
+        {"fused_scores": [0.01, 0.005], "answerable": False} for _ in range(10)
+    ]
     scores_path = tmp_path / "scores.json"
     scores_path.write_text(json.dumps(rows), encoding="utf-8")
     out_path = tmp_path / "artifact.json"
     script = Path(__file__).parent.parent / "scripts" / "calibrate_relevance.py"
     completed = subprocess.run(
-        [sys.executable, str(script), "--scores", str(scores_path), "--out", str(out_path),
-         "--dataset-hash", "qa1", "--config-hash", "cfg1", "--version", "baseline-v1"],
+        [
+            sys.executable,
+            str(script),
+            "--scores",
+            str(scores_path),
+            "--out",
+            str(out_path),
+            "--dataset-hash",
+            "qa1",
+            "--config-hash",
+            "cfg1",
+            "--version",
+            "baseline-v1",
+            "--fingerprint",
+            "fp",
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -226,3 +301,50 @@ def test_flags_default_off():
     assert settings.rag_reranker_enabled is False
     assert settings.rag_rerank_top_n == 8
     assert settings.rag_relevance_config_version == "baseline-v1"
+
+
+def test_embedding_fingerprint_mismatch_disables_gate():
+    for fingerprint in ("", "different"):
+        assert not gate_enabled(
+            _artifact(),
+            enabled_flag=True,
+            dataset_hash="qa1",
+            retrieval_config_hash="cfg1",
+            embedding_fingerprint=fingerprint,
+        )
+        assert decide(
+            _artifact(),
+            [0.0],
+            enabled_flag=True,
+            dataset_hash="qa1",
+            retrieval_config_hash="cfg1",
+            embedding_fingerprint=fingerprint,
+        ).accepted
+
+
+async def test_relevance_observes_fused_order_before_rerank():
+    from raghub_core.api import RetrievalScope, RetrieveContextUseCase
+    from raghub_core.domain.retrieval.relevance import RelevanceDecision
+    from tests.core.fakes import FakeProviderResolver, FakeVectorStore
+
+    class Search(FakeVectorStore):
+        async def close(self):
+            pass
+
+    search = Search()
+    search.hits = [_chunk(0.5), _chunk(0.1)]
+    observed = []
+
+    def relevance(scores):
+        observed.append(scores)
+        return RelevanceDecision(True, 1.0)
+
+    async def rerank(query, candidates, top_n):
+        assert observed == [[0.5, 0.1]]
+        return list(reversed(candidates))
+
+    use_case = RetrieveContextUseCase(
+        FakeProviderResolver(), _ReadyAll(), lambda _: search, relevance=relevance, rerank=rerank
+    )
+    result = await use_case.retrieve(RetrievalScope(uuid4(), uuid4()), "query", 5)
+    assert [hit.score for hit in result] == [0.1, 0.5]

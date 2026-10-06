@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from raghub_core.domain.retrieval.relevance import RelevanceArtifact
@@ -34,8 +35,22 @@ def load_relevance_artifact(path: Path, *, expected_version: str) -> RelevanceAr
         threshold = float(data["threshold"])
         if not 0.0 < threshold < 1.0:
             return None
+        mean = tuple(float(x) for x in data.get("feature_mean", ()))
+        std = tuple(float(x) for x in data.get("feature_std", ()))
+        if mean or std:
+            if len(mean) != len(names) or len(std) != len(names):
+                return None
+            if not all(math.isfinite(x) for x in mean + std) or any(x <= 0 for x in std):
+                return None
+        from raghub_core.domain.retrieval.relevance import default_features
+        if len(set(names)) != len(names) or not set(names) <= set(default_features()):
+            return None
+        if not all(math.isfinite(x) for x in weights + (float(data["intercept"]),)):
+            return None
         return RelevanceArtifact(
             version=data["version"],
+            feature_mean=mean,
+            feature_std=std,
             feature_names=names,
             weights=weights,
             intercept=float(data["intercept"]),

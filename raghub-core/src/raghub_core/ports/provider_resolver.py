@@ -12,6 +12,7 @@ class EmbeddingRuntime:
     index_name: str
     dimension: int
     quota_scope: str | None = None
+    fingerprint: str = ""
 
 
 @dataclass(frozen=True)

@@ -40,7 +40,7 @@ class Repository:
         self.stages.append((stage, progress))
 
     async def expose_version(self, version_id):
-        self.stages.append(("VERSION_READY", 90))
+        self.stages.append(("VERSION_INDEXING", 90))
 
     async def complete(self, version_id):
         self.stages.append(("READY", 100))
@@ -68,7 +68,7 @@ async def test_pipeline_runs_without_celery_and_preserves_stage_order():
         ("CHUNKING", 45),
         ("EMBEDDING", 65),
         ("INDEXING", 85),
-        ("VERSION_READY", 90),
+        ("VERSION_INDEXING", 90),
         ("READY", 100),
     ]
     assert store.indexes[0].scope == document.scope

@@ -34,10 +34,12 @@ class RetrieveContextUseCase:
         relevance: RelevanceFn | None = None,
         rerank_top_n: int = RERANK_TOP_N,
         telemetry: TelemetryPort | None = None,
+        relevance_factory: Callable[[EmbeddingRuntime], RelevanceFn] | None = None,
     ) -> None:
         self.providers, self.readiness, self.make_search = providers, readiness, make_search
         self.rerank, self.relevance, self.rerank_top_n = rerank, relevance, rerank_top_n
         self.telemetry = telemetry
+        self.relevance_factory = relevance_factory
 
     async def retrieve(
         self,
@@ -55,6 +57,8 @@ class RetrieveContextUseCase:
         telemetry = self.telemetry
         mark = time.perf_counter()
         runtime = await self.providers.resolve_embedding(scope)
+        if self.relevance_factory is not None:
+            relevance = self.relevance_factory(runtime)
         normalized = normalize_query(query)
         vector = await runtime.provider.embed_query(normalized)
         if telemetry is not None:
@@ -71,6 +75,21 @@ class RetrieveContextUseCase:
             ranked = await search.search(scope, normalized, vector, fetch)
             if telemetry is not None:
                 telemetry.timing("search", (time.perf_counter() - mark) * 1000, {})
+            if relevance is not None:
+                mark = time.perf_counter()
+                decision = relevance([hit.score for hit in ranked])
+                if telemetry is not None:
+                    telemetry.timing(
+                        "relevance_gate",
+                        (time.perf_counter() - mark) * 1000,
+                        {"stage": "relevance"},
+                    )
+                    telemetry.counter(
+                        "relevance_rejected" if not decision.accepted else "relevance_accepted",
+                        {"stage": "relevance"},
+                    )
+                if not decision.accepted:
+                    return []  # REJECT feeds the existing empty-context fallback
             if rerank is not None:
                 mark = time.perf_counter()
                 try:
@@ -81,21 +100,12 @@ class RetrieveContextUseCase:
                 finally:
                     if telemetry is not None:
                         telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
-            if relevance is not None:
-                mark = time.perf_counter()
-                decision = relevance([hit.score for hit in ranked])
-                if telemetry is not None:
-                    telemetry.timing("relevance_gate", (time.perf_counter() - mark) * 1000, {"stage": "relevance"})
-                    telemetry.counter(
-                        "relevance_rejected" if not decision.accepted else "relevance_accepted",
-                        {"stage": "relevance"},
-                    )
-                if not decision.accepted:
-                    return []  # REJECT feeds the existing empty-context fallback
             mark = time.perf_counter()
             ready = await self.readiness.filter_ready(scope, ranked)
             if telemetry is not None:
-                telemetry.timing("readiness_filter", (time.perf_counter() - mark) * 1000, {"stage": "readiness"})
+                telemetry.timing(
+                    "readiness_filter", (time.perf_counter() - mark) * 1000, {"stage": "readiness"}
+                )
                 telemetry.counter("retrieval_ready_hits", {"stage": "readiness"}, len(ready))
                 if not ready:
                     telemetry.counter("empty_context", {"stage": "context"})
@@ -108,6 +118,4 @@ class RetrieveContextUseCase:
             await search.close()
 
     async def execute(self, scope: RetrievalScope, query: str, limit: int) -> ContextBundle:
-        return build_context_bundle(
-            await self.retrieve(scope, query, limit)
-        )
+        return build_context_bundle(await self.retrieve(scope, query, limit))

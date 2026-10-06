@@ -1,5 +1,5 @@
-import uuid
 import time
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -11,10 +11,10 @@ from raghub_core.domain.retrieval.hybrid import (
     fuse_rrf,
     resolve_candidate_count,
 )
+from raghub_core.ports.telemetry import TelemetryPort
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.retrieval_mapping import chunk_from_hit, chunk_to_hit
-from raghub_core.ports.telemetry import TelemetryPort
 
 BOOST_EXACT = 1.0
 BOOST_FOLDED = 0.8
@@ -193,7 +193,7 @@ class ChunkIndexer:
                     "embedding": embeddings[str(chunk.chunk_id)],
                     "chunk_index": chunk.chunk_index,
                     "language": "vi",
-                    "retrievable": True,
+                    "retrievable": False,
                     "mapping_version": MAPPING_VERSION,
                     "created_at": now,
                 },
@@ -202,6 +202,13 @@ class ChunkIndexer:
         ]
         if actions:
             helpers.bulk(self.client, actions, refresh="wait_for")
+        result = self.client.count(
+            index=index,
+            query={"term": {"document_version_id": str(document_version_id)}},
+        )
+        if result["count"] != len(chunks):
+            raise ValueError("Indexed chunk count does not match the document manifest.")
+        self.set_version_retrievable(document_version_id, retrievable=True)
 
     def set_version_retrievable(
         self, document_version_id: uuid.UUID, *, retrievable: bool
@@ -288,6 +295,7 @@ class ChunkSearch:
             [[chunk_from_hit(hit) for hit in ranking] for ranking in (lexical, vector)],
             limit=limit,
             max_per_document=self._doc_cap(),
+            rrf_k=self.settings.rag_rrf_k,
         )
         if self.telemetry is not None:
             labels = {"stage": "retrieval"}

@@ -1,4 +1,5 @@
 """Compose retrieval hooks from feature flags (all default off)."""
+
 from pathlib import Path
 
 from raghub_core.api import RetrieveContextUseCase
@@ -45,17 +46,13 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         async def rerank(query: str, candidates: list, top_n: int = top_n):  # type: ignore[no-redef]
             return await adapter.rerank(query=query, candidates=candidates, top_n=top_n)
 
-    relevance = None
+    relevance_factory = None
     if settings.rag_relevance_gate_enabled:
         artifact = load_relevance_artifact(
             _artifact_path(), expected_version=settings.rag_relevance_config_version
         )
         qa_path = (
-            Path(__file__).resolve().parents[2]
-            / "tests"
-            / "fixtures"
-            / "rag_golden"
-            / "qa.json"
+            Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "rag_golden" / "qa.json"
         )
         live_dataset = dataset_hash(qa_path) if qa_path.exists() else ""
         live_config = retrieval_config_hash(
@@ -64,18 +61,22 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
             mapping_version=MAPPING_VERSION,
         )
 
-        def relevance(scores: list[float], _artifact=artifact):  # type: ignore[misc]
-            from raghub_core.domain.retrieval.relevance import RelevanceDecision
+        def relevance_factory(runtime):
+            def relevance(scores: list[float], _artifact=artifact):
+                from raghub_core.domain.retrieval.relevance import RelevanceDecision
 
-            if _artifact is None:
-                return RelevanceDecision(accepted=True, confidence=1.0)
-            return decide(
-                _artifact,
-                scores,
-                enabled_flag=True,
-                dataset_hash=live_dataset,
-                retrieval_config_hash=live_config,
-            )
+                if _artifact is None:
+                    return RelevanceDecision(accepted=True, confidence=1.0)
+                return decide(
+                    _artifact,
+                    scores,
+                    enabled_flag=True,
+                    dataset_hash=live_dataset,
+                    retrieval_config_hash=live_config,
+                    embedding_fingerprint=runtime.fingerprint,
+                )
+
+            return relevance
 
     telemetry = LoggingTelemetry()
     return RetrieveContextUseCase(
@@ -85,7 +86,7 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
             ChunkSearch(index_name=runtime.index_name, telemetry=telemetry)
         ),
         rerank=rerank,
-        relevance=relevance,
+        relevance_factory=relevance_factory,
         rerank_top_n=settings.rag_rerank_top_n,
         telemetry=telemetry,
     )

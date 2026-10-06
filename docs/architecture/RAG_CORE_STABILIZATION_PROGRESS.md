@@ -26,3 +26,15 @@ Clean/current DB upgrades, restart/concurrent worker integration, production mod
 download/checksum, recalibration and hardware benchmarks require real services
 and model artifacts. Unit or fixture evaluation must not be reported as evidence
 of those production acceptance criteria.
+
+## Phases 2, 10, 11: publish and retrieval correctness
+
+The pre-index hook keeps INDEXING. Elasticsearch writes non-retrievable chunks,
+validates their count, then publishes. The existing rebuild creates a separate
+inactive index and only switches the active version after validation.
+Runtime RRF receives configured k. Relevance runs before reranking and fails open
+when the active embedding fingerprint differs or is missing. Calibration now
+standardizes features and requires a fingerprint; artifact loading rejects
+nonfinite parameters, unknown features and invalid normalization arrays.
+
+Validation: host index/retry/readiness/reindex/hybrid/relevance suites 58 passed.

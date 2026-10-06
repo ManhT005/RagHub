@@ -10,10 +10,12 @@ Usage (from backend/):
     python scripts/calibrate_relevance.py --scores scores.json --out artifact.json \\
         --dataset-hash <qa-hash> --config-hash <retrieval-hash> --version baseline-v1
 """
+
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -78,12 +80,20 @@ def main() -> None:
     parser.add_argument("--dataset-hash", required=True)
     parser.add_argument("--config-hash", required=True)
     parser.add_argument("--version", default="baseline-v1")
-    parser.add_argument("--fingerprint", default="")
+    parser.add_argument("--fingerprint", required=True)
     args = parser.parse_args()
 
     rows = json.loads(Path(args.scores).read_text(encoding="utf-8"))
     names = default_features()
     matrix, labels = _design(rows, names)
+    if not matrix or len(set(labels)) != 2:
+        raise ValueError("Calibration requires positive and negative training examples.")
+    means = [sum(row[j] for row in matrix) / len(matrix) for j in range(len(names))]
+    stds = [
+        max(math.sqrt(sum((row[j] - means[j]) ** 2 for row in matrix) / len(matrix)), 1e-8)
+        for j in range(len(names))
+    ]
+    matrix = [[(x - means[j]) / stds[j] for j, x in enumerate(row)] for row in matrix]
     weights, intercept = fit_logistic(matrix, labels)
     probs = [
         sigmoid(sum(w * x for w, x in zip(weights, row, strict=False)) + intercept)
@@ -94,6 +104,8 @@ def main() -> None:
         "version": args.version,
         "feature_names": list(names),
         "weights": weights,
+        "feature_mean": means,
+        "feature_std": stds,
         "intercept": intercept,
         "threshold": threshold,
         "train_rejection_f1": train_f1,

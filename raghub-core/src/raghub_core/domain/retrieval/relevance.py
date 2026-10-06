@@ -21,6 +21,8 @@ class RelevanceArtifact:
     dataset_hash: str
     retrieval_config_hash: str
     embedding_fingerprint: str
+    feature_mean: tuple[float, ...] = ()
+    feature_std: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,13 @@ def extract_features(
 
 def score_candidates(artifact: RelevanceArtifact, fused_scores: list[float]) -> float:
     features = extract_features(fused_scores, feature_names=artifact.feature_names)
+    if artifact.feature_mean and artifact.feature_std:
+        features = {
+            name: (features[name] - mean) / std
+            for name, mean, std in zip(
+                artifact.feature_names, artifact.feature_mean, artifact.feature_std, strict=True
+            )
+        }
     linear = artifact.intercept + sum(
         weight * features.get(name, 0.0)
         for weight, name in zip(artifact.weights, artifact.feature_names, strict=False)
@@ -70,12 +79,15 @@ def gate_enabled(
     enabled_flag: bool,
     dataset_hash: str,
     retrieval_config_hash: str,
+    embedding_fingerprint: str = "",
 ) -> bool:
     """The gate engages only on flag + versioned artifact + matching hashes."""
     if not enabled_flag or artifact is None:
         return False
     return (
-        artifact.dataset_hash == dataset_hash
+        bool(embedding_fingerprint)
+        and artifact.embedding_fingerprint == embedding_fingerprint
+        and artifact.dataset_hash == dataset_hash
         and artifact.retrieval_config_hash == retrieval_config_hash
     )
 
@@ -87,12 +99,14 @@ def decide(
     enabled_flag: bool,
     dataset_hash: str,
     retrieval_config_hash: str,
+    embedding_fingerprint: str = "",
 ) -> RelevanceDecision:
     if not gate_enabled(
         artifact,
         enabled_flag=enabled_flag,
         dataset_hash=dataset_hash,
         retrieval_config_hash=retrieval_config_hash,
+        embedding_fingerprint=embedding_fingerprint,
     ):
         return RelevanceDecision(accepted=True, confidence=1.0)
     if not fused_scores:

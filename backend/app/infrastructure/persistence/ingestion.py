@@ -95,7 +95,7 @@ class IngestionRepositoryAdapter:
         await _set_stage(self.session, self.document, self.version, self.job, stage, progress)
 
     async def expose_version(self, version_id: uuid.UUID) -> None:
-        self.version.status = DocumentStatus.READY
+        self.version.status = DocumentStatus.INDEXING
         self.job.progress = 90
         await self.session.commit()
 

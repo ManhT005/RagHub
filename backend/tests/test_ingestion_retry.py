@@ -89,7 +89,7 @@ async def test_incomplete_ready_redelivery_resumes_indexing(
     pipeline.assert_awaited_once_with(session, document, version, job)
 
 
-async def test_pipeline_marks_version_ready_before_writing_chunks(
+async def test_pipeline_keeps_version_indexing_until_chunks_are_written(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     version = SimpleNamespace(
@@ -140,7 +140,7 @@ async def test_pipeline_marks_version_ready_before_writing_chunks(
 
     await tasks._run_pipeline(session, document, version, job)
 
-    assert observed == [("INDEXING", "READY", "INDEXING", 90)]
+    assert observed == [("INDEXING", "INDEXING", "INDEXING", 90)]
     assert document.status == version.status == job.stage == "READY"
     assert job.progress == 100
 
