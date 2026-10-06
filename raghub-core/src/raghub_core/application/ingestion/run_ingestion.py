@@ -33,6 +33,8 @@ class RunIngestionUseCase:
         attempt = await self.repository.load(version_id)
         if attempt is None:
             return IngestionResult(version_id, "SKIPPED", False, reason="MISSING_ATTEMPT")
+        if attempt.reason:
+            return IngestionResult(version_id, attempt.status, False, reason=attempt.reason)
         if attempt.status == IngestionStage.FAILED:
             return IngestionResult(version_id, attempt.status, False, reason="ALREADY_FAILED")
         if attempt.status == IngestionStage.READY and attempt.progress >= 100:

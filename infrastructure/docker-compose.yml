@@ -88,6 +88,8 @@ services:
       service: worker-provider
     image: ${LOCAL_IMAGE_PREFIX:-raghub}/backend:${LOCAL_IMAGE_TAG:-local}
     pull_policy: never
+    # TODO(provider-queue-migration): drop legacy `celery` after supported installations
+    # have upgraded past the rag-provider split and drained their legacy backlog.
     command:
       - watchfiles
       - --filter

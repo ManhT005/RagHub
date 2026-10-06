@@ -42,23 +42,68 @@ def test_celery_retry_policy(
         retry.assert_not_called()
 
 
-@pytest.mark.parametrize("status", ["READY", "FAILED"])
+@pytest.mark.parametrize(
+    "status,progress,reason",
+    [("READY", 100, "TERMINAL_REDELIVERY"), ("FAILED", 20, "ALREADY_FAILED")],
+)
 async def test_terminal_redelivery_does_not_mutate_metrics(
-    monkeypatch: pytest.MonkeyPatch, status: str
+    monkeypatch: pytest.MonkeyPatch, status: str, progress: int, reason: str
 ) -> None:
     version = SimpleNamespace(status=status)
-    job = SimpleNamespace(progress=100)
+    job = SimpleNamespace(progress=progress)
     session = SimpleNamespace(
         get=AsyncMock(return_value=version), commit=AsyncMock(), scalar=AsyncMock(return_value=job)
     )
     pipeline = AsyncMock()
     monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
-    await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
+    result = await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
+    assert result.status == status and not result.processed and result.reason == reason
     session.commit.assert_not_awaited()
-    if status == "READY":
-        session.scalar.assert_awaited_once()
+    session.scalar.assert_awaited_once()
+    session.get.assert_awaited_once()
+    pipeline.assert_not_awaited()
+
+
+async def test_failed_redelivery_without_job_preserves_terminal_reason(monkeypatch):
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(status="FAILED")),
+        scalar=AsyncMock(return_value=None),
+        commit=AsyncMock(),
+    )
+    pipeline = AsyncMock()
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
+    result = await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
+    assert result.status == "FAILED" and not result.processed
+    assert result.reason == "ALREADY_FAILED"
+    session.commit.assert_not_awaited()
+    pipeline.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "reason", ["VERSION_MISSING", "DOCUMENT_MISSING", "DOCUMENT_DELETED", "JOB_MISSING"]
+)
+async def test_unavailable_ingestion_metadata_has_distinct_skip_reason(monkeypatch, reason):
+    version = SimpleNamespace(status="QUEUED", document_id=uuid.uuid4())
+    document = SimpleNamespace(deleted_at=None)
+    job = SimpleNamespace(progress=0)
+    if reason == "VERSION_MISSING":
+        version = None
+    elif reason == "DOCUMENT_MISSING":
+        document = None
+    elif reason == "DOCUMENT_DELETED":
+        document.deleted_at = object()
     else:
-        session.scalar.assert_not_awaited()
+        job = None
+    session = SimpleNamespace(
+        get=AsyncMock(side_effect=[version, document]),
+        scalar=AsyncMock(return_value=job),
+        commit=AsyncMock(),
+    )
+    pipeline = AsyncMock()
+    monkeypatch.setattr(ingestion_runtime, "_run_pipeline", pipeline)
+    result = await tasks._run_attempt(session, uuid.uuid4(), retries=0, max_retries=3)
+    assert result.status == "SKIPPED" and not result.processed and result.reason == reason
+    session.commit.assert_not_awaited()
     pipeline.assert_not_awaited()
 
 

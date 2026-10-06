@@ -30,6 +30,7 @@ class IngestionAttempt:
     document: IngestionDocument | None
     status: str
     progress: int
+    reason: str | None = None
 
 
 @dataclass(frozen=True)

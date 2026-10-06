@@ -1,5 +1,7 @@
 import uuid
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,7 +14,7 @@ from app.infrastructure.task_queue.celery_app import (
     REINDEX_QUEUE,
     celery_app,
 )
-from app.modules.documents.schemas import DocumentResponse
+from app.modules.documents.service import DocumentService
 
 
 def test_rag_hardware_profile_precedence_and_empty_env():
@@ -71,35 +73,38 @@ def test_worker_queue_topology_and_isolation():
     assert "celery" not in RAG_WORKER_QUEUES
 
 
-from datetime import UTC, datetime
-
-
-def test_document_response_waiting_reason():
+@pytest.mark.parametrize("stage", ["QUEUED", "PARSING", "EMBEDDING", "READY", "FAILED"])
+@pytest.mark.parametrize("endpoint", ["list", "detail"])
+@pytest.mark.asyncio
+async def test_document_response_waiting_reason(stage, endpoint):
     now = datetime.now(UTC)
-    queued_doc = DocumentResponse(
+    document = SimpleNamespace(
         id=uuid.uuid4(),
         name="test.pdf",
-        status="QUEUED",
+        status=stage,
         created_at=now,
-        stage="QUEUED",
-        waiting_reason="WAITING_FOR_WORKER",
     )
-    assert queued_doc.stage == "QUEUED"
-    assert queued_doc.waiting_reason == "WAITING_FOR_WORKER"
-
-    ready_doc = DocumentResponse(
-        id=uuid.uuid4(),
-        name="ready.pdf",
-        status="READY",
-        created_at=now,
-        stage="READY",
-        waiting_reason=None,
+    version = SimpleNamespace(
+        id=uuid.uuid4(), status=stage, mime_type="application/pdf", size_bytes=10, checksum="0" * 64
     )
-    assert ready_doc.stage == "READY"
-    assert ready_doc.waiting_reason is None
-
-
-from unittest.mock import AsyncMock, MagicMock, patch
+    job = SimpleNamespace(id=uuid.uuid4(), stage=stage, progress=0, attempts=0, error_code=None)
+    service = DocumentService(AsyncMock(), Settings(_env_file=None))
+    service.repository = SimpleNamespace(
+        workspace_exists=AsyncMock(return_value=True),
+        list_documents=AsyncMock(return_value=[document]),
+        find_document=AsyncMock(return_value=document),
+        latest_version=AsyncMock(return_value=version),
+        list_document_jobs=AsyncMock(return_value={document.id: (version, job)}),
+        embedding_snapshot=AsyncMock(return_value=None),
+        active_metadata=AsyncMock(return_value={}),
+    )
+    organization_id, workspace_id = uuid.uuid4(), uuid.uuid4()
+    if endpoint == "list":
+        (response,) = await service.list_documents(organization_id, workspace_id)
+    else:
+        response = await service.detail(organization_id, workspace_id, document.id)
+    assert response.stage == stage
+    assert response.waiting_reason == ("WAITING_FOR_WORKER" if stage == "QUEUED" else None)
 
 
 @pytest.mark.asyncio

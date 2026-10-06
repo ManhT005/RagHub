@@ -137,7 +137,8 @@ class LocalAiBootstrapService:
                     )
                     if active_dl:
                         logger.info(
-                            "Skipping health probe for local model %s while download is in progress",
+                            "Skipping health probe for local model %s "
+                            "while download is in progress",
                             config.model,
                         )
                         continue

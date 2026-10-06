@@ -65,26 +65,26 @@ class IngestionRepositoryAdapter:
         version = await self.session.get(DocumentVersion, version_id)
         if version is None:
             logger.info("Ingestion load: document_version_id=%s not found", version_id)
-            return None
-        if version.status == DocumentStatus.FAILED:
-            logger.info("Ingestion load: document_version_id=%s status is already FAILED", version_id)
-            return None
+            return IngestionAttempt(None, "SKIPPED", 0, reason="VERSION_MISSING")
         job = await self.session.scalar(
             select(IngestionJob).where(IngestionJob.document_version_id == version_id)
         )
+        if version.status == DocumentStatus.FAILED:
+            # Preserve the terminal status even if the job has already been removed.
+            return IngestionAttempt(None, version.status, job.progress if job is not None else 0)
         if version.status == DocumentStatus.READY and job is not None and job.progress >= 100:
             # Terminal redelivery avoids loading or mutating any other entity.
             return IngestionAttempt(None, version.status, job.progress)
         document = await self.session.get(Document, version.document_id)
         if document is None:
             logger.info("Ingestion load: document not found for version_id=%s", version_id)
-            return None
+            return IngestionAttempt(None, "SKIPPED", 0, reason="DOCUMENT_MISSING")
         if document.deleted_at is not None:
             logger.info("Ingestion load: document deleted for version_id=%s", version_id)
-            return None
+            return IngestionAttempt(None, "SKIPPED", 0, reason="DOCUMENT_DELETED")
         if job is None:
             logger.info("Ingestion load: job missing for version_id=%s", version_id)
-            return None
+            return IngestionAttempt(None, "SKIPPED", 0, reason="JOB_MISSING")
         self.document, self.version, self.job = document, version, job
         return IngestionAttempt(self.snapshot(), version.status, job.progress)
 

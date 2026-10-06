@@ -44,12 +44,14 @@ starting configurations, not throughput or quality guarantees:
 | `standard_cpu` | 1 | 25 | 20 / 6 | 1 |
 | `gpu` | 2 | 40 | 40 / 8 | 2 |
 
-Use a supplied overlay so Compose's explicit defaults do not mask preset values:
+Use the selected hardware profile from `.env.self-host`:
 
-```text
 ```sh
-# Select preset in .env or .env.self-host (e.g. RAG_HARDWARE_PROFILE=lite_cpu)
-docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai up -d
+docker compose \
+  --env-file .env.self-host \
+  -f infrastructure/docker-compose.self-host.yml \
+  --profile local-ai \
+  up -d
 ```
 
 Presets: `RAG_HARDWARE_PROFILE=lite_cpu` (default), `standard_cpu`, or `gpu`.
@@ -66,6 +68,29 @@ Workload isolation separates user-facing ingestion from long-running model opera
   service (start with `--profile ocr`).
 Queue caps use `PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE` and
 `PROVIDER_POOL_MAX_PENDING_JOBS_PER_WORKSPACE`.
+
+The provider worker's `celery` subscription is temporary migration compatibility
+for provider messages queued before the split. TODO(provider-queue-migration):
+remove it after all supported installations have upgraded and drained the legacy
+backlog; new provider tasks route exclusively to `rag-provider`.
+
+OCR routing remains a coarse host-level switch and defaults to disabled.
+TODO(ocr-routing): escalate only documents requiring OCR after parsing to
+`rag-ocr`, instead of routing every ingestion/reindex when OCR is enabled.
+
+Run the model-free starvation regression from `backend/` against disposable
+PostgreSQL and Redis services (set `RAGHUB_TEST_DATABASE_URL` and
+`RAGHUB_TEST_REDIS_URL`):
+
+```sh
+python -m pytest -p no:cacheprovider tests/test_rag_worker_starvation.py
+```
+
+The test starts two real Celery consumers with the production routes and a busy
+provider task, then requires `documents.ingest_version` to finish within five
+seconds before releasing the provider. It exercises the ingestion lock and DB
+transitions with a test pipeline; it does not download models or validate real
+embedding/indexing. Queues are namespaced and DB entities use an isolated schema.
 
 Native local inference retains its capacity slot until the underlying thread
 finishes, even if the caller cancels. Document token limits are checked before

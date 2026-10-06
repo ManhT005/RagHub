@@ -317,6 +317,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install Settings validation dependency
+        run: python -m pip install pydantic-settings==2.10.1
+
       - name: Validate Docker Compose configuration
         shell: bash
         run: python scripts/check-compose.py

@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 
 from redis.asyncio import Redis
@@ -42,8 +43,6 @@ def _make_use_case(session, repository, *, pipeline=None, container=None):
     return (container or WorkerContainer(session)).run_ingestion(repository, pipeline=pipeline)
 
 
-import time
-
 async def _run_attempt(
     session: AsyncSession, version_id: uuid.UUID, *, retries: int, max_retries: int
 ):
@@ -81,7 +80,8 @@ async def _process_document_version(
                     )
                     duration_ms = int((time.monotonic() - started) * 1000)
                     logger.info(
-                        "Ingestion complete: document_version_id=%s status=%s processed=%s reason=%s attempt=%d duration_ms=%d",
+                        "Ingestion complete: document_version_id=%s status=%s processed=%s "
+                        "reason=%s attempt=%d duration_ms=%d",
                         version_id,
                         result.status,
                         result.processed,

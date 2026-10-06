@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from ipaddress import ip_address, ip_network
 from pathlib import Path
 
@@ -26,7 +27,7 @@ CLEAN_ENV = {key: value for key, value in os.environ.items() if key not in CONFI
 DEPLOY_ENV = {
     "RAGHUB_IMAGE_PREFIX": "ghcr.io/example/raghub",
     "RAGHUB_IMAGE_TAG": "sha-" + "1" * 40,
-    "APP_SECRET_KEY": "compose-validation-only-app-key",
+    "APP_SECRET_KEY": "compose-validation-only-app-secret-key",
     "PROVIDER_MASTER_KEY": "compose-validation-only-provider-key",
     "POSTGRES_PASSWORD": "compose-validation-only-db-key",
     "S3_SECRET_KEY": "compose-validation-only-storage-key",
@@ -54,6 +55,31 @@ def queues(service):
     args = " ".join(service["command"]).split()
     value = next(arg for arg in args if arg.startswith("--queues="))
     return set(value.removeprefix("--queues=").split(","))
+
+
+def check_runtime_settings(model, profile, *, concurrency, candidates):
+    # Load Settings in a fresh process with the resolved service environment. Neither
+    # the developer shell nor backend/.env may supply an accidental override.
+    script = (
+        "import json, os; from app.core.config import Settings; "
+        "[os.environ.pop(name.upper(), None) for name in Settings.model_fields "
+        "if name.upper() not in json.loads(os.environ['COMPOSE_SETTINGS_KEYS'])]; "
+        "s = Settings(_env_file=None); "
+        "print(json.dumps([s.rag_hardware_profile, s.rag_worker_concurrency, "
+        "s.rag_retrieval_candidates]))"
+    )
+    for name in BACKEND_SERVICES:
+        environment = model["services"][name]["environment"]
+        result = subprocess.run(
+            [sys.executable, "-c", script], cwd=ROOT / "backend",
+            env={**CLEAN_ENV, **{key: str(value) for key, value in environment.items()
+                               if value is not None},
+                 "COMPOSE_SETTINGS_KEYS": json.dumps(list(environment))},
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+        # Validation errors can include env secrets; never echo stderr.
+        assert result.returncode == 0, f"{name}: resolved environment rejected by Settings"
+        assert json.loads(result.stdout) == [profile, concurrency, candidates], name
 
 
 def check_shared(model):
@@ -161,6 +187,28 @@ def main():
     assert api_build["dockerfile"] == "backend/Dockerfile"
     assert api_build["target"] == "local-ai"
     print("Self-host source build with standalone core: valid")
+
+    for entrypoint, env_file, overrides in (
+        ("infrastructure/docker-compose.yml", ".env.example", {}),
+        ("infrastructure/docker-compose.ghcr.yml", ".env.ghcr.example", {
+            **DEPLOY_ENV, "SMTP_USERNAME": "compose-test@example.com",
+            "SMTP_PASSWORD": "compose-validation-only-mail-key",
+            "SMTP_FROM_EMAIL": "compose-test@example.com",
+        }),
+        (selfhost_path, selfhost_env, DEPLOY_ENV),
+    ):
+        for profile, concurrency, candidates in (("lite_cpu", 1, 15), ("gpu", 2, 40)):
+            model = resolve(entrypoint, env_file, {
+                **overrides, "RAG_HARDWARE_PROFILE": profile,
+            })
+            check_shared(model)
+            check_runtime_settings(model, profile, concurrency=concurrency, candidates=candidates)
+        explicit = resolve(entrypoint, env_file, {
+            **overrides, "RAG_HARDWARE_PROFILE": "gpu",
+            "RAG_WORKER_CONCURRENCY": "3", "RAG_RETRIEVAL_CANDIDATES": "55",
+        })
+        check_runtime_settings(explicit, "gpu", concurrency=3, candidates=55)
+    print("Resolved Compose environments: CPU/GPU presets and explicit overrides valid")
 
     for required in DEPLOY_ENV.keys() - {"RAGHUB_IMAGE_PREFIX"}:
         resolve("infrastructure/docker-compose.ghcr.yml", ".env.ghcr.example", {
