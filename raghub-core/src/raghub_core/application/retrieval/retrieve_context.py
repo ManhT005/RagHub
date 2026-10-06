@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.errors import ProviderRateLimitError, ProviderUnavailableError
 from raghub_core.domain.providers.rerank import validated_rerank_indices
+from raghub_core.domain.retrieval.confidence import ConfidenceBand, confidence_band
 from raghub_core.domain.retrieval.hybrid import (
     RERANK_SOURCE_COUNT,
     RERANK_TOP_N,
@@ -23,7 +24,6 @@ from raghub_core.ports.embedding_quota import (
 )
 from raghub_core.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
 from raghub_core.ports.rerank import RerankResolverPort
-from raghub_core.ports.reranker import RerankerTimeoutError
 from raghub_core.ports.retrieval import DocumentReadinessPort
 from raghub_core.ports.telemetry import TelemetryPort
 from raghub_core.ports.vector_store import VectorSearchPort
@@ -48,7 +48,16 @@ class RetrieveContextUseCase:
         quota: EmbeddingQuotaPort | None = None,
         neighbor_expansion: Callable[..., Awaitable[list[RetrievedChunk]]] | None = None,
         relevance_factory: Callable[[EmbeddingRuntime], RelevanceFn] | None = None,
+        adaptive_rerank: bool = False,
+        confidence_high_threshold: float = 0.85,
+        candidate_count: int = RETRIEVAL_CANDIDATES,
+        evidence_selector: Callable[[str, list[RetrievedChunk], int], list[RetrievedChunk]]
+        | None = None,
     ) -> None:
+        self.adaptive_rerank = adaptive_rerank
+        self.confidence_high_threshold = confidence_high_threshold
+        self.candidate_count = candidate_count
+        self.evidence_selector = evidence_selector
         self.providers, self.readiness, self.make_search = providers, readiness, make_search
         self.rerank, self.relevance, self.rerank_top_n = rerank, relevance, rerank_top_n
         self.telemetry = telemetry
@@ -101,23 +110,37 @@ class RetrieveContextUseCase:
         search = self.make_search(runtime)
         try:
             rerank_runtime = None
-            if self.rerank_resolver is not None:
+            if self.rerank_resolver is not None and not self.adaptive_rerank:
                 try:
                     rerank_runtime = await asyncio.wait_for(
                         self.rerank_resolver.resolve_rerank(scope), 5
                     )
                 except Exception:
                     self._rerank_status("DEGRADED_RESOLUTION")
-            fetch = max(limit, RETRIEVAL_CANDIDATES, RERANK_SOURCE_COUNT if rerank else 0)
+            fetch = max(
+                limit,
+                self.candidate_count * (2 if self.adaptive_rerank else 1),
+                RERANK_SOURCE_COUNT if rerank else 0,
+            )
             if rerank_runtime is not None:
                 fetch = max(fetch, min(200, rerank_runtime.candidate_limit))
             mark = time.perf_counter()
             ranked = await search.search(scope, normalized, vector, fetch)
             if telemetry is not None:
                 telemetry.timing("search", (time.perf_counter() - mark) * 1000, {})
+            mark = time.perf_counter()
+            ready = await self.readiness.filter_ready(scope, ranked)
+            if telemetry is not None:
+                telemetry.timing(
+                    "readiness_filter", (time.perf_counter() - mark) * 1000, {"stage": "readiness"}
+                )
+                telemetry.counter("retrieval_ready_hits", {"stage": "readiness"}, len(ready))
+                if not ready:
+                    telemetry.counter("empty_context", {"stage": "context"})
+            decision = None
             if relevance is not None:
                 mark = time.perf_counter()
-                decision = relevance([hit.score for hit in ranked])
+                decision = relevance([hit.score for hit in ready])
                 if relevance_observer is not None:
                     relevance_observer(decision)
                 if telemetry is not None:
@@ -132,16 +155,28 @@ class RetrieveContextUseCase:
                     )
                 if not decision.accepted:
                     return []  # REJECT feeds the existing empty-context fallback
-            mark = time.perf_counter()
-            ready = await self.readiness.filter_ready(scope, ranked)
+            band = confidence_band(decision, high_threshold=self.confidence_high_threshold)
+            should_rerank = not self.adaptive_rerank or band in {
+                ConfidenceBand.UNKNOWN,
+                ConfidenceBand.MEDIUM,
+            }
             if telemetry is not None:
-                telemetry.timing(
-                    "readiness_filter", (time.perf_counter() - mark) * 1000, {"stage": "readiness"}
-                )
-                telemetry.counter("retrieval_ready_hits", {"stage": "readiness"}, len(ready))
-                if not ready:
-                    telemetry.counter("empty_context", {"stage": "context"})
-            if rerank_runtime is not None and ready:
+                telemetry.counter("retrieval_confidence", {"band": str(band)})
+                if not should_rerank:
+                    telemetry.counter("rerank_skipped", {"band": str(band)})
+            if (
+                self.adaptive_rerank
+                and should_rerank
+                and self.rerank_resolver is not None
+                and ready
+            ):
+                try:
+                    rerank_runtime = await asyncio.wait_for(
+                        self.rerank_resolver.resolve_rerank(scope), 5
+                    )
+                except Exception:
+                    self._rerank_status("DEGRADED_RESOLUTION")
+            if should_rerank and rerank_runtime is not None and ready:
                 selected = ready[: min(200, rerank_runtime.candidate_limit)]
                 selected_count = min(limit, rerank_runtime.top_n, len(selected))
                 mark = time.perf_counter()
@@ -162,11 +197,20 @@ class RetrieveContextUseCase:
                 finally:
                     if telemetry is not None:
                         telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
-            elif rerank is not None and ready:
+            elif should_rerank and rerank is not None and ready:
                 mark = time.perf_counter()
                 try:
-                    ready = await rerank(normalized, ready[:RERANK_SOURCE_COUNT], top_n)
-                except (RerankerTimeoutError, RuntimeError):
+                    candidates = ready[:RERANK_SOURCE_COUNT]
+                    result = await rerank(normalized, candidates, top_n)
+                    allowed = {hit.chunk_id for hit in candidates}
+                    if (
+                        not result
+                        or len({hit.chunk_id for hit in result}) != len(result)
+                        or any(hit.chunk_id not in allowed for hit in result)
+                    ):
+                        raise ValueError("Reranker returned invalid evidence identities.")
+                    ready = result[:top_n]
+                except Exception:
                     if telemetry is not None:
                         telemetry.counter("rerank_fallback", {"stage": "rerank"})
                 finally:
@@ -175,16 +219,23 @@ class RetrieveContextUseCase:
             if self.neighbor_expansion is not None and ready:
                 mark = time.perf_counter()
                 try:
-                    expanded = await self.neighbor_expansion(
-                        runtime, scope, ready[: max(1, limit // 2)]
+                    seeds = (
+                        self.evidence_selector(normalized, ready, limit)
+                        if self.evidence_selector
+                        else ready[:limit]
                     )
+                    expanded = await self.neighbor_expansion(runtime, scope, seeds)
                     ready = await self.readiness.filter_ready(scope, expanded)
                 except Exception:
                     if telemetry is not None:
                         telemetry.counter("neighbor_fallback", {"stage": "context"})
                 if telemetry is not None:
                     telemetry.timing("neighbor_expansion", (time.perf_counter() - mark) * 1000, {})
-            return ready[:limit]
+            return (
+                self.evidence_selector(normalized, ready, limit)
+                if self.evidence_selector
+                else ready[:limit]
+            )
         except CoreError:
             raise
         except Exception as exc:
@@ -201,7 +252,9 @@ class RetrieveContextUseCase:
     async def assess(self, scope, query, limit) -> RetrievalAssessment:
         decisions = []
         hits = await self.retrieve(scope, query, limit, relevance_observer=decisions.append)
-        return RetrievalAssessment(tuple(hits), decisions[0].confidence if decisions else None)
+        return RetrievalAssessment(
+            tuple(hits), decisions[0].confidence if decisions and decisions[0].calibrated else None
+        )
 
     async def execute(self, scope: RetrievalScope, query: str, limit: int) -> ContextBundle:
         return build_context_bundle(await self.retrieve(scope, query, limit))

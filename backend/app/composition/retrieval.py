@@ -4,8 +4,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from raghub_core.api import RetrieveContextUseCase
+from raghub_core.domain.retrieval.evidence import select_evidence
 from raghub_core.domain.retrieval.hybrid import MAPPING_VERSION
-from raghub_core.domain.retrieval.relevance import decide
+from raghub_core.domain.retrieval.relevance import FEATURE_SCHEMA, decide
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -84,7 +85,7 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
                 from raghub_core.domain.retrieval.relevance import RelevanceDecision
 
                 if _artifact is None:
-                    return RelevanceDecision(accepted=True, confidence=1.0)
+                    return RelevanceDecision(accepted=True, confidence=1.0, calibrated=False)
                 return decide(
                     _artifact,
                     scores,
@@ -92,6 +93,8 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
                     dataset_hash=live_dataset,
                     retrieval_config_hash=live_config,
                     embedding_fingerprint=runtime.fingerprint,
+                    mapping_version=MAPPING_VERSION,
+                    feature_schema=FEATURE_SCHEMA,
                 )
 
             return relevance
@@ -109,6 +112,16 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         rerank=rerank,
         relevance_factory=relevance_factory,
         rerank_top_n=settings.rag_rerank_top_n,
+        adaptive_rerank=settings.rag_adaptive_rerank_enabled,
+        confidence_high_threshold=settings.rag_confidence_high_threshold,
+        candidate_count=settings.rag_retrieval_candidates,
+        evidence_selector=(
+            lambda query, hits, limit: select_evidence(
+                query, hits, limit, max_tokens=settings.rag_max_context_tokens
+            )
+        )
+        if settings.rag_evidence_selection_enabled
+        else None,
         telemetry=telemetry,
         quota=QueryQuota(settings),
         neighbor_expansion=NeighborExpansion(settings).expand

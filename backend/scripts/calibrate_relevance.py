@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from raghub_core.domain.evaluation.metrics import rejection_scores  # noqa: E402
 from raghub_core.domain.retrieval.relevance import (  # noqa: E402
+    FEATURE_SCHEMA,
     default_features,
     extract_features,
     sigmoid,
@@ -91,6 +92,7 @@ def main() -> None:
     parser.add_argument("--config-hash", required=True)
     parser.add_argument("--version", default="baseline-v1")
     parser.add_argument("--fingerprint", required=True)
+    parser.add_argument("--mapping-version", required=True)
     args = parser.parse_args()
 
     rows = calibration_rows(json.loads(Path(args.scores).read_text(encoding="utf-8")))
@@ -122,6 +124,8 @@ def main() -> None:
         "dataset_hash": args.dataset_hash,
         "retrieval_config_hash": args.config_hash,
         "embedding_fingerprint": args.fingerprint,
+        "mapping_version": args.mapping_version,
+        "feature_schema": FEATURE_SCHEMA,
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

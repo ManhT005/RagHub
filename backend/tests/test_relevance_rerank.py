@@ -213,7 +213,7 @@ async def test_reranker_timeout_falls_back_to_fusion():
     assert [h.score for h in ranked] == [0.2, 0.9]
 
 
-async def test_relevance_reject_returns_empty_before_readiness():
+async def test_relevance_reject_uses_ready_candidates_and_returns_empty():
     from raghub_core.api import RetrievalScope, RetrieveContextUseCase
     from raghub_core.domain.retrieval.relevance import RelevanceDecision
 
@@ -242,7 +242,7 @@ async def test_relevance_reject_returns_empty_before_readiness():
     rejected = await use_case.retrieve(
         scope, "q", 5, relevance=lambda scores: RelevanceDecision(False, 0.1)
     )
-    assert rejected == [] and readiness.calls == 0
+    assert rejected == [] and readiness.calls == 1
 
 
 class _ReadyAll:
@@ -281,6 +281,8 @@ def test_calibration_cli_produces_loadable_artifact(tmp_path: Path):
             "baseline-v1",
             "--fingerprint",
             "fp",
+            "--mapping-version",
+            "vi_hybrid_v2",
         ],
         capture_output=True,
         text=True,

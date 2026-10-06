@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     rag_rrf_k: int = Field(default=60, ge=1, le=200)
     rag_max_chunks_per_document: int = Field(default=1, ge=1, le=25)
     rag_adaptive_clarification_enabled: bool = False
+    rag_evidence_selection_enabled: bool = False
+    rag_adaptive_rerank_enabled: bool = False
+    rag_confidence_high_threshold: float = Field(default=0.85, gt=0, lt=1)
     rag_clarification_medium_threshold: float = Field(default=0.75, gt=0, lt=1)
     rag_neighbor_expansion_enabled: bool = False
     rag_relevance_gate_enabled: bool = False

@@ -7,7 +7,7 @@ import json
 import math
 from pathlib import Path
 
-from raghub_core.domain.retrieval.relevance import RelevanceArtifact
+from raghub_core.domain.retrieval.relevance import FEATURE_SCHEMA, RelevanceArtifact
 
 
 def dataset_hash(qa_path: Path) -> str:
@@ -24,7 +24,7 @@ def retrieval_config_hash(
         "mapping_version": mapping_version,
         "max_per_document": max_per_document,
         "feature_window": 5,
-        "features_version": 2,
+        "feature_schema": FEATURE_SCHEMA,
     }
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
 
@@ -69,6 +69,8 @@ def load_relevance_artifact(path: Path, *, expected_version: str) -> RelevanceAr
             dataset_hash=str(data["dataset_hash"]),
             retrieval_config_hash=str(data["retrieval_config_hash"]),
             embedding_fingerprint=str(data.get("embedding_fingerprint", "")),
+            mapping_version=str(data.get("mapping_version", "")),
+            feature_schema=str(data.get("feature_schema", "")),
         )
     except (KeyError, TypeError, ValueError):
         return None

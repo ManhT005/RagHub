@@ -5,10 +5,13 @@ raw BM25/RRF threshold. The gate only engages when the artifact version and
 its dataset/retrieval-config hashes match the running setup; any mismatch
 keeps the gate off (legacy top-k behavior) instead of mis-rejecting.
 """
+
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+
+FEATURE_SCHEMA = "fused-ready-top5-v3"
 
 
 @dataclass(frozen=True)
@@ -23,12 +26,15 @@ class RelevanceArtifact:
     embedding_fingerprint: str
     feature_mean: tuple[float, ...] = ()
     feature_std: tuple[float, ...] = ()
+    mapping_version: str = ""
+    feature_schema: str = ""
 
 
 @dataclass(frozen=True)
 class RelevanceDecision:
     accepted: bool
     confidence: float
+    calibrated: bool = True
 
 
 def sigmoid(value: float) -> float:
@@ -80,6 +86,8 @@ def gate_enabled(
     dataset_hash: str,
     retrieval_config_hash: str,
     embedding_fingerprint: str = "",
+    mapping_version: str = "",
+    feature_schema: str = "",
 ) -> bool:
     """The gate engages only on flag + versioned artifact + matching hashes."""
     if not enabled_flag or artifact is None:
@@ -89,6 +97,8 @@ def gate_enabled(
         and artifact.embedding_fingerprint == embedding_fingerprint
         and artifact.dataset_hash == dataset_hash
         and artifact.retrieval_config_hash == retrieval_config_hash
+        and (not mapping_version or artifact.mapping_version == mapping_version)
+        and (not feature_schema or artifact.feature_schema == feature_schema)
     )
 
 
@@ -100,6 +110,8 @@ def decide(
     dataset_hash: str,
     retrieval_config_hash: str,
     embedding_fingerprint: str = "",
+    mapping_version: str = "",
+    feature_schema: str = "",
 ) -> RelevanceDecision:
     if not gate_enabled(
         artifact,
@@ -107,13 +119,15 @@ def decide(
         dataset_hash=dataset_hash,
         retrieval_config_hash=retrieval_config_hash,
         embedding_fingerprint=embedding_fingerprint,
+        mapping_version=mapping_version,
+        feature_schema=feature_schema,
     ):
-        return RelevanceDecision(accepted=True, confidence=1.0)
+        return RelevanceDecision(accepted=True, confidence=1.0, calibrated=False)
     if not fused_scores:
         return RelevanceDecision(accepted=False, confidence=0.0)
     if not 0.0 < artifact.threshold < 1.0:
         # Uncalibrated artifact (e.g. unreachable threshold): never reject.
-        return RelevanceDecision(accepted=True, confidence=1.0)
+        return RelevanceDecision(accepted=True, confidence=1.0, calibrated=False)
     confidence = score_candidates(artifact, fused_scores)
     return RelevanceDecision(accepted=confidence >= artifact.threshold, confidence=confidence)
 
