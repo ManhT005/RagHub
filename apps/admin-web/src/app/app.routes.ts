@@ -18,13 +18,13 @@ export const routes: Routes = [
       import("./landing/landing.component").then((m) => m.LandingComponent),
     title: "RagHub",
   },
-  ...["tinh-nang", "giai-phap", "lien-he"].map((path, index) => ({
+  ...["tinh-nang", "giai-phap", "huong-dan", "lien-he"].map((path, index) => ({
     path,
     loadComponent: () =>
       import("./landing/public-page.component").then(
         (m) => m.PublicPageComponent,
       ),
-    data: { page: ["features", "solutions", "contact"][index] },
+    data: { page: ["features", "solutions", "guide", "contact"][index] },
   })),
   {
     path: "auth/reset-password",
