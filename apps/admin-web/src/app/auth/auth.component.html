@@ -19,7 +19,8 @@
       @if (error()) {
         <p class="error">{{ error() }}</p>
       }
-      <button type="submit" [disabled]="loading()">Gửi liên kết đặt lại</button>
+      <raghub-turnstile action="forgot_password" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
+      <button type="submit" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">Gửi liên kết đặt lại</button>
     </form>
     <button class="link" type="button" (click)="setMode('login')">
       Quay lại đăng nhập
@@ -50,7 +51,8 @@
       @if (error()) {
         <p class="error">{{ error() }}</p>
       }
-      <button type="submit" [disabled]="loading()">Đăng nhập</button>
+      <raghub-turnstile action="login" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
+      <button type="submit" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">Đăng nhập</button>
     </form>
     <div class="actions">
       <button class="link" type="button" (click)="setMode('forgot')">

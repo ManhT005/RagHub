@@ -125,6 +125,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    turnstile_enabled: bool = False
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+    turnstile_expected_hostname: str = ""
 
     @field_validator("public_base_url")
     @classmethod
@@ -206,6 +210,14 @@ class Settings(BaseSettings):
             )
             if any(email_settings) and not all(email_settings):
                 raise ValueError("SMTP configuration must be complete when enabled")
+        if self.turnstile_enabled and not all(
+            (
+                self.turnstile_site_key,
+                self.turnstile_secret_key,
+                self.turnstile_expected_hostname,
+            )
+        ):
+            raise ValueError("Turnstile configuration must be complete when enabled")
         return self
 
     @property
