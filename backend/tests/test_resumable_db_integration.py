@@ -210,6 +210,44 @@ async def test_reindex_reserves_upload_admission_and_yields_claim_priority(isola
         await session.rollback()
 
 
+async def test_explicit_document_retry_resets_failed_active_work_item_and_preserves_checkpoints(
+    isolated_sessions,
+):
+    from raghub_core.domain.retrieval.models import RetrievalScope
+
+    from app.infrastructure.persistence.uploads import DocumentRetryRepositoryAdapter
+
+    async with isolated_sessions(expire_on_commit=False) as session:
+        org, ws, index, version = await seed(session)
+        repo = WorkItemRepository(session)
+        item = await repo.create(
+            organization_id=org.id,
+            workspace_id=ws.id,
+            pool_id=None,
+            document_version_id=version.id,
+            kind="upload",
+        )
+        item.index_name, item.state, item.embedded_chunks = index.index_name, "FAILED", 1
+        await session.commit()
+
+        class Repository:
+            async def find_version_for_retry(self, org_id, workspace_id, version_id):
+                from app.modules.documents.models import IngestionJob
+
+                document = await session.get(Document, version.document_id)
+                job = await session.scalar(
+                    select(IngestionJob).where(IngestionJob.document_version_id == version.id)
+                )
+                return document, version, job
+
+        adapter = DocumentRetryRepositoryAdapter(Repository(), session)
+        await adapter.load_for_retry(RetrievalScope(org.id, ws.id), version.id)
+        await adapter.reset(version.id)
+        await session.commit()
+        await session.refresh(item)
+        assert item.state == "QUEUED" and item.kind == "recovery" and item.embedded_chunks == 1
+
+
 @pytest.mark.parametrize(
     "managed_pool,document_pipeline",
     [(False, "legacy"), (True, "legacy"), (True, "normalized-v1"), (True, "context-v1")],

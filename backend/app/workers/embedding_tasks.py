@@ -4,6 +4,12 @@ import asyncio
 import uuid
 
 from celery import Task
+from raghub_core.domain.ingestion.errors import IngestionError
+from raghub_core.domain.providers.errors import (
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    ProviderUnavailableError,
+)
 from raghub_core.ports.embedding_quota import QuotaBackendUnavailableError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -26,7 +32,9 @@ async def _process_one_batch(session: AsyncSession, item_id: uuid.UUID) -> bool:
     repository = WorkItemRepository(session)
     redis = Redis.from_url(settings.redis_url, socket_timeout=2)
     quota = QuotaBucketStore(redis, settings)
-    storage = MinioObjectStorage(settings)
+    from app.infrastructure.resumable_embedding import DurableEmbeddingStorage
+
+    storage = DurableEmbeddingStorage(MinioObjectStorage(settings))
 
     from sqlalchemy import select
 
@@ -194,6 +202,14 @@ def process_work_item_batch(self: Task, work_item_id: str) -> None:
     except QuotaBackendUnavailableError as exc:
         # Fail closed: requeue without touching the provider.
         raise self.retry(exc=exc, countdown=30) from exc
+    except ProviderRateLimitError as exc:
+        raise self.retry(exc=exc, countdown=60, max_retries=48, priority=2) from exc
+    except (ProviderTimeoutError, ProviderUnavailableError) as exc:
+        raise self.retry(exc=exc, countdown=30, max_retries=3, priority=2) from exc
+    except IngestionError as exc:
+        if not exc.retryable:
+            raise
+        raise self.retry(exc=exc, countdown=30, max_retries=3, priority=2) from exc
     finally:
         asyncio.run(engine.dispose())
     if not done:

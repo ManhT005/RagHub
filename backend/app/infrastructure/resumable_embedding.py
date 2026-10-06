@@ -34,6 +34,36 @@ class RuntimeQuota:
             )
 
 
+class DurableEmbeddingStorage:
+    """Classify checkpoint I/O outages separately from invalid embedding responses."""
+
+    def __init__(self, storage):
+        self.storage = storage
+
+    async def get(self, key):
+        try:
+            return await self.storage.get(key)
+        except Exception as error:
+            if isinstance(error, KeyError) or getattr(error, "code", None) in {
+                "NoSuchKey",
+                "NoSuchObject",
+            }:
+                raise  # A missing uncommitted artifact is the processor's cache-miss path.
+            raise IngestionError(
+                "STORAGE_UNAVAILABLE", "Durable embedding storage is unavailable.", retryable=True
+            ) from error
+
+    async def put(self, key, content, content_type):
+        try:
+            return await self.storage.put(key, content, content_type)
+        except Exception as error:
+            raise IngestionError(
+                "STORAGE_UNAVAILABLE",
+                "Durable embedding checkpoint could not be stored.",
+                retryable=True,
+            ) from error
+
+
 def chunk_manifest(chunks):
     return [
         {
@@ -51,7 +81,7 @@ def chunk_manifest(chunks):
 
 class ResumableEmbedding:
     def __init__(self, session, storage, settings, quota=None, telemetry=None):
-        self.session, self.storage = session, storage
+        self.session, self.storage = session, DurableEmbeddingStorage(storage)
         self.settings, self.quota = settings, quota
         self.telemetry = telemetry
         self.repository = WorkItemRepository(session, settings)
@@ -101,6 +131,12 @@ class ResumableEmbedding:
                 [c.get(k) for k in identity_fields] for c in manifest
             ]:
                 raise ValueError("Document chunk manifest changed during resume.")
+        if item.state == "FAILED":
+            raise IngestionError(
+                "EMBEDDING_WORK_ITEM_FAILED",
+                "Embedding work item requires an explicit document retry.",
+                retryable=False,
+            )
         collected = []
 
         async def finalize(_item_id, vectors):

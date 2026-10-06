@@ -87,3 +87,47 @@ async def test_cache_records_actual_saved_embedding_calls_and_tokens():
     assert any(
         name == "embedding_tokens_saved" and value > 0 for name, labels, value in telemetry.counters
     )
+
+
+async def test_checkpoint_write_outage_resumes_orphan_vectors_without_another_provider_call():
+    from raghub_core.domain.ingestion.errors import IngestionError
+
+    class LostResponseStorage(FakeObjectStorage):
+        failed = False
+
+        async def put(self, key, blob, content_type):
+            await super().put(key, blob, content_type)
+            if "/embedding-batches/" in key and not self.failed:
+                self.failed = True
+                raise ConnectionError("response lost after persistence")
+
+    storage = LostResponseStorage()
+    document = IngestionDocument(
+        RetrievalScope(uuid4(), uuid4()), uuid4(), uuid4(), "file", "a.txt"
+    )
+    chunks = chunk_sections([ParsedSection("A useful fact.", "a.txt", 0)], document.version_id)
+    provider = SimpleNamespace(embed_documents=AsyncMock(return_value=[[1.0, 0.0]]))
+    runtime = EmbeddingRuntime(provider, "index", 2, fingerprint="fp")
+    repo = FakeRepo()
+
+    async def create(**kwargs):
+        item = SimpleNamespace(
+            **kwargs,
+            id=ResumableEmbedding.identity(document, runtime),
+            state="QUEUED",
+            embedded_chunks=0,
+        )
+        repo.items[item.id] = item
+        return item
+
+    repo.create = create
+    session = SimpleNamespace(
+        get=AsyncMock(side_effect=lambda model, key: repo.items.get(key)), commit=AsyncMock()
+    )
+    adapter = ResumableEmbedding(session, storage, Settings())
+    adapter.repository = repo
+    with pytest.raises(IngestionError) as error:
+        await adapter.execute(document, chunks, runtime)
+    assert error.value.retryable and error.value.code == "STORAGE_UNAVAILABLE"
+    assert await adapter.execute(document, chunks, runtime) == [[1.0, 0.0]]
+    assert provider.embed_documents.await_count == 1
