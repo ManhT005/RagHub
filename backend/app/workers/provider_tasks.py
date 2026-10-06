@@ -20,7 +20,7 @@ async def bootstrap_health(organization_id, model_ids):
         await engine.dispose()
 
 
-@celery_app.task(name="providers.bootstrap_health", soft_time_limit=280, time_limit=300)
+@celery_app.task(name="providers.bootstrap_health", soft_time_limit=55, time_limit=60)
 def run_bootstrap_health(organization_id, model_ids):
     asyncio.run(bootstrap_health(organization_id, model_ids))
 
