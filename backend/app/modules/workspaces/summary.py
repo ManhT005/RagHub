@@ -1,4 +1,5 @@
 from sqlalchemy import case, func, select
+from sqlalchemy.orm import aliased
 
 from app.modules.ai_providers.catalog import connection_catalog_id
 from app.modules.ai_providers.models import (
@@ -25,6 +26,7 @@ def latest_versions():
 
 
 def summary_statement(organization_id):
+    chat_config = aliased(ProviderConfig, name="chat_config")
     latest = latest_versions()
     documents = (
         select(
@@ -80,6 +82,7 @@ def summary_statement(organization_id):
             members.c.member_count,
             EmbeddingIndexVersion,
             ProviderConfig,
+            chat_config,
             EmbeddingReindexJob.id.label("reindex_job_id"),
             EmbeddingReindexJob.status.label("reindex_status"),
         )
@@ -97,6 +100,10 @@ def summary_statement(organization_id):
             ProviderConfig.id == EmbeddingIndexVersion.provider_config_id,
         )
         .outerjoin(
+            chat_config,
+            chat_config.id == Workspace.chat_provider_id,
+        )
+        .outerjoin(
             EmbeddingReindexJob,
             EmbeddingReindexJob.target_index_version_id
             == Workspace.pending_embedding_index_version_id,
@@ -109,7 +116,7 @@ def summary_statement(organization_id):
 
 
 def summary_data(row):
-    workspace, docs, chunks, indexed, members, version, config, job_id, job_status = row
+    workspace, docs, chunks, indexed, members, version, config, chat, job_id, job_status = row
     model = None
     if version:
         model = {
@@ -125,6 +132,32 @@ def summary_data(row):
             "dimension": version.dimension,
             "status": config.availability_status if config else "UNTESTED",
         }
+    chat_model = None
+    if chat:
+        chat_model = {
+            "id": str(chat.id),
+            "model": chat.model,
+            "display_name": chat.display_name or chat.name,
+            "provider_name": chat.connection.name if chat.connection else chat.name,
+            "provider_type": chat.provider_type,
+            "provider_catalog_id": connection_catalog_id(chat.connection)
+            if chat.connection else None,
+            "availability_status": chat.availability_status,
+            "connection_status": chat.connection.status if chat.connection else "UNTESTED",
+        }
+    embedding_status = "NOT_CONFIGURED" if not version else model_status(config)
+    if job_status in {"QUEUED", "RUNNING", "VALIDATING", "SWITCHING"}:
+        embedding_status = "REINDEXING"
+    elif job_status in {"FAILED", "QUEUE_FAILED"}:
+        embedding_status = "WARNING"
+    chat_status = model_status(chat) if workspace.chat_provider_id else "NOT_CONFIGURED"
+    states = {embedding_status, chat_status}
+    ai_status = (
+        "WARNING" if "WARNING" in states
+        else "NOT_CONFIGURED" if states == {"NOT_CONFIGURED"}
+        else "READY" if states == {"READY"}
+        else "PARTIAL"
+    )
     return {
         "id": workspace.id,
         "name": workspace.name,
@@ -138,13 +171,20 @@ def summary_data(row):
         "last_indexed_at": indexed,
         "embedding_model": model,
         "chat_provider_id": workspace.chat_provider_id,
-        "status": "REINDEXING"
-        if job_status in {"QUEUED", "RUNNING", "VALIDATING", "SWITCHING"}
-        else "WARNING"
-        if job_status in {"FAILED", "QUEUE_FAILED"}
-        else "ACTIVE"
-        if version
-        else "AI_NOT_CONFIGURED",
+        "chat_model": chat_model,
+        "embedding_status": embedding_status,
+        "chat_status": chat_status,
+        "ai_status": ai_status,
+        "status": "REINDEXING" if embedding_status == "REINDEXING"
+        else {"READY": "ACTIVE", "NOT_CONFIGURED": "AI_NOT_CONFIGURED"}.get(ai_status, ai_status),
         "reindex_job_id": job_id,
         "reindex_status": job_status,
     }
+
+
+def model_status(config):
+    return "READY" if (
+        config and config.enabled and config.availability_status == "AVAILABLE"
+        and config.connection and config.connection.enabled
+        and config.connection.status == "CONNECTED"
+    ) else "WARNING"

@@ -18,7 +18,7 @@ from app.modules.ai_providers.models import (
     EmbeddingReindexJob,
     ProviderConfig,
 )
-from app.modules.ai_providers.schemas import WorkspaceProviderBindingResponse
+from app.modules.ai_providers.schemas import RerankOptions, WorkspaceProviderBindingResponse
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.documents.models import Document
 from app.modules.workspaces.models import Workspace
@@ -30,6 +30,35 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 class ModelSelection(BaseModel):
     model_id: UUID
+
+
+class RerankSelection(RerankOptions):
+    model_id: UUID | None = None
+
+
+@router.get("/rerank-model")
+async def get_rerank(workspace_id: UUID, context: Context, session: Session):
+    await require_workspace_permission(context, workspace_id, "workspace.view", session)
+    item = await workspace(session, context.organization_id, workspace_id)
+    return {
+        "model_id": item.rerank_provider_id,
+        **RerankOptions.model_validate(item.rerank_config or {}).model_dump(),
+    }
+
+
+@router.put("/rerank-model")
+async def change_rerank(
+    workspace_id: UUID, payload: RerankSelection, context: Context, session: Session
+):
+    await require_workspace_permission(context, workspace_id, "workspace.edit", session)
+    item = await workspace(session, context.organization_id, workspace_id)
+    if payload.model_id:
+        service = ProviderConfigService(session)
+        available(await service.get(context.organization_id, payload.model_id), "RERANK")
+    item.rerank_provider_id = payload.model_id
+    item.rerank_config = payload.model_dump(exclude={"model_id"})
+    await session.commit()
+    return payload
 
 
 class EmbeddingPreview(BaseModel):

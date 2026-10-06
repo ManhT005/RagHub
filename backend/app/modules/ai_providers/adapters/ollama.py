@@ -11,6 +11,7 @@ from raghub_core.domain.providers.contracts import (
 )
 from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
+    ProviderConfigurationError,
     ProviderInvalidResponseError,
     ProviderRateLimitError,
     ProviderTimeoutError,
@@ -19,6 +20,7 @@ from raghub_core.domain.providers.errors import (
 from raghub_core.domain.providers.usage import estimate_chat_usage
 
 from app.modules.ai_providers.policy import ProviderRequestPolicy
+from app.modules.ai_providers.schemas import validate_trusted_local_provider_url
 
 
 class OllamaChatProvider:
@@ -40,6 +42,10 @@ class OllamaChatProvider:
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
     ) -> AsyncIterator[ChatStreamDelta]:
+        try:
+            validate_trusted_local_provider_url(self.base_url, ollama=True)
+        except ValueError as exc:
+            raise ProviderConfigurationError("Ollama endpoint is not allowed.") from exc
         provider_options = dict(self.config.get("options", {}))
         for key in ("temperature", "top_p", "stop"):
             value = getattr(options, key)

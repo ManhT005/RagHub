@@ -73,7 +73,7 @@ class AuthService:
         now = datetime.now(UTC)
         user.last_login_at = now
         identity.last_used_at = now
-        result = await self._create_session(user)
+        result = await self.issue_session(user)
         await self.session.commit()
         return result
 
@@ -157,14 +157,16 @@ class AuthService:
         identity.password_hash = hash_password(new_password)
         user.auth_version += 1
         await self._revoke_user_sessions(user.id, now)
-        result = await self._create_session(user)
+        result = await self.issue_session(user)
         await self.session.commit()
         return result
 
     async def refresh(self, refresh_token: str) -> AuthResult:
         now = datetime.now(UTC)
         current = await self.session.scalar(
-            select(UserSession).where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            select(UserSession)
+            .where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            .with_for_update()
         )
         if current is None:
             raise AppError(
@@ -183,12 +185,12 @@ class AuthService:
                 "INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired.", status_code=401
             )
         user = await self.session.get(User, current.user_id)
-        if user is None or user.status != "ACTIVE":
+        if user is None or user.status != "ACTIVE" or current.auth_version != user.auth_version:
             raise AppError(
                 "AUTHENTICATION_REQUIRED", "The user account is unavailable.", status_code=401
             )
         current.revoked_at = now
-        result = await self._create_session(user)
+        result = await self.issue_session(user)
         current.replaced_by_id = result.session_id
         await self.session.commit()
         return result
@@ -197,13 +199,16 @@ class AuthService:
         if not refresh_token:
             return
         current = await self.session.scalar(
-            select(UserSession).where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            select(UserSession)
+            .where(UserSession.refresh_token_hash == hash_token(refresh_token))
+            .with_for_update()
         )
         if current and current.revoked_at is None:
             current.revoked_at = datetime.now(UTC)
             await self.session.commit()
 
-    async def _create_session(self, user: User) -> AuthResult:
+    async def issue_session(self, user: User) -> AuthResult:
+        """Issue a session inside the caller's transaction; the caller commits."""
         raw_refresh = generate_opaque_token()
         session_id = uuid.uuid4()
         self.session.add(
@@ -211,6 +216,7 @@ class AuthService:
                 id=session_id,
                 user_id=user.id,
                 refresh_token_hash=hash_token(raw_refresh),
+                auth_version=user.auth_version,
                 expires_at=datetime.now(UTC) + timedelta(days=self.settings.refresh_token_ttl_days),
             )
         )

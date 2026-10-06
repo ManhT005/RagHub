@@ -1,5 +1,6 @@
-<nz-drawer [nzVisible]="visible()" [nzWidth]="640" [nzTitle]="connection() ? 'Quản lý AI provider' : 'Thêm AI provider'"
-  [nzMaskClosable]="!busy()" (nzOnClose)="close()">
+<nz-drawer [nzVisible]="visible()" [nzWidth]="'min(820px, 100vw)'"
+  [nzTitle]="connection() ? 'Quản lý AI provider' : 'Thêm AI provider'" [nzMaskClosable]="!busy()"
+  (nzOnClose)="close()">
   <ng-container *nzDrawerContent>
     <p class="muted">Kết nối provider và đăng ký model để dùng trong RagHub.</p>
     <ol class="steps" aria-label="Tiến trình kết nối provider">
@@ -18,13 +19,18 @@
         <option>Cloud</option>
         <option>Local</option>
         <option>Custom</option>
+      </select><select aria-label="Hình thức sử dụng" [(ngModel)]="accessTier">
+        <option value="">Tất cả hình thức</option><option value="FREE_ALLOCATION">Free allocation</option>
+        <option value="FREE_TRIAL">Free trial</option><option value="MIXED">Mixed</option>
+        <option value="PAID">Paid</option><option value="LOCAL">Local</option>
       </select></div>
     <div class="catalog">
       @for (item of filteredCatalog(); track item.id) {
-      <button type="button" [disabled]="item.status !== 'SUPPORTED'" (click)="choose(item)"><raghub-provider-logo
+      <button type="button" [disabled]="item.status !== 'SUPPORTED' && item.status !== 'BETA'" (click)="choose(item)" [title]="item.migration_guidance || item.name"><raghub-provider-logo
           [catalogId]="item.id" aria-hidden="true" /><strong>{{ item.name
-          }}</strong><small>{{ item.status === 'SUPPORTED' ? item.capabilities.join(' · ') : 'Coming soon'
-          }}</small></button>
+          }}</strong><small>{{ item.status }}</small><small>{{ item.capabilities.join(' · ') }}</small>
+          <small>{{ item.access_tier || '' }}</small>
+          @if (item.migration_guidance) { <small>{{ item.migration_guidance }}</small> }</button>
       }
     </div>
     } @else if (step() === 1) {
@@ -35,12 +41,20 @@
         rel="noopener noreferrer">Tài liệu ↗</a> } @if (selected()?.api_key_url) { <a [href]="selected()!.api_key_url"
         target="_blank" rel="noopener noreferrer">Lấy API key ↗</a> }</div>
     <label>Tên provider<input nz-input [(ngModel)]="name" maxlength="200" [disabled]="busy()" /></label>
-    @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER') {
-    <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" /></label>
+    @if (selected()?.status === 'BETA') { <nz-alert nzType="info" nzMessage="Beta — cần kiểm tra kết nối và model trước khi sử dụng." /> }
+    @if (selected()?.free_tier_note) { <p class="muted">{{ selected()?.free_tier_note }}</p> }
+    @if (selected()?.pricing_url) { <a [href]="selected()!.pricing_url" target="_blank" rel="noopener noreferrer">Giá và giới hạn sử dụng ↗</a> }
+    @for (field of selected()?.fields || []; track field.key) {
+      <label>{{ field.label }} {{ field.required ? '*' : '' }}<input nz-input
+        [type]="field.type" [(ngModel)]="configFields[field.key]" [required]="field.required"
+        [disabled]="busy()" /></label>
+    }
+    @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER' && selected()?.id !== 'cloudflare-workers-ai') {
+    <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" [readOnly]="selected()?.locked_base_url || false" /></label>
     <button nz-button type="button" (click)="baseUrl = selected()?.default_base_url ?? ''" [disabled]="busy()">Khôi phục
       mặc định</button>
     }
-    @if (selected()?.auth_type === 'API_KEY') { <label>API key<input nz-input type="password"
+    @if (selected()?.auth_type === 'API_KEY' || selected()?.auth_type === 'OPTIONAL_API_KEY') { <label>API key<input nz-input type="password"
         autocomplete="new-password" [(ngModel)]="secret" [disabled]="busy()"
         [placeholder]="connection()?.has_secret ? 'Để trống để giữ key hiện tại' : 'Nhập API key'" /></label>
     <p class="muted">Key được mã hóa và lưu ở cấp hệ thống.</p> }
@@ -51,26 +65,105 @@
     <h2>Chọn model để đăng ký</h2>
     <p class="muted">Model được kiểm tra bằng request thực trước khi dùng cho workspace. Dimension có thể tự phát hiện;
       nhập thủ công nếu provider yêu cầu.</p>
-    <div class="model-list">
-      @for (item of choices(); track item.model) {
-      <article><label class="choice"><input type="checkbox" [(ngModel)]="item.selected" [disabled]="busy()" />{{
-          item.display_name || item.model }}</label><small>{{ item.model }}</small>
-        <label>Chức năng<select [(ngModel)]="item.capability" [disabled]="busy()">@for (cap of (item.capabilities.length
-            ? item.capabilities : selected()!.capabilities); track cap) { <option [value]="cap">{{ cap }}</option>
-            }</select></label>
-        @if (item.capability === 'EMBEDDING') { <label>Dimension<input nz-input type="number" min="1" max="65536"
-            [(ngModel)]="item.dimension" placeholder="Tự phát hiện" [disabled]="busy()" /></label> }
-      </article>
-      } @empty { <p>Nhập Model ID thủ công để tiếp tục.</p> }
+    @if (selected()?.provider_type === 'OLLAMA') {
+    <div class="model-tabs" role="group" aria-label="Danh mục model Ollama">
+      <button nz-button [nzType]="modelTab === 'installed' ? 'primary' : 'default'"
+        [attr.aria-pressed]="modelTab === 'installed'" (click)="modelTab = 'installed'">Installed</button>
+      <button nz-button [nzType]="modelTab === 'recommended' ? 'primary' : 'default'"
+        [attr.aria-pressed]="modelTab === 'recommended'" (click)="modelTab = 'recommended'">Recommended</button>
+      <button nz-button [nzType]="modelTab === 'manual' ? 'primary' : 'default'"
+        [attr.aria-pressed]="modelTab === 'manual'" (click)="modelTab = 'manual'">Manual</button>
     </div>
+    @if (pullJob(); as job) {
+    <div class="pull-progress" role="status" aria-live="polite">
+      <strong>{{ job.model }}</strong> · {{ job.status === 'QUEUED' ? 'Đang chờ' : job.status === 'PULLING' ? 'Đang tải'
+      : job.status === 'VERIFYING' ? 'Đang kiểm tra' : job.status === 'READY' ? 'Sẵn sàng' : 'Thất bại' }}
+      @if (pullActive()) { <progress [value]="job.completed_bytes" [max]="job.total_bytes || 1"
+        [attr.aria-label]="'Tiến trình tải ' + job.model"></progress><span>{{ pullPercent() }}% · {{
+        formatBytes(job.completed_bytes) }} / {{ formatBytes(job.total_bytes) }}</span> }
+    </div>
+    }
+    @if (modelTab === 'recommended') {
+    <p class="muted">Kích thước tải gần đúng. RAM/VRAM còn phụ thuộc context, lượng tử hóa và số request.</p>
+    <div class="recommendations">
+      @for (item of visibleRecommendations(); track item.model) {
+      <article><strong>{{ item.display_name }}</strong>
+        <div><nz-tag>{{ item.tier }}</nz-tag><nz-tag>~{{ formatBytes(item.size_bytes) }}</nz-tag></div>
+        <p>{{ item.description }}</p>
+        <button nz-button (click)="install(item.model)" [disabled]="pullActive() || busy() || installed(item.model)">{{
+          installed(item.model) ? 'Đã cài đặt' : 'Cài đặt & đăng ký' }}</button>
+      </article>
+      }
+    </div>
+    <button nz-button (click)="showMore = !showMore">{{ showMore ? 'Thu gọn' : 'Xem thêm model' }}</button>
+    }
+    }
+    @if (selected()?.provider_type !== 'OLLAMA' || modelTab === 'installed') {
+    <div class="model-toolbar">
+      <div class="filters">
+        <input nz-input aria-label="Tìm model" placeholder="Tìm Model ID hoặc tên…" [(ngModel)]="modelSearch" />
+        <select aria-label="Lọc chức năng model" [(ngModel)]="modelFilter">
+          <option value="">Tất cả</option>
+          <option value="CHAT">Chat</option>
+          <option value="EMBEDDING">Embedding</option>
+          <option value="RERANK">Rerank</option>
+          <option value="UNKNOWN">Unknown</option>
+        </select>
+      </div>
+      <div class="selection-toolbar">
+        <label class="choice"><input type="checkbox" [checked]="allFilteredSelected()"
+            [indeterminate]="someFilteredSelected()" (change)="selectFiltered($any($event.target).checked)"
+            [disabled]="busy()" />Chọn tất cả kết quả</label>
+        <span role="status" aria-live="polite">{{ selectedCount() }} đã chọn</span>
+        <button nz-button (click)="selectFiltered(false)" [disabled]="busy()">Bỏ chọn kết quả</button>
+      </div>
+    </div>
+    <div class="model-list" role="region" aria-label="Kết quả tìm model" tabindex="0">
+      @for (item of filteredChoices(); track item.model) {
+      <article class="model-row">
+        <label class="choice"><input type="checkbox" [(ngModel)]="item.selected"
+            [disabled]="busy() || item.registered" /><span><strong>{{ item.display_name || item.model }}</strong><small
+              class="block">{{ item.model }}</small></span></label>
+        <div class="model-controls">
+          @if (item.size_bytes) { <nz-tag>{{ formatBytes(item.size_bytes) }}</nz-tag> }
+          @if (item.context_tokens) { <nz-tag>{{ item.context_tokens }} context</nz-tag> }
+          @if (item.free) { <nz-tag nzColor="green">Free model</nz-tag> }
+          @if (item.reasoning) { <nz-tag>Reasoning</nz-tag> }
+          @if (item.recommended) { <nz-tag nzColor="blue">Đề xuất</nz-tag> }
+          @if (item.deprecated) { <nz-tag nzColor="orange">Deprecated</nz-tag> }
+          @if (item.registered) { <nz-tag nzColor="green">Đã đăng ký</nz-tag> }
+          @if (item.capabilities.length === 1) { <nz-tag>{{ item.capability }}</nz-tag> }
+          @else {
+          <select [(ngModel)]="item.capability" [attr.aria-label]="'Chức năng của ' + item.model"
+            [disabled]="busy() || item.registered">
+            <option value="UNKNOWN">UNKNOWN — chọn loại</option>
+            @for (cap of (item.capabilities.length ? item.capabilities : selected()!.capabilities); track cap) { <option
+              [value]="cap">{{ cap }}</option> }
+          </select>
+          }
+          @if (item.capability === 'EMBEDDING') { <input nz-input type="number" min="1" max="65536"
+            [attr.aria-label]="'Dimension của ' + item.model" [(ngModel)]="item.dimension"
+            placeholder="Tự phát hiện dims" [disabled]="busy() || item.registered" /> }
+        </div>
+      </article>
+      } @empty { <p>Không có model phù hợp. Thử tìm kiếm khác hoặc nhập Model ID thủ công.</p> }
+    </div>
+    }
+    @if (selected()?.provider_type !== 'OLLAMA' || modelTab === 'manual') {
     <fieldset [disabled]="busy()">
       <legend>Nhập Model ID thủ công</legend><label>Model ID<input nz-input [(ngModel)]="manualId"
-          maxlength="255" /></label><label>Chức năng<select [(ngModel)]="manualCapability">@for (cap of
-          selected()!.capabilities; track cap) { <option [value]="cap">{{ cap }}</option> }</select></label>@if
+          maxlength="255" /></label><label>Chức năng<select [(ngModel)]="manualCapability">
+          <option value="UNKNOWN">Chọn chức năng</option>@for (cap of
+          selected()!.capabilities; track cap) { <option [value]="cap">{{ cap }}</option> }
+        </select></label>@if
       (manualCapability === 'EMBEDDING') { <label>Dimension<input nz-input type="number" min="1" max="65536"
           [(ngModel)]="manualDimension" placeholder="Tự phát hiện" /></label> }<button nz-button type="button"
-        (click)="addManual()" [disabled]="!manualId.trim()">Thêm vào lựa chọn</button>
+        (click)="addManual(); modelTab = 'installed'"
+        [disabled]="!manualId.trim() || manualCapability === 'UNKNOWN'">Thêm vào lựa chọn</button>
+      @if (selected()?.provider_type === 'OLLAMA') { <button nz-button (click)="install(manualId)"
+        [disabled]="!manualId.trim() || pullActive()">Tải & đăng ký Model ID này</button> }
     </fieldset>
+    }
     <div class="footer"><button nz-button type="button" (click)="close()" [disabled]="busy()">Hủy</button><button
         nz-button nzType="primary" type="button" (click)="save()" [nzLoading]="busy()" [disabled]="!hasSelection()">Kiểm
         tra & đăng ký model</button></div>

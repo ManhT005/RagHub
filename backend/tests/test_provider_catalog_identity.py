@@ -69,6 +69,7 @@ async def test_mismatched_patch_returns_a_contract_error_before_any_mutation():
     with pytest.raises(AppError) as error:
         await service.update(None, None, ConnectionPatch(catalog_id="gemini"))
     assert error.value.status_code == 422
+    assert error.value.code == "PROVIDER_IDENTITY_IMMUTABLE"
 
 
 def test_identity_survives_model_and_workspace_serialization():
@@ -112,9 +113,9 @@ def test_identity_survives_model_and_workspace_serialization():
         dimension=384,
     )
     assert (
-        summary_data((workspace, 3, 10, None, 1, version, config, None, None))["embedding_model"][
-            "provider_catalog_id"
-        ]
+        summary_data((workspace, 3, 10, None, 1, version, config, None, None, None))[
+            "embedding_model"
+        ]["provider_catalog_id"]
         == "compatible"
     )
 

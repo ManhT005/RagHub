@@ -75,7 +75,9 @@ class ProviderConfigService:
             raise AppError("PROVIDER_NOT_FOUND", "Provider was not found.", status_code=404)
         return config
 
-    async def create(self, organization_id: UUID, payload: ProviderConfigInput) -> ProviderConfig:
+    async def create(
+        self, organization_id: UUID, payload: ProviderConfigInput, *, commit: bool = True
+    ) -> ProviderConfig:
         connection = ProviderConnection(
             organization_id=organization_id,
             name=payload.name.strip(),
@@ -99,6 +101,9 @@ class ProviderConfigService:
             enabled=payload.enabled,
         )
         self.session.add(config)
+        if not commit:
+            await self.session.flush()
+            return config
         await self.session.commit()
         await self.session.refresh(config)
         return config
@@ -179,6 +184,7 @@ class ProviderConfigService:
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
                     | (Workspace.chat_provider_id == provider_id)
+                    | (Workspace.rerank_provider_id == provider_id)
                     | Workspace.active_embedding_index_version_id.in_(indexes)
                     | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
@@ -225,6 +231,13 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Provider embedding dimension does not match config."
                 )
+        elif config.capability == ProviderCapability.RERANK:
+            from raghub_core.domain.providers.rerank import validated_rerank_indices
+
+            result = await provider.rerank(
+                query="RagHub", documents=["RagHub documentation", "A different topic"], top_n=2
+            )
+            validated_rerank_indices(result, count=2, top_n=2)
         else:
             received = False
             async for delta in provider.stream_chat(  # type: ignore[attr-defined]

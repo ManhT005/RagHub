@@ -2,6 +2,50 @@
 @import "./app/features/selfhost.css";
 @import "./styles/console-theme.css";
 
+.rh-password-control {
+  display: block;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.rh-password-control > input {
+  width: 100%;
+  min-height: 44px;
+  padding-right: 48px !important;
+}
+.rh-password-control > .rh-password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rh-muted);
+  cursor: pointer;
+  line-height: 1;
+  touch-action: manipulation;
+}
+.rh-password-toggle:hover { background: var(--rh-hover); color: var(--rh-text); }
+.rh-password-toggle:focus-visible { outline: 3px solid var(--rh-primary); outline-offset: -3px; }
+.rh-password-toggle:disabled { opacity: .5; cursor: default; }
+
+.session-banner {
+  padding: 16px 24px;
+  background: var(--rh-warning-bg);
+  color: var(--rh-warning);
+  border: 1px solid currentColor;
+}
+.session-banner button { margin-left: 12px; min-height: 44px; cursor: pointer; }
+
 :root {
   --rh-bg: #f1f8ff;
   --rh-surface: #ffffff;

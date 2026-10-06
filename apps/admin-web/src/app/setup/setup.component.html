@@ -1,0 +1,64 @@
+<main class="setup-shell">
+  <a class="brand" routerLink="/">RagHub <span>Self-host</span></a>
+  <section class="setup-card" aria-labelledby="setup-title">
+    <p class="eyebrow">CÀI ĐẶT BAN ĐẦU</p>
+    <h1 id="setup-title">Khởi tạo RagHub của bạn</h1>
+    <p class="intro">Tạo tài khoản quản trị và tổ chức đầu tiên. Bạn có thể cấu hình AI ngay hoặc quay lại sau.</p>
+    <ol class="steps" aria-label="Tiến trình cài đặt">
+      @for (label of steps; track label; let index = $index) {
+        <li [class.current]="step() === index" [class.complete]="step() > index" [attr.aria-current]="step() === index ? 'step' : null"><span>{{ index + 1 }}</span>{{ label }}</li>
+      }
+    </ol>
+    <h2 id="setup-step-title" tabindex="-1">{{ steps[step()] }}</h2>
+    <form #setupForm="ngForm" (ngSubmit)="step() === 4 ? finish() : next()" [attr.aria-busy]="busy()">
+      @switch (step()) {
+        @case (0) {
+          <p>Các dịch vụ bắt buộc cần sẵn sàng trước khi tạo Owner.</p>
+          <ul class="checks" aria-live="polite">
+            @for (check of readiness(); track check.name) { <li><b>{{ check.name }}</b><span [class.error]="!check.ready">{{ check.ready ? 'Sẵn sàng' : 'Chưa sẵn sàng' }}</span></li> }
+          </ul>
+          <p class="hint">Ollama và SMTP là tùy chọn. Bạn vẫn có thể hoàn tất khi chưa bật AI hoặc email.</p>
+          <button type="button" class="secondary" (click)="checkReadiness()" [disabled]="busy()">{{ busy() ? 'Đang kiểm tra…' : 'Kiểm tra lại' }}</button>
+        }
+        @case (1) {
+          <label for="owner-email">Email Owner</label><input id="owner-email" name="email" type="email" autocomplete="username" [(ngModel)]="email" required maxlength="320" />
+          <label for="owner-password">Mật khẩu</label><input id="owner-password" name="password" type="password" autocomplete="new-password" [(ngModel)]="password" required minlength="12" maxlength="128" aria-describedby="password-help" />
+          <small id="password-help">Từ 12 đến 128 ký tự. Có thể dùng trình quản lý mật khẩu.</small>
+          <label for="owner-confirmation">Nhập lại mật khẩu</label><input id="owner-confirmation" name="confirmation" type="password" autocomplete="new-password" [(ngModel)]="confirmation" required minlength="12" maxlength="128" />
+        }
+        @case (2) {
+          <label for="organization-name">Tên tổ chức</label><input id="organization-name" name="organizationName" [(ngModel)]="organizationName" required maxlength="200" />
+          <label for="organization-slug">Slug</label><input id="organization-slug" name="organizationSlug" [(ngModel)]="organizationSlug" required maxlength="100" pattern="[a-z0-9]+(-[a-z0-9]+)*" aria-describedby="slug-help" />
+          <small id="slug-help">Chữ thường và số, phân cách bằng dấu gạch ngang. Ví dụ: raghub.</small>
+        }
+        @case (3) {
+          <fieldset><legend>Chọn cấu hình AI</legend>
+            <label class="choice"><input type="radio" name="aiMode" value="LOCAL" [(ngModel)]="aiMode" /><span><b>Dùng Local AI</b><small>Sentence Transformer (384 chiều) và Ollama gemma3:1b. Cần bật profile local-ai và tải model.</small></span></label>
+            <label class="choice"><input type="radio" name="aiMode" value="EXTERNAL" [(ngModel)]="aiMode" /><span><b>Cấu hình provider bên ngoài</b><small>Thiết lập Gemini hoặc OpenAI-compatible trong trang AI Providers sau khi tạo Owner.</small></span></label>
+            <label class="choice"><input type="radio" name="aiMode" value="SKIP" [(ngModel)]="aiMode" /><span><b>Bỏ qua lúc này</b><small>Tạo Owner và tổ chức trước, cấu hình AI sau.</small></span></label>
+          </fieldset>
+        }
+        @case (4) {
+          <p>Kiểm tra thông tin trước khi hoàn tất. Tài khoản Owner và tổ chức sẽ được tạo cùng lúc.</p>
+          <dl><dt>Email Owner</dt><dd>{{ email }}</dd><dt>Tổ chức</dt><dd>{{ organizationName }} ({{ organizationSlug }})</dd><dt>Quyền</dt><dd>ADMIN · Email đã xác minh</dd><dt>AI</dt><dd>{{ aiMode === 'LOCAL' ? 'Local embedding + Ollama' : aiMode === 'EXTERNAL' ? 'Cấu hình provider sau khi khởi tạo' : 'Bỏ qua lúc này' }}</dd></dl>
+        }
+        @case (5) {
+          <p role="status">Khởi tạo thành công. Tài khoản Owner, tổ chức và quyền ADMIN đã được lưu.</p>
+          @if (aiMode === 'LOCAL') {
+            <p class="hint">Provider đã được tạo. Chọn các model này trong AI &amp; Models của workspace.</p>
+            <ul class="checks" aria-live="polite">@for (check of providerChecks(); track check.name) { <li><b>{{ check.name }}</b><span [class.error]="!check.ready">{{ check.ready ? 'Kết nối thành công' : 'Chưa kết nối được — kiểm tra model/dịch vụ' }}</span></li> }</ul>
+            <button type="button" class="secondary" (click)="testProviders()" [disabled]="checkingProviders()">{{ checkingProviders() ? 'Đang kiểm tra AI…' : 'Kiểm tra lại AI' }}</button>
+          }
+          <div class="actions"><a class="primary" [routerLink]="aiMode === 'EXTERNAL' ? '/system/ai/providers' : '/app/workspaces'">{{ aiMode === 'EXTERNAL' ? 'Cấu hình AI Providers' : 'Mở Workspace' }}</a></div>
+        }
+      }
+      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+      @if (step() < 5) {
+        <div class="actions">
+          @if (step() > 0) { <button type="button" class="secondary" (click)="back()" [disabled]="busy()">Quay lại</button> }
+          <button class="primary" type="submit" [disabled]="busy() || (step() === 0 && !systemReady()) || setupForm.invalid">{{ busy() ? 'Đang xử lý…' : step() === 4 ? 'Hoàn tất cài đặt' : 'Tiếp tục' }}</button>
+        </div>
+      }
+    </form>
+  </section>
+</main>

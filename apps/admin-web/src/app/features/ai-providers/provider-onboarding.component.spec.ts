@@ -31,9 +31,15 @@ describe("Provider onboarding", () => {
     test: vi.fn(),
     discover: vi.fn(),
     register: vi.fn(),
+    models: vi.fn(),
+    ollamaRecommendations: vi.fn(() => of([])),
+    ollamaPulls: vi.fn(() => of([])),
+    pullOllama: vi.fn(),
+    ollamaPull: vi.fn(),
   };
   beforeEach(async () => {
     vi.clearAllMocks();
+    api.models.mockReturnValue(of([]));
     api.create.mockReturnValue(of({ id: "connection-1" }));
     api.test.mockReturnValue(
       of({ status: "CONNECTED", latency_ms: 8, error_code: null }),
@@ -58,6 +64,34 @@ describe("Provider onboarding", () => {
     fixture.detectChanges();
     return fixture;
   }
+  it('accepts Beta providers and requires catalog credential fields before saving', () => {
+    const view = fixture();
+    const cloudflare: ProviderCatalogItem = {
+      ...catalog[0], id: 'cloudflare-workers-ai', name: 'Cloudflare', category: 'Cloud',
+      provider_type: 'CLOUDFLARE_WORKERS_AI', status: 'BETA', auth_type: 'API_KEY',
+      default_base_url: 'https://api.cloudflare.com/client/v4', locked_base_url: true,
+      capabilities: ['CHAT', 'EMBEDDING', 'RERANK'],
+      fields: [{ key: 'account_id', label: 'Account ID', required: true, type: 'text' }],
+    };
+    const component = view.componentInstance;
+    component['choose'](cloudflare);
+    component['test']();
+    expect(api.create).not.toHaveBeenCalled();
+    component['configFields'] = { account_id: 'a'.repeat(32) };
+    component['secret'] = 'personal-cf-token';
+    component['test']();
+    expect(api.create).toHaveBeenCalledWith('org-1', expect.objectContaining({
+      catalog_id: 'cloudflare-workers-ai', secret: 'personal-cf-token',
+      config_json: { account_id: 'a'.repeat(32) },
+    }));
+    expect(component['secret']).toBe('');
+  });
+  it('prevents retired providers from entering connection setup', () => {
+    const view = fixture();
+    view.componentInstance['choose']({ ...catalog[0], id: 'github-models', status: 'RETIRED' });
+    expect(view.componentInstance['step']()).toBe(0);
+    expect(api.create).not.toHaveBeenCalled();
+  });
   it("tests a real connection before entering model selection and survives catalog refresh", () => {
     const view = fixture();
     const component = view.componentInstance;
@@ -171,6 +205,87 @@ describe("Provider onboarding", () => {
     component["save"]();
     expect(closed).toHaveBeenCalledTimes(1);
     expect(component["busy"]()).toBe(false);
+    view.destroy();
+  });
+
+  it("preserves the model step and selection when existing connection metadata refreshes", () => {
+    const view = fixture(), component = view.componentInstance;
+    const connection = { id: 'connection-1', name: 'Local Chat', catalog_id: 'ollama', provider_type: 'OLLAMA', base_url: 'http://ollama:11434' };
+    view.componentRef.setInput('connection', connection);
+    view.detectChanges();
+    api.update.mockReturnValue(of(connection));
+    component['test']();
+    component['selectFiltered'](true);
+    view.componentRef.setInput('connection', { ...connection, status: 'CONNECTED' });
+    view.detectChanges();
+    expect(component['step']()).toBe(2);
+    expect(component['selectedCount']()).toBe(1);
+    view.componentRef.setInput('visible', false);
+    view.detectChanges();
+    view.componentRef.setInput('visible', true);
+    view.detectChanges();
+    expect(component['step']()).toBe(1);
+    expect(component['choices']()).toEqual([]);
+    view.destroy();
+  });
+  it("keeps unknown capability explicit and prevents registration until selected", () => {
+    api.discover.mockReturnValue(of([{ model: 'unknown', display_name: 'Mystery', capabilities: [], dimension: null }]));
+    const view = fixture(), component = view.componentInstance;
+    component['choose']({ ...catalog[0], capabilities: ['CHAT', 'EMBEDDING'] });
+    component['test']();
+    component['selectFiltered'](true);
+    expect(component['choices']()[0].capability).toBe('UNKNOWN');
+    expect(component['hasSelection']()).toBe(false);
+    component['save']();
+    expect(api.register).not.toHaveBeenCalled();
+    component['choices']()[0].capability = 'EMBEDDING';
+    component['save']();
+    expect(api.register).toHaveBeenCalledWith('connection-1', expect.objectContaining({ capability: 'EMBEDDING' }));
+    view.destroy();
+  });
+  it('installs a recommended model, follows progress and refreshes installed/registered models', () => {
+    const view = fixture(), component = view.componentInstance;
+    component['choose'](catalog[0]);
+    component['test']();
+    const job = { id: 'job-1', model: 'gemma3:1b', status: 'QUEUED', total_bytes: 100, completed_bytes: 20 };
+    api.pullOllama.mockReturnValue(of(job));
+    api.ollamaPull.mockReturnValue(of({ ...job, status: 'READY', completed_bytes: 100, registered_model_id: 'registered' }));
+    vi.useFakeTimers();
+    component['install']('gemma3:1b');
+    expect(component['pullActive']()).toBe(true);
+    expect(component['pullPercent']()).toBe(20);
+    vi.advanceTimersByTime(0);
+    expect(api.pullOllama).toHaveBeenCalledWith('connection-1', 'gemma3:1b');
+    expect(component['pullActive']()).toBe(false);
+    expect(component['notice']()).toContain('đăng ký');
+    expect(api.discover).toHaveBeenCalledTimes(2);
+    view.destroy();
+    vi.useRealTimers();
+  });
+  it("searches names, filters capability and selects only unregistered filtered rows", () => {
+    api.discover.mockReturnValue(of([
+      { model: 'one', display_name: 'First', capabilities: ['CHAT'], dimension: null },
+      { model: 'two', display_name: 'Second', capabilities: ['EMBEDDING'], dimension: 384 },
+      { model: 'three', display_name: 'Third', capabilities: [], dimension: null },
+    ]));
+    api.models.mockReturnValue(of([{ connection_id: 'connection-1', model: 'one' }]));
+    const view = fixture(), component = view.componentInstance;
+    component['choose'](catalog[0]);
+    component['test']();
+    component['modelFilter'] = 'EMBEDDING';
+    component['selectFiltered'](true);
+    expect(component['selectedCount']()).toBe(1);
+    expect(component['allFilteredSelected']()).toBe(true);
+    component['modelFilter'] = '';
+    expect(component['someFilteredSelected']()).toBe(true);
+    component['modelSearch'] = 'third';
+    expect(component['filteredChoices']().map(item => item.model)).toEqual(['three']);
+    component['modelSearch'] = '';
+    component['selectFiltered'](true);
+    expect(component['selectedCount']()).toBe(2);
+    expect(component['choices']()[0].selected).toBe(false);
+    component['selectFiltered'](false);
+    expect(component['selectedCount']()).toBe(0);
     view.destroy();
   });
 });

@@ -48,8 +48,6 @@ class StreamRagChatUseCase:
                 "CHATBOT_NOT_FOUND",
                 "Chatbot was not found in the current organization.",
             )
-        if not chatbot.published:
-            raise CoreError("CHATBOT_NOT_PUBLISHED", "Chatbot is not published.")
         conversation_id = await self.conversations.open(
             chatbot,
             command.conversation_id,
@@ -105,8 +103,8 @@ class StreamRagChatUseCase:
             yield ChatCompleted(message_id, None, 0)
             return
         runtime = await self.providers.resolve_chat(chatbot.scope)
-        context = build_context_bundle(hits)
-        citations = resolve_trusted_citations(context.hits)
+        context = build_context_bundle(hits[:chatbot.retrieval_limit])
+        citations = resolve_trusted_citations(context.hits[:5])
         yield CitationsResolved(citations)
         messages = build_prompt(
             chatbot.system_prompt,

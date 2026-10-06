@@ -1,8 +1,10 @@
 """Import every SQLAlchemy model so shared metadata is complete in each process."""
 
+from app.modules.ai_providers.local_models import LocalModelDownload
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
+    OllamaModelPull,
     ProviderConfig,
     ProviderConnection,
 )
@@ -14,16 +16,19 @@ from app.modules.documents.models import (
     DocumentVersion,
     IngestionJob,
 )
+from app.modules.installation.models import InstallationState
 from app.modules.memberships.models import (
     Membership,
     WorkspaceMembership,
     WorkspaceMembershipPermission,
 )
-from app.modules.organizations.models import Organization
+from app.modules.organizations.models import Organization, OrganizationAiDefaults
 from app.modules.users.models import User
 from app.modules.workspaces.models import Workspace
 
 __all__ = [
+    "LocalModelDownload",
+    "InstallationState",
     "Document",
     "DocumentVersion",
     "DocumentIndexMetadata",
@@ -32,6 +37,7 @@ __all__ = [
     "WorkspaceMembership",
     "WorkspaceMembershipPermission",
     "Organization",
+    "OrganizationAiDefaults",
     "User",
     "Workspace",
     "Chatbot",
@@ -41,6 +47,7 @@ __all__ = [
     "UsageEvent",
     "ProviderConfig",
     "ProviderConnection",
+    "OllamaModelPull",
     "EmbeddingIndexVersion",
     "EmbeddingReindexJob",
     "UserIdentity",

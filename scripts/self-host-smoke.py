@@ -6,6 +6,7 @@ import secrets
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
@@ -59,9 +60,116 @@ def wait_ready(client, seconds=180):
     raise RuntimeError("Gateway readiness timed out")
 
 
-def verify(client, state, owner):
+def cookie_headers(client, token=None):
+    """httpx requires HTTPS for Secure cookies; explicit cookies only on loopback smoke."""
+    parsed = urlsplit(str(client.base_url))
+    if parsed.scheme == "http":
+        if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("HTTP session smoke is restricted to loopback.")
+        token = token or client.cookies.get("refresh_token")
+        return {"Cookie": f"refresh_token={token}"} if token else {}
+    return {"Cookie": f"refresh_token={token}"} if token else {}
+
+
+def refresh_session(client):
+    response = client.post("/api/v1/auth/refresh", headers=cookie_headers(client))
+    assert response.status_code == 200, "Refresh failed"
+    return response.json()["access_token"]
+
+
+def verify_auth(client, args, owner, token):
+    step("Verify setup session, expiry, restart, rotation and logout")
+    assert (
+        client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        ).status_code
+        == 200
+    )
+    if args.auth_expiry_seconds:
+        step("Wait for the configured access-token TTL to expire")
+        time.sleep(args.auth_expiry_seconds)
+        assert (
+            client.get(
+                "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+            ).status_code
+            == 401
+        ), "Access token did not expire; use a 1-minute smoke TTL"
+    token = refresh_session(client)
+    assert (
+        client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        ).status_code
+        == 200
+    )
+    if args.restart:
+        compose(args, "restart", "api", "nginx")
+        wait_ready(client)
+        token = refresh_session(client)
+        assert (
+            client.get(
+                "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+            ).status_code
+            == 200
+        )
+    raw = client.cookies.get("refresh_token")
+    logout = client.post("/api/v1/auth/logout", headers=cookie_headers(client))
+    assert logout.status_code == 204 and "Max-Age=0" in logout.headers["set-cookie"]
+    assert (
+        client.post(
+            "/api/v1/auth/refresh", headers=cookie_headers(client, raw)
+        ).status_code
+        == 401
+    )
+    auth = client.post("/api/v1/auth/login", json=owner)
+    assert auth.status_code == 200
+    old_refresh = client.cookies.get("refresh_token")
+    temporary = secrets.token_urlsafe(24)
+    changed = client.post(
+        "/api/v1/auth/password/change",
+        json={"current_password": owner["password"], "new_password": temporary},
+        headers={"Authorization": f"Bearer {auth.json()['access_token']}"},
+    )
+    assert changed.status_code == 200
+    try:
+        assert (
+            client.post(
+                "/api/v1/auth/refresh", headers=cookie_headers(client, old_refresh)
+            ).status_code
+            == 401
+        )
+    finally:
+        auth = client.post("/api/v1/auth/login", json={**owner, "password": temporary})
+        assert auth.status_code == 200
+        restored = client.post(
+            "/api/v1/auth/password/change",
+            json={"current_password": temporary, "new_password": owner["password"]},
+            headers={"Authorization": f"Bearer {auth.json()['access_token']}"},
+        )
+        assert restored.status_code == 200
+    step(
+        "PASS: expiry refresh, API/gateway restart, cookie deletion, logout revocation and password-change revocation"
+    )
+
+
+def save_state(args, state):
+    Path(args.state_file).write_text(json.dumps(state), encoding="utf-8")
+    Path(args.state_file).chmod(0o600)
+
+
+def verify(client, state, owner, *, verify_refresh=False):
+    assert client.get("/api/v1/setup/status").json()["initialized"], (
+        "Restored installation reopened setup"
+    )
+    if verify_refresh and state.get("refresh_token"):
+        restored = client.post(
+            "/api/v1/auth/refresh",
+            headers=cookie_headers(client, state["refresh_token"]),
+        )
+        assert restored.status_code == 200, "Persisted refresh session was lost"
+        step("PASS: persisted refresh cookie survives upgrade/backup restore")
     auth = client.post("/api/v1/auth/login", json=owner)
     assert auth.status_code == 200, "Owner login failed"
+    state["refresh_token"] = client.cookies.get("refresh_token")
     headers = {
         "Authorization": f"Bearer {auth.json()['access_token']}",
         "X-Organization-ID": state["organization_id"],
@@ -137,33 +245,78 @@ def main():
     parser.add_argument("--compose-override", action="append", default=[])
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--restart", action="store_true")
+    parser.add_argument(
+        "--existing-setup",
+        action="store_true",
+        help="Use installation initialized by browser smoke",
+    )
+    parser.add_argument(
+        "--auth-expiry-seconds",
+        type=int,
+        default=0,
+        help="Use 65 with ACCESS_TOKEN_TTL_MINUTES=1",
+    )
     parser.add_argument("--ollama-model", default="gemma3:1b")
     args = parser.parse_args()
     owner = json.loads(Path(args.owner_file).read_text(encoding="utf-8"))
     with httpx.Client(base_url=args.base_url, timeout=360) as client:
         wait_ready(client)
         if args.verify_only:
-            verify(
-                client,
-                json.loads(Path(args.state_file).read_text(encoding="utf-8")),
-                owner,
-            )
+            state = json.loads(Path(args.state_file).read_text(encoding="utf-8"))
+            verify(client, state, owner, verify_refresh=True)
+            save_state(args, state)
             return
-        step("Bootstrap installation owner through CLI")
-        initial = json.loads(
-            compose(
-                args,
-                "exec",
-                "-T",
-                "api",
-                "python",
-                "-m",
-                "app.cli",
-                "bootstrap-owner",
-                "--stdin-json",
-                input_text=json.dumps(owner),
+        setup_payload = {
+            "owner_email": owner["email"],
+            "owner_password": owner["password"],
+            "organization_name": "RagHub",
+            "organization_slug": "raghub",
+        }
+        status = client.get("/api/v1/setup/status")
+        assert status.status_code == 200
+        if args.existing_setup:
+            assert status.json()["initialized"], (
+                "Browser setup did not initialize installation"
             )
+            initial = json.loads(
+                compose(
+                    args,
+                    "exec",
+                    "-T",
+                    "api",
+                    "python",
+                    "-m",
+                    "app.cli",
+                    "bootstrap-owner",
+                    "--stdin-json",
+                    input_text=json.dumps(owner),
+                )
+            )
+            auth = client.post("/api/v1/auth/login", json=owner)
+        else:
+            assert status.json() == {"status": "UNINITIALIZED", "initialized": False}
+            step("Initialize fresh installation through Setup API")
+            auth = client.post("/api/v1/setup/initialize", json=setup_payload)
+            assert auth.status_code == 201, "Setup initialization failed"
+            initial = auth.json()
+        assert (
+            client.post("/api/v1/setup/initialize", json=setup_payload).status_code
+            == 409
         )
+        verify_auth(client, args, owner, auth.json()["access_token"])
+        step("Verify LOCAL setup and provider connectivity in a disposable schema")
+        result = compose(
+            args,
+            "exec",
+            "-T",
+            "api",
+            "python",
+            "-",
+            input_text=Path(__file__)
+            .with_name("self-host-local-setup-smoke.py")
+            .read_text(encoding="utf-8"),
+        )
+        step(result.strip())
         again = json.loads(
             compose(
                 args,
@@ -192,6 +345,11 @@ def main():
             response = client.request(
                 method, "/api/v1" + path, headers=headers, **kwargs
             )
+            if response.status_code == 401:
+                headers["Authorization"] = f"Bearer {refresh_session(client)}"
+                response = client.request(
+                    method, "/api/v1" + path, headers=headers, **kwargs
+                )
             assert response.is_success, (
                 f"{method} operation failed ({response.status_code})"
             )
@@ -296,8 +454,7 @@ def main():
             "embed_key": published["key"],
             "origin": "https://smoke.example",
         }
-        Path(args.state_file).write_text(json.dumps(state), encoding="utf-8")
-        Path(args.state_file).chmod(0o600)
+        save_state(args, state)
         verify(client, state, owner)
         if args.restart:
             step("Restart all persistent runtime services")
@@ -314,10 +471,12 @@ def main():
                 "nginx",
             )
             wait_ready(client)
+            refresh_session(client)
             verify(client, state, owner)
             step(
                 "PASS: restart preserves owner, configuration, documents, index, model and embed key"
             )
+        save_state(args, state)
 
 
 if __name__ == "__main__":

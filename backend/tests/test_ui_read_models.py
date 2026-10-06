@@ -30,9 +30,45 @@ def test_summary_uses_aggregates_and_active_index_metadata():
         updated_at=None,
         chat_provider_id=None,
     )
-    result = summary_data((workspace, 2, None, None, 1, None, None, None, None))
+    result = summary_data((workspace, 2, None, None, 1, None, None, None, None, None))
     assert result["document_count"] == 2 and result["chunk_count"] is None
     assert result["status"] == "AI_NOT_CONFIGURED" and "owner" not in result
+
+
+@pytest.mark.parametrize(
+    "embedding,chat,job,expected",
+    [(False, False, None, "NOT_CONFIGURED"), (True, False, None, "PARTIAL"),
+     (False, True, None, "PARTIAL"), (True, True, None, "READY"),
+     (True, True, "FAILED", "WARNING"), (True, True, "RUNNING", "PARTIAL")],
+)
+def test_workspace_ai_states_and_chat_metadata(embedding, chat, job, expected):
+    config = ProviderConfig(
+        id=uuid4(), name="Gemma", display_name="Gemma 3 1B", model="gemma3:1b",
+        provider_type="OLLAMA", enabled=True, availability_status="AVAILABLE",
+        connection=ProviderConnection(
+            name="Local chat", provider_type="OLLAMA", catalog_id="ollama",
+            enabled=True, status="CONNECTED",
+        ),
+    )
+    workspace = SimpleNamespace(
+        id=uuid4(), organization_id=uuid4(), name="Workspace", slug="workspace",
+        created_at=datetime.now(UTC), updated_at=None,
+        chat_provider_id=config.id if chat else None,
+    )
+    version = SimpleNamespace(
+        provider_config_id=config.id, model="embedding", provider_type="OLLAMA", dimension=384
+    ) if embedding else None
+    result = summary_data((workspace, 0, None, None, 0, version,
+                           config if embedding else None, config if chat else None, None, job))
+    assert result["ai_status"] == expected
+    if chat:
+        assert result["chat_model"]["model"] == "gemma3:1b"
+        assert result["chat_model"]["provider_catalog_id"] == "ollama"
+    config.connection.status = "ERROR"
+    if chat or embedding:
+        result = summary_data((workspace, 0, None, None, 0, version,
+                               config if embedding else None, config if chat else None, None, None))
+        assert result["ai_status"] == "WARNING"
 
 
 @pytest.mark.parametrize(

@@ -20,7 +20,7 @@ from app.modules.ai_providers.control_schemas import (
 )
 from app.modules.ai_providers.crypto import ProviderSecretCipher
 from app.modules.ai_providers.discovery import discover_models
-from app.modules.ai_providers.models import ProviderConfig, ProviderConnection
+from app.modules.ai_providers.models import OllamaModelPull, ProviderConfig, ProviderConnection
 from app.modules.ai_providers.schemas import ProviderConfigInput
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.workspaces.models import Workspace
@@ -67,6 +67,9 @@ def health_error(exc: CoreError) -> str:
         "PROVIDER_TIMEOUT": "PROVIDER_UNREACHABLE",
         "PROVIDER_INVALID_RESPONSE": "MODEL_DIMENSION_MISMATCH",
         "PROVIDER_NOT_CONFIGURED": "MODEL_DIMENSION_MISMATCH",
+        "PROVIDER_MODEL_NOT_FOUND": "PROVIDER_MODEL_NOT_FOUND",
+        "PROVIDER_RATE_LIMITED": "PROVIDER_RATE_LIMITED",
+        "PROVIDER_DISABLED": "PROVIDER_DISABLED",
     }.get(exc.code, "PROVIDER_UNREACHABLE")
 
 
@@ -121,6 +124,12 @@ class ProviderControlService:
 
     async def update(self, organization_id, connection_id, payload: ConnectionPatch):
         connection = await self.get(organization_id, connection_id)
+        if payload.catalog_id and payload.catalog_id != connection_catalog_id(connection):
+            raise AppError(
+                "PROVIDER_IDENTITY_IMMUTABLE",
+                "Create a new connection to switch providers.",
+                status_code=422,
+            )
         catalog_id = payload.catalog_id or connection_catalog_id(connection)
         if supported_catalog_by_id(catalog_id).provider_type != connection.provider_type:
             raise AppError(
@@ -143,10 +152,15 @@ class ProviderControlService:
             enabled=changes.get("enabled", connection.enabled),
             secret=payload.secret,
         )
+        current_catalog = supported_catalog_by_id(connection_catalog_id(connection))
+        current_options = dict(connection.config_json or {})
+        current_options.setdefault("endpoint_scope", current_catalog.endpoint_scope)
+        current_options.setdefault("request_profile", current_catalog.request_profile)
         runtime_changed = (
-            proposed.base_url != connection.base_url
-            or proposed.config_json != connection.config_json
+            proposed.base_url != connection.base_url or proposed.config_json != current_options
         )
+        if runtime_changed or not proposed.enabled or payload.secret or payload.clear_secret:
+            await self._require_no_active_pull(connection_id)
         if (runtime_changed or not proposed.enabled or payload.clear_secret) and models:
             for model in models:
                 if await ProviderConfigService(self.session)._is_bound(organization_id, model.id):
@@ -167,10 +181,12 @@ class ProviderControlService:
                 model.base_url, model.config_json = proposed.base_url, proposed.config_json
                 model.availability_status = "UNTESTED"
         await self.session.commit()
+        await self.session.refresh(connection)
         return connection
 
     async def delete(self, organization_id, connection_id):
         connection = await self.get(organization_id, connection_id)
+        await self._require_no_active_pull(connection_id)
         if await self.session.scalar(
             select(ProviderConfig.id).where(ProviderConfig.connection_id == connection_id).limit(1)
         ):
@@ -181,6 +197,19 @@ class ProviderControlService:
             )
         await self.session.delete(connection)
         await self.session.commit()
+
+    async def _require_no_active_pull(self, connection_id):
+        if await self.session.scalar(
+            select(OllamaModelPull.id)
+            .where(
+                OllamaModelPull.connection_id == connection_id,
+                OllamaModelPull.status.in_({"QUEUED", "PULLING", "VERIFYING"}),
+            )
+            .limit(1)
+        ):
+            raise AppError(
+                "MODEL_PULL_IN_PROGRESS", "Wait for the active download.", status_code=409
+            )
 
     def secret(self, connection):
         return resolve_provider_secret(connection, self.cipher)
@@ -199,7 +228,37 @@ class ProviderControlService:
         start = time.monotonic()
         error_code = None
         try:
-            if item.supports_model_discovery:
+            secret = self.secret(connection)
+            if item.auth_type == "API_KEY" and not secret:
+                raise AppError(
+                    "PROVIDER_AUTH_FAILED", "API credential is required.", status_code=422
+                )
+            if item.id == "openrouter":
+                from app.modules.ai_providers.adapters.http import ProviderHttp
+
+                await ProviderHttp(
+                    base_url=connection.base_url, secret=secret, provider_name="OPENROUTER"
+                ).request("/key", method="GET")
+            if item.discovery_profile == "CURATED":
+                from raghub_core.domain.providers.descriptor import ProviderDescriptor
+
+                from app.modules.ai_providers.registry import ProviderRegistry
+
+                preset = next(p for p in item.presets if "EMBEDDING" in p.capabilities)
+                descriptor = ProviderDescriptor(
+                    provider_type=connection.provider_type,
+                    capability="EMBEDDING",
+                    base_url=connection.base_url,
+                    model=preset.model,
+                    dimension=preset.dimension,
+                    options=connection.config_json,
+                )
+                await (
+                    ProviderRegistry()
+                    .create(descriptor, self.secret(connection))
+                    .embed_query("RagHub connectivity test")
+                )
+            elif item.supports_model_discovery:
                 await discover_models(connection, self.secret(connection))
             else:
                 import importlib.util
@@ -209,7 +268,7 @@ class ProviderControlService:
                         "PROVIDER_UNREACHABLE", "Local AI dependency unavailable.", status_code=422
                     )
             connection.status = "CONNECTED"
-        except AppError as exc:
+        except (AppError, CoreError) as exc:
             if exc.code == "MODEL_DISCOVERY_UNSUPPORTED":
                 # Manual mode still needs a successful runtime model probe before selection.
                 connection.status = "UNTESTED"
@@ -297,6 +356,7 @@ class ProviderControlService:
                 (
                     (Workspace.embedding_provider_id == ProviderConfig.id)
                     | (Workspace.chat_provider_id == ProviderConfig.id)
+                    | (Workspace.rerank_provider_id == ProviderConfig.id)
                 )
                 & Workspace.deleted_at.is_(None),
             )
@@ -320,7 +380,39 @@ class ProviderControlService:
 
 async def infer_dimension(connection, model: str, secret: str | None) -> int:
     """Probe outside the engine, then let its regular adapter verify the registration."""
-    if connection.provider_type == "LOCAL_SENTENCE_TRANSFORMER":
+    if connection.provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"} or (
+        connection.provider_type == "GOOGLE_GEMINI" and model == "gemini-embedding-2"
+    ):
+        from raghub_core.domain.providers.descriptor import ProviderDescriptor
+
+        from app.modules.ai_providers.registry import ProviderRegistry
+        from app.modules.ai_providers.schemas import validate_connection_endpoint
+
+        try:
+            base = validate_connection_endpoint(connection)
+            descriptor = ProviderDescriptor(
+                provider_type=connection.provider_type,
+                capability="EMBEDDING",
+                base_url=base,
+                model=model,
+                dimension=None,
+                options=connection.config_json,
+            )
+            vector = (
+                await ProviderRegistry()
+                .create(descriptor, secret)
+                .embed_query("RagHub dimension probe")
+            )
+            dimension = len(vector)
+        except CoreError as exc:
+            raise AppError(
+                health_error(exc), "Model dimension probe failed.", status_code=422
+            ) from exc
+        except ValueError as exc:
+            raise AppError(
+                "PROVIDER_ENDPOINT_REJECTED", "Endpoint rejected.", status_code=422
+            ) from exc
+    elif connection.provider_type == "LOCAL_SENTENCE_TRANSFORMER":
         import asyncio
 
         from app.modules.ai_providers.adapters.sentence_transformer import (
@@ -337,15 +429,22 @@ async def infer_dimension(connection, model: str, secret: str | None) -> int:
     else:
         import httpx
 
-        from app.modules.ai_providers.schemas import validate_public_provider_url
+        from app.modules.ai_providers.request_profiles import embedding_payload
+        from app.modules.ai_providers.schemas import validate_connection_endpoint
 
-        base = validate_public_provider_url(connection.base_url).rstrip("/")
+        try:
+            base = validate_connection_endpoint(connection).rstrip("/")
+        except ValueError as exc:
+            raise AppError(
+                "PROVIDER_ENDPOINT_REJECTED", "Provider endpoint is not allowed.", status_code=422
+            ) from exc
+        profile = supported_catalog_by_id(connection_catalog_id(connection)).request_profile
         try:
             async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
                 response = await client.post(
                     f"{base}/embeddings",
                     headers={"Authorization": f"Bearer {secret}"} if secret else {},
-                    json={"model": model, "input": ["RagHub dimension probe"]},
+                    json=embedding_payload(profile, model, ["RagHub dimension probe"], "query"),
                 )
                 if response.status_code in {401, 403}:
                     raise AppError(

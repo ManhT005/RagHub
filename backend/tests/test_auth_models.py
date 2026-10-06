@@ -28,6 +28,7 @@ def test_auth_tables_are_registered_with_expected_columns() -> None:
     } <= {column.name for column in tables["password_reset_tokens"].columns}
     assert {
         "refresh_token_hash",
+        "auth_version",
         "expires_at",
         "revoked_at",
         "replaced_by_id",
