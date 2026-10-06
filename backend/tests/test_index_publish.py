@@ -44,3 +44,20 @@ def test_index_is_published_only_after_validated_write(monkeypatch, count, bulk_
         indexer.set_version_retrievable.assert_called_once_with(
             kwargs["document_version_id"], retrievable=True
         )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"failures": [{"cause": "unavailable"}]},
+        {"timed_out": True},
+        {"version_conflicts": 1},
+    ],
+)
+def test_publication_rejects_partial_update_or_timeout(response):
+    indexer = object.__new__(ChunkIndexer)
+    indexer.index_name = "index"
+    indexer.ensure_index = Mock()
+    indexer.client = SimpleNamespace(update_by_query=Mock(return_value=response))
+    with pytest.raises(ValueError, match="publication"):
+        indexer.set_version_retrievable(uuid4(), retrievable=True)

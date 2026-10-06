@@ -7,9 +7,10 @@ from raghub_core.domain.providers.errors import (
 class PoolEmbeddingProvider:
     """Fail over credentials within one validated, immutable semantic profile."""
 
-    def __init__(self, providers, credentials, session):
+    def __init__(self, providers, credentials, session, mark_unhealthy=None):
         self.providers, self.credentials, self.session = providers, credentials, session
         self.metadata = providers[0].metadata
+        self.mark_unhealthy = mark_unhealthy
 
     async def _call(self, method, payload):
         failure = None
@@ -19,6 +20,8 @@ class PoolEmbeddingProvider:
             try:
                 return await getattr(provider, method)(payload)
             except ProviderAuthenticationError as exc:
+                if self.mark_unhealthy is not None:
+                    await self.mark_unhealthy(credential)
                 credential.unhealthy = True
                 await self.session.flush()
                 failure = exc

@@ -198,6 +198,9 @@ class ProviderCredential(Base):
         ForeignKey("provider_pools.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(200), default="primary")
+    provider_config_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("provider_configs.id", ondelete="CASCADE"), index=True
+    )
     encrypted_secret: Mapped[str | None] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(default=True)
     unhealthy: Mapped[bool] = mapped_column(default=False)

@@ -158,17 +158,57 @@ class ProviderResolver:
                 .order_by(ProviderCredential.created_at)
             )
         )
-        providers = [
-            self.registry.create(
-                descriptor, self.cipher.decrypt(c.encrypted_secret) if c.encrypted_secret else None
-            )
-            for c in credentials
-        ]
+        providers, usable = [], []
+        for credential in credentials:
+            if credential.provider_config_id:
+                owner = await self.session.scalar(
+                    select(ProviderConfig).where(
+                        ProviderConfig.id == credential.provider_config_id,
+                        ProviderConfig.organization_id == version.organization_id,
+                    )
+                )
+                if (
+                    owner is None
+                    or not owner.enabled
+                    or (owner.connection is not None and not owner.connection.enabled)
+                ):
+                    continue
+                # A rotated connection secret takes effect immediately, without copies.
+                secret = self._secret(owner, version.provider_type)
+            else:
+                secret = (
+                    self.cipher.decrypt(credential.encrypted_secret)
+                    if credential.encrypted_secret
+                    else None
+                )
+            providers.append(self.registry.create(descriptor, secret))
+            usable.append(credential)
+        credentials = usable
         if not providers:
             raise ProviderConfigurationError(
                 "No healthy embedding credential in the compatible pool."
             )
-        return PoolEmbeddingProvider(providers, credentials, self.session)
+
+        async def mark_unhealthy(credential):
+            from sqlalchemy import update
+            from sqlalchemy.ext.asyncio import AsyncConnection
+
+            bind = self.session.bind
+            if isinstance(bind, AsyncConnection):
+                bind = bind.engine
+            # Health survives read-only search rollback and does not commit a work-item claim.
+            async with AsyncSession(bind=bind) as health_session:
+                await health_session.execute(
+                    update(ProviderCredential)
+                    .where(
+                        ProviderCredential.id == credential.id,
+                        ProviderCredential.pool_id == pool.id,
+                    )
+                    .values(unhealthy=True)
+                )
+                await health_session.commit()
+
+        return PoolEmbeddingProvider(providers, credentials, self.session, mark_unhealthy)
 
     async def embedding_pool_for_version(
         self, version: EmbeddingIndexVersion
@@ -188,7 +228,11 @@ class ProviderResolver:
         pool: ProviderPool | None = None
         if binding is not None:
             pool = await self.session.get(ProviderPool, binding.pool_id)
-        if pool is not None and pool.fingerprint_v2 != expected:
+        if pool is not None and (
+            pool.fingerprint_v2 != expected
+            or pool.organization_id != version.organization_id
+            or pool.capability != ProviderCapability.EMBEDDING
+        ):
             pool = None  # A rebuild may target a new profile while the old binding stays active.
         if pool is None:
             pool = await self.session.scalar(

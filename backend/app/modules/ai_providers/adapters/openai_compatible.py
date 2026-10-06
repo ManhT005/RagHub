@@ -1,6 +1,6 @@
 import asyncio
 import json
-import math
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -14,8 +14,8 @@ from raghub_core.domain.providers.contracts import (
 from raghub_core.domain.providers.errors import (
     ProviderAuthenticationError,
     ProviderConfigurationError,
+    ProviderError,
     ProviderInvalidResponseError,
-    ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -48,6 +48,7 @@ class _OpenAICompatibleBase:
         provider_name: str = "OPENAI_COMPATIBLE",
         policy: ProviderRequestPolicy | None = None,
         endpoint_scope: str = "PUBLIC",
+        static_headers: dict[str, str] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -55,6 +56,7 @@ class _OpenAICompatibleBase:
         self.provider_name = provider_name
         self.policy = policy or ProviderRequestPolicy()
         self.endpoint_scope = endpoint_scope
+        self.static_headers = static_headers or {}
 
     def _validate_endpoint(self):
         try:
@@ -66,7 +68,10 @@ class _OpenAICompatibleBase:
             raise ProviderConfigurationError("Provider endpoint is not allowed.") from exc
 
     def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.secret}"} if self.secret else {}
+        return {
+            **self.static_headers,
+            **({"Authorization": f"Bearer {self.secret}"} if self.secret else {}),
+        }
 
     def _timeout(self) -> httpx.Timeout:
         return httpx.Timeout(
@@ -77,29 +82,44 @@ class _OpenAICompatibleBase:
         )
 
     @staticmethod
-    def _response_error(status: int) -> Exception:
-        if status in {401, 403}:
-            return ProviderAuthenticationError()
-        if status == 429:
-            return ProviderRateLimitError()
-        return ProviderUnavailableError()
+    def _response_error(status: int, headers=None) -> Exception:
+        from app.modules.ai_providers.adapters.http import response_error
+
+        return response_error(status, headers)
 
 
 class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
     batch_stride = 64
 
     def __init__(
-        self, *, dimension: int, request_profile: str = "OPENAI_STANDARD", **kwargs: object
+        self,
+        *,
+        dimension: int,
+        request_profile: str = "OPENAI_STANDARD",
+        batch_limit: int = 64,
+        **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self.metadata = EmbeddingMetadata(self.provider_name, self.model, dimension)
         self.request_profile = request_profile
+        self.batch_limit = max(1, min(batch_limit, 1000))
 
     async def _embed(self, texts: list[str], input_type: str = "passage") -> list[list[float]]:
+        from app.modules.ai_providers.adapters.http import record_request
+
+        started, code = time.monotonic(), "OK"
+        try:
+            return await self._embed_request(texts, input_type)
+        except ProviderError as exc:
+            code = exc.code
+            raise
+        finally:
+            record_request(self.provider_name, code, started)
+
+    async def _embed_request(self, texts, input_type):
         self._validate_endpoint()
         payload = embedding_payload(self.request_profile, self.model, texts, input_type)
         last_error: Exception | None = None
-        wait_seconds = 0.0
         for attempt in range(self.policy.max_attempts):
             try:
                 async with httpx.AsyncClient(
@@ -108,15 +128,20 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
                     response = await client.post(
                         f"{self.base_url}/embeddings", headers=self._headers(), json=payload
                     )
-                if response.status_code >= 400:
-                    error = self._response_error(response.status_code)
+                if not 200 <= response.status_code < 300:
+                    error = self._response_error(
+                        response.status_code, getattr(response, "headers", {})
+                    )
                     if response.status_code not in {429, 502, 503, 504}:
                         raise error
                     last_error = error
-                    if response.status_code == 429:
-                        wait_seconds = _retry_after_seconds(response)
                 else:
                     data = response.json().get("data", [])
+                    indices = [item["index"] for item in data]
+                    if any(type(index) is not int for index in indices) or set(indices) != set(
+                        range(len(texts))
+                    ):
+                        raise ProviderInvalidResponseError("Embedding indices are invalid.")
                     ordered = sorted(data, key=lambda item: item.get("index", 0))
                     vectors = [item.get("embedding") for item in ordered]
                     self._validate(vectors, len(texts))
@@ -127,32 +152,24 @@ class OpenAICompatibleEmbeddingProvider(_OpenAICompatibleBase):
             except httpx.HTTPError as exc:
                 last_error = ProviderUnavailableError()
                 last_error.__cause__ = exc
-            except (ValueError, TypeError, KeyError) as exc:
+            except (ValueError, TypeError, KeyError, AttributeError) as exc:
                 raise ProviderInvalidResponseError() from exc
             if attempt + 1 < self.policy.max_attempts:
-                if isinstance(last_error, ProviderRateLimitError):
-                    await asyncio.sleep(wait_seconds or min(30.0, 2.0 * (2**attempt)))
-                    wait_seconds = 0.0
-                else:
-                    await asyncio.sleep(self.policy.backoff_seconds * (2**attempt))
+                retry_after = getattr(last_error, "details", {}).get("retry_after_seconds", 0)
+                await asyncio.sleep(max(retry_after, self.policy.backoff_seconds * (2**attempt)))
         assert last_error is not None
         raise last_error
 
     def _validate(self, vectors: object, expected: int) -> None:
-        if not isinstance(vectors, list) or len(vectors) != expected:
-            raise ProviderInvalidResponseError("Embedding response count does not match input.")
-        for vector in vectors:
-            if not isinstance(vector, list) or len(vector) != self.metadata.dimension:
-                raise ProviderInvalidResponseError("Embedding dimension does not match config.")
-            valid = all(isinstance(value, int | float) and math.isfinite(value) for value in vector)
-            if not valid:
-                raise ProviderInvalidResponseError("Embedding contains a non-finite value.")
+        from app.modules.ai_providers.adapters.http import validate_vectors
+
+        validate_vectors(vectors, expected, self.metadata.dimension)
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
         vectors: list[list[float]] = []
-        stride = max(1, self.batch_stride)
+        stride = min(self.batch_limit, max(1, getattr(self, "batch_stride", self.batch_limit)))
         for start in range(0, len(texts), stride):
             vectors.extend(await self._embed(texts[start : start + stride]))
         return vectors
@@ -169,6 +186,21 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
     async def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
     ) -> AsyncIterator[ChatStreamDelta]:
+        from app.modules.ai_providers.adapters.http import record_request
+
+        started, code = time.monotonic(), "OK"
+        stream = self._stream_chat(messages, options)
+        try:
+            async for delta in stream:
+                yield delta
+        except ProviderError as exc:
+            code = exc.code
+            raise
+        finally:
+            await stream.aclose()
+            record_request(self.provider_name, code, started)
+
+    async def _stream_chat(self, messages, options):
         self._validate_endpoint()
         payload: dict[str, object] = {
             "model": options.model or self.model,
@@ -195,8 +227,10 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                         headers=self._headers(),
                         json=payload,
                     ) as response:
-                        if response.status_code >= 400:
-                            error = self._response_error(response.status_code)
+                        if not 200 <= response.status_code < 300:
+                            error = self._response_error(
+                                response.status_code, getattr(response, "headers", {})
+                            )
                             if response.status_code not in {429, 502, 503, 504}:
                                 raise error
                             raise error
@@ -243,6 +277,8 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                 return
             except (ProviderAuthenticationError, ProviderInvalidResponseError):
                 raise
+            except ProviderConfigurationError:
+                raise
             except (httpx.TimeoutException, ProviderTimeoutError) as exc:
                 error: Exception = ProviderTimeoutError()
                 error.__cause__ = exc
@@ -250,7 +286,5 @@ class OpenAICompatibleChatProvider(_OpenAICompatibleBase):
                 error = exc if isinstance(exc, ProviderError) else ProviderUnavailableError()
             if emitted or attempt + 1 >= self.policy.max_attempts:
                 raise error
-            await asyncio.sleep(self.policy.backoff_seconds * (2**attempt))
-
-
-from raghub_core.domain.providers.errors import ProviderError  # noqa: E402
+            retry_after = getattr(error, "details", {}).get("retry_after_seconds", 0)
+            await asyncio.sleep(max(retry_after, self.policy.backoff_seconds * (2**attempt)))

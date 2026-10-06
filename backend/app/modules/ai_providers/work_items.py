@@ -293,6 +293,16 @@ class WorkItemProcessor:
             return BatchOutcome(
                 done=await terminal(item_id) if terminal else False, embedded_chunks=0
             )
+        try:
+            return await self._process_claimed(item)
+        except BaseException:
+            # The host may commit ingestion failure details in this transaction.
+            # Never persist RUNNING after a failed batch; durable artifacts remain reusable.
+            if item.state == RUNNING:
+                item.state = QUEUED
+            raise
+
+    async def _process_claimed(self, item) -> BatchOutcome:
         scope = await self.repository.pool_scope(item) if getattr(item, "pool_id", None) else ""
         raw = await self.load_blob(item.manifest_key or "")
         chunks = decode_manifest(raw)

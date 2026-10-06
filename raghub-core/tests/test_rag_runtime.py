@@ -147,6 +147,29 @@ def test_post_retrieval_clarification_uses_confidence_without_generating():
     assert providers.chat_scopes == []
 
 
+@pytest.mark.parametrize("published", [False, True])
+def test_authenticated_runtime_allows_draft_and_published_chatbots(published):
+    command, chatbots, _, providers, _, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, published=published)
+    events = asyncio.run(_collect_events(use_case, command))
+    assert isinstance(events[-1], ChatCompleted)
+    assert providers.chat.calls
+
+
+def test_final_citation_inventory_matches_the_five_prompt_context_chunks():
+    command, chatbots, retrieval, providers, conversations, _, use_case = runtime()
+    chatbots.config = replace(chatbots.config, retrieval_limit=8)
+    retrieval.hits = [
+        replace(retrieval.hits[0], chunk_id=uuid4(), content=f"context {i}") for i in range(10)
+    ]
+    events = asyncio.run(_collect_events(use_case, command))
+    citations = next(event.citations for event in events if isinstance(event, CitationsResolved))
+    assert len(citations) == 5 and citations == conversations.citations
+    prompt = providers.chat.calls[0][0][0].content
+    assert all(c.excerpt in prompt for c in citations)
+    assert "context 4" in prompt and "context 5" not in prompt
+
+
 async def _collect_events(use_case, command):
     return [event async for event in use_case.execute(command)]
 
@@ -423,16 +446,12 @@ def test_provider_failure_after_token_never_retries_or_persists_completed_answer
     assert conversations.failures == [("answer", "PROVIDER_UNAVAILABLE")]
 
 
-@pytest.mark.parametrize("wrong_tenant", [False, True])
-def test_access_check_precedes_retrieval(wrong_tenant):
+def test_access_check_precedes_retrieval():
     command, chatbots, retrieval, providers, _, _, use_case = runtime()
-    if wrong_tenant:
-        command = replace(command, organization_id=uuid4())
-    else:
-        chatbots.config = replace(chatbots.config, published=False)
+    command = replace(command, organization_id=uuid4())
     with pytest.raises(CoreError) as error:
         _ = asyncio.run(_collect_events(use_case, command))
-    assert error.value.code == ("CHATBOT_NOT_FOUND" if wrong_tenant else "CHATBOT_NOT_PUBLISHED")
+    assert error.value.code == "CHATBOT_NOT_FOUND"
     assert not retrieval.calls and not providers.chat_scopes
 
 

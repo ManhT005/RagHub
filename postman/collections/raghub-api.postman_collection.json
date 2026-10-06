@@ -1140,6 +1140,84 @@
       ]
     },
     {
+      "name": "GET /api/v1/organizations/{organization_id}/local-ai/models",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "X-Organization-ID",
+            "value": "{{organization_id}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/organizations/{{organization_id}}/local-ai/models",
+          "host": [
+            "{{base_url}}"
+          ],
+          "query": []
+        },
+        "body": {}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds', () => pm.expect(pm.response.code).to.be.below(500));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/organizations/{organization_id}/local-ai/models/{catalog_id}/download",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "X-Organization-ID",
+            "value": "{{organization_id}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/organizations/{{organization_id}}/local-ai/models/{catalog_id}/download",
+          "host": [
+            "{{base_url}}"
+          ],
+          "query": []
+        },
+        "body": {}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds', () => pm.expect(pm.response.code).to.be.below(500));"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "GET /api/v1/organizations/{organization_id}/members",
       "request": {
         "method": "GET",
@@ -3312,6 +3390,92 @@
         ],
         "url": {
           "raw": "{{base_url}}/api/v1/workspaces/{{workspace_id}}/providers",
+          "host": [
+            "{{base_url}}"
+          ],
+          "query": []
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds', () => pm.expect(pm.response.code).to.be.below(500));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/v1/workspaces/{workspace_id}/rerank-model",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "X-Organization-ID",
+            "value": "{{organization_id}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/workspaces/{{workspace_id}}/rerank-model",
+          "host": [
+            "{{base_url}}"
+          ],
+          "query": []
+        },
+        "body": {}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds', () => pm.expect(pm.response.code).to.be.below(500));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "PUT /api/v1/workspaces/{workspace_id}/rerank-model",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "X-Organization-ID",
+            "value": "{{organization_id}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/workspaces/{{workspace_id}}/rerank-model",
           "host": [
             "{{base_url}}"
           ],

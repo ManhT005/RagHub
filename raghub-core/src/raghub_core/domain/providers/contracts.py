@@ -67,3 +67,24 @@ class ChatProvider(Protocol):
     def stream_chat(
         self, messages: list[ChatMessage], options: ChatOptions
     ) -> AsyncIterator[ChatStreamDelta]: ...
+
+
+@dataclass(frozen=True)
+class RerankItem:
+    index: int
+    score: float
+
+
+@dataclass(frozen=True)
+class RerankResult:
+    items: list[RerankItem]
+    model: str
+    provider: str
+
+
+@runtime_checkable
+class RerankProvider(Protocol):
+    provider_name: str
+    model: str
+
+    async def rerank(self, *, query: str, documents: list[str], top_n: int) -> RerankResult: ...

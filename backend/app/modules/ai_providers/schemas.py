@@ -5,7 +5,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from raghub_core.domain.providers.enums import ProviderCapability, ProviderType
 
 _SENSITIVE_CONFIG_KEYS = {
@@ -49,8 +49,37 @@ class ProviderOptions(BaseModel):
     options: dict[str, Any] | None = None
     endpoint_scope: Literal["PUBLIC", "LOCAL_TRUSTED"] | None = None
     request_profile: (
-        Literal["OPENAI_STANDARD", "NVIDIA_NIM", "OLLAMA", "GEMINI", "SENTENCE_TRANSFORMER"] | None
+        Literal[
+            "OPENAI_STANDARD",
+            "NVIDIA_NIM",
+            "OLLAMA",
+            "GEMINI",
+            "SENTENCE_TRANSFORMER",
+            "GROQ",
+            "OPENROUTER",
+            "CEREBRAS",
+            "SILICONFLOW",
+            "VOYAGE",
+            "CLOUDFLARE",
+            "HUGGINGFACE",
+        ]
+        | None
     ) = None
+    account_id: str | None = Field(default=None, pattern=r"^[a-fA-F0-9]{32}$")
+    app_url: str | None = Field(default=None, max_length=1024)
+    app_name: str | None = Field(default=None, max_length=200)
+    embedding_batch_limit: int | None = Field(default=None, strict=True, ge=1, le=1000)
+
+    @field_validator("app_url", "app_name")
+    @classmethod
+    def validate_vendor_header(cls, value, info):
+        if value is None:
+            return value
+        if not value.isascii() or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("Application headers must contain printable ASCII characters")
+        if info.field_name == "app_url":
+            _validate_base_url(value)
+        return value
 
 
 def _validate_provider_options(config: dict[str, Any]) -> dict[str, Any]:
@@ -140,6 +169,15 @@ def validate_connection_endpoint(connection):
     from app.modules.ai_providers.catalog import connection_catalog_id, supported_catalog_by_id
 
     catalog = supported_catalog_by_id(connection_catalog_id(connection))
+    if catalog.locked_base_url:
+        expected = catalog.default_base_url
+        if catalog.id == "cloudflare-workers-ai":
+            account = ProviderOptions.model_validate(connection.config_json or {}).account_id
+            if not account:
+                raise ValueError("Cloudflare Account ID is required")
+            expected += f"/accounts/{account}/ai"
+        if (connection.base_url or "").rstrip("/") != expected:
+            raise ValueError("Connection must use its catalog endpoint")
     if catalog.endpoint_scope == "LOCAL_TRUSTED":
         return validate_trusted_local_provider_url(
             connection.base_url, ollama=connection.provider_type == "OLLAMA"
@@ -166,6 +204,7 @@ class ProviderConfigInput(BaseModel):
             ProviderType.OPENAI_COMPATIBLE: {
                 ProviderCapability.EMBEDDING,
                 ProviderCapability.CHAT,
+                ProviderCapability.RERANK,
             },
             ProviderType.GOOGLE_GEMINI: {
                 ProviderCapability.EMBEDDING,
@@ -174,12 +213,25 @@ class ProviderConfigInput(BaseModel):
             ProviderType.LOCAL_TOKEN_HASH: {ProviderCapability.EMBEDDING},
             ProviderType.LOCAL_SENTENCE_TRANSFORMER: {ProviderCapability.EMBEDDING},
             ProviderType.OLLAMA: {ProviderCapability.CHAT},
+            ProviderType.VOYAGE: {ProviderCapability.EMBEDDING, ProviderCapability.RERANK},
+            ProviderType.HUGGINGFACE_INFERENCE: {
+                ProviderCapability.EMBEDDING,
+                ProviderCapability.CHAT,
+            },
+            ProviderType.CLOUDFLARE_WORKERS_AI: {
+                ProviderCapability.EMBEDDING,
+                ProviderCapability.CHAT,
+                ProviderCapability.RERANK,
+            },
         }
         if self.capability not in supported[self.provider_type]:
             raise ValueError("The provider type does not support this capability")
         if self.provider_type in {
             ProviderType.OPENAI_COMPATIBLE,
             ProviderType.GOOGLE_GEMINI,
+            ProviderType.VOYAGE,
+            ProviderType.CLOUDFLARE_WORKERS_AI,
+            ProviderType.HUGGINGFACE_INFERENCE,
         }:
             if self.config_json.get("endpoint_scope") == "LOCAL_TRUSTED":
                 self.base_url = validate_trusted_local_provider_url(self.base_url)
@@ -246,6 +298,19 @@ class ProviderTestResponse(BaseModel):
 class WorkspaceProviderBindingInput(BaseModel):
     embedding_provider_id: UUID | None = None
     chat_provider_id: UUID | None = None
+
+
+class RerankOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    candidate_limit: int = Field(default=40, strict=True, ge=1, le=200)
+    top_n: int = Field(default=8, strict=True, ge=1, le=100)
+    timeout_seconds: float = Field(default=5, strict=True, ge=0.1, le=30)
+
+    @model_validator(mode="after")
+    def validate_top_n(self):
+        if self.top_n > self.candidate_limit:
+            raise ValueError("top_n cannot exceed candidate_limit")
+        return self
 
 
 class WorkspaceProviderBindingResponse(BaseModel):

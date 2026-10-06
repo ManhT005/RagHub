@@ -127,14 +127,14 @@ def test_migration_chain_is_linked():
     from pathlib import Path
 
     path = (
-        Path(__file__).parent.parent / "alembic" / "versions" / "20261005_0021_provider_pools.py"
+        Path(__file__).parent.parent / "alembic" / "versions" / "20261006_0027_provider_pools.py"
     )
     spec = importlib.util.spec_from_file_location("migration_0021", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    assert migration.revision == "20261005_0021"
-    assert migration.down_revision == "20261005_0020"
+    assert migration.revision == "20261006_0027"
+    assert migration.down_revision == "20261005_0022"
     assert callable(migration.upgrade) and callable(migration.downgrade)
 
 

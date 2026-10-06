@@ -1,3 +1,5 @@
+import { By } from "@angular/platform-browser";
+import { ChatbotSettingsComponent } from "./chatbot-settings.component";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { ActivatedRoute, convertToParamMap, provideRouter } from "@angular/router";
@@ -306,9 +308,10 @@ describe("ChatbotsComponent two-step flow", () => {
     ) as HTMLElement;
     expect(embedPanel).not.toBeNull();
     expect(embedPanel.textContent).toContain("Nhúng chatbot");
-    expect(component.embedTitle).toBe("RagHub Assistant");
+    const settings = fixture.debugElement.query(By.directive(ChatbotSettingsComponent)).componentInstance as ChatbotSettingsComponent;
+    expect(settings.title).toBe("RagHub Assistant");
     expect(api["embedCode"]).toHaveBeenCalledWith(savedBot.id);
-    expect(component.embedCode()).toBe("<script>existing</script>");
+    expect(settings.code()).toBe("<script>existing</script>");
   });
 
   it("publishes embed settings and exposes the returned code", async () => {
@@ -317,12 +320,14 @@ describe("ChatbotsComponent two-step flow", () => {
     });
     const component = fixture.componentInstance as any;
     component.openEmbed(savedBot);
-    component.embedOrigins = "https://one.example\nhttps://two.example";
-    component.embedPrimaryColor = "#123456";
-    component.embedTitle = "Trợ lý tuyển sinh";
-    component.embedGreeting = "Xin chào";
+    fixture.detectChanges();
+    const settings = fixture.debugElement.query(By.directive(ChatbotSettingsComponent)).componentInstance as ChatbotSettingsComponent;
+    settings.origins = "https://one.example\nhttps://two.example";
+    settings.primaryColor = "#123456";
+    settings.title = "Trợ lý tuyển sinh";
+    settings.greeting = "Xin chào";
 
-    component.saveEmbedSettings();
+    settings.publish();
     fixture.detectChanges();
 
     expect(api["publishEmbed"]).toHaveBeenCalledWith(savedBot.id, {
@@ -331,7 +336,7 @@ describe("ChatbotsComponent two-step flow", () => {
       title: "Trợ lý tuyển sinh",
       greeting: "Xin chào",
     });
-    expect(component.embedCode()).toBe("<script>embed</script>");
+    expect(settings.code()).toBe("<script>embed</script>");
     expect(component.selectedBot()?.published).toBe(true);
   });
 

@@ -1,20 +1,28 @@
 """Quota-aware resumable embedding work items and batch checkpoints.
 
-Revision ID: 20261005_0022
-Revises: 20261005_0021
+Revision ID: 20261006_0028
+Revises: 20261006_0027
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "20261005_0022"
-down_revision = "20261005_0021"
+revision = "20261006_0028"
+down_revision = "20261006_0027"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
+    # Pre-merge RAG databases used develop's 0021/0022 IDs for these tables.
+    # Detect already applied schema without recreating tables or touching data.
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table("embedding_work_items"):
+        if not inspector.has_table("embedding_batch_checkpoints"):
+            raise RuntimeError("Incomplete legacy embedding schema; restore before upgrading.")
+        return
+
     op.create_table(
         "embedding_work_items",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -83,9 +91,7 @@ def upgrade():
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.UniqueConstraint(
-            "work_item_id", "batch_index", name="uq_batch_checkpoints_item_batch"
-        ),
+        sa.UniqueConstraint("work_item_id", "batch_index", name="uq_batch_checkpoints_item_batch"),
     )
     op.add_column("ingestion_jobs", sa.Column("embedded_chunks", sa.Integer(), nullable=True))
     op.add_column("ingestion_jobs", sa.Column("total_chunks", sa.Integer(), nullable=True))

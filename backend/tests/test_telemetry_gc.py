@@ -250,5 +250,5 @@ def test_migration_chain_and_flag():
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    assert (migration.revision, migration.down_revision) == ("20261005_0023", "20261005_0022")
+    assert (migration.revision, migration.down_revision) == ("20261005_0023", "20261006_0028")
     assert Settings(_env_file=None).rag_index_gc_enabled is False

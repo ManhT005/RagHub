@@ -215,16 +215,21 @@ class ChunkIndexer:
     ) -> None:
         """Flip the pre-cutoff retrievable flag without reindexing content."""
         self.ensure_index()
-        self.client.update_by_query(
+        result = self.client.update_by_query(
             index=self.index_name,
             query={"term": {"document_version_id": str(document_version_id)}},
             script={
                 "source": "ctx._source.retrievable = params.flag",
                 "params": {"flag": retrievable},
             },
-            conflicts="proceed",
+            conflicts="abort",
             refresh=True,
         )
+        body = getattr(result, "body", result)
+        if isinstance(body, dict) and (
+            body.get("failures") or body.get("timed_out") or body.get("version_conflicts")
+        ):
+            raise ValueError("Document publication did not complete successfully.")
 
     def document_version_ids(self, workspace_id: uuid.UUID) -> set[uuid.UUID]:
         """Return distinct indexed document versions for a workspace."""

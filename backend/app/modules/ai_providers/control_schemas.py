@@ -34,6 +34,17 @@ class ConnectionInput(BaseModel):
         if not self.name:
             raise ValueError("Connection name is required")
         self.base_url = _validate_base_url(self.base_url or item.default_base_url)
+        if item.id == "cloudflare-workers-ai":
+            import re
+
+            account = self.config_json.get("account_id", "")
+            if not isinstance(account, str) or not re.fullmatch(r"[a-fA-F0-9]{32}", account):
+                raise ValueError("Cloudflare Account ID must be 32 hexadecimal characters")
+            self.base_url = f"{item.default_base_url}/accounts/{account}/ai"
+        elif item.locked_base_url and self.base_url.rstrip("/") != item.default_base_url:
+            raise ValueError(
+                "Use the catalog endpoint; custom URLs require an OpenAI-compatible connection"
+            )
         if (
             item.endpoint_scope == "LOCAL_TRUSTED"
             and self.provider_type != "LOCAL_SENTENCE_TRANSFORMER"
@@ -90,6 +101,7 @@ class ConnectionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
     model_count: int = 0
+    config_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class DiscoveredModel(BaseModel):
@@ -98,6 +110,12 @@ class DiscoveredModel(BaseModel):
     capabilities: list[ProviderCapability] = Field(default_factory=list)
     dimension: int | None = None
     size_bytes: int | None = None
+    context_tokens: int | None = None
+    free: bool | None = None
+    reasoning: bool | None = None
+    deprecated: bool = False
+    recommended: bool = False
+    output_dimensions: list[int] = Field(default_factory=list)
 
 
 class OllamaPullInput(BaseModel):

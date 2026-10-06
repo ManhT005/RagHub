@@ -4,9 +4,18 @@ Source: `.backups/RAGHUB_RAG_CORE_STABILIZATION_OPTIMIZATION_PLAN.md`.
 
 ## Branch baseline
 
-The owner confirmed that develop was already rebased into this branch. Preserve
-that baseline; do not merge or rebase it again. A preliminary merge was aborted
-without retaining changes. Baseline core suite: 150 passed.
+A refreshed fetch and reflog inspection found that the October 6 rebase operated
+on local develop, not the RAG feature branch. Origin/develop had 17 missing commits.
+A merge now reconciles those commits without rewriting the RAG commit history.
+Workspace reranking, local model downloads, provider validation and widget updates
+are preserved alongside the stabilization changes.
+
+Develop keeps revisions 0021/0022. RAG pools/work items move to unique 0027/0028;
+0023 depends on 0028. New head 0029 repairs missing upstream tables on previously
+stamped RAG databases. Already applied pool/work-item schemas are detected rather
+than recreated. Migration order follows Alembic ancestry, not numeric sorting.
+Verified upgrade: empty DB, origin/develop head 0022, and pre-merge RAG head 0026.
+All reach 0029 with both upstream and RAG structures present.
 
 ## Phase 1: core boundaries
 
@@ -22,9 +31,9 @@ moving 29 domain-specific cases into the host and adding two generic cases.
 
 ## Verification still required against running infrastructure
 
-Clean/current DB upgrades, restart/concurrent worker integration, production model
-download/checksum, recalibration and hardware benchmarks require real services
-and model artifacts. Unit or fixture evaluation must not be reported as evidence
+Migration upgrades and service integration were verified on an isolated Docker
+project. Production model artifacts, recalibration and hardware benchmarks still
+require deployment-specific evidence. Unit or fixture evaluation must not be reported as evidence
 of those production acceptance criteria.
 
 ## Phases 2, 10, 11: publish and retrieval correctness

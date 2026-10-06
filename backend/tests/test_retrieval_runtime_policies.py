@@ -81,7 +81,7 @@ async def test_corrupt_semantic_snapshot_fails_before_pool_or_provider_resolutio
 
     resolver = ProviderResolver.__new__(ProviderResolver)
     resolver.embedding_pool_for_version = AsyncMock()
-    config = SimpleNamespace(capability="EMBEDDING")
+    config = SimpleNamespace(capability="EMBEDDING", connection=None)
     version = SimpleNamespace(
         provider_type="OLLAMA",
         model="model",

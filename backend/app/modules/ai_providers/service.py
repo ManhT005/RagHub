@@ -135,6 +135,7 @@ class ProviderConfigService:
         await self.session.commit()
         await self.session.refresh(config)
         await self._ensure_pool(config)
+        await self.session.commit()
         return config
 
     async def update(
@@ -226,36 +227,49 @@ class ProviderConfigService:
             )
             self.session.add(pool)
             await self.session.flush()
+        credential = await self.session.scalar(
+            select(ProviderCredential).where(
+                ProviderCredential.pool_id == pool.id,
+                ProviderCredential.provider_config_id == config.id,
+            )
+        )
+        if credential is None:
             self.session.add(
                 ProviderCredential(
                     pool_id=pool.id,
-                    name="primary",
-                    encrypted_secret=config.encrypted_secret,
+                    provider_config_id=config.id,
+                    name=f"config:{config.id}",
+                    # Connections remain the authority for rotation and bootstrap secrets.
+                    encrypted_secret=None if config.connection else config.encrypted_secret,
                     enabled=config.enabled,
                 )
             )
-            await self.session.commit()
+            await self.session.flush()
         return pool
 
     async def _sync_primary_credential(self, config: ProviderConfig) -> None:
         pool = await self._ensure_pool(config)
         credential = await self.session.scalar(
             select(ProviderCredential)
-            .where(ProviderCredential.pool_id == pool.id, ProviderCredential.name == "primary")
+            .where(
+                ProviderCredential.pool_id == pool.id,
+                ProviderCredential.provider_config_id == config.id,
+            )
             .order_by(ProviderCredential.created_at)
         )
         if credential is None:
             self.session.add(
                 ProviderCredential(
                     pool_id=pool.id,
-                    name="primary",
-                    encrypted_secret=config.encrypted_secret,
+                    provider_config_id=config.id,
+                    name=f"config:{config.id}",
+                    encrypted_secret=None if config.connection else config.encrypted_secret,
                     enabled=config.enabled,
                 )
             )
         else:
             # Ciphertext copied verbatim; no decrypt/re-encrypt on sync.
-            credential.encrypted_secret = config.encrypted_secret
+            credential.encrypted_secret = None if config.connection else config.encrypted_secret
             credential.enabled = config.enabled
 
     async def _is_bound(self, organization_id: UUID, provider_id: UUID) -> bool:
@@ -270,6 +284,7 @@ class ProviderConfigService:
                     Workspace.deleted_at.is_(None),
                     (Workspace.embedding_provider_id == provider_id)
                     | (Workspace.chat_provider_id == provider_id)
+                    | (Workspace.rerank_provider_id == provider_id)
                     | Workspace.active_embedding_index_version_id.in_(indexes)
                     | Workspace.pending_embedding_index_version_id.in_(indexes),
                 )
@@ -316,6 +331,13 @@ class ProviderConfigService:
                 raise ProviderConfigurationError(
                     "Provider embedding dimension does not match config."
                 )
+        elif config.capability == ProviderCapability.RERANK:
+            from raghub_core.domain.providers.rerank import validated_rerank_indices
+
+            result = await provider.rerank(
+                query="RagHub", documents=["RagHub documentation", "A different topic"], top_n=2
+            )
+            validated_rerank_indices(result, count=2, top_n=2)
         else:
             received = False
             async for delta in provider.stream_chat(  # type: ignore[attr-defined]
@@ -439,6 +461,7 @@ class ProviderConfigService:
     async def _stage_embedding_version(
         self, workspace: Workspace, config: ProviderConfig
     ) -> EmbeddingReindexJob | None:
+        await self._sync_primary_credential(config)
         version_id = uuid.uuid4()
         version = EmbeddingIndexVersion(
             id=version_id,

@@ -19,13 +19,18 @@
         <option>Cloud</option>
         <option>Local</option>
         <option>Custom</option>
+      </select><select aria-label="Hình thức sử dụng" [(ngModel)]="accessTier">
+        <option value="">Tất cả hình thức</option><option value="FREE_ALLOCATION">Free allocation</option>
+        <option value="FREE_TRIAL">Free trial</option><option value="MIXED">Mixed</option>
+        <option value="PAID">Paid</option><option value="LOCAL">Local</option>
       </select></div>
     <div class="catalog">
       @for (item of filteredCatalog(); track item.id) {
-      <button type="button" [disabled]="item.status !== 'SUPPORTED'" (click)="choose(item)"><raghub-provider-logo
+      <button type="button" [disabled]="item.status !== 'SUPPORTED' && item.status !== 'BETA'" (click)="choose(item)" [title]="item.migration_guidance || item.name"><raghub-provider-logo
           [catalogId]="item.id" aria-hidden="true" /><strong>{{ item.name
-          }}</strong><small>{{ item.status === 'SUPPORTED' ? item.capabilities.join(' · ') : 'Coming soon'
-          }}</small></button>
+          }}</strong><small>{{ item.status }}</small><small>{{ item.capabilities.join(' · ') }}</small>
+          <small>{{ item.access_tier || '' }}</small>
+          @if (item.migration_guidance) { <small>{{ item.migration_guidance }}</small> }</button>
       }
     </div>
     } @else if (step() === 1) {
@@ -36,8 +41,16 @@
         rel="noopener noreferrer">Tài liệu ↗</a> } @if (selected()?.api_key_url) { <a [href]="selected()!.api_key_url"
         target="_blank" rel="noopener noreferrer">Lấy API key ↗</a> }</div>
     <label>Tên provider<input nz-input [(ngModel)]="name" maxlength="200" [disabled]="busy()" /></label>
-    @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER') {
-    <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" /></label>
+    @if (selected()?.status === 'BETA') { <nz-alert nzType="info" nzMessage="Beta — cần kiểm tra kết nối và model trước khi sử dụng." /> }
+    @if (selected()?.free_tier_note) { <p class="muted">{{ selected()?.free_tier_note }}</p> }
+    @if (selected()?.pricing_url) { <a [href]="selected()!.pricing_url" target="_blank" rel="noopener noreferrer">Giá và giới hạn sử dụng ↗</a> }
+    @for (field of selected()?.fields || []; track field.key) {
+      <label>{{ field.label }} {{ field.required ? '*' : '' }}<input nz-input
+        [type]="field.type" [(ngModel)]="configFields[field.key]" [required]="field.required"
+        [disabled]="busy()" /></label>
+    }
+    @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER' && selected()?.id !== 'cloudflare-workers-ai') {
+    <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" [readOnly]="selected()?.locked_base_url || false" /></label>
     <button nz-button type="button" (click)="baseUrl = selected()?.default_base_url ?? ''" [disabled]="busy()">Khôi phục
       mặc định</button>
     }
@@ -93,6 +106,7 @@
           <option value="">Tất cả</option>
           <option value="CHAT">Chat</option>
           <option value="EMBEDDING">Embedding</option>
+          <option value="RERANK">Rerank</option>
           <option value="UNKNOWN">Unknown</option>
         </select>
       </div>
@@ -112,6 +126,11 @@
               class="block">{{ item.model }}</small></span></label>
         <div class="model-controls">
           @if (item.size_bytes) { <nz-tag>{{ formatBytes(item.size_bytes) }}</nz-tag> }
+          @if (item.context_tokens) { <nz-tag>{{ item.context_tokens }} context</nz-tag> }
+          @if (item.free) { <nz-tag nzColor="green">Free model</nz-tag> }
+          @if (item.reasoning) { <nz-tag>Reasoning</nz-tag> }
+          @if (item.recommended) { <nz-tag nzColor="blue">Đề xuất</nz-tag> }
+          @if (item.deprecated) { <nz-tag nzColor="orange">Deprecated</nz-tag> }
           @if (item.registered) { <nz-tag nzColor="green">Đã đăng ký</nz-tag> }
           @if (item.capabilities.length === 1) { <nz-tag>{{ item.capability }}</nz-tag> }
           @else {

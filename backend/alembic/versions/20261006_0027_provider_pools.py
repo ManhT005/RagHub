@@ -1,15 +1,15 @@
 """Add managed provider pools with idempotent legacy backfill.
 
-Revision ID: 20261005_0021
-Revises: 20261005_0020
+Revision ID: 20261006_0027
+Revises: 20261005_0022
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "20261005_0021"
-down_revision = "20261005_0020"
+revision = "20261006_0027"
+down_revision = "20261005_0022"
 branch_labels = None
 depends_on = None
 
@@ -44,6 +44,14 @@ ON CONFLICT (id) DO NOTHING
 
 
 def upgrade():
+    # Pre-merge RAG databases used develop's 0021/0022 IDs for these tables.
+    # Detect already applied schema without recreating tables or touching data.
+    inspector = sa.inspect(op.get_bind())
+    if inspector.has_table("provider_pools"):
+        if not inspector.has_table("provider_credentials"):
+            raise RuntimeError("Incomplete legacy embedding schema; restore before upgrading.")
+        return
+
     op.create_table(
         "provider_pools",
         sa.Column("id", sa.Uuid(), primary_key=True),

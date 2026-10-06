@@ -1,9 +1,11 @@
+import asyncio
 import math
 import time
 from collections.abc import Awaitable, Callable
 
 from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.errors import ProviderRateLimitError, ProviderUnavailableError
+from raghub_core.domain.providers.rerank import validated_rerank_indices
 from raghub_core.domain.retrieval.hybrid import (
     RERANK_SOURCE_COUNT,
     RERANK_TOP_N,
@@ -20,6 +22,7 @@ from raghub_core.ports.embedding_quota import (
     QuotaDepletedError,
 )
 from raghub_core.ports.provider_resolver import EmbeddingRuntime, ProviderResolverPort
+from raghub_core.ports.rerank import RerankResolverPort
 from raghub_core.ports.reranker import RerankerTimeoutError
 from raghub_core.ports.retrieval import DocumentReadinessPort
 from raghub_core.ports.telemetry import TelemetryPort
@@ -35,6 +38,8 @@ class RetrieveContextUseCase:
         providers: ProviderResolverPort,
         readiness: DocumentReadinessPort,
         make_search: Callable[[EmbeddingRuntime], VectorSearchPort],
+        rerank_resolver: RerankResolverPort | None = None,
+        on_rerank_status: Callable[[str], None] | None = None,
         *,
         rerank: RerankFn | None = None,
         relevance: RelevanceFn | None = None,
@@ -50,6 +55,7 @@ class RetrieveContextUseCase:
         self.relevance_factory = relevance_factory
         self.quota = quota
         self.neighbor_expansion = neighbor_expansion
+        self.rerank_resolver, self.on_rerank_status = rerank_resolver, on_rerank_status
 
     async def retrieve(
         self,
@@ -94,7 +100,17 @@ class RetrieveContextUseCase:
             )
         search = self.make_search(runtime)
         try:
+            rerank_runtime = None
+            if self.rerank_resolver is not None:
+                try:
+                    rerank_runtime = await asyncio.wait_for(
+                        self.rerank_resolver.resolve_rerank(scope), 5
+                    )
+                except Exception:
+                    self._rerank_status("DEGRADED_RESOLUTION")
             fetch = max(limit, RETRIEVAL_CANDIDATES, RERANK_SOURCE_COUNT if rerank else 0)
+            if rerank_runtime is not None:
+                fetch = max(fetch, min(200, rerank_runtime.candidate_limit))
             mark = time.perf_counter()
             ranked = await search.search(scope, normalized, vector, fetch)
             if telemetry is not None:
@@ -116,16 +132,6 @@ class RetrieveContextUseCase:
                     )
                 if not decision.accepted:
                     return []  # REJECT feeds the existing empty-context fallback
-            if rerank is not None:
-                mark = time.perf_counter()
-                try:
-                    ranked = await rerank(normalized, ranked[:RERANK_SOURCE_COUNT], top_n)
-                except (RerankerTimeoutError, RuntimeError):
-                    if telemetry is not None:
-                        telemetry.counter("rerank_fallback", {"stage": "rerank"})
-                finally:
-                    if telemetry is not None:
-                        telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
             mark = time.perf_counter()
             ready = await self.readiness.filter_ready(scope, ranked)
             if telemetry is not None:
@@ -135,6 +141,37 @@ class RetrieveContextUseCase:
                 telemetry.counter("retrieval_ready_hits", {"stage": "readiness"}, len(ready))
                 if not ready:
                     telemetry.counter("empty_context", {"stage": "context"})
+            if rerank_runtime is not None and ready:
+                selected = ready[: min(200, rerank_runtime.candidate_limit)]
+                selected_count = min(limit, rerank_runtime.top_n, len(selected))
+                mark = time.perf_counter()
+                try:
+                    result = await asyncio.wait_for(
+                        rerank_runtime.provider.rerank(
+                            query=normalized,
+                            documents=[c.content for c in selected],
+                            top_n=selected_count,
+                        ),
+                        min(30, max(0.1, rerank_runtime.timeout_seconds)),
+                    )
+                    indices = validated_rerank_indices(result, len(selected), selected_count)
+                    ready = [selected[index] for index in indices]
+                    self._rerank_status("OK")
+                except Exception:
+                    self._rerank_status("DEGRADED_REQUEST")
+                finally:
+                    if telemetry is not None:
+                        telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
+            elif rerank is not None and ready:
+                mark = time.perf_counter()
+                try:
+                    ready = await rerank(normalized, ready[:RERANK_SOURCE_COUNT], top_n)
+                except (RerankerTimeoutError, RuntimeError):
+                    if telemetry is not None:
+                        telemetry.counter("rerank_fallback", {"stage": "rerank"})
+                finally:
+                    if telemetry is not None:
+                        telemetry.timing("rerank", (time.perf_counter() - mark) * 1000, {})
             if self.neighbor_expansion is not None and ready:
                 mark = time.perf_counter()
                 try:
@@ -154,6 +191,12 @@ class RetrieveContextUseCase:
             raise CoreError("SEARCH_UNAVAILABLE", "Search is temporarily unavailable.") from exc
         finally:
             await search.close()
+
+    def _rerank_status(self, status):
+        if self.on_rerank_status is not None:
+            self.on_rerank_status(status)
+        if self.telemetry is not None:
+            self.telemetry.counter("workspace_rerank", {"status": status})
 
     async def assess(self, scope, query, limit) -> RetrievalAssessment:
         decisions = []

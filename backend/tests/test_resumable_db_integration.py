@@ -14,7 +14,91 @@ from app.modules.workspaces.models import Workspace
 pytestmark = pytest.mark.integration
 
 
-async def seed(session):
+async def test_pool_credentials_follow_connection_rotation_and_persist_auth_health(
+    isolated_sessions,
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from raghub_core.domain.providers.errors import ProviderAuthenticationError
+
+    from app.modules.ai_providers.crypto import ProviderSecretCipher
+    from app.modules.ai_providers.models import ProviderConnection, ProviderCredential
+    from app.modules.ai_providers.resolver import ProviderResolver
+    from app.modules.ai_providers.service import ProviderConfigService, config_fingerprint_v2
+
+    async with isolated_sessions(expire_on_commit=False) as session:
+        org, _, index, _ = await seed(session)
+        cipher = ProviderSecretCipher("raghub-ci-provider-key-not-for-production")
+        models = []
+        for key in ["bad-key", "good-key"]:
+            connection = ProviderConnection(
+                organization_id=org.id,
+                name=key,
+                provider_type="OPENAI_COMPATIBLE",
+                catalog_id="openai",
+                base_url="https://api.openai.com/v1",
+                encrypted_secret=cipher.encrypt(key),
+                config_json={},
+                enabled=True,
+            )
+            config = ProviderConfig(
+                organization_id=org.id,
+                name=key,
+                connection=connection,
+                provider_type="OPENAI_COMPATIBLE",
+                capability="EMBEDDING",
+                base_url=connection.base_url,
+                model="text-embedding-3-small",
+                dimension=384,
+                config_json={},
+                enabled=True,
+            )
+            session.add(config)
+            await session.flush()
+            models.append(config)
+        service = ProviderConfigService(session)
+        first_pool = await service._ensure_pool(models[0])
+        assert (await service._ensure_pool(models[1])).id == first_pool.id
+        first_credential = await session.scalar(
+            select(ProviderCredential).where(ProviderCredential.provider_config_id == models[0].id)
+        )
+        assert first_credential.encrypted_secret is None
+        first_id = first_credential.id
+        index.provider_config_id = models[0].id
+        index.provider_type, index.base_url = models[0].provider_type, models[0].base_url
+        index.model, index.config_json = models[0].model, {}
+        index.embedding_fingerprint_v2 = config_fingerprint_v2(models[0])
+        second_id, index_id = models[1].id, index.id
+        await session.commit()
+        resolved_keys = []
+
+        def create(descriptor, key):
+            resolved_keys.append(key)
+            return SimpleNamespace(
+                metadata=None,
+                embed_query=AsyncMock(
+                    side_effect=ProviderAuthenticationError() if key == "bad-key" else None,
+                    return_value=[1.0] * 384,
+                ),
+            )
+
+        resolver = ProviderResolver(session, registry=SimpleNamespace(create=create), cipher=cipher)
+        runtime = await resolver.embedding_for_version(index)
+        assert len(await runtime.provider.embed_query("query")) == 384
+        await session.rollback()  # Search rollback must not resurrect the bad credential.
+        async with isolated_sessions() as check:
+            assert (await check.get(ProviderCredential, first_id)).unhealthy
+        second = await session.get(ProviderConfig, second_id)
+        second.connection.encrypted_secret = cipher.encrypt("rotated-key")
+        await session.commit()
+        index = await session.get(EmbeddingIndexVersion, index_id)
+        resolved_keys.clear()
+        await resolver.embedding_for_version(index)
+        assert resolved_keys == ["rotated-key"]
+
+
+async def seed(session, managed_pool=False):
     org = Organization(name="Integration", slug=uuid4().hex)
     session.add(org)
     await session.flush()
@@ -44,6 +128,25 @@ async def seed(session):
     )
     session.add(index)
     await session.flush()
+    if managed_pool:
+        from app.modules.ai_providers.models import ProviderCredential, ProviderPool
+        from app.modules.ai_providers.service import config_fingerprint_v2
+
+        index.embedding_fingerprint_v2 = config_fingerprint_v2(provider)
+        pool = ProviderPool(
+            organization_id=org.id,
+            provider_type=provider.provider_type,
+            capability="EMBEDDING",
+            model=provider.model,
+            dimension=384,
+            embedding_options={},
+            quota_scope="local",
+            fingerprint_v2=index.embedding_fingerprint_v2,
+        )
+        session.add(pool)
+        await session.flush()
+        session.add(ProviderCredential(pool_id=pool.id, name="primary", enabled=True))
+        await session.flush()
     ws.active_embedding_index_version_id = index.id
     doc = Document(organization_id=org.id, workspace_id=ws.id, name="guide.txt", status="QUEUED")
     session.add(doc)
@@ -84,7 +187,10 @@ async def test_real_database_claim_is_exclusive_and_recovers_after_rollback(isol
             await third.rollback()
 
 
-async def test_canonical_upload_publishes_real_index_after_durable_batches(isolated_sessions):
+@pytest.mark.parametrize("managed_pool", [False, True])
+async def test_canonical_upload_publishes_real_index_after_durable_batches(
+    isolated_sessions, managed_pool
+):
     import os
 
     from app.infrastructure.elasticsearch.chunks import ChunkIndexer
@@ -100,7 +206,7 @@ async def test_canonical_upload_publishes_real_index_after_durable_batches(isola
         rag_embedding_batch_max_chunks=2,
     )
     async with isolated_sessions(expire_on_commit=False) as session:
-        _, _, index, version = await seed(session)
+        _, _, index, version = await seed(session, managed_pool)
         storage = MinioObjectStorage(settings)
         await storage.put(
             version.storage_key, b"A useful guide to configuration. " * 1000, "text/plain"

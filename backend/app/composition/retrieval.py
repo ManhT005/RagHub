@@ -16,6 +16,7 @@ from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorSea
 from app.infrastructure.persistence.readiness import DocumentReadinessAdapter
 from app.infrastructure.providers import ProviderResolverAdapter
 from app.infrastructure.redis.query_quota import QueryQuota
+from app.infrastructure.rerank import WorkspaceRerankResolver, record_rerank_status
 from app.infrastructure.telemetry.adapter import LoggingTelemetry
 from app.modules.ai_providers.resolver import ProviderResolver
 from app.modules.search.relevance import (
@@ -96,12 +97,15 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
             return relevance
 
     telemetry = LoggingTelemetry()
+    providers = ProviderResolver(session)
     return RetrieveContextUseCase(
-        ProviderResolverAdapter(ProviderResolver(session)),
+        ProviderResolverAdapter(providers),
         DocumentReadinessAdapter(session),
         lambda runtime: ElasticsearchVectorSearch(
             ChunkSearch(index_name=runtime.index_name, telemetry=telemetry)
         ),
+        rerank_resolver=WorkspaceRerankResolver(session, providers),
+        on_rerank_status=record_rerank_status,
         rerank=rerank,
         relevance_factory=relevance_factory,
         rerank_top_n=settings.rag_rerank_top_n,
