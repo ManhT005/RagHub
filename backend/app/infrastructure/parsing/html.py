@@ -20,7 +20,7 @@ class _Sanitizer(HTMLParser):
         self.cell = None
 
     def flush(self):
-        text = " ".join(self.text).strip()
+        text = ("" if self.kind == "code" else " ").join(self.text).strip()
         self.text = []
         if text:
             self.blocks.append((self.kind, "- " + text if self.kind == "list" else text))
@@ -34,7 +34,7 @@ class _Sanitizer(HTMLParser):
             self.stack.append((tag, hidden))
         if hidden:
             return
-        if tag in {"p", "div", "section", "article", "ul", "ol", "table", "li"} or tag in {
+        if tag in {"p", "div", "section", "article", "ul", "ol", "table", "li", "pre"} or tag in {
             f"h{i}" for i in range(1, 7)
         }:
             self.flush()
@@ -43,6 +43,8 @@ class _Sanitizer(HTMLParser):
                 if tag.startswith("h") and len(tag) == 2
                 else "list"
                 if tag == "li"
+                else "code"
+                if tag == "pre"
                 else "paragraph"
             )
         if tag == "tr":
@@ -61,10 +63,12 @@ class _Sanitizer(HTMLParser):
             elif tag == "tr" and self.row:
                 self.blocks.append(("row", "| " + " | ".join(self.row) + " |"))
                 self.row = []
-            elif tag in {"p", "div", "section", "article", "li", "table"} or tag in {
+            elif tag in {"p", "div", "section", "article", "li", "table", "pre"} or tag in {
                 f"h{i}" for i in range(1, 7)
             }:
                 self.flush()
+                if tag == "pre":
+                    self.kind = "paragraph"
                 if tag == "table":
                     self.blocks.append(("boundary", ""))
         for index in range(len(self.stack) - 1, -1, -1):
@@ -76,7 +80,9 @@ class _Sanitizer(HTMLParser):
         if self.stack and self.stack[-1][1]:
             return
         if data.strip():
-            (self.cell if self.cell is not None else self.text).append(data.strip())
+            (self.cell if self.cell is not None else self.text).append(
+                data if self.kind == "code" else data.strip()
+            )
 
 
 def parse_html(content, source_name="document.html"):

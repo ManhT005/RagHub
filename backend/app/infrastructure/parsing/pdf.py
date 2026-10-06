@@ -131,10 +131,26 @@ def parse_pdf(
                         telemetry.timing("ocr", (time.perf_counter() - mark) * 1000, {})
                         telemetry.counter("ocr_pages", {})
             if text:
-                sections.append(ParsedBlock(text, source_name, len(sections), index + 1, type=kind))
+                sections.append(
+                    ParsedBlock(
+                        text,
+                        source_name,
+                        len(sections),
+                        index + 1,
+                        type=kind,
+                        metadata={"format": "pdf"},
+                    )
+                )
             for table in tables:
                 sections.append(
-                    ParsedBlock(table, source_name, len(sections), index + 1, type="table")
+                    ParsedBlock(
+                        table,
+                        source_name,
+                        len(sections),
+                        index + 1,
+                        type="table",
+                        metadata={"format": "pdf"},
+                    )
                 )
         return sections
     finally:

@@ -37,10 +37,18 @@ def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[Parse
         for sheet in names:
             view = workbook[sheet]
             rows: list[str] = []
+            row_numbers = []
             min_row, max_row = view.min_row, view.max_row
             min_col, max_col = view.min_column, view.max_column
-            for row in view.iter_rows(
-                min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col, values_only=True
+            for number, row in enumerate(
+                view.iter_rows(
+                    min_row=min_row,
+                    max_row=max_row,
+                    min_col=min_col,
+                    max_col=max_col,
+                    values_only=True,
+                ),
+                start=min_row,
             ):
                 values = [
                     "" if value is None else str(value).strip().replace("|", "/").replace("\n", " ")
@@ -55,6 +63,7 @@ def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[Parse
                             f"Workbook exceeds {MAX_POPULATED_CELLS} populated cells."
                         )
                     rows.append("| " + " | ".join(values) + " |")
+                    row_numbers.append(number)
             if rows:
                 width = max(row.count("|") - 1 for row in rows)
                 table = [rows[0], "| " + " | ".join(["---"] * width) + " |", *rows[1:]]
@@ -66,7 +75,14 @@ def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[Parse
                         heading=f"Sheet: {sheet} (rows {min_row}-{max_row})",
                         type="table",
                         heading_path=(sheet,),
-                        metadata={"sheet": sheet, "row_start": min_row, "row_end": max_row},
+                        metadata={
+                            "sheet": sheet,
+                            "row_start": row_numbers[0],
+                            "row_end": row_numbers[-1],
+                            "row_numbers": row_numbers[1:],
+                            "header": rows[0],
+                            "header_row": row_numbers[0],
+                        },
                     )
                 )
         if not sections:

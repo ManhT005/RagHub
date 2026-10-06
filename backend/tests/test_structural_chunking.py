@@ -47,3 +47,15 @@ def test_html_uses_heading_tags_and_removes_nested_hidden_subtrees():
     assert blocks[1].heading_path == ("Guide",)
     assert blocks[-1].heading_path == ("Guide", "Setup")
     assert "secret" not in " ".join(b.content for b in blocks)
+
+
+def test_html_code_block_keeps_indentation():
+    blocks = parse_html(b"<h1>Example</h1><pre><code>def f():\n    return 1</code></pre>")
+    assert blocks[-1].type == "code"
+    assert blocks[-1].content == "def f():\n    return 1"
+
+
+def test_xlsx_metadata_retains_actual_nonempty_row_numbers():
+    block = parse_xlsx(_xlsx({"Data": [["Name", "Value"], ["a", 10], [], ["b", 20]]}))[0]
+    assert block.metadata["row_numbers"] == [2, 4]
+    assert block.metadata["header"] == "| Name | Value |"
