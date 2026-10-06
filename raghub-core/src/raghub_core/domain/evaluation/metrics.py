@@ -21,6 +21,31 @@ def mrr_at_k(retrieved_ids: list[str], expected_ids: set[str], k: int = 5) -> fl
     return 0.0
 
 
+def recall_at_k(retrieved_ids: list[str], expected_ids: set[str], k: int = 5) -> float:
+    return len(set(retrieved_ids[:k]) & expected_ids) / len(expected_ids) if expected_ids else 0.0
+
+
+def relevance_error_rates(*, predicted_answerable, actual_answerable):
+    if len(predicted_answerable) != len(actual_answerable):
+        raise ValueError("Prediction and label counts differ.")
+    positives = sum(actual_answerable)
+    negatives = len(actual_answerable) - positives
+    return {
+        "false_reject_rate": sum(
+            not p and a for p, a in zip(predicted_answerable, actual_answerable, strict=False)
+        )
+        / positives
+        if positives
+        else None,
+        "false_answer_rate": sum(
+            p and not a for p, a in zip(predicted_answerable, actual_answerable, strict=False)
+        )
+        / negatives
+        if negatives
+        else None,
+    }
+
+
 def ndcg_at_k(
     retrieved_ids: list[str],
     relevance: dict[str, float],

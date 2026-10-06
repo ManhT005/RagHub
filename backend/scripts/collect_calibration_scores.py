@@ -1,53 +1,77 @@
-"""One-off: collect fused scores for calibration/holdout splits via search API.
-
-Usage (from backend/):
-    python scripts/collect_calibration_scores.py --mint-email you@example.com
-Writes artifacts/calib_scores.json with rows per split.
-"""
-
-from __future__ import annotations
+"""Collect canonical ready pre-rerank scores from an explicit eval workspace."""
 
 import argparse
+import asyncio
 import json
 import sys
-import urllib.parse
 from pathlib import Path
+from uuid import UUID
+
+from raghub_core.api import RetrievalScope
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.run_production_eval import GOLDEN, api, ensure_org, mint_token  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.core.config import get_settings
+from app.modules.search.relevance import dataset_hash
+from scripts.run_retrieval_ablation import DEFAULT_QA, collect  # noqa: E402
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--mint-email", required=True)
-    ap.add_argument("--out", default="../artifacts/calib_scores.json")
-    args = ap.parse_args()
-    token = mint_token(args.mint_email)
-    org = ensure_org(token)
-    _, items = api("GET", "/workspaces", token, org)
-    ws = next(w["id"] for w in items if w.get("slug") == "golden-test")
-    qa = json.loads((GOLDEN / "qa.json").read_text(encoding="utf-8"))
-    rows = {"calibration": [], "holdout": []}
-    for case in qa:
-        split = case.get("split", "calibration")
-        q = case["question"]
-        s, search = api(
-            "GET", f"/workspaces/{ws}/search?q={urllib.parse.quote(q)}&limit=5", token, org
+async def run(args):
+    settings = get_settings()
+    cases = json.loads(args.qa.read_text(encoding="utf-8"))
+    config = {
+        "candidates": settings.rag_retrieval_candidates,
+        "rrf_k": settings.rag_rrf_k,
+        "max_per_document": settings.rag_max_chunks_per_document,
+    }
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    try:
+        async with AsyncSession(engine) as session:
+            report = await collect(
+                session,
+                settings,
+                RetrievalScope(args.organization_id, args.workspace_id),
+                cases,
+                [config],
+                None,
+            )
+    finally:
+        await engine.dispose()
+    payload = {
+        "calibration": [],
+        "holdout": [],
+        "metadata": {
+            "dataset_hash": dataset_hash(args.qa),
+            "retrieval_config_hash": report["results"][0]["config_hash"],
+            "embedding_fingerprint": report["embedding_fingerprint"],
+            "mapping_version": report["mapping_version"],
+            "feature_schema": report["feature_schema"],
+            "document_pipeline": report["document_pipeline"],
+        },
+    }
+    for row in report["results"][0]["cases"]:
+        if row["split"] not in {"calibration", "holdout"}:
+            raise ValueError("Every calibration case must declare its split.")
+        payload[row["split"]].append(
+            {key: row[key] for key in ("id", "split", "fused_scores", "answerable")}
         )
-        scores = [h.get("score", 0.0) for h in search.get("hits", [])] if s == 200 else []
-        rows.setdefault(split, []).append(
-            {
-                "id": case.get("id"),
-                "fused_scores": scores,
-                "answerable": bool(case.get("answerable")),
-            }
-        )
-        print(f"{case.get('id')} n={len(scores)}", flush=True)
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"wrote {out}", flush=True)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(
+        json.dumps({"calibration": len(payload["calibration"]), "holdout": len(payload["holdout"])})
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--organization-id", type=UUID, required=True)
+    parser.add_argument("--workspace-id", type=UUID, required=True)
+    parser.add_argument("--qa", type=Path, default=DEFAULT_QA)
+    parser.add_argument("--out", type=Path, default=Path("../artifacts/calib_scores.json"))
+    asyncio.run(run(parser.parse_args()))
 
 
 if __name__ == "__main__":

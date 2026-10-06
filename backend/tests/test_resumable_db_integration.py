@@ -98,7 +98,7 @@ async def test_pool_credentials_follow_connection_rotation_and_persist_auth_heal
         assert resolved_keys == ["rotated-key"]
 
 
-async def seed(session, managed_pool=False):
+async def seed(session, managed_pool=False, document_pipeline="legacy"):
     org = Organization(name="Integration", slug=uuid4().hex)
     session.add(org)
     await session.flush()
@@ -112,6 +112,9 @@ async def seed(session, managed_pool=False):
         capability="EMBEDDING",
         model="token-hash-v1",
         dimension=384,
+        config_json={}
+        if document_pipeline == "legacy"
+        else {"document_pipeline": document_pipeline},
     )
     session.add(provider)
     await session.flush()
@@ -125,6 +128,7 @@ async def seed(session, managed_pool=False):
         embedding_fingerprint="local-fp",
         index_name="test-rag-" + uuid4().hex,
         status="ACTIVE",
+        config_json=provider.config_json,
     )
     session.add(index)
     await session.flush()
@@ -139,7 +143,7 @@ async def seed(session, managed_pool=False):
             capability="EMBEDDING",
             model=provider.model,
             dimension=384,
-            embedding_options={},
+            embedding_options=provider.config_json,
             quota_scope="local",
             fingerprint_v2=index.embedding_fingerprint_v2,
         )
@@ -187,9 +191,12 @@ async def test_real_database_claim_is_exclusive_and_recovers_after_rollback(isol
             await third.rollback()
 
 
-@pytest.mark.parametrize("managed_pool", [False, True])
+@pytest.mark.parametrize(
+    "managed_pool,document_pipeline",
+    [(False, "legacy"), (True, "legacy"), (True, "normalized-v1"), (True, "context-v1")],
+)
 async def test_canonical_upload_publishes_real_index_after_durable_batches(
-    isolated_sessions, managed_pool
+    isolated_sessions, managed_pool, document_pipeline
 ):
     import os
 
@@ -206,10 +213,10 @@ async def test_canonical_upload_publishes_real_index_after_durable_batches(
         rag_embedding_batch_max_chunks=2,
     )
     async with isolated_sessions(expire_on_commit=False) as session:
-        _, _, index, version = await seed(session, managed_pool)
+        org, ws, index, version = await seed(session, managed_pool, document_pipeline)
         storage = MinioObjectStorage(settings)
         await storage.put(
-            version.storage_key, b"A useful guide to configuration. " * 1000, "text/plain"
+            version.storage_key, b"A useful  guide to configuration. " * 1000, "text/plain"
         )
         try:
             result = await WorkerContainer(session, settings).run_ingestion().execute(version.id)
@@ -229,6 +236,44 @@ async def test_canonical_upload_publishes_real_index_after_durable_batches(
                     )["count"]
                     == version.chunk_count
                 )
+                source = indexer.client.search(index=index.index_name, size=1)["hits"]["hits"][0][
+                    "_source"
+                ]
+                assert "useful  guide" in source["raw_content"]
+                if document_pipeline != "legacy":
+                    assert "useful  guide" not in source["content"]
+                    assert source["parent_section_id"]
+                if document_pipeline == "normalized-v1":
+                    from raghub_core.domain.retrieval.models import RetrievalScope
+
+                    from scripts.run_retrieval_ablation import collect
+
+                    hits = indexer.client.search(index=index.index_name, size=250)["hits"]["hits"]
+                    expected = [h["_source"]["chunk_id"] for h in hits]
+                    cases = [
+                        {
+                            "id": "a",
+                            "question": "useful guide",
+                            "answerable": True,
+                            "split": "calibration",
+                        }
+                    ]
+                    configs = [
+                        {"candidates": 15, "rrf_k": 60, "max_per_document": cap} for cap in (1, 2)
+                    ]
+                    report = await collect(
+                        session,
+                        settings,
+                        RetrievalScope(org.id, ws.id),
+                        cases,
+                        configs,
+                        {"a": expected},
+                    )
+                    assert report["document_pipeline"] == document_pipeline
+                    for cap, cell in zip((1, 2), report["results"], strict=False):
+                        assert cell["cases"][0]["hit@5"] == 1
+                        assert len(cell["cases"][0]["ranked_chunk_ids"]) == cap
+                        assert cell["summary"]["search_p95_ms"] > 0
             finally:
                 indexer.client.indices.delete(index=index.index_name)
                 indexer.close()

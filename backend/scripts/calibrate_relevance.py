@@ -88,14 +88,30 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scores", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--dataset-hash", required=True)
-    parser.add_argument("--config-hash", required=True)
+    parser.add_argument("--dataset-hash")
+    parser.add_argument("--config-hash")
     parser.add_argument("--version", default="baseline-v1")
-    parser.add_argument("--fingerprint", required=True)
-    parser.add_argument("--mapping-version", required=True)
+    parser.add_argument("--fingerprint")
+    parser.add_argument("--mapping-version")
     args = parser.parse_args()
 
-    rows = calibration_rows(json.loads(Path(args.scores).read_text(encoding="utf-8")))
+    payload = json.loads(Path(args.scores).read_text(encoding="utf-8"))
+    metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
+    for attr, key in (
+        ("dataset_hash", "dataset_hash"),
+        ("config_hash", "retrieval_config_hash"),
+        ("fingerprint", "embedding_fingerprint"),
+        ("mapping_version", "mapping_version"),
+    ):
+        supplied, measured = getattr(args, attr), metadata.get(key)
+        if supplied and measured and supplied != measured:
+            raise ValueError(f"Calibration {key} differs from collected runtime metadata.")
+        if not (supplied or measured):
+            raise ValueError(f"Calibration requires {key} from CLI or collected metadata.")
+        setattr(args, attr, supplied or measured)
+    if metadata.get("feature_schema", FEATURE_SCHEMA) != FEATURE_SCHEMA:
+        raise ValueError("Collected feature schema differs from this calibrator.")
+    rows = calibration_rows(payload)
     names = default_features()
     matrix, labels = _design(rows, names)
     if not matrix or len(set(labels)) != 2:
