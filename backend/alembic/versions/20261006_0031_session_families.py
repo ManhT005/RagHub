@@ -1,15 +1,15 @@
 """Add refresh-token session families.
 
-Revision ID: 20261006_0025
-Revises: 20261005_0024
+Revision ID: 20261006_0031
+Revises: 20261006_0030
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "20261006_0025"
-down_revision = "20261005_0024"
+revision = "20261006_0031"
+down_revision = "20261006_0030"
 branch_labels = None
 depends_on = None
 
