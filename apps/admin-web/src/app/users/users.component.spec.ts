@@ -72,20 +72,32 @@ describe("UsersComponent", () => {
     expect(text).toContain("lan@example.com");
     expect(text).toContain("Tuyển sinh");
     expect(text).toContain("Tạo tài khoản");
-    expect(text).toContain("Đổi tên");
-    expect(text).toContain("Đổi vai trò");
-    expect(text).toContain("Vô hiệu hóa");
     expect(text).not.toMatch(/[一-鿿]/);
   });
 
-  it("renders user actions as solid primary and danger buttons", () => {
+  it("keeps user actions in a compact overflow menu", () => {
     const buttons = fixture.nativeElement.querySelectorAll(".actions button");
 
-    expect(buttons.length).toBe(3);
-    expect(buttons[0].classList.contains("ant-btn-primary")).toBe(true);
-    expect(buttons[1].classList.contains("ant-btn-primary")).toBe(false);
-    expect(buttons[2].classList.contains("ant-btn-primary")).toBe(true);
-    expect(buttons[2].classList.contains("ant-btn-dangerous")).toBe(true);
+    expect(buttons.length).toBe(1);
+    expect(buttons[0].textContent?.trim()).toBe("•••");
+    expect(buttons[0].getAttribute("aria-label")).toContain("lan@example.com");
+  });
+
+  it("uses a compact set of table columns without horizontal scrolling", () => {
+    const headers = Array.from(
+      fixture.nativeElement.querySelectorAll("thead th") as NodeListOf<Element>,
+      (header) => header.textContent?.trim(),
+    );
+    const table = fixture.nativeElement.querySelector("nz-table");
+
+    expect(headers).toEqual([
+      "Người dùng",
+      "Trạng thái",
+      "Vai trò",
+      "Workspace",
+      "Thao tác",
+    ]);
+    expect(table.getAttribute("ng-reflect-nz-scroll")).toBeNull();
   });
 
   it("uses debounced search without a submit button and keeps create action large", () => {
