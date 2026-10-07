@@ -42,7 +42,6 @@ RagHub là sản phẩm của **nhóm DoubleT** tham gia **Software Product Chal
 | Chatbot và RAG chat | Quản lý chatbot, xuất bản, chat SSE kèm trích dẫn và thông tin sử dụng; bản nháp xem trước bằng quyền `chat.use` | Có |
 | Widget nhúng | Web Component, script nhúng, origin allowlist, embed key dạng hash, rotate key, rate limit và giới hạn stream đồng thời | Có, kèm website demo |
 
-API công bố tại [`/api/v1/docs`](http://localhost:8080/api/v1/docs) khi hệ thống chạy. Website demo widget tại [`/demo/`](http://localhost:8080/demo/).
 
 ## Định dạng tài liệu và giới hạn
 
