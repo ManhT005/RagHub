@@ -28,7 +28,8 @@ describe('Local AI download scaffold', () => {
       .mockReturnValueOnce(of([{ ...model, status: 'DOWNLOADING', completed_bytes: 40, total_bytes: 100 }]))
       .mockReturnValueOnce(of([{ ...model, status: 'INSTALLED', completed_bytes: 100, total_bytes: 100 }]));
     const view = TestBed.createComponent(LocalAiComponent);
-    view.detectChanges(); vi.advanceTimersByTime(0);
+    view.detectChanges(); vi.advanceTimersByTime(0); view.detectChanges();
+    expect(view.nativeElement.querySelector('a[href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2"][nz-button]')).not.toBeNull();
     view.componentInstance['download'](model);
     vi.advanceTimersByTime(0); vi.advanceTimersByTime(2000); vi.advanceTimersByTime(10_000);
     expect(api.downloadLocal).toHaveBeenCalledWith('local-org', 'minilm-l6');
@@ -39,7 +40,8 @@ describe('Local AI download scaffold', () => {
     vi.useFakeTimers();
     api.localModels.mockReturnValue(of([{ ...model, status: 'QUEUED' }]));
     const view = TestBed.createComponent(LocalAiComponent);
-    view.detectChanges(); vi.advanceTimersByTime(0);
+    view.detectChanges(); vi.advanceTimersByTime(0); view.detectChanges();
+    expect(view.nativeElement.querySelector('a[href="https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2"][nz-button]')).not.toBeNull();
     view.componentInstance['download'](model);
     expect(api.downloadLocal).not.toHaveBeenCalled();
     view.destroy(); vi.advanceTimersByTime(10_000);

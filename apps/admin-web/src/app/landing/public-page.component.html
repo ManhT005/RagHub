@@ -1,260 +1,539 @@
-<main class="public-page">
+<main class="public-page" id="public-main">
+  <!-- Public Top Navigation -->
   <raghub-public-nav />
-  @switch (routeData()?.["page"]) {
-    @case ("features") {
-      <header>
-        <h1>Tính năng RAGHub</h1>
-        <p>
-          Từ tài liệu của tổ chức đến câu trả lời có nguồn tham chiếu. Quản lý
-          tri thức và chatbot trong một nền tảng.
-        </p>
-      </header>
-      <section class="feature-grid" aria-label="Tính năng hiện tại">
-        <article>
-          <span class="icon">◇</span>
-          <h2>Workspace tri thức độc lập</h2>
+
+  <!-- Ambient Glow & Cyber Grid -->
+  <div class="ambient-glow glow-top" aria-hidden="true"></div>
+  <div class="ambient-glow glow-center" aria-hidden="true"></div>
+  <div class="cyber-grid" aria-hidden="true"></div>
+
+  <div class="public-content">
+    @switch (routeData()?.["page"]) {
+      @case ("features") {
+        <!-- Page: Tính năng -->
+        <header>
+          <h1>Tính năng RAGHub</h1>
           <p>
-            Tạo nhiều workspace cho từng lĩnh vực. Quản lý tài liệu và chatbot
-            theo tổ chức, với quyền truy cập của từng thành viên.
+            Từ tài liệu của tổ chức đến câu trả lời có nguồn tham chiếu minh bạch. Quản lý
+            tri thức và chatbot thông minh trong một nền tảng thống nhất.
           </p>
-        </article>
-        <article>
-          <span class="icon red">▤</span>
-          <h2>Kho tài liệu đa định dạng</h2>
-          <p>
-            Tải lên PDF, DOCX, XLSX và PPTX. Theo dõi trạng thái xử lý, quản lý
-            phiên bản và tạo lại chỉ mục khi cần.
-          </p>
-        </article>
-        <article>
-          <span class="icon">⌕</span>
-          <h2>Hỏi đáp từ dữ liệu riêng</h2>
-          <p>
-            Hệ thống trích xuất nội dung, chia đoạn, tạo embedding và truy xuất
-            phần tài liệu liên quan để sinh câu trả lời kèm nguồn tham chiếu.
-          </p>
-        </article>
-        <article>
-          <span class="icon violet">⚙</span>
-          <h2>Lựa chọn mô hình AI</h2>
-          <p>
-            Cấu hình nhà cung cấp AI và mô hình cho chatbot. Lựa chọn API bên
-            ngoài hoặc mô hình cục bộ tùy hạ tầng và nhu cầu kiểm soát dữ liệu.
-          </p>
-        </article>
-      </section>
-      <section class="development">
-        <h2>Phát hành chatbot lên website</h2>
-        <p>
-          Phát hành chatbot bằng widget nhúng, giới hạn website được phép gọi
-          qua Allowed Origins và rotate embed key khi cần. Hãy kiểm thử câu trả
-          lời và nguồn trích dẫn trước khi đưa chatbot lên website chính thức.
-        </p>
-      </section>
-      <div class="actions">
-        <a nz-button nzType="primary" routerLink="/auth"
-          >Tạo workspace của bạn</a
-        ><a nz-button routerLink="/giai-phap">Khám phá giải pháp</a>
-      </div>
-    }
-    @case ("solutions") {
-      <header>
-        <h1>Giải pháp cho nguồn tri thức của bạn</h1>
-        <p>
-          Không phải tự xây dựng toàn bộ hệ thống RAG. Bắt đầu từ tài liệu sẵn
-          có và cấu hình chatbot theo bài toán của tổ chức.
-        </p>
-      </header>
-      <section class="solutions" aria-label="Đối tượng sử dụng">
-        <article>
-          <h2>Trường học và cơ sở đào tạo</h2>
-          <p>
-            Tư vấn tuyển sinh, chương trình đào tạo, học phí và quy chế. Dùng
-            tài liệu của nhà trường làm nguồn trả lời cho sinh viên và người
-            học.
-          </p>
-        </article>
-        <article>
-          <h2>Doanh nghiệp</h2>
-          <p>
-            Tra cứu thông tin sản phẩm, dịch vụ, chính sách và hướng dẫn sử
-            dụng. Hỗ trợ nhân viên tìm câu trả lời từ kho tài liệu chung.
-          </p>
-        </article>
-        <article>
-          <h2>Cơ quan và tổ chức</h2>
-          <p>
-            Xây dựng trợ lý tra cứu quy định, quy trình và tri thức nội bộ. Phân
-            chia workspace theo lĩnh vực để quản lý nguồn dữ liệu rõ ràng.
-          </p>
-        </article>
-      </section>
-      <section class="deployment">
-        <h2>Định hướng triển khai linh hoạt</h2>
-        <div class="deployment-grid">
+        </header>
+
+        <section class="feature-grid" aria-label="Tính năng hiện tại">
           <article>
-            <h3>SaaS</h3>
+            <div class="icon-wrap icon-cyan">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" class="feat-card-svg" style="width: 28px; height: 28px; flex-shrink: 0;">
+                <defs>
+                  <linearGradient id="featWsGrad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#38bdf8"/>
+                    <stop offset="100%" stop-color="#2563eb"/>
+                  </linearGradient>
+                  <linearGradient id="featWsFill" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.08"/>
+                  </linearGradient>
+                </defs>
+                <rect x="3" y="4" width="26" height="24" rx="5" fill="url(#featWsFill)" stroke="url(#featWsGrad)" stroke-width="1.8"/>
+                <path d="M3 10.5H29" stroke="url(#featWsGrad)" stroke-width="1.4" stroke-opacity="0.6"/>
+                <circle cx="7" cy="7.2" r="1.3" fill="#38bdf8"/>
+                <circle cx="11" cy="7.2" r="1.3" fill="#60a5fa" fill-opacity="0.7"/>
+                <circle cx="15" cy="7.2" r="1.3" fill="#93c5fd" fill-opacity="0.5"/>
+                <path d="M12 10.5V28" stroke="url(#featWsGrad)" stroke-width="1.4" stroke-opacity="0.6"/>
+                <rect x="5.5" y="13.5" width="4.5" height="2.8" rx="1" fill="#38bdf8" fill-opacity="0.8"/>
+                <rect x="5.5" y="18" width="4.5" height="2.8" rx="1" fill="#60a5fa" fill-opacity="0.45"/>
+                <rect x="5.5" y="22.5" width="4.5" height="2.8" rx="1" fill="#93c5fd" fill-opacity="0.3"/>
+                <rect x="15" y="13.5" width="11" height="5" rx="1.5" fill="#38bdf8" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1"/>
+                <path d="M17.5 16H23.5" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round"/>
+                <rect x="15" y="21" width="5" height="4.5" rx="1.2" fill="#60a5fa" fill-opacity="0.25" stroke="#60a5fa" stroke-width="0.9"/>
+                <rect x="21" y="21" width="5" height="4.5" rx="1.2" fill="#38bdf8" fill-opacity="0.4" stroke="#38bdf8" stroke-width="0.9"/>
+              </svg>
+            </div>
+            <h2>Workspace tri thức độc lập</h2>
             <p>
-              Đề án hướng tới dịch vụ trên hạ tầng tập trung cho nhu cầu triển
-              khai nhanh, tư vấn tuyển sinh, sản phẩm, dịch vụ và FAQ.
+              Tạo nhiều workspace cho từng lĩnh vực. Quản lý tài liệu và chatbot
+              theo tổ chức, với quyền truy cập (RBAC) phân cấp chặt chẽ cho từng thành viên.
             </p>
           </article>
           <article>
-            <h3>On-premise</h3>
+            <div class="icon-wrap icon-red">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" class="feat-card-svg" style="width: 28px; height: 28px; flex-shrink: 0;">
+                <defs>
+                  <linearGradient id="featDocFront" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#fb7185"/>
+                    <stop offset="50%" stop-color="#f43f5e"/>
+                    <stop offset="100%" stop-color="#e11d48"/>
+                  </linearGradient>
+                  <linearGradient id="featDocBack" x1="10" y1="2" x2="28" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#fb923c"/>
+                    <stop offset="100%" stop-color="#ea580c"/>
+                  </linearGradient>
+                  <linearGradient id="featDocFill" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#fb923c" stop-opacity="0.08"/>
+                  </linearGradient>
+                </defs>
+                <path d="M11 3C11 2.44772 11.4477 2 12 2H22L28 8V20C28 20.5523 27.5523 21 27 21H24V9C24 7.89543 23.1046 7 22 7H11V3Z" fill="#fb923c" fill-opacity="0.3" stroke="url(#featDocBack)" stroke-width="1.3" stroke-linejoin="round"/>
+                <path d="M5 8C5 6.89543 5.89543 6 7 6H17.5L24 12.5V26C24 27.1046 23.1046 28 22 28H7C5.89543 28 5 27.1046 5 26V8Z" fill="url(#featDocFill)" stroke="url(#featDocFront)" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M17.5 6V11.5C17.5 12.0523 17.9477 12.5 18.5 12.5H24" fill="#fb7185" fill-opacity="0.45" stroke="url(#featDocFront)" stroke-width="1.4" stroke-linejoin="round"/>
+                <path d="M9 13H14.5" stroke="#f43f5e" stroke-width="1.6" stroke-linecap="round"/>
+                <path d="M9 17H20" stroke="#fb7185" stroke-width="1.6" stroke-linecap="round"/>
+                <path d="M9 21H18" stroke="#fb7185" stroke-width="1.6" stroke-linecap="round"/>
+                <rect x="15.5" y="22.5" width="5.5" height="3.5" rx="0.8" fill="#f43f5e" fill-opacity="0.4" stroke="#f43f5e" stroke-width="0.8"/>
+              </svg>
+            </div>
+            <h2>Kho tài liệu đa định dạng</h2>
             <p>
-              Triển khai các thành phần bằng Docker trên hạ tầng riêng. Mô hình
-              AI cục bộ cần tài nguyên tính toán phù hợp; lựa chọn AI Provider
-              độc lập với phương thức triển khai.
+              Tải lên PDF, DOCX, XLSX và PPTX. Hệ thống tự động bóc tách cấu trúc văn bản,
+              bảng biểu, theo dõi trạng thái xử lý và hỗ trợ tạo lại chỉ mục tức thì.
             </p>
           </article>
+          <article>
+            <div class="icon-wrap icon-blue">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" class="feat-card-svg" style="width: 28px; height: 28px; flex-shrink: 0;">
+                <defs>
+                  <linearGradient id="featSearchGrad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#34d399"/>
+                    <stop offset="50%" stop-color="#10b981"/>
+                    <stop offset="100%" stop-color="#06b6d4"/>
+                  </linearGradient>
+                  <linearGradient id="featSearchFill" x1="5" y1="5" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#34d399" stop-opacity="0.25"/>
+                    <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.08"/>
+                  </linearGradient>
+                </defs>
+                <path d="M22 6C24.5 8.5 25.5 12 25 15.5" stroke="#34d399" stroke-width="1.4" stroke-linecap="round" stroke-opacity="0.7" stroke-dasharray="2 3"/>
+                <path d="M25.5 3.5C29 7.5 30 12.5 29 17.5" stroke="#10b981" stroke-width="1.4" stroke-linecap="round" stroke-opacity="0.5" stroke-dasharray="2 4"/>
+                <circle cx="13" cy="13" r="8.5" fill="url(#featSearchFill)" stroke="url(#featSearchGrad)" stroke-width="1.8"/>
+                <path d="M13 8.5C13 10.8 15 13 17.5 13C15 13 13 15.2 13 17.5C13 15.2 11 13 8.5 13C11 13 13 10.8 13 8.5Z" fill="#34d399" stroke="#10b981" stroke-width="0.8"/>
+                <circle cx="13" cy="13" r="1.3" fill="#ffffff"/>
+                <path d="M19.2 19.2L26.5 26.5" stroke="url(#featSearchGrad)" stroke-width="2.6" stroke-linecap="round"/>
+                <path d="M22.5 22.5L25.5 25.5" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2>Hỏi đáp từ dữ liệu riêng</h2>
+            <p>
+              Hệ thống trích xuất nội dung, chia đoạn (chunking), tạo embedding và truy xuất
+              phần tài liệu liên quan để sinh câu trả lời kèm nguồn tham chiếu xác thực.
+            </p>
+          </article>
+          <article>
+            <div class="icon-wrap icon-violet">
+              <svg width="28" height="28" viewBox="0 0 32 32" fill="none" class="feat-card-svg" style="width: 28px; height: 28px; flex-shrink: 0;">
+                <defs>
+                  <linearGradient id="featChipGrad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#c084fc"/>
+                    <stop offset="50%" stop-color="#a855f7"/>
+                    <stop offset="100%" stop-color="#6366f1"/>
+                  </linearGradient>
+                  <linearGradient id="featChipFill" x1="7" y1="7" x2="25" y2="25" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#c084fc" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#6366f1" stop-opacity="0.08"/>
+                  </linearGradient>
+                </defs>
+                <path d="M11 2.5V6M16 2.5V6M21 2.5V6" stroke="url(#featChipGrad)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11 26V29.5M16 26V29.5M21 26V29.5" stroke="url(#featChipGrad)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M2.5 11H6M2.5 16H6M2.5 21H6" stroke="url(#featChipGrad)" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M26 11H29.5M26 16H29.5M26 21H29.5" stroke="url(#featChipGrad)" stroke-width="1.5" stroke-linecap="round"/>
+                <rect x="6" y="6" width="20" height="20" rx="4.5" fill="url(#featChipFill)" stroke="url(#featChipGrad)" stroke-width="1.8"/>
+                <rect x="10.5" y="10.5" width="11" height="11" rx="2.5" fill="#a855f7" fill-opacity="0.3" stroke="#c084fc" stroke-width="1.2"/>
+                <circle cx="16" cy="16" r="2" fill="#ffffff" stroke="#c084fc" stroke-width="0.8"/>
+                <circle cx="13" cy="13.5" r="1.1" fill="#c084fc"/>
+                <circle cx="19" cy="13.5" r="1.1" fill="#c084fc"/>
+                <circle cx="14" cy="18.5" r="1.1" fill="#818cf8"/>
+                <circle cx="18" cy="18.5" r="1.1" fill="#818cf8"/>
+                <path d="M13 13.5L16 16M19 13.5L16 16M14 18.5L16 16M18 18.5L16 16" stroke="#c084fc" stroke-width="0.9" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2>Lựa chọn mô hình AI</h2>
+            <p>
+              Cấu hình nhà cung cấp AI và mô hình cho chatbot. Lựa chọn API bên
+              ngoài hoặc mô hình cục bộ tùy hạ tầng và nhu cầu kiểm soát dữ liệu.
+            </p>
+          </article>
+        </section>
+
+        <section class="development">
+          <h2>Phát hành chatbot lên website</h2>
+          <p>
+            Phát hành chatbot bằng widget nhúng, giới hạn website được phép gọi
+            qua Allowed Origins và rotate embed key khi cần. Hãy kiểm thử câu trả
+            lời và nguồn trích dẫn trước khi đưa chatbot lên website chính thức.
+          </p>
+        </section>
+
+        <div class="actions">
+          <a nz-button nzType="primary" routerLink="/auth" class="btn-glow">Tạo workspace của bạn</a>
+          <a nz-button routerLink="/giai-phap" class="btn-glass">Khám phá giải pháp</a>
         </div>
-        <p class="note">
-          Phương án cụ thể cần được đánh giá theo dữ liệu, hạ tầng và cấu hình
-          của từng tổ chức. Dịch vụ SaaS công khai và widget tích hợp website là
-          định hướng của đề án.
-        </p>
-      </section>
-      <div class="actions">
-        <a nz-button nzType="primary" routerLink="/lien-he"
-          >Trao đổi với DoubleT</a
-        ><a nz-button routerLink="/tinh-nang">Xem tính năng</a>
+
+        <!-- Cross-linking Hub -->
+        <section class="interlink-section" aria-label="Khám phá tiếp theo">
+          <h3 class="interlink-title">Khám phá thêm về hệ sinh thái RAGHub</h3>
+          <div class="interlink-grid">
+            <a routerLink="/giai-phap" class="interlink-card">
+              <span class="interlink-tag tag-blue">GIẢI PHÁP</span>
+              <h4>Ứng dụng cho tổ chức</h4>
+              <p>Mô hình triển khai cho trường học, cơ quan đào tạo và doanh nghiệp vừa & lớn.</p>
+              <span class="interlink-arrow">Xem giải pháp →</span>
+            </a>
+            <a routerLink="/huong-dan" class="interlink-card">
+              <span class="interlink-tag tag-emerald">HƯỚNG DẪN</span>
+              <h4>Quy trình triển khai 5 vai trò</h4>
+              <p>Hướng dẫn từng bước từ cấu hình AI Provider, tạo chatbot đến nhúng vào website.</p>
+              <span class="interlink-arrow">Xem hướng dẫn →</span>
+            </a>
+            <a routerLink="/lien-he" class="interlink-card">
+              <span class="interlink-tag tag-purple">LIÊN HỆ</span>
+              <h4>Tư vấn kiến trúc dữ liệu</h4>
+              <p>Trao đổi trực tiếp với đội ngũ phát triển DoubleT về hạ tầng On-premise và bảo mật.</p>
+              <span class="interlink-arrow">Liên hệ ngay →</span>
+            </a>
+          </div>
+        </section>
+      }
+
+      @case ("solutions") {
+        <!-- Page: Giải pháp -->
+        <header>
+          <span class="eyebrow">ỨNG DỤNG THỰC TIỄN</span>
+          <h1>Giải pháp cho nguồn tri thức của bạn</h1>
+          <p>
+            Không phải tự xây dựng toàn bộ hệ thống RAG phức tạp. Bắt đầu từ tài liệu sẵn
+            có và cấu hình chatbot thông minh phù hợp với đặc thù từng bài toán.
+          </p>
+        </header>
+
+        <section class="solutions" aria-label="Đối tượng sử dụng">
+          <article>
+            <div class="sol-badge">GIÁO DỤC & ĐÀO TẠO</div>
+            <h2>Trường học và cơ sở đào tạo</h2>
+            <p>
+              Tư vấn tuyển sinh, chương trình đào tạo, học phí và quy chế. Dùng
+              tài liệu của nhà trường làm nguồn trả lời chính xác, tránh thông tin sai lệch cho sinh viên và phụ huynh.
+            </p>
+          </article>
+          <article>
+            <div class="sol-badge">DOANH NGHIỆP</div>
+            <h2>Doanh nghiệp</h2>
+            <p>
+              Tra cứu thông tin sản phẩm, dịch vụ, chính sách bảo hành và tài liệu kỹ thuật. Hỗ trợ đội ngũ kinh doanh và chăm sóc khách hàng phản hồi tức thì.
+            </p>
+          </article>
+          <article>
+            <div class="sol-badge">HÀNH CHÍNH & NỘI BỘ</div>
+            <h2>Cơ quan và tổ chức</h2>
+            <p>
+              Xây dựng trợ lý tra cứu quy định pháp lý, quy trình nội bộ và công văn nghiệp vụ. Phân
+              chia workspace theo phòng ban giúp quản lý tài liệu an toàn và minh bạch.
+            </p>
+          </article>
+        </section>
+
+        <section class="deployment">
+          <h2>Định hướng triển khai linh hoạt</h2>
+          <div class="deployment-grid">
+            <article>
+              <h3>Đám mây SaaS tập trung</h3>
+              <p>
+                Dành cho nhu cầu triển khai nhanh trong 3 phút, không cần quản trị hạ tầng phần cứng.
+                Tự động sao lưu và cập nhật phiên bản RAG mới nhất.
+              </p>
+            </article>
+            <article>
+              <h3>Hạ tầng riêng On-premise</h3>
+              <p>
+                Đóng gói triển khai bằng Docker trên hạ tầng máy chủ của tổ chức. Kết nối mô hình
+                AI cục bộ (Ollama, vLLM, DeepSeek) đảm bảo 100% dữ liệu không rời khỏi mạng nội bộ.
+              </p>
+            </article>
+          </div>
+          <p class="note">
+            Phương án cụ thể được tối ưu theo dữ liệu, hạ tầng và cấu hình của từng tổ chức. Dịch vụ SaaS và widget nhúng website là định hướng phát triển chủ đạo của đề án RAGHub.
+          </p>
+        </section>
+
+        <div class="actions">
+          <a nz-button nzType="primary" routerLink="/lien-he" class="btn-glow">Trao đổi với DoubleT</a>
+          <a nz-button routerLink="/tinh-nang" class="btn-glass">Xem tính năng</a>
+        </div>
+
+        <!-- Cross-linking Hub -->
+        <section class="interlink-section" aria-label="Khám phá tiếp theo">
+          <h3 class="interlink-title">Liên kết khám phá các phần liên quan</h3>
+          <div class="interlink-grid">
+            <a routerLink="/tinh-nang" class="interlink-card">
+              <span class="interlink-tag tag-cyan">TÍNH NĂNG</span>
+              <h4>Khám phá công nghệ RAG</h4>
+              <p>Xem cách bóc tách đa định dạng PDF/Office và thuật toán Vector Search kết hợp BM25.</p>
+              <span class="interlink-arrow">Tìm hiểu tính năng →</span>
+            </a>
+            <a routerLink="/huong-dan" class="interlink-card">
+              <span class="interlink-tag tag-emerald">HƯỚNG DẪN</span>
+              <h4>Cách bắt đầu nhanh</h4>
+              <p>Các bước chuẩn bị tài liệu, lập chỉ mục và quản trị người dùng cho đơn vị.</p>
+              <span class="interlink-arrow">Xem cẩm nang →</span>
+            </a>
+            <a routerLink="/" class="interlink-card">
+              <span class="interlink-tag tag-blue">TRANG CHỦ</span>
+              <h4>Tổng quan nền tảng</h4>
+              <p>Quay lại trang giới thiệu và trải nghiệm mô phỏng quy trình xử lý dữ liệu.</p>
+              <span class="interlink-arrow">Về trang chủ →</span>
+            </a>
+          </div>
+        </section>
+      }
+
+      @case ("guide") {
+        <!-- Page: Hướng dẫn -->
+        <header class="guide-header">
+          <span class="eyebrow">BẮT ĐẦU VỚI RAGHUB</span>
+          <h1>Hướng dẫn theo vai trò của bạn</h1>
+          <p>
+            Chọn đúng vai trò để đi theo quy trình ngắn nhất. Quản trị viên thiết
+            lập hệ thống và phân quyền; người phụ trách nội dung quản lý tài liệu;
+            người dùng cuối đặt câu hỏi; đội kỹ thuật đưa chatbot lên website.
+          </p>
+          <nav class="guide-jump" aria-label="Chọn đối tượng sử dụng">
+            <a href="/huong-dan#system-admin">Quản trị hệ thống</a>
+            <a href="/huong-dan#workspace-admin">Quản trị workspace</a>
+            <a href="/huong-dan#content-user">Người quản lý nội dung</a>
+            <a href="/huong-dan#chat-user">Người tra cứu</a>
+            <a href="/huong-dan#web-integrator">Đội tích hợp website</a>
+          </nav>
+        </header>
+
+        <section class="quick-start" aria-labelledby="quick-start-title">
+          <div>
+            <span class="step-number">QUY TRÌNH CHUẨN</span>
+            <h2 id="quick-start-title">Luồng khởi tạo chuẩn</h2>
+          </div>
+          <ol>
+            <li><b>1. Kết nối AI</b><span>Đăng ký provider, model chat và model embedding.</span></li>
+            <li><b>2. Tạo workspace</b><span>Tách tri thức theo đơn vị, phòng ban hoặc nghiệp vụ.</span></li>
+            <li><b>3. Nạp tài liệu</b><span>Tải lên tài liệu và chờ trạng thái lập chỉ mục hoàn tất.</span></li>
+            <li><b>4. Kiểm tra câu trả lời</b><span>Chat thử, xem nguồn trích dẫn và điều chỉnh dữ liệu.</span></li>
+            <li><b>5. Tạo chatbot</b><span>Chọn model, cấu hình lời chào và phạm vi truy xuất.</span></li>
+            <li><b>6. Phát hành</b><span>Giới hạn origin rồi lấy mã nhúng cho website.</span></li>
+          </ol>
+        </section>
+
+        <section class="persona-guides" aria-label="Hướng dẫn chi tiết theo vai trò">
+          <article id="system-admin">
+            <div class="persona-title"><span>01</span><div><p>THIẾT LẬP & VẬN HÀNH</p><h2>Quản trị hệ thống</h2></div></div>
+            <p class="persona-summary">Dành cho người chịu trách nhiệm tài khoản, AI provider và cấu trúc toàn hệ thống.</p>
+            <ol>
+              <li>Vào <b>Hệ thống → AI Providers</b>, thêm provider và kiểm tra kết nối.</li>
+              <li>Đăng ký model chat và embedding; với Sentence Transformer, chọn model chạy cục bộ phù hợp.</li>
+              <li>Tạo workspace tại <b>Workspaces</b>, đặt tên theo đơn vị hoặc miền tri thức.</li>
+              <li>Vào <b>Hệ thống → Người dùng</b> để tạo tài khoản quản trị workspace.</li>
+              <li>Chỉ cấp đúng workspace và quyền cần dùng; rà soát lại khi nhân sự đổi nhiệm vụ.</li>
+            </ol>
+            <aside><b>Hoàn thành khi:</b> provider kết nối thành công, workspace đã có quản trị viên và model sẵn sàng để chọn.</aside>
+          </article>
+
+          <article id="workspace-admin">
+            <div class="persona-title"><span>02</span><div><p>QUẢN LÝ KHÔNG GIAN TRI THỨC</p><h2>Quản trị workspace</h2></div></div>
+            <p class="persona-summary">Dành cho trưởng nhóm hoặc người sở hữu một miền dữ liệu như tuyển sinh, sản phẩm hay quy trình nội bộ.</p>
+            <ol>
+              <li>Mở workspace và kiểm tra mục <b>Tổng quan</b>, AI và quyền thành viên.</li>
+              <li>Tại <b>AI</b>, chọn embedding model trước khi lập chỉ mục tài liệu.</li>
+              <li>Thêm thành viên, cấp riêng các quyền xem, tải lên, lập chỉ mục, chat hoặc quản lý thành viên.</li>
+              <li>Theo dõi chất lượng tài liệu và yêu cầu lập chỉ mục lại sau thay đổi lớn.</li>
+              <li>Tạo chatbot, kiểm tra trong trang Chat rồi mới phát hành công khai.</li>
+            </ol>
+            <aside><b>Không nên:</b> đổi embedding model thường xuyên vì tài liệu cần được lập chỉ mục lại để giữ cùng không gian vector.</aside>
+          </article>
+
+          <article id="content-user">
+            <div class="persona-title"><span>03</span><div><p>CHUẨN HÓA DỮ LIỆU</p><h2>Người quản lý nội dung</h2></div></div>
+            <p class="persona-summary">Dành cho người cập nhật quy định, FAQ, tài liệu sản phẩm hoặc tài liệu đào tạo.</p>
+            <ol>
+              <li>Chuẩn bị PDF, DOCX, XLSX hoặc PPTX có tiêu đề và nội dung rõ ràng.</li>
+              <li>Vào <b>Tài liệu → Tải tài liệu</b>, chọn đúng workspace và tải file lên.</li>
+              <li>Chờ trạng thái xử lý hoàn tất; nếu lỗi, kiểm tra định dạng hoặc thử lại với file nhỏ hơn.</li>
+              <li>Dùng trang <b>Chat</b> hỏi các câu thực tế và kiểm tra nguồn trích dẫn.</li>
+              <li>Xóa hoặc thay thế phiên bản cũ để tránh hai nguồn có nội dung mâu thuẫn.</li>
+            </ol>
+            <aside><b>Mẹo chất lượng:</b> mỗi tài liệu nên có ngày hiệu lực, đơn vị ban hành và các đề mục cụ thể để câu trả lời dễ truy xuất đúng.</aside>
+          </article>
+
+          <article id="chat-user">
+            <div class="persona-title"><span>04</span><div><p>HỎI ĐÁP TRÊN TRI THỨC</p><h2>Người tra cứu</h2></div></div>
+            <p class="persona-summary">Dành cho nhân viên, sinh viên hoặc khách truy cập cần tìm câu trả lời từ tài liệu đã được duyệt.</p>
+            <ol>
+              <li>Chọn đúng workspace hoặc chatbot đúng chủ đề.</li>
+              <li>Đặt câu hỏi cụ thể, nêu đối tượng, thời gian hoặc trường hợp cần áp dụng.</li>
+              <li>Đọc nguồn trích dẫn đi kèm trước khi dùng câu trả lời cho quyết định quan trọng.</li>
+              <li>Nếu câu trả lời chưa đủ, hỏi tiếp để làm rõ hoặc báo người quản lý bổ sung tài liệu.</li>
+            </ol>
+            <aside><b>Ví dụ tốt:</b> “Hồ sơ tuyển sinh hệ chính quy năm 2026 gồm những giấy tờ nào?” rõ hơn “Cần giấy tờ gì?”.</aside>
+          </article>
+
+          <article id="web-integrator">
+            <div class="persona-title"><span>05</span><div><p>PHÁT HÀNH CHATBOT</p><h2>Đội tích hợp website</h2></div></div>
+            <p class="persona-summary">Dành cho người đưa chatbot đã kiểm thử lên website chính thức.</p>
+            <ol>
+              <li>Mở cấu hình chatbot, nhập chính xác các <b>Allowed Origins</b> sử dụng HTTPS.</li>
+              <li>Phát hành chatbot và sao chép mã nhúng; embed key phải được xem như một thông tin truy cập.</li>
+              <li>Đặt script trước thẻ đóng <code>&lt;/body&gt;</code> và kiểm tra trên domain đã cho phép.</li>
+              <li>Khi key bị lộ, chọn rotate key và cập nhật mã nhúng trên mọi website đang dùng.</li>
+              <li>Không ghi embed key vào ticket công khai, ảnh chụp màn hình hoặc log ứng dụng.</li>
+            </ol>
+            <aside><b>Kiểm tra trước khi mở thật:</b> origin hợp lệ, câu hỏi thử có nguồn, giao diện mobile dùng được và key cũ đã bị gỡ.</aside>
+          </article>
+        </section>
+
+        <section class="guide-help">
+          <div>
+            <span class="eyebrow">CẦN HỖ TRỢ KỸ THUẬT?</span>
+            <h2>Bắt đầu từ bài toán của tổ chức</h2>
+            <p>Nếu chưa rõ cách chia workspace, chọn model hoặc chuẩn hóa tài liệu, hãy trao đổi trực tiếp với chúng tôi để nhận tư vấn phù hợp nhất.</p>
+          </div>
+          <a nz-button nzType="primary" routerLink="/lien-he" class="btn-glow">Liên hệ DoubleT</a>
+        </section>
+
+        <!-- Cross-linking Hub -->
+        <section class="interlink-section" aria-label="Khám phá tiếp theo">
+          <h3 class="interlink-title">Các trang liên quan khác</h3>
+          <div class="interlink-grid">
+            <a routerLink="/tinh-nang" class="interlink-card">
+              <span class="interlink-tag tag-cyan">TÍNH NĂNG</span>
+              <h4>Thông số & Năng lực</h4>
+              <p>Xem toàn bộ tính năng trích xuất, lập chỉ mục và quản lý tri thức.</p>
+              <span class="interlink-arrow">Xem tính năng →</span>
+            </a>
+            <a routerLink="/giai-phap" class="interlink-card">
+              <span class="interlink-tag tag-blue">GIẢI PHÁP</span>
+              <h4>Ứng dụng chuyên ngành</h4>
+              <p>Các phương án triển khai cho trường đại học, bệnh viện và doanh nghiệp.</p>
+              <span class="interlink-arrow">Khám phá giải pháp →</span>
+            </a>
+            <a routerLink="/auth" class="interlink-card">
+              <span class="interlink-tag tag-purple">TRẢI NGHIỆM</span>
+              <h4>Đăng nhập hệ thống</h4>
+              <p>Truy cập vào bảng điều khiển quản trị hoặc tạo workspace thử nghiệm.</p>
+              <span class="interlink-arrow">Vào hệ thống →</span>
+            </a>
+          </div>
+        </section>
+      }
+
+      @case ("contact") {
+        <!-- Page: Liên hệ -->
+        <header>
+          <span class="eyebrow">KẾT NỐI VỚI CHÚNG TÔI</span>
+          <h1>Liên hệ đội DoubleT</h1>
+          <p>
+            Trao đổi về RAGHub, bài toán quản trị tri thức của tổ chức hoặc gửi góp ý để chúng tôi cải thiện sản phẩm ngày càng tốt hơn.
+          </p>
+        </header>
+
+        <section class="contact-grid" aria-label="Thông tin liên hệ">
+          <article class="contact contact-team-card">
+            <h2>Đội phát triển</h2>
+            <dl>
+              <dt>Họ tên</dt>
+              <dd>Đồng Văn Tú</dd>
+              <dt>Gmail</dt>
+              <dd>
+                <a href="mailto:khactu731@gmail.com">khactu731@gmail.com</a>
+              </dd>
+              <dt>Họ tên</dt>
+              <dd>Nguyễn Mạnh Thi</dd>
+              <dt>Gmail</dt>
+              <dd>
+                <a href="mailto:manhthi205@gmail.com">manhthi205@gmail.com</a>
+              </dd>
+            </dl>
+          </article>
+
+          <article class="contact contact-info-card">
+            <h2>Hỗ trợ & Hợp tác</h2>
+            <p>
+              Chúng tôi luôn sẵn sàng hỗ trợ bạn thiết lập thử nghiệm, kết nối hệ thống dữ liệu nội bộ và tư vấn kiến trúc triển khai an toàn.
+            </p>
+            <div class="contact-links-list">
+              <div class="contact-item">
+                <span class="contact-label">Đề án:</span>
+                <span class="contact-val">RAGHub Enterprise Knowledge Hub</span>
+              </div>
+              <div class="contact-item">
+                <span class="contact-label">Thời gian phản hồi:</span>
+                <span class="contact-val">Trong vòng 24 giờ làm việc</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- Cross-linking Hub -->
+        <section class="interlink-section" aria-label="Khám phá tiếp theo">
+          <h3 class="interlink-title">Khám phá nhanh các tài nguyên khác</h3>
+          <div class="interlink-grid">
+            <a routerLink="/" class="interlink-card">
+              <span class="interlink-tag tag-blue">TRANG CHỦ</span>
+              <h4>Giới thiệu nền tảng</h4>
+              <p>Mô phỏng quy trình xử lý dữ liệu và trải nghiệm giao diện chính.</p>
+              <span class="interlink-arrow">Về trang chủ →</span>
+            </a>
+            <a routerLink="/tinh-nang" class="interlink-card">
+              <span class="interlink-tag tag-cyan">TÍNH NĂNG</span>
+              <h4>Tính năng toàn diện</h4>
+              <p>Bóc tách 4 định dạng tài liệu, hybrid vector search và tích hợp LLM.</p>
+              <span class="interlink-arrow">Xem tính năng →</span>
+            </a>
+            <a routerLink="/giai-phap" class="interlink-card">
+              <span class="interlink-tag tag-purple">GIẢI PHÁP</span>
+              <h4>Mô hình triển khai</h4>
+              <p>Triển khai SaaS hoặc On-premise đảm bảo chủ quyền dữ liệu.</p>
+              <span class="interlink-arrow">Xem giải pháp →</span>
+            </a>
+            <a routerLink="/huong-dan" class="interlink-card">
+              <span class="interlink-tag tag-emerald">HƯỚNG DẪN</span>
+              <h4>Cẩm nang sử dụng</h4>
+              <p>Hướng dẫn chi tiết theo 5 nhóm đối tượng người dùng.</p>
+              <span class="interlink-arrow">Xem hướng dẫn →</span>
+            </a>
+          </div>
+        </section>
+      }
+    }
+  </div>
+
+  <!-- Unified Modern Footer -->
+  <footer class="landing-footer">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="brand-row">
+          <img src="assets/logo.png" alt="RAGHub" width="28" height="28" />
+          <span class="brand-title">RAGHub</span>
+        </div>
+        <p class="brand-desc">Nền tảng Enterprise RAG & Quản lý tri thức Chatbot AI hàng đầu cho tổ chức.</p>
       </div>
-    }
-    @case ("guide") {
-      <header class="guide-header">
-        <span class="eyebrow">BẮT ĐẦU VỚI RAGHUB</span>
-        <h1>Hướng dẫn theo vai trò của bạn</h1>
-        <p>
-          Chọn đúng vai trò để đi theo quy trình ngắn nhất. Quản trị viên thiết
-          lập hệ thống và phân quyền; người phụ trách nội dung quản lý tài liệu;
-          người dùng cuối đặt câu hỏi; đội kỹ thuật đưa chatbot lên website.
-        </p>
-        <nav class="guide-jump" aria-label="Chọn đối tượng sử dụng">
-          <a href="/huong-dan#system-admin">Quản trị hệ thống</a>
-          <a href="/huong-dan#workspace-admin">Quản trị workspace</a>
-          <a href="/huong-dan#content-user">Người quản lý nội dung</a>
-          <a href="/huong-dan#chat-user">Người tra cứu</a>
-          <a href="/huong-dan#web-integrator">Đội tích hợp website</a>
-        </nav>
-      </header>
 
-      <section class="quick-start" aria-labelledby="quick-start-title">
-        <div>
-          <span class="step-number">01</span>
-          <h2 id="quick-start-title">Luồng khởi tạo chuẩn</h2>
+      <div class="footer-links">
+        <div class="links-group">
+          <h5>Sản phẩm</h5>
+          <a routerLink="/">Trang chủ</a>
+          <a routerLink="/tinh-nang">Tính năng</a>
+          <a routerLink="/giai-phap">Giải pháp</a>
+          <a routerLink="/huong-dan">Hướng dẫn</a>
         </div>
-        <ol>
-          <li><b>Kết nối AI</b><span>Đăng ký provider, model chat và model embedding.</span></li>
-          <li><b>Tạo workspace</b><span>Tách tri thức theo đơn vị, phòng ban hoặc nghiệp vụ.</span></li>
-          <li><b>Nạp tài liệu</b><span>Tải lên tài liệu và chờ trạng thái lập chỉ mục hoàn tất.</span></li>
-          <li><b>Kiểm tra câu trả lời</b><span>Chat thử, xem nguồn trích dẫn và điều chỉnh dữ liệu.</span></li>
-          <li><b>Tạo chatbot</b><span>Chọn model, cấu hình lời chào và phạm vi truy xuất.</span></li>
-          <li><b>Phát hành</b><span>Giới hạn origin rồi lấy mã nhúng cho website.</span></li>
-        </ol>
-      </section>
+        <div class="links-group">
+          <h5>Hỗ trợ</h5>
+          <a routerLink="/lien-he">Liên hệ hỗ trợ</a>
+          <a routerLink="/auth">Đăng nhập hệ thống</a>
+        </div>
+      </div>
+    </div>
 
-      <section class="persona-guides" aria-label="Hướng dẫn chi tiết theo vai trò">
-        <article id="system-admin">
-          <div class="persona-title"><span>01</span><div><p>THIẾT LẬP & VẬN HÀNH</p><h2>Quản trị hệ thống</h2></div></div>
-          <p class="persona-summary">Dành cho người chịu trách nhiệm tài khoản, AI provider và cấu trúc toàn hệ thống.</p>
-          <ol>
-            <li>Vào <b>Hệ thống → AI Providers</b>, thêm provider và kiểm tra kết nối.</li>
-            <li>Đăng ký model chat và embedding; với Sentence Transformer, chọn model chạy cục bộ phù hợp.</li>
-            <li>Tạo workspace tại <b>Workspaces</b>, đặt tên theo đơn vị hoặc miền tri thức.</li>
-            <li>Vào <b>Hệ thống → Người dùng</b> để tạo tài khoản quản trị workspace.</li>
-            <li>Chỉ cấp đúng workspace và quyền cần dùng; rà soát lại khi nhân sự đổi nhiệm vụ.</li>
-          </ol>
-          <aside><b>Hoàn thành khi:</b> provider kết nối thành công, workspace đã có quản trị viên và model sẵn sàng để chọn.</aside>
-        </article>
-
-        <article id="workspace-admin">
-          <div class="persona-title"><span>02</span><div><p>QUẢN LÝ KHÔNG GIAN TRI THỨC</p><h2>Quản trị workspace</h2></div></div>
-          <p class="persona-summary">Dành cho trưởng nhóm hoặc người sở hữu một miền dữ liệu như tuyển sinh, sản phẩm hay quy trình nội bộ.</p>
-          <ol>
-            <li>Mở workspace và kiểm tra mục <b>Tổng quan</b>, AI và quyền thành viên.</li>
-            <li>Tại <b>AI</b>, chọn embedding model trước khi lập chỉ mục tài liệu.</li>
-            <li>Thêm thành viên, cấp riêng các quyền xem, tải lên, lập chỉ mục, chat hoặc quản lý thành viên.</li>
-            <li>Theo dõi chất lượng tài liệu và yêu cầu lập chỉ mục lại sau thay đổi lớn.</li>
-            <li>Tạo chatbot, kiểm tra trong trang Chat rồi mới phát hành công khai.</li>
-          </ol>
-          <aside><b>Không nên:</b> đổi embedding model thường xuyên vì tài liệu cần được lập chỉ mục lại để giữ cùng không gian vector.</aside>
-        </article>
-
-        <article id="content-user">
-          <div class="persona-title"><span>03</span><div><p>CHUẨN HÓA DỮ LIỆU</p><h2>Người quản lý nội dung</h2></div></div>
-          <p class="persona-summary">Dành cho người cập nhật quy định, FAQ, tài liệu sản phẩm hoặc tài liệu đào tạo.</p>
-          <ol>
-            <li>Chuẩn bị PDF, DOCX, XLSX hoặc PPTX có tiêu đề và nội dung rõ ràng.</li>
-            <li>Vào <b>Tài liệu → Tải tài liệu</b>, chọn đúng workspace và tải file lên.</li>
-            <li>Chờ trạng thái xử lý hoàn tất; nếu lỗi, kiểm tra định dạng hoặc thử lại với file nhỏ hơn.</li>
-            <li>Dùng trang <b>Chat</b> hỏi các câu thực tế và kiểm tra nguồn trích dẫn.</li>
-            <li>Xóa hoặc thay thế phiên bản cũ để tránh hai nguồn có nội dung mâu thuẫn.</li>
-          </ol>
-          <aside><b>Mẹo chất lượng:</b> mỗi tài liệu nên có ngày hiệu lực, đơn vị ban hành và các đề mục cụ thể để câu trả lời dễ truy xuất đúng.</aside>
-        </article>
-
-        <article id="chat-user">
-          <div class="persona-title"><span>04</span><div><p>HỎI ĐÁP TRÊN TRI THỨC</p><h2>Người tra cứu</h2></div></div>
-          <p class="persona-summary">Dành cho nhân viên, sinh viên hoặc khách truy cập cần tìm câu trả lời từ tài liệu đã được duyệt.</p>
-          <ol>
-            <li>Chọn đúng workspace hoặc chatbot đúng chủ đề.</li>
-            <li>Đặt câu hỏi cụ thể, nêu đối tượng, thời gian hoặc trường hợp cần áp dụng.</li>
-            <li>Đọc nguồn trích dẫn đi kèm trước khi dùng câu trả lời cho quyết định quan trọng.</li>
-            <li>Nếu câu trả lời chưa đủ, hỏi tiếp để làm rõ hoặc báo người quản lý bổ sung tài liệu.</li>
-          </ol>
-          <aside><b>Ví dụ tốt:</b> “Hồ sơ tuyển sinh hệ chính quy năm 2026 gồm những giấy tờ nào?” rõ hơn “Cần giấy tờ gì?”.</aside>
-        </article>
-
-        <article id="web-integrator">
-          <div class="persona-title"><span>05</span><div><p>PHÁT HÀNH CHATBOT</p><h2>Đội tích hợp website</h2></div></div>
-          <p class="persona-summary">Dành cho người đưa chatbot đã kiểm thử lên website chính thức.</p>
-          <ol>
-            <li>Mở cấu hình chatbot, nhập chính xác các <b>Allowed Origins</b> sử dụng HTTPS.</li>
-            <li>Phát hành chatbot và sao chép mã nhúng; embed key phải được xem như một thông tin truy cập.</li>
-            <li>Đặt script trước thẻ đóng <code>&lt;/body&gt;</code> và kiểm tra trên domain đã cho phép.</li>
-            <li>Khi key bị lộ, chọn rotate key và cập nhật mã nhúng trên mọi website đang dùng.</li>
-            <li>Không ghi embed key vào ticket công khai, ảnh chụp màn hình hoặc log ứng dụng.</li>
-          </ol>
-          <aside><b>Kiểm tra trước khi mở thật:</b> origin hợp lệ, câu hỏi thử có nguồn, giao diện mobile dùng được và key cũ đã bị gỡ.</aside>
-        </article>
-      </section>
-
-      <section class="guide-help">
-        <div><span class="eyebrow">CẦN HỖ TRỢ?</span><h2>Bắt đầu từ bài toán của tổ chức</h2><p>Nếu chưa rõ cách chia workspace, chọn model hoặc chuẩn hóa tài liệu, hãy mô tả nguồn dữ liệu và nhóm người dùng cần phục vụ.</p></div>
-        <a nz-button nzType="primary" routerLink="/lien-he">Liên hệ DoubleT</a>
-      </section>
-    }
-    @case ("contact") {
-      <header>
-        <h1>Liên hệ đội DoubleT</h1>
-        <p>
-          Trao đổi về RAGHub, bài toán tri thức của tổ chức hoặc góp ý cho sản
-          phẩm.
-        </p>
-      </header>
-      <section class="contact-grid" aria-label="Thông tin liên hệ">
-        <article class="contact">
-          <h2>Đội phát triển</h2>
-          <dl>
-            <dt>Họ tên</dt>
-            <dd>Đồng Văn Tú</dd>
-            <dt>Gmail</dt>
-            <dd>
-              <a href="mailto:khactu731@gmail.com">khactu731@gmail.com</a>
-            </dd>
-            <dt>Họ tên</dt>
-            <dd>Nguyễn Mạnh Thi</dd>
-            <dt>Gmail</dt>
-            <dd>
-              <a href="mailto:manhthi205@gmail.com">manhthi205@gmail.com</a>
-            </dd>
-          </dl>
-        </article>
-      </section>
-    }
-  }
-  <footer>
-    <a routerLink="/">RAGHub</a
-    ><span>Nền tảng chatbot trên tri thức riêng · DoubleT</span>
+    <div class="footer-bottom">
+      <div class="footer-status">
+        <span class="status-pulse-dot"></span>
+        <span>Hệ thống hoạt động bình thường (99.9% Uptime)</span>
+      </div>
+      <div class="footer-copy">
+        © 2026 RAGHub Platform · Đội ngũ phát triển DoubleT. Nền tảng Chatbot AI & Quản lý tri thức doanh nghiệp.
+      </div>
+    </div>
   </footer>
 </main>

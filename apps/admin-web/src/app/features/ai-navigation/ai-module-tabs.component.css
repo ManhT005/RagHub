@@ -1,0 +1,5 @@
+:host { display: block; }
+.ai-module-tabs { display: flex; gap: 4px; margin: 4px 0 24px; overflow-x: auto; border-bottom: 1px solid var(--rh-border); }
+.module-tab.ant-btn { height: 40px; padding: 0 16px; color: var(--rh-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 8px 8px 0 0; box-shadow: none; }
+.module-tab.ant-btn:hover { color: var(--rh-primary); background: var(--rh-hover); }
+.module-tab.ant-btn.active { color: var(--rh-primary); background: var(--rh-surface); border-bottom-color: var(--rh-primary); font-weight: 600; }

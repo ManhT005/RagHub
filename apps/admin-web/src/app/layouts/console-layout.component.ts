@@ -21,6 +21,7 @@ import { NzMenuModule } from "ng-zorro-antd/menu";
 import { HttpErrorResponse } from "@angular/common/http";
 import { AuthSessionService } from "../core/auth-session.service";
 import { consoleOrganization } from "../core/console-organization";
+import { ThemeService } from "../core/theme.service";
 import { WorkspaceContextStore } from "../core/workspace-context/workspace-context.store";
 import {
   type Organization,
@@ -55,7 +56,8 @@ export class ConsoleLayoutComponent {
   protected readonly accountError = signal("");
   protected readonly accountMenuOpen = signal(false);
   protected readonly sidebarCollapsed = signal(false);
-  protected readonly darkMode = signal(false);
+  private readonly theme = inject(ThemeService);
+  protected readonly darkMode = this.theme.darkMode;
   protected readonly userLabel = computed(
     () => this.user()?.email ?? "Đang tải tài khoản…",
   );
@@ -68,12 +70,6 @@ export class ConsoleLayoutComponent {
   private readonly router = inject(Router);
 
   constructor() {
-    const storedTheme = localStorage.getItem("raghub-theme");
-    const prefersDark =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-    this.darkMode.set(storedTheme ? storedTheme === "dark" : prefersDark);
-    this.applyTheme();
     this.api.organizations().subscribe({
       next: (organizations) => this.organizations.set(organizations),
       error: () => this.organizations.set([]),
@@ -97,15 +93,7 @@ export class ConsoleLayoutComponent {
   }
 
   protected toggleTheme(): void {
-    this.darkMode.update((isDark) => !isDark);
-    localStorage.setItem("raghub-theme", this.darkMode() ? "dark" : "light");
-    this.applyTheme();
-  }
-
-  private applyTheme(): void {
-    document.documentElement.dataset["theme"] = this.darkMode()
-      ? "dark"
-      : "light";
+    this.theme.toggleTheme();
   }
 
   protected toggleAccountMenu(): void {
