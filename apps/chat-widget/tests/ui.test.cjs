@@ -49,12 +49,14 @@ test('SSE text is rendered without exposing source details in the public widget'
   }));
   const { dom, root, window, requests } = await setup(() => response(
     frame('conversation', { conversation_id: 'conversation-1' }) +
-    frame('citations', { citations }) + frame('token', { text: 'Câu trả lời tiếng Việt.' }) + frame('done', {})
+    frame('citations', { citations }) + frame('token', { text: '**Câu trả lời tiếng Việt** [C1]\n* Nội dung quan trọng (C2)' }) + frame('done', {})
   ));
   ask(root, window);
   await tick(); await tick();
   assert.equal(root.querySelectorAll('.typing').length, 0);
-  assert.match(root.textContent, /Câu trả lời tiếng Việt/);
+  assert.equal(root.querySelector('strong')?.textContent, 'Câu trả lời tiếng Việt');
+  assert.match(root.textContent, /• Nội dung quan trọng/);
+  assert.doesNotMatch(root.textContent, /\*\*|\[C1\]|\(C2\)/);
   assert.equal(root.querySelector('details'), null);
   assert.doesNotMatch(root.textContent, /Tài liệu rất dài|Trang 1|private-uuid|0\.8/);
   assert.equal(requests[1].url, 'http://192.168.1.50:8080/api/v1/public/chatbots/rgh_test/chat');
