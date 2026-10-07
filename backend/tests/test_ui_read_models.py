@@ -146,6 +146,7 @@ async def test_document_detail_and_download_do_not_expose_storage_key():
         list_document_jobs=AsyncMock(return_value={document.id: (version, job)}),
         embedding_snapshot=AsyncMock(return_value=snapshot),
         active_metadata=AsyncMock(return_value={version.id: version}),
+        embedding_work_items=AsyncMock(return_value={}),
         find_document=AsyncMock(return_value=document),
         latest_version=AsyncMock(return_value=version),
     )

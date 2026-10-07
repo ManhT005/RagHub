@@ -2,6 +2,26 @@ import { HttpClient } from "@angular/common/http";
 import { Injectable, inject } from "@angular/core";
 import { Workspace, WorkspaceProviderBinding } from "../raghub-api.service";
 
+export interface EmbeddingExecutionPreference {
+  profile: "conservative" | "balanced" | "fast" | "custom" | null;
+  max_inflight_requests?: number | null;
+  batch_max_chunks?: number | null;
+  batch_target_tokens?: number | null;
+  retry_max_attempts?: number | null;
+  retry_delay_seconds?: number | null;
+}
+export interface EmbeddingRuntimePolicy {
+  profile: string;
+  preference: Partial<EmbeddingExecutionPreference>;
+  effective_max_inflight: number;
+  effective_batch_chunks: number;
+  effective_batch_tokens: number;
+  limited_by: string;
+  local: boolean;
+  max_allowed_inflight: number;
+  max_allowed_batch_chunks: number;
+  max_allowed_batch_tokens: number;
+}
 export interface EmbeddingProfile {
   provider_catalog_id: string | null;
   id: string;
@@ -81,6 +101,12 @@ export const REINDEX_TERMINAL = [
 @Injectable({ providedIn: "root" })
 export class WorkspaceApiService {
   private readonly http = inject(HttpClient);
+  embeddingRuntime(id: string) {
+    return this.http.get<EmbeddingRuntimePolicy>(`/api/v1/workspaces/${id}/embedding-runtime`);
+  }
+  changeEmbeddingRuntime(id: string, preference: EmbeddingExecutionPreference) {
+    return this.http.patch<EmbeddingRuntimePolicy>(`/api/v1/workspaces/${id}/embedding-runtime`, preference);
+  }
   list() {
     return this.http.get<WorkspaceSummary[]>("/api/v1/workspaces");
   }

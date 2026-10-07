@@ -25,16 +25,29 @@ parse_document = DocumentParser(telemetry=LoggingTelemetry()).parse
 
 
 class WorkerContainer:
-    def __init__(self, session, settings=None, *, quota: EmbeddingQuotaPort | None = None):
+    def __init__(
+        self,
+        session,
+        settings=None,
+        *,
+        quota: EmbeddingQuotaPort | None = None,
+        defer_uploads=False,
+    ):
         self.session = session
         self.settings = settings or get_settings()
         self.quota = quota
+        self.defer_uploads = defer_uploads
 
     def builder(self):
         storage = MinioObjectStorage(self.settings)
         telemetry = LoggingTelemetry()
         embeddings = ResumableEmbedding(
-            self.session, storage, self.settings, self.quota, telemetry=telemetry
+            self.session,
+            storage,
+            self.settings,
+            self.quota,
+            telemetry=telemetry,
+            defer_uploads=self.defer_uploads,
         )
         return MetadataIndexBuilder(
             BuildDocumentIndexUseCase(

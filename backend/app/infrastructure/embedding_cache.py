@@ -34,6 +34,13 @@ class EmbeddingCache:
         if self.telemetry is not None:
             self.telemetry.counter("embedding_cache_hits", {}, len(vectors))
             self.telemetry.counter("embedding_cache_misses", {}, len(missing))
+            gauge = getattr(self.telemetry, "gauge", None)
+            if gauge:
+                gauge(
+                    "embedding_cache_hit_ratio",
+                    len(vectors) / max(1, len(vectors) + len(missing)),
+                    {},
+                )
             saved = [text for text in texts if text in vectors]
             duplicates = len(texts) - len(set(texts))
             self.telemetry.counter("embedding_cache_duplicate_chunks", {}, duplicates)

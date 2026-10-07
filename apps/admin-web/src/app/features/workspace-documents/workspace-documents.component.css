@@ -184,6 +184,14 @@
   background: var(--rh-surface-soft);
 }
 
+.processing-wait {
+  margin-top: 6px;
+  color: var(--rh-text-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.chunk-progress { margin-top: 4px; font-variant-numeric: tabular-nums; }
+
 .pdf-preview {
   width: 100%;
   min-height: 60vh;

@@ -191,6 +191,31 @@ class DocumentRepository:
             )
         )
 
+    async def embedding_work_items(self, organization_id, workspace_id):
+        from app.modules.ai_providers.models import EmbeddingIndexVersion, EmbeddingWorkItem
+
+        rows = await self.session.scalars(
+            select(EmbeddingWorkItem)
+            .join(
+                EmbeddingIndexVersion,
+                EmbeddingIndexVersion.index_name == EmbeddingWorkItem.index_name,
+            )
+            .join(
+                Workspace, Workspace.active_embedding_index_version_id == EmbeddingIndexVersion.id
+            )
+            .where(
+                EmbeddingWorkItem.organization_id == organization_id,
+                EmbeddingWorkItem.workspace_id == workspace_id,
+                Workspace.id == workspace_id,
+                EmbeddingWorkItem.kind.in_(["upload", "recovery"]),
+            )
+            .order_by(EmbeddingWorkItem.created_at.desc())
+        )
+        result = {}
+        for item in rows:
+            result.setdefault(item.document_version_id, item)
+        return result
+
     async def active_metadata(self, organization_id, workspace_id, document_id=None):
         statement = (
             select(DocumentIndexMetadata)
