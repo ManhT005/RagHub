@@ -57,7 +57,7 @@ async def test_migrations_reconcile_branch_histories(isolated_engine, tmp_path, 
         config.set_main_option("script_location", str(BACKEND / "alembic"))
         await connection.run_sync(upgrade, config)
         head = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-        assert head == "20261006_0032"
+        assert head == "20261007_0033"
         assert (
             await connection.scalar(
                 text(

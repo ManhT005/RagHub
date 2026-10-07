@@ -1,5 +1,5 @@
 type EventPayload = Record<string, unknown>;
-type WidgetConfig = { primary_color: string; title: string; greeting: string };
+type WidgetConfig = { primary_color: string; title: string; greeting: string; logo_data?: string | null };
 
 (() => {
   const loaderScript = document.currentScript as HTMLScriptElement | null;
@@ -63,7 +63,7 @@ type WidgetConfig = { primary_color: string; title: string; greeting: string };
         *,*::before,*::after{box-sizing:border-box}button,textarea{font:inherit}button{cursor:pointer;touch-action:manipulation;display:inline-flex;align-items:center;justify-content:center}button:disabled{cursor:not-allowed;opacity:.5}button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #5177bf;outline-offset:3px}svg{display:block;flex-shrink:0}
         .fab{position:relative;width:56px;height:56px;border:0;border-radius:50%;background:var(--rgh);color:var(--rgh-fg);box-shadow:0 8px 24px #16396440;float:right;transition:box-shadow .18s}.fab:hover{box-shadow:0 10px 30px #16396460}.fab svg{width:26px;height:26px}.warning-dot{position:absolute;right:2px;top:2px;width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:#b45309}.spinner{width:22px;height:22px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
         .panel{display:none;width:380px;height:min(620px,calc(100vh - 100px));height:min(620px,calc(100dvh - 100px));margin-bottom:14px;background:#fff;border:1px solid #dce5f1;border-radius:20px;overflow:hidden;box-shadow:0 20px 64px #12315a2e;flex-direction:column}.panel.open{display:flex}
-        .head{padding:14px 12px;flex-shrink:0;background:var(--rgh);color:var(--rgh-fg);display:flex;align-items:center;gap:10px}.brand-avatar{display:flex;align-items:center;justify-content:center;border-radius:12px;background:color-mix(in srgb,currentColor 12%,transparent);width:36px;height:36px;flex-shrink:0}.heading{flex:1;min-width:0}.heading h2{font-size:15px;line-height:1.3;margin:0;font-weight:650;overflow-wrap:anywhere}.subtitle{display:flex;align-items:center;gap:5px;font-size:12px;margin-top:4px}.ready-dot{width:6px;height:6px;border-radius:50%;background:currentColor}.head button{background:transparent;border:0;color:inherit;border-radius:8px;width:32px;height:36px;flex-shrink:0}.head button:hover{background:color-mix(in srgb,currentColor 12%,transparent)}.head button svg{width:18px;height:18px}
+        .head{padding:14px 12px;flex-shrink:0;background:var(--rgh);color:var(--rgh-fg);display:flex;align-items:center;gap:10px}.brand-avatar{display:flex;align-items:center;justify-content:center;border-radius:12px;background:color-mix(in srgb,currentColor 12%,transparent);width:36px;height:36px;flex-shrink:0;overflow:hidden}.brand-avatar img{width:100%;height:100%;object-fit:cover}.heading{flex:1;min-width:0}.heading h2{font-size:15px;line-height:1.3;margin:0;font-weight:650;overflow-wrap:anywhere}.subtitle{display:flex;align-items:center;gap:5px;font-size:12px;margin-top:4px}.ready-dot{width:6px;height:6px;border-radius:50%;background:currentColor}.head button{background:transparent;border:0;color:inherit;border-radius:8px;width:32px;height:36px;flex-shrink:0}.head button:hover{background:color-mix(in srgb,currentColor 12%,transparent)}.head button svg{width:18px;height:18px}
         .history{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:18px 14px;background:#f6f8fc;scrollbar-width:thin;scrollbar-color:#8b9bb780 transparent}.history::-webkit-scrollbar{width:7px}.history::-webkit-scrollbar-track{background:transparent}.history::-webkit-scrollbar-thumb{background:#8b9bb748;border-radius:999px}.history::-webkit-scrollbar-button{display:none;width:0;height:0}
         .message{display:flex;align-items:flex-start;gap:8px;margin-bottom:16px;max-width:92%}.message.user{margin-left:auto;max-width:82%;justify-content:flex-end}.avatar{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex-shrink:0;margin-top:5px;color:#324d7a}.avatar svg{width:22px;height:22px}.msg{min-width:0;padding:11px 13px;border-radius:4px 14px 14px 14px;background:#fff;border:1px solid #e0e7f1;overflow-wrap:anywhere}.user .msg{border:0;border-radius:14px 14px 4px 14px;background:var(--rgh);color:var(--rgh-fg)}.message-text{white-space:pre-wrap}.typing{display:flex;gap:4px;padding:8px 0}.typing i{width:5px;height:5px;border-radius:50%;background:#647695;animation:pulse 1.2s ease-in-out infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
         .status{flex-shrink:0;padding:0 16px;color:#4f6483;font-size:12px;margin:0}.status:not(:empty){padding-top:6px;padding-bottom:8px}.composer{display:flex;align-items:flex-end;gap:8px;margin:10px 12px 12px;padding:4px;border:1px solid #d5dfed;border-radius:14px;background:#fff;flex-shrink:0}.composer:focus-within{border-color:#5177bf;box-shadow:0 0 0 2px #5177bf20}.composer textarea{resize:none;min-width:0;flex:1;min-height:44px;max-height:120px;border:0;background:transparent;border-radius:10px;padding:11px 8px;color:#182b49;line-height:22px;scrollbar-width:thin}.composer textarea:focus-visible{outline-offset:-3px}.composer textarea::placeholder{color:#62748f}.composer button{width:40px;height:40px;flex-shrink:0;margin-bottom:2px;border:0;border-radius:10px;background:var(--rgh);color:var(--rgh-fg)}.composer button svg{width:20px;height:20px}
@@ -72,7 +72,7 @@ type WidgetConfig = { primary_color: string; title: string; greeting: string };
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
       </style>
       <section id="rgh-panel" class="panel${this.open ? " open" : ""}" role="region" aria-label="Chat với trợ lý">
-        <header class="head"><span class="brand-avatar">${icon("chat")}</span><div class="heading"><h2>${this.escape(config.title)}</h2><div class="subtitle"><span class="ready-dot" aria-hidden="true"></span>Trợ lý tài liệu · ${loading ? "Đang kết nối" : unavailable ? "Chưa kết nối" : "Sẵn sàng"}</div></div><button class="reset" type="button" title="Hội thoại mới" aria-label="Hội thoại mới" ${unavailable || loading ? "disabled" : ""}>${icon("reset")}</button><button class="close" type="button" aria-label="Đóng chat">${icon("close")}</button></header>
+        <header class="head"><span class="brand-avatar">${config.logo_data ? `<img src="${this.escape(config.logo_data)}" alt="">` : icon("chat")}</span><div class="heading"><h2>${this.escape(config.title)}</h2><div class="subtitle"><span class="ready-dot" aria-hidden="true"></span>Trợ lý tài liệu · ${loading ? "Đang kết nối" : unavailable ? "Chưa kết nối" : "Sẵn sàng"}</div></div><button class="reset" type="button" title="Hội thoại mới" aria-label="Hội thoại mới" ${unavailable || loading ? "disabled" : ""}>${icon("reset")}</button><button class="close" type="button" aria-label="Đóng chat">${icon("close")}</button></header>
         <div class="history" role="log" aria-label="Hội thoại" aria-live="polite" aria-relevant="additions"></div><p class="status" role="status" aria-live="polite" aria-atomic="true"></p>
         <form class="composer"><textarea aria-label="Câu hỏi" placeholder="Nhập câu hỏi…" maxlength="4000" rows="1" ${unavailable || loading ? "disabled" : ""}></textarea><button type="submit" aria-label="Gửi câu hỏi" disabled>${icon("send")}</button></form>
       </section><button class="fab" type="button" aria-label="${this.open ? "Đóng chat" : "Mở chat"}" aria-expanded="${this.open}" aria-controls="rgh-panel">${loading ? '<span class="spinner" aria-hidden="true"></span>' : icon(this.open ? "close" : "chat")}${unavailable ? '<span class="warning-dot" aria-hidden="true"></span>' : ""}</button>`;
@@ -227,22 +227,34 @@ type WidgetConfig = { primary_color: string; title: string; greeting: string };
     private renderAssistantText(text: string) {
       const fragment = document.createDocumentFragment();
       const cleaned = this.cleanAssistantText(text);
+      const lines = cleaned.split("\n");
+      lines.forEach((line, index) => {
+        const bullet = line.match(/^(\s*)[-*+]\s+(.*)$/);
+        if (bullet) {
+          fragment.append(document.createTextNode(`${bullet[1]}• `));
+          this.appendInlineText(fragment, bullet[2]);
+        } else this.appendInlineText(fragment, line);
+        if (index < lines.length - 1) fragment.append(document.createTextNode("\n"));
+      });
+      return fragment;
+    }
+    private appendInlineText(fragment: DocumentFragment, text: string) {
       const boldPattern = /(\*\*\*|___)([\s\S]+?)\1|(\*\*|__)([\s\S]+?)\3/g;
       let cursor = 0;
-      for (const match of cleaned.matchAll(boldPattern)) {
+      for (const match of text.matchAll(boldPattern)) {
         const index = match.index ?? 0;
-        if (index > cursor) fragment.append(document.createTextNode(cleaned.slice(cursor, index)));
+        if (index > cursor) fragment.append(document.createTextNode(text.slice(cursor, index)));
         const strong = document.createElement("strong");
         strong.textContent = match[2] || match[4] || "";
         fragment.append(strong);
         cursor = index + match[0].length;
       }
-      if (cursor < cleaned.length) fragment.append(document.createTextNode(cleaned.slice(cursor)));
-      return fragment;
+      if (cursor < text.length) fragment.append(document.createTextNode(text.slice(cursor)));
     }
     private cleanAssistantText(text: string) {
       return text
         .replace(/\s*\[(?:C\d+(?:\s*,\s*C?\d+)*)\]/gi, "")
+        .replace(/\s*\((?:C\d+(?:\s*,\s*C?\d+)*)\)/gi, "")
         .replace(/[ \t]+([.,;:!?])/g, "$1")
         .replace(/[ \t]{2,}/g, " ");
     }
