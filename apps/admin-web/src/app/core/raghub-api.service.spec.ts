@@ -86,6 +86,7 @@ describe('RaghubApiService chatbot endpoints', () => {
       email: 'lan@example.com',
       password: 'mat-khau-123',
       display_name: 'Lan',
+      role: 'WORKSPACE_ADMIN',
     });
     create.flush({ id: 'user-1' });
 
@@ -94,6 +95,12 @@ describe('RaghubApiService chatbot endpoints', () => {
     expect(rename.request.method).toBe('PATCH');
     expect(rename.request.body).toEqual({ display_name: 'Lan Nguyen' });
     rename.flush({ id: 'user-1', display_name: 'Lan Nguyen' });
+
+    api.updateAdminUserRole('user-1', 'ADMIN').subscribe();
+    const role = http.expectOne('/api/v1/admin/users/user-1');
+    expect(role.request.method).toBe('PATCH');
+    expect(role.request.body).toEqual({ role: 'ADMIN' });
+    role.flush({ id: 'user-1', role: 'ADMIN' });
 
     api.updateAdminUserStatus('user-1', 'DISABLED').subscribe();
     const status = http.expectOne('/api/v1/admin/users/user-1/status');

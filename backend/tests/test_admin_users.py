@@ -212,6 +212,51 @@ def test_create_admin_user_stores_display_name():
     assert stored["user"].display_name == "Lan Nguyen"
 
 
+def test_create_admin_user_can_assign_admin_role():
+    from app.modules.memberships.models import Membership
+
+    context_override, _, _ = _admin_context()
+    stored: dict = {}
+
+    class FakeSession:
+        async def scalar(self, statement):
+            return None
+
+        def add(self, obj):
+            if isinstance(obj, Membership):
+                stored["membership"] = obj
+
+        async def flush(self):
+            return None
+
+        async def commit(self):
+            return None
+
+        async def refresh(self, obj):
+            return None
+
+    async def session():
+        return FakeSession()
+
+    app.dependency_overrides[get_organization_context] = context_override
+    app.dependency_overrides[get_session] = session
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/admin/users",
+                json={
+                    "email": "admin2@x.vn",
+                    "password": "mat-khau-123",
+                    "role": "ADMIN",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 201, response.text
+    assert response.json()["role"] == "ADMIN"
+    assert stored["membership"].role == MembershipRole.ADMIN
+
+
 def test_update_admin_user_display_name():
     from app.modules.users.models import User
 
