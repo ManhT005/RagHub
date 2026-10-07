@@ -73,6 +73,7 @@ class ChatbotService:
         chatbot.embed_primary_color = payload.primary_color
         chatbot.embed_title = payload.title.strip()
         chatbot.embed_greeting = payload.greeting.strip()
+        chatbot.embed_logo_data = payload.logo_data
         await self.session.commit()
         await self.session.refresh(chatbot)
         return chatbot, raw_key

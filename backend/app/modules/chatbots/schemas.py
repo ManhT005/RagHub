@@ -46,6 +46,7 @@ class ChatbotResponse(BaseModel):
     embed_primary_color: str = "#1463ff"
     embed_title: str = "RagHub Assistant"
     embed_greeting: str = "Xin chao! Toi co the giup gi cho ban?"
+    embed_logo_data: str | None = None
     created_at: datetime
     updated_at: datetime | None
 
@@ -63,6 +64,16 @@ class EmbedPublishInput(BaseModel):
     greeting: str = Field(
         default="Xin chao! Toi co the giup gi cho ban?", min_length=1, max_length=1000
     )
+    logo_data: str | None = Field(default=None, max_length=1_400_000)
+
+    @field_validator("logo_data")
+    @classmethod
+    def validate_logo_data(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.startswith(("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")):
+            raise ValueError("Logo must be a PNG, JPEG or WebP image.")
+        return value
 
     @field_validator("allowed_origins")
     @classmethod

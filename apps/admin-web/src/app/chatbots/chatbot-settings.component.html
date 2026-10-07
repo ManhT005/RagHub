@@ -38,6 +38,14 @@
           <button nz-button type="button" (click)="primaryColor = '#1463ff'">Mặc định</button>
         </div>
         @if (!colorValid()) { <p class="field-error" id="color-error">Nhập màu hex 6 ký tự, ví dụ #8FAAF6.</p> }
+        <label>Logo chatbot</label>
+        <div class="logo-drop" (dragover)="$event.preventDefault()" (drop)="dropLogo($event)">
+          @if (logoData) { <img [src]="logoData" alt="Xem trước logo"> }
+          <span>Kéo thả ảnh vào đây hoặc</span><label nz-button for="widget-logo">Chọn ảnh</label>
+          <input id="widget-logo" type="file" accept="image/png,image/jpeg,image/webp" (change)="selectLogo($any($event.target).files?.[0])">
+          <small>PNG, JPG hoặc WebP · tối đa 1 MB</small>
+          @if (logoData) { <button nz-button type="button" (click)="clearLogo()">Bỏ logo</button> }
+        </div>
         <label for="widget-title">Tiêu đề widget</label><input nz-input id="widget-title" [(ngModel)]="title"
           name="title" required maxlength="120">
         <label for="widget-greeting">Lời chào</label><textarea nz-input id="widget-greeting" [(ngModel)]="greeting"
@@ -62,11 +70,11 @@
       <div class="preview-stage" [class.mobile]="previewDevice() === 'mobile'" [style.--preview-color]="previewColor()"
         [style.--preview-foreground]="previewForeground()">
         <div class="preview-widget">
-          <header class="preview-head"><span class="preview-avatar"><svg viewBox="0 0 24 24" aria-hidden="true">
+          <header class="preview-head"><span class="preview-avatar">@if (logoData) { <img [src]="logoData" alt=""> } @else { <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M5 5.75h14A2.25 2.25 0 0 1 21.25 8v7A2.25 2.25 0 0 1 19 17.25H10l-4.75 3v-3.48A2.25 2.25 0 0 1 2.75 15V8A2.25 2.25 0 0 1 5 5.75Z" />
                 <path d="m12 8 1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z" />
-              </svg></span>
+              </svg> }</span>
             <div><strong>{{ title || "RagHub Assistant" }}</strong><small>Trợ lý tài liệu · Sẵn sàng</small></div><span
               class="preview-close" aria-hidden="true">×</span>
           </header>

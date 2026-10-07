@@ -43,6 +43,7 @@ export class ChatbotSettingsComponent {
   primaryColor = DEFAULT_WIDGET_COLOR;
   title = "RagHub Assistant";
   greeting = "Xin chào! Tôi có thể giúp gì cho bạn?";
+  logoData: string | null = null;
 
   constructor() {
     const id = this.route.snapshot.paramMap?.get("id");
@@ -61,6 +62,7 @@ export class ChatbotSettingsComponent {
     this.primaryColor = bot.embed_primary_color || DEFAULT_WIDGET_COLOR;
     this.title = bot.embed_title || bot.name;
     this.greeting = bot.embed_greeting || this.greeting;
+    this.logoData = bot.embed_logo_data || null;
     this.code.set(""); this.rawKey.set(""); this.hasEmbedKey.set(false);
     this.publicBaseUrl.set(""); this.scriptSrc.set("");
     this.loading.set(false);
@@ -77,6 +79,17 @@ export class ChatbotSettingsComponent {
     if (!values.includes(location.origin)) values.push(location.origin);
     this.origins = values.join("\n");
   }
+  selectLogo(file: File | undefined) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 1024 * 1024) {
+      this.error.set("Logo phải là ảnh PNG, JPG hoặc WebP, tối đa 1 MB."); return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { this.logoData = String(reader.result); this.error.set(""); };
+    reader.readAsDataURL(file);
+  }
+  dropLogo(event: DragEvent) { event.preventDefault(); this.selectLogo(event.dataTransfer?.files[0]); }
+  clearLogo() { this.logoData = null; }
   localPublicUrl() {
     try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(this.publicBaseUrl()).hostname); }
     catch { return false; }
@@ -99,7 +112,7 @@ export class ChatbotSettingsComponent {
   publish() {
     if (!this.valid() || this.busy() || !this.bot) return;
     const payload = { allowed_origins: this.parsedOrigins().origins, primary_color: this.primaryColor,
-      title: this.title.trim(), greeting: this.greeting.trim() };
+      title: this.title.trim(), greeting: this.greeting.trim(), logo_data: this.logoData };
     this.embedVersion++;
     this.error.set(""); this.notice.set(""); this.setBusy(true);
     this.api.publishEmbed(this.id, payload).pipe(
@@ -109,7 +122,7 @@ export class ChatbotSettingsComponent {
         this.published = true; this.origins = payload.allowed_origins.join("\n");
         this.acceptEmbed(result);
         this.bot = { ...this.bot!, published: true, allowed_origins: payload.allowed_origins,
-          embed_primary_color: payload.primary_color, embed_title: payload.title, embed_greeting: payload.greeting };
+          embed_primary_color: payload.primary_color, embed_title: payload.title, embed_greeting: payload.greeting, embed_logo_data: payload.logo_data };
         this.saved.emit(this.bot);
         this.notice.set(result.key ? "Đã xuất bản. Sao chép mã nhúng ngay; key chỉ hiển thị một lần." : "Đã lưu cấu hình. Mã nhúng đang dùng trên website vẫn hoạt động.");
       },
