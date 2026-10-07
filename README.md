@@ -9,7 +9,6 @@ RagHub là sản phẩm của **nhóm DoubleT** tham gia **Software Product Chal
 ![Angular 21](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-> **Trạng thái:** dự án đã hoàn thành — luồng **khởi tạo hệ thống → tạo workspace → nạp tài liệu → cấu hình AI → tạo chatbot → hỏi đáp có nguồn → nhúng vào website** đều chạy được trên Docker, bao gồm bản self-host từ image GHCR.
 
 ## Mục lục
 
