@@ -18,9 +18,11 @@
 }
 
 .activity-section h2 {
-  margin: 0 0 16px;
+  margin: 4px 0 16px;
   color: var(--rh-text);
-  font-size: 16px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .activity-filters {

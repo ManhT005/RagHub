@@ -1,81 +1,88 @@
-.auth-card {
-  max-width: 440px;
-  margin: 8vh auto;
-  padding: 32px;
-  border: 1px solid var(--rh-border);
-  border-radius: 16px;
-  background: var(--rh-surface);
-  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.18);
+:host {
+  display: block;
 }
+
+.auth-page {
+  display: grid;
+  min-height: calc(100vh - 1px);
+  place-items: start center;
+  padding: 8vh 24px 48px;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+}
+
+:host ::ng-deep .auth-card > .ant-card-body {
+  padding: 32px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--rh-cyan);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 h1 {
-  margin: 6px 0;
+  margin: 0 0 6px;
   color: var(--rh-text);
 }
+
+.description {
+  margin: 0;
+  color: var(--rh-muted);
+}
+
 form {
   display: grid;
   gap: 16px;
   margin-top: 24px;
 }
-label {
-  display: grid;
-  gap: 6px;
-  color: var(--rh-muted);
+
+nz-form-item {
+  margin-bottom: 0;
+}
+
+:host ::ng-deep .ant-form-item-label {
+  padding-bottom: 6px;
+}
+
+:host ::ng-deep .ant-form-item-label > label {
+  color: var(--rh-muted) !important;
   font-weight: 600;
 }
-input {
-  padding: 10px;
-  border: 1px solid var(--rh-border);
-  border-radius: 8px;
-  color: var(--rh-text);
-  background: var(--rh-surface-raised);
+
+:host ::ng-deep .ant-input,
+:host ::ng-deep .ant-input-affix-wrapper {
+  min-height: 44px;
 }
-button {
-  padding: 11px 16px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--rh-indigo), #3c75ff);
-  font-weight: 700;
-  cursor: pointer;
+
+.submit-button {
+  width: 100%;
 }
-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
+
 .actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
+  margin-top: 8px;
 }
-.link {
+
+.mode-link {
+  height: auto;
   padding: 0;
-  color: var(--rh-cyan);
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-weight: 600;
 }
-.error {
-  color: var(--rh-danger);
+
+:host ::ng-deep .ant-alert {
+  border-radius: 8px;
 }
-.success {
-  color: #1f9d68;
-}
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 22px 0;
-  color: var(--rh-muted);
-}
-.divider::before,
-.divider::after {
-  height: 1px;
-  flex: 1;
-  background: var(--rh-border);
-  content: "";
-}
-#google-signin {
-  min-height: 42px;
+
+@media (max-width: 520px) {
+  .auth-page {
+    padding: 24px 16px;
+  }
+
+  :host ::ng-deep .auth-card > .ant-card-body {
+    padding: 24px;
+  }
 }

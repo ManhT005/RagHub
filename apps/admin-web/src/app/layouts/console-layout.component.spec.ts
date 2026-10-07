@@ -1,6 +1,7 @@
 import { TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { provideHttpClient } from '@angular/common/http';
-import { Router, provideRouter } from "@angular/router";
+import { Router, RouterLinkActive, provideRouter } from "@angular/router";
 import {
   DashboardOutline,
   DatabaseOutline,
@@ -212,5 +213,33 @@ describe("ConsoleLayoutComponent", () => {
     expect(
       fixture.nativeElement.querySelector('.account-menu a[href="/app/security"]'),
     ).not.toBeNull();
+  });
+  it("groups AI administration under one sidebar destination", () => {
+    const fixture = TestBed.createComponent(ConsoleLayoutComponent);
+    fixture.detectChanges();
+
+    const aiModels = fixture.nativeElement.querySelector(
+      'nz-sider a[href="/system/ai/providers"]',
+    );
+
+    expect(aiModels?.textContent).toContain("AI & Models");
+    expect(
+      fixture.nativeElement.querySelector('nz-sider a[href="/system/ai/models"]'),
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('nz-sider a[href="/system/ai/local"]'),
+    ).toBeNull();
+  });
+  it("uses exact matching for the root system navigation item", () => {
+    const fixture = TestBed.createComponent(ConsoleLayoutComponent);
+    fixture.detectChanges();
+
+    const systemLink = fixture.debugElement
+      .queryAll(By.directive(RouterLinkActive))
+      .find(element => element.nativeElement.getAttribute("href") === "/system");
+
+    expect(systemLink).toBeDefined();
+    const options = systemLink?.injector.get(RouterLinkActive).routerLinkActiveOptions as { exact: boolean };
+    expect(options.exact).toBe(true);
   });
 });

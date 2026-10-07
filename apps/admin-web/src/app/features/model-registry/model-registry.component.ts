@@ -9,9 +9,9 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { RouterLink } from "@angular/router";
 import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzInputModule } from "ng-zorro-antd/input";
+import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzTableModule } from "ng-zorro-antd/table";
 import { NzTagModule } from "ng-zorro-antd/tag";
 import { NzAlertModule } from "ng-zorro-antd/alert";
@@ -26,16 +26,18 @@ import { session } from "../../core/api-auth.interceptor";
 import { consoleOrganization } from "../../core/console-organization";
 import { apiError } from "../../core/api/api-error";
 import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { AiModuleTabsComponent } from "../ai-navigation/ai-module-tabs.component";
 
 @Component({
   selector: "raghub-model-registry",
   imports: [
     ProviderLogoComponent,
+    AiModuleTabsComponent,
     DatePipe,
     FormsModule,
-    RouterLink,
     NzButtonModule,
     NzInputModule,
+    NzSelectModule,
     NzTableModule,
     NzTagModule,
     NzAlertModule,
@@ -48,8 +50,8 @@ import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.
         <h1>Model Registry</h1>
         <p>Model đã đăng ký từ các Provider Connection.</p>
       </div>
-      <a nz-button routerLink="/system/ai/providers">Quản lý providers →</a>
     </header>
+    <raghub-ai-module-tabs />
     @if (error()) {
       <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon />
     }
@@ -60,25 +62,18 @@ import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.
         placeholder="Tìm model hoặc provider…"
         [ngModel]="query()"
         (ngModelChange)="query.set($event)"
-      /><select
-        aria-label="Chức năng model"
-        [ngModel]="capability()"
-        (ngModelChange)="capability.set($event)"
-      >
-        <option value="">Tất cả chức năng</option>
-        <option>CHAT</option>
-        <option>EMBEDDING</option><option>RERANK</option></select
-      ><select
-        aria-label="Trạng thái model"
-        [ngModel]="availability()"
-        (ngModelChange)="availability.set($event)"
-      >
-        <option value="">Tất cả trạng thái</option>
-        <option>AVAILABLE</option>
-        <option>UNAVAILABLE</option>
-        <option>UNTESTED</option>
-        <option>DISABLED</option></select
-      ><button nz-button (click)="load()" [nzLoading]="loading()">
+      /><nz-select aria-label="Chức năng model" nzPlaceHolder="Tất cả chức năng" [ngModel]="capability()" (ngModelChange)="capability.set($event)">
+        <nz-option nzValue="" nzLabel="Tất cả chức năng" />
+        <nz-option nzValue="CHAT" nzLabel="Chat" />
+        <nz-option nzValue="EMBEDDING" nzLabel="Embedding" />
+        <nz-option nzValue="RERANK" nzLabel="Rerank" />
+      </nz-select><nz-select aria-label="Trạng thái model" nzPlaceHolder="Tất cả trạng thái" [ngModel]="availability()" (ngModelChange)="availability.set($event)">
+        <nz-option nzValue="" nzLabel="Tất cả trạng thái" />
+        <nz-option nzValue="AVAILABLE" nzLabel="Khả dụng" />
+        <nz-option nzValue="UNAVAILABLE" nzLabel="Không khả dụng" />
+        <nz-option nzValue="UNTESTED" nzLabel="Chưa kiểm tra" />
+        <nz-option nzValue="DISABLED" nzLabel="Đã tắt" />
+      </nz-select><button nz-button (click)="load()" [nzLoading]="loading()">
         Làm mới
       </button>
     </div>

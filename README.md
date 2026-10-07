@@ -1,126 +1,87 @@
 # RagHub
 
-**Nền tảng RAG đa tổ chức để tìm kiếm và hỏi đáp trên tài liệu nội bộ.** RagHub tiếp nhận tài liệu, xử lý trong nền, truy xuất các đoạn liên quan và cung cấp câu trả lời dạng streaming kèm trích dẫn nguồn.
+**Nền tảng RAG đa tổ chức để tìm kiếm và hỏi đáp trên tài liệu nội bộ.** RagHub tiếp nhận tài liệu, xử lý trong nền, truy xuất các đoạn liên quan và trả lời dạng streaming kèm trích dẫn nguồn.
 
-RagHub là sản phẩm của **nhóm DoubleT** tham gia **Software Product Challenge (SPC) 2026** tại Trường Công nghệ Thông tin và Truyền thông, Đại học Công nghiệp Hà Nội. Dự án hướng tới một nền tảng tự phục vụ: mỗi tổ chức có thể xây dựng các miền tri thức riêng và lựa chọn AI bên ngoài hoặc mô hình chạy cục bộ theo nhu cầu.
+RagHub là sản phẩm của **nhóm DoubleT** tham gia **Software Product Challenge (SPC) 2026** tại Trường Công nghệ Thông tin và Truyền thông, Đại học Công nghiệp Hà Nội. Mỗi tổ chức xây dựng các miền tri thức (workspace) riêng và lựa chọn AI bên ngoài hoặc mô hình chạy cục bộ theo nhu cầu.
 
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Angular 21](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white)
 ![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-> **Trạng thái hiện tại:** giao diện quản trị hỗ trợ tài khoản, tổ chức, thành viên, workspace, tài liệu, cấu hình AI và chatbot. Widget Web Component đã có script nhúng, origin allowlist, rotate key, rate limit và giới hạn stream đồng thời.
-
-## Bài toán và định hướng
-
-Trường học cần tư vấn tuyển sinh và tra cứu quy chế; doanh nghiệp cần hỗ trợ khách hàng bằng tài liệu sản phẩm; cơ quan và tổ chức cần khai thác kho tri thức nội bộ. Xây dựng riêng một hệ thống RAG cho từng trường hợp đòi hỏi hạ tầng lưu trữ, tìm kiếm, xử lý tài liệu và tích hợp mô hình AI. RagHub gom các phần đó thành một nền tảng có phân tách dữ liệu theo tổ chức và không gian làm việc.
-
-Theo [kế hoạch thiết kế](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) và hồ sơ dự thi của nhóm DoubleT, MVP hướng tới luồng hoàn chỉnh: **tạo workspace → nạp tài liệu → cấu hình AI → tạo chatbot → hỏi đáp có nguồn → nhúng vào website**. Thiết kế dự kiến phục vụ cả mô hình SaaS và triển khai trên hạ tầng riêng. Repository hiện có Docker Compose cho môi trường phát triển và demo; chưa phải một bản triển khai SaaS hoặc on-premise đã được chuẩn hóa cho production.
+> **Trạng thái:** dự án đã hoàn thành — luồng **khởi tạo hệ thống → tạo workspace → nạp tài liệu → cấu hình AI → tạo chatbot → hỏi đáp có nguồn → nhúng vào website** đều chạy được trên Docker, bao gồm bản self-host từ image GHCR.
 
 ## Mục lục
 
-- [Bài toán và định hướng](#bài-toán-và-định-hướng)
 - [Chức năng](#chức-năng)
-- [Mục tiêu MVP còn lại](#mục-tiêu-mvp-còn-lại)
+- [Định dạng tài liệu và giới hạn](#định-dạng-tài-liệu-và-giới-hạn)
 - [Công nghệ và kiến trúc](#công-nghệ-và-kiến-trúc)
 - [Khởi chạy với Docker](#khởi-chạy-với-docker)
-- [Docker image trên GitHub](#docker-image-trên-github)
+- [Triển khai self-host từ image GHCR](#triển-khai-self-host-từ-image-ghcr)
 - [Thiết lập để sử dụng](#thiết-lập-để-sử-dụng)
-- [AI cục bộ](#ai-cục-bộ)
+- [Nhúng chatbot vào website](#nhúng-chatbot-vào-website)
+- [AI provider và AI cục bộ](#ai-provider-và-ai-cục-bộ)
+- [Bảo mật](#bảo-mật)
 - [Phát triển và kiểm tra](#phát-triển-và-kiểm-tra)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
-- [Xử lý sự cố và tài liệu](#xử-lý-sự-cố-và-tài-liệu)
+- [Tài liệu chi tiết](#tài-liệu-chi-tiết)
+- [Xử lý sự cố](#xử-lý-sự-cố)
 - [Nhóm phát triển](#nhóm-phát-triển)
 
 ## Chức năng
 
-| Nhóm | Khả năng hiện có | Giao diện web |
+| Nhóm | Khả năng | Giao diện |
 | --- | --- | --- |
-| Tài khoản và phân quyền | Đăng ký, đăng nhập, JWT; tổ chức, thành viên và vai trò `ADMIN` / `WORKSPACE_ADMIN` theo từng workspace | Có |
-| Không gian làm việc | Tạo, xem, cập nhật và xóa mềm trong phạm vi tổ chức | Một phần: tạo và xem |
-| Tài liệu | Upload PDF/TXT/Markdown, xử lý bất đồng bộ, theo dõi tiến độ, retry và lập chỉ mục lại | Có |
-| Tìm kiếm | BM25 kết hợp vector, lọc theo tổ chức và không gian làm việc | API |
-| AI provider | Cấu hình theo tổ chức, kiểm tra kết nối, mã hóa credential và đổi embedding index an toàn | Có, trong luồng chatbot |
-| Chatbot và RAG chat | Quản lý chatbot, chat SSE, trả lời kèm trích dẫn và thông tin sử dụng | Có |
-| Widget nhúng | Web Component, publish, embed key dạng hash, origin allowlist, rotate key, rate limit và giới hạn concurrent | Có, màn hình Nhúng chatbot và website demo |
+| Khởi tạo hệ thống | Wizard `/setup` kiểm tra hạ tầng và tạo Owner + tổ chức + membership trong một giao dịch; khóa vĩnh viễn sau khi khởi tạo (`409 INSTALLATION_ALREADY_INITIALIZED`) | Có |
+| Tài khoản | Đăng nhập, refresh token xoay vòng, đổi mật khẩu, quên/đặt lại mật khẩu qua email; không có đăng ký công khai | Có |
+| Tổ chức và phân quyền | Tổ chức, thành viên với vai trò `ADMIN` / `WORKSPACE_ADMIN` (giới hạn theo workspace); quyền workspace `workspace.view/edit`, `document.view/upload/reindex/delete`, `chat.use` | Có |
+| Không gian làm việc | Tạo, xem, cập nhật, xóa mềm trong phạm vi tổ chức | Có |
+| Tài liệu | Upload, xử lý bất đồng bộ theo giai đoạn `QUEUED → PARSING → CHUNKING → EMBEDDING → INDEXING → READY/FAILED`, theo dõi tiến độ, retry lỗi hạ tầng, lập chỉ mục lại | Có |
+| Tìm kiếm | Hybrid BM25 + vector kNN, fusion RRF (`k=60`, 25 ứng viên mỗi nhánh), lọc theo tổ chức và workspace | API |
+| AI provider | Cấu hình theo tổ chức, kiểm tra kết nối, mã hóa credential, đổi embedding index an toàn | Có |
+| Chatbot và RAG chat | Quản lý chatbot, xuất bản, chat SSE kèm trích dẫn và thông tin sử dụng; bản nháp xem trước bằng quyền `chat.use` | Có |
+| Widget nhúng | Web Component, script nhúng, origin allowlist, embed key dạng hash, rotate key, rate limit và giới hạn stream đồng thời | Có, kèm website demo |
 
 API công bố tại [`/api/v1/docs`](http://localhost:8080/api/v1/docs) khi hệ thống chạy. Website demo widget tại [`/demo/`](http://localhost:8080/demo/).
 
-### Giới hạn định dạng hiện tại
+## Định dạng tài liệu và giới hạn
 
-Ingestion đang nhận **PDF có văn bản chọn được, TXT UTF-8 và Markdown UTF-8**. PDF scan cần OCR sẽ bị từ chối; DOCX, XLSX và PPTX xuất hiện trong kế hoạch MVP nhưng chưa có parser trong repository. Việc ghi rõ phạm vi này giúp tránh nhầm lẫn giữa thiết kế và tính năng đang chạy.
+Ingestion hỗ trợ **PDF, TXT UTF-8, Markdown UTF-8, DOCX, HTML (sanitized, không tải tài nguyên ngoài) và XLSX (chỉ đọc dữ liệu, không macro)**.
 
-## Mục tiêu MVP còn lại
-
-Tài liệu thiết kế phiên bản 1.0 đặt mốc MVP ngày **08/10/2026**. Các hạng mục sau thuộc mục tiêu đó và **chưa được triển khai đầy đủ trong mã nguồn hiện tại**:
-
-| Hạng mục theo kế hoạch | Trạng thái hiện tại |
-| --- | --- |
-| Parser DOCX, XLSX, PPTX | Chưa có; ingestion đang hỗ trợ PDF, TXT và Markdown |
-| Giao diện cấu hình AI provider và chatbot | Đã có luồng cấu hình và chat trong Admin |
-| Chat Widget dạng Web Component, script nhúng và website mẫu | Đã có trong `apps/chat-widget/` |
-| Bảo vệ public widget | Đã có embed key, allowed origins, rate limit Redis và giới hạn concurrent; embed key chỉ dùng cho public widget |
-| Quy trình triển khai SaaS và on-premise hoàn chỉnh | Đã có Compose local/GHCR, publish image theo phiên bản và hướng dẫn cập nhật/rollback; TLS, domain, backup và vận hành theo môi trường triển khai |
-
-Mốc trên là **mục tiêu của tài liệu kế hoạch**, không phải tuyên bố MVP đã hoàn thành. [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md) mô tả chi tiết kiến trúc, backlog, tiêu chí nghiệm thu và kịch bản demo dự kiến.
+- PDF: ưu tiên trích xuất văn bản, bóc tách bảng bằng PyMuPDF; PDF scan cần OCR tiếng Việt/Anh (`vie+eng`) chỉ chạy khi bật `RAG_OCR_ENABLED`, mặc định tắt.
+- Preflight từ chối trước embedding: quá `MAX_UPLOAD_SIZE_MB` (mặc định 25 MB nén / 100 MB giải nén), quá 70 trang PDF, quá 50 trang OCR, quá 80.000 token, quá 250 chunk, container macro-enabled hoặc sai chữ ký file.
+- Lỗi hạ tầng (`STORAGE_UNAVAILABLE`, `QUEUE_UNAVAILABLE`, `EMBEDDING_UNAVAILABLE`, `INDEX_UNAVAILABLE`) được retry tự động tối đa 3 lần và cho retry thủ công; file sai định dạng hoặc OCR không được hỗ trợ yêu cầu upload lại.
 
 ## Công nghệ và kiến trúc
 
-Giai đoạn hiện tại ưu tiên **RagHub self-hosted do người vận hành instance quản lý**.
-Organization vẫn là ranh giới dữ liệu kỹ thuật; giữ RBAC hiện tại. SaaS multi-customer,
-billing và quản trị enterprise thuộc roadmap sau.
-
-Console Self-host UI v1 có AI Providers/Model Registry tại `/system/ai/` và
-workspace console tại `/app/workspaces`. Xem [phạm vi triển khai, migration và rollback](docs/ui/selfhost-v1/implementation.md)
-cùng [kết quả nghiệm thu và lệnh kiểm thử](docs/ui/selfhost-v1/verification.md).
-
-**Core package — `raghub-core/src/raghub_core`:** engine tri thức và RAG tái sử dụng,
-chứa domain rules, application workflows và dependency ports. Core không sở hữu
-HTTP delivery, persistence implementation, Redis admission, deployment mode hay
-quản trị sản phẩm. Host composition phải lấy public use case từ `raghub_core.api`;
-infrastructure được implement trực tiếp `raghub_core.ports` và dùng domain contracts.
-
-**Self-host host và adapters — `backend/app`:** composition, delivery, persistence adapters,
-auth/RBAC, Redis, provider clients, MinIO, Elasticsearch, Celery và quản trị sản phẩm.
-Playground và public widget dùng cùng typed RAG runtime; origin, rate limit và
-concurrency thuộc host. Xem [ranh giới RagHub Core](docs/architecture/RAGHUB_CORE_BOUNDARIES.md)
-và [chính sách conversation](docs/architecture/RAG_CONVERSATION_POLICY.md).
-Hợp đồng ổn định được ghi trong [Core public API](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
-**Hai Python package:** `raghub-core` chứa engine; `raghub-backend` chỉ chứa `app`
-và phụ thuộc `raghub-core==0.1.0`. Hai project nằm ngang hàng, giữ nguyên namespace
-`raghub_core` và public API. Xem [ADR-001](docs/architecture/adr/ADR-001-core-package-boundary.md)
-và [hướng dẫn core](raghub-core/README.md). Package được build/cài từ source local;
-refactor này chưa publish lên package registry.
-CI kiểm tra engine từ installed wheel trong venv tối thiểu, chặn import `app`
-và dùng cache tokenizer rỗng.
-
 | Lớp | Công nghệ | Vai trò |
 | --- | --- | --- |
-| Giao diện | ![Angular](https://img.shields.io/badge/Angular-21-DD0031?style=flat-square&logo=angular&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white) | Ứng dụng quản trị tiếng Việt với NG-ZORRO |
-| API | ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white) | Xác thực, nghiệp vụ, tìm kiếm và chat streaming |
-| Xử lý nền | Celery 5.5 + ![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat-square&logo=redis&logoColor=white) | Đọc, chia đoạn, tạo embedding và lập chỉ mục tài liệu |
-| Dữ liệu | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.6-4169E1?style=flat-square&logo=postgresql&logoColor=white) | Người dùng, metadata, cấu hình và trạng thái xử lý |
-| Tệp và tìm kiếm | ![MinIO](https://img.shields.io/badge/MinIO-S3-C72E49?style=flat-square&logo=minio&logoColor=white) ![Elasticsearch](https://img.shields.io/badge/Elasticsearch-9.1-005571?style=flat-square&logo=elasticsearch&logoColor=white) | Tệp gốc và chỉ mục tìm kiếm |
-| Triển khai cục bộ | ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white) ![NGINX](https://img.shields.io/badge/NGINX-1.29-009639?style=flat-square&logo=nginx&logoColor=white) | Chạy và định tuyến các dịch vụ |
-| AI cục bộ tùy chọn | Sentence Transformers + ![Ollama](https://img.shields.io/badge/Ollama-0.12-111111?style=flat-square&logo=ollama&logoColor=white) | Embedding và sinh câu trả lời trên máy |
+| Giao diện | Angular 21 + TypeScript 5.9 + NG-ZORRO | Console quản trị tiếng Việt, wizard `/setup`, quản trị hệ thống `/system/ai/` |
+| API | Python 3.12 + FastAPI 0.115 | Xác thực, nghiệp vụ, tìm kiếm và chat streaming |
+| Engine | `raghub-core 0.1.0` | Domain, workflow RAG/ingestion/retrieval, ports; không phụ thuộc FastAPI, DB hay hạ tầng |
+| Xử lý nền | Celery 5.5 + Redis 8.2 | Đọc, chia đoạn, tạo embedding, lập chỉ mục; admission rate/concurrent cho public chat |
+| Dữ liệu | PostgreSQL 17.6 | Người dùng, metadata, cấu hình, trạng thái xử lý |
+| Tệp và tìm kiếm | MinIO (S3) + Elasticsearch 9.1 (`vi_hybrid_v2`) | File gốc và chỉ mục hybrid |
+| Gateway | NGINX 1.29 | Định tuyến, phục vụ web tĩnh, giới hạn body public 16 KiB |
+| AI cục bộ tùy chọn | Sentence Transformers + Ollama 0.12 | Embedding và sinh câu trả lời trên máy |
 
 ```text
-Trình duyệt ──> Nginx ──> Angular Admin
-                    └──> FastAPI ──> PostgreSQL
-                                  ├──> MinIO
-                                  ├──> Elasticsearch
-                                  └──> Redis ──> Celery worker
+Trình duyệt ──> Nginx ──> Angular Admin / Widget / Demo
+                     └──> FastAPI ──> PostgreSQL
+                                   ├──> MinIO
+                                   ├──> Elasticsearch
+                                   └──> Redis ──> Celery worker (+ worker-ocr)
 ```
 
-API và worker dùng chung mô hình dữ liệu nhưng chạy ở hai container riêng. File gốc nằm trong MinIO; metadata nằm trong PostgreSQL; các đoạn tài liệu để truy xuất nằm trong Elasticsearch. Xem [tài liệu kiến trúc](docs/architecture.md) để biết luồng xử lý chi tiết.
+API và worker dùng chung mô hình dữ liệu nhưng chạy ở container riêng. File gốc nằm trong MinIO; metadata nằm trong PostgreSQL; các đoạn truy xuất nằm trong Elasticsearch. Ranh giới engine/host được ghi trong [`docs/architecture/RAGHUB_CORE_BOUNDARIES.md`](docs/architecture/RAGHUB_CORE_BOUNDARIES.md), hợp đồng ổn định trong [`docs/architecture/RAGHUB_CORE_PUBLIC_API.md`](docs/architecture/RAGHUB_CORE_PUBLIC_API.md).
 
 ## Khởi chạy với Docker
 
 ### Yêu cầu
 
-- Docker Desktop đang chạy và có Docker Compose v2.
-- PowerShell để dùng các lệnh và script minh họa bên dưới.
-- Tài nguyên đủ cho PostgreSQL, Redis, Elasticsearch, MinIO, API, worker và web; profile `local-ai` cần thêm bộ nhớ để chạy mô hình.
+- Docker Desktop đang chạy, Docker Compose v2.
+- PowerShell cho các lệnh minh họa.
+- Đủ tài nguyên cho PostgreSQL, Redis, Elasticsearch, MinIO, API, worker và web; profile `local-ai` cần thêm RAM cho mô hình.
 
 ### 1. Cấu hình môi trường
 
@@ -130,103 +91,100 @@ Chạy từ thư mục gốc repository:
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Mở `.env` và thay tối thiểu `APP_SECRET_KEY` cùng `PROVIDER_MASTER_KEY` bằng hai giá trị riêng. Khi chạy ngoài môi trường phát triển cá nhân, cần thay cả mật khẩu PostgreSQL và MinIO. File `.env` đã được Git bỏ qua; không commit khóa hoặc mật khẩu thật.
+Mở `.env` và thay tối thiểu `APP_SECRET_KEY`, `PROVIDER_MASTER_KEY` bằng hai giá trị riêng (nên ≥ 32 ký tự ngẫu nhiên). Khi chạy ngoài máy cá nhân, thay cả mật khẩu PostgreSQL và MinIO. File `.env` đã được Git bỏ qua; không commit khóa thật.
 
 | Biến | Mục đích |
 | --- | --- |
 | `APP_SECRET_KEY` | Ký access token và refresh token |
 | `PROVIDER_MASTER_KEY` | Mã hóa credential của AI provider |
-| `POSTGRES_PASSWORD`, `DATABASE_URL` | Mật khẩu và chuỗi kết nối PostgreSQL; hai giá trị phải khớp |
+| `POSTGRES_PASSWORD`, `DATABASE_URL` | Hai giá trị phải khớp nhau |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Thông tin truy cập MinIO |
-| `BACKEND_IMAGE_TARGET` | `runtime` mặc định; dùng `local-ai` khi cần Sentence Transformers |
-| `MAX_UPLOAD_SIZE_MB` | Giới hạn dung lượng tài liệu, mặc định 25 MB |
+| `BACKEND_IMAGE_TARGET` | `runtime` mặc định; `local-ai` khi cần Sentence Transformers |
+| `MAX_UPLOAD_SIZE_MB` | Giới hạn upload, mặc định 25 |
 
-Các tùy chọn khác và giá trị phát triển mẫu có trong [`.env.example`](.env.example).
+Các tùy chọn khác xem trong [`.env.example`](.env.example).
 
-### 2. Khởi động
+### 2. Khởi động môi trường phát triển
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml up --build -d --wait
 docker compose -f infrastructure/docker-compose.yml ps
 ```
 
-Service `migrate` chạy Alembic trước khi API khởi động. Local ports mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN. Lần đầu có thể mất vài phút để tải image và khởi tạo dữ liệu.
+Service `migrate` chạy Alembic trước khi API khởi động. Port local mặc định chỉ bind localhost; đặt `LOCAL_BIND_ADDRESS=0.0.0.0` nếu cần truy cập LAN.
 
-Ở local, frontend và backend đều chạy với source bind mount:
-
-- `admin-web`: Angular dev server tự hot reload thay đổi trong `apps/admin-web/src`.
-- `api`: Uvicorn tự reload thay đổi trong `backend/app`.
-- `worker`: Watchfiles tự restart Celery khi source Python thay đổi.
-
-Không cần build lại Docker khi sửa HTML/CSS/TypeScript/Python. Chỉ build lại image tương ứng khi thay đổi dependency hoặc Dockerfile:
+Ở môi trường này, frontend và backend mount source để hot reload: sửa `apps/admin-web/src` hoặc `backend/app` không cần build lại. Chỉ build lại khi đổi dependency hoặc Dockerfile:
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml build admin-web
 docker compose -f infrastructure/docker-compose.yml up -d --no-deps admin-web
-
-docker compose -f infrastructure/docker-compose.yml build api
-docker compose -f infrastructure/docker-compose.yml up -d --no-deps api worker
 ```
-
-Compose deploy/GHCR vẫn dùng production build tĩnh qua Nginx.
 
 | Địa chỉ | Dịch vụ |
 | --- | --- |
-| <http://localhost:8080> | Giao diện quản trị |
-| <http://localhost:8080/api/v1/docs> | Tài liệu OpenAPI tương tác |
-| <http://localhost:8080/health/ready> | Kiểm tra PostgreSQL, Redis, Elasticsearch và MinIO |
+| <http://localhost:8080> | Giao diện quản trị, wizard `/setup` |
+| <http://localhost:8080/api/v1/docs> | OpenAPI tương tác |
+| <http://localhost:8080/health/ready> | Kiểm tra PostgreSQL, Redis, Elasticsearch, MinIO |
 | <http://localhost:9001> | MinIO Console |
-
-Để xem log hoặc dừng stack:
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml logs -f api worker
 docker compose -f infrastructure/docker-compose.yml down
 ```
 
-`down` dừng container và giữ lại các volume dữ liệu.
+`down` dừng container và giữ lại volume dữ liệu.
 
-## Docker image trên GitHub
+## Triển khai self-host từ image GHCR
 
-Dự án có Compose riêng cho local và chạy image từ GHCR, dùng chung [cấu hình dịch vụ](infrastructure/docker-compose.base.yml). Sau khi CI pass, push vào `develop`/`main` hoặc tag release từ `main` sẽ build/publish backend (runtime/local-ai), Admin web, widget, demo và gateway. Pull request chỉ build để kiểm tra. API, worker và migration dùng cùng backend image.
+Repository có Compose dùng image build sẵn từ GitHub Container Registry, dùng chung [cấu hình dịch vụ](infrastructure/docker-compose.base.yml). Sau khi CI pass, push vào `develop`/`main` hoặc tag release sẽ build/publish backend (`runtime`/`local-ai`), Admin web, widget, demo và gateway.
 
-Copy [`.env.ghcr.example`](.env.ghcr.example) thành `.env.ghcr`, điền secrets/SMTP/domain và tag đã publish, rồi chạy:
+1. Copy [`.env.self-host.example`](.env.self-host.example) thành `.env.self-host`, điền tag image đã publish, `APP_SECRET_KEY`, `PROVIDER_MASTER_KEY`, mật khẩu DB/MinIO, `FRONTEND_URL`/`PUBLIC_BASE_URL` HTTPS.
+2. Chạy:
 
 ```powershell
-docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml pull
-docker compose --env-file .env.ghcr -f infrastructure/docker-compose.ghcr.yml up -d --wait --pull never
+docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai pull
+docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai up -d --wait api worker nginx ollama
+docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai run --rm ollama-init
 ```
 
-Bản GHCR không build source, chỉ mở cổng gateway, lưu dữ liệu trong volume riêng và đóng gói sẵn Nginx config. Xem [hướng dẫn GHCR](docs/docker-ghcr.md) để đăng nhập package private, dùng AI local, nâng cấp, rollback và backup.
+3. Mở `/setup` qua HTTPS gateway để tạo Owner, tổ chức và membership.
+4. Cài đặt headless dùng CLI: `docker compose ... exec api python -m app.cli bootstrap-owner --email owner@example.com`.
+
+Chi tiết xem [cài đặt self-host](docs/operations/SELF_HOST.md) và [vận hành, backup, nâng cấp](docs/operations/SELF_HOST_OPERATIONS.md), [hướng dẫn GHCR](docs/docker-ghcr.md).
 
 ## Thiết lập để sử dụng
 
-1. Mở giao diện quản trị, tạo tài khoản bằng email hợp lệ và mật khẩu từ 8 ký tự.
-2. Tạo tổ chức và không gian làm việc. `slug` dùng chữ thường, số và dấu `-`.
-3. Trong mục Chatbot, cấu hình embedding provider và chat provider, kiểm tra kết nối, rồi gắn chúng vào workspace. API cũng hỗ trợ luồng này; xem [quy trình cấu hình AI](docs/ai-provider-layer.md).
-4. Tải tài liệu lên và đợi trạng thái **Sẵn sàng** trước khi tìm kiếm hoặc dùng chatbot.
-5. Tạo, xuất bản chatbot và gọi API chat để nhận các sự kiện SSE cùng trích dẫn nguồn.
+1. Mở `/setup` lần đầu để tạo Owner và tổ chức (hoặc dùng CLI `bootstrap-owner`). Các tài khoản tiếp theo do quản trị viên thêm, không có đăng ký công khai.
+2. Tạo không gian làm việc trong tổ chức. `slug` dùng chữ thường, số và dấu `-`.
+3. Trong mục Chatbot/AI, cấu hình embedding provider và chat provider, kiểm tra kết nối, rồi gắn chúng vào workspace. Xem [quy trình cấu hình AI](docs/ai-provider-layer.md).
+4. Tải tài liệu lên và đợi trạng thái **READY** trước khi tìm kiếm hoặc chat.
+5. Tạo và **xuất bản** chatbot, sau đó gọi chat SSE để nhận câu trả lời kèm trích dẫn.
 
-Endpoint được bảo vệ cần header `Authorization: Bearer <access_token>`. Endpoint theo tổ chức cần thêm `X-Organization-ID`. Gửi khóa AI trong trường `secret` của API provider; không đặt credential trong `config_json`.
+Endpoint được bảo vệ cần `Authorization: Bearer <access_token>`. Endpoint theo tổ chức cần thêm `X-Organization-ID`. Gửi khóa AI trong trường `secret` của API provider; không đặt credential trong `config_json`.
 
-RagHub hỗ trợ `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI`, `LOCAL_SENTENCE_TRANSFORMER` và `LOCAL_TOKEN_HASH` cho embedding, cùng `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI` và `OLLAMA` cho chat. `LOCAL_TOKEN_HASH` chỉ phục vụ phát triển và kiểm tra tích hợp, không cung cấp tìm kiếm ngữ nghĩa chất lượng sản xuất.
+## Nhúng chatbot vào website
 
-### Nhúng chatbot vào website
-
-Mở **Nhúng chatbot**, thêm origin chính xác của website (scheme, hostname và port), đặt màu, tiêu đề và lời chào rồi **Xuất bản chatbot**. Copy mã nhúng ngay sau lần publish đầu hoặc sau khi tạo key mới. Script cần URL tuyệt đối trỏ tới RagHub:
+Mở **Nhúng chatbot**, thêm origin chính xác của website (scheme, hostname và port), đặt màu/tiêu đề/lời chào rồi **Xuất bản chatbot**. Copy mã nhúng ngay sau lần publish đầu hoặc sau khi rotate:
 
 ```html
 <script src="https://raghub.example.com/widget/raghub.js"
         data-chatbot-key="rgh_REPLACE_WITH_YOUR_KEY" async></script>
 ```
 
-Embed key xuất hiện công khai trên website; database chỉ lưu hash. Allowed origins chặn website ngoài danh sách trong trình duyệt, nhưng không thay thế xác thực người dùng vì client ngoài trình duyệt có thể giả Origin. Rotate vô hiệu hóa key cũ ngay; thay script trên mọi website sau rotate. Endpoint lấy lại embed code chỉ trả `REDACTED`; cần giữ mã được cấp hoặc rotate.
+- Embed key xuất hiện công khai; database chỉ lưu hash. Endpoint lấy lại embed code chỉ trả `REDACTED` — cần giữ mã đã cấp hoặc rotate.
+- Rotate vô hiệu hóa key cũ ngay; thay script trên mọi website sau rotate.
+- Allowed origins chặn website ngoài danh sách trong trình duyệt, nhưng không thay thế xác thực người dùng vì client ngoài trình duyệt có thể giả Origin. Không đưa tài liệu riêng tư vào chatbot public nếu người ngoài không được phép xem.
+- Giới hạn public mặc định (cấu hình được): **20 request/phút/IP**, **120 request/phút/chatbot**, **4 stream/chatbot**, **32 stream toàn hệ thống**, timeout stream (90 giây ở dev). Vượt giới hạn trả `429` kèm `Retry-After`; Redis lỗi trả `503`. Admin chat dùng đường riêng, không chịu các giới hạn này.
 
-Public chat mặc định giới hạn **20 request/phút/IP**, **120 request/phút/chatbot**, **4 stream/chatbot**, **32 stream toàn hệ thống** và timeout **90 giây**. Giới hạn chia sẻ qua Redis, trả `429` với `Retry-After`; Redis lỗi trả `503`. Admin chat không dùng các giới hạn public. Xem [hướng dẫn widget](docs/widget-integration.md) để cấu hình và chạy smoke test.
+Chi tiết xem [hướng dẫn widget](docs/widget-integration.md).
 
-## AI cục bộ
+## AI provider và AI cục bộ
 
-Profile `local-ai` cài Sentence Transformers và chạy Ollama. Lần khởi động đầu, dịch vụ `ollama-init` tải `OLLAMA_MODEL` vào volume dùng chung.
+- Embedding: `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI`, `LOCAL_SENTENCE_TRANSFORMER`, `LOCAL_TOKEN_HASH` (chỉ cho phát triển/kiểm thử, không có tìm kiếm ngữ nghĩa production).
+- Chat: `OPENAI_COMPATIBLE`, `GOOGLE_GEMINI`, `OLLAMA`.
+- Credential được mã hóa bằng `PROVIDER_MASTER_KEY`; đổi embedding model kích hoạt lập chỉ mục lại an toàn.
+
+Chạy AI hoàn toàn trên máy với profile `local-ai` (cài Sentence Transformers, chạy Ollama; `ollama-init` tải `OLLAMA_MODEL`, mặc định `gemma3:1b`):
 
 ```powershell
 $env:BACKEND_IMAGE_TARGET = 'local-ai'
@@ -234,13 +192,21 @@ $env:OLLAMA_MODEL = 'gemma3:1b'
 docker compose --env-file .env -f infrastructure/docker-compose.yml --profile local-ai up --build -d --wait
 ```
 
-Sau đó tạo embedding provider loại `LOCAL_SENTENCE_TRANSFORMER`, chat provider loại `OLLAMA` với cùng tên model, và gắn cả hai vào không gian làm việc. Image `runtime` mặc định không cài Sentence Transformers. Hướng dẫn cấu hình và cơ chế lập chỉ mục lại khi đổi model nằm trong [docs/ai-provider-layer.md](docs/ai-provider-layer.md).
+Sau đó tạo embedding provider `LOCAL_SENTENCE_TRANSFORMER` và chat provider `OLLAMA` với cùng tên model, gắn cả hai vào workspace. Image `runtime` mặc định không cài Sentence Transformers. Biến thể GPU có file [`infrastructure/docker-compose.gpu.yml`](infrastructure/docker-compose.gpu.yml).
+
+## Bảo mật
+
+- Không có đăng ký công khai; tài khoản đầu tiên qua `/setup`, các tài khoản sau do quản trị viên cấp.
+- JWT access ngắn hạn (15 phút) + refresh token opaque xoay vòng, lưu dạng hash; dùng lại token đã thu hồi sẽ thu hồi toàn bộ session.
+- Rate limit đăng nhập/quên mật khẩu theo IP và tài khoản; Turnstile (Cloudflare) tùy chọn cho login và quên/đặt lại mật khẩu.
+- SMTP Gmail qua App Password; thiếu SMTP ở dev dùng log sender, ở môi trường khác bắt buộc cấu hình đầy đủ.
+- Public widget: embed key hash, origin allowlist, rate/concurrent limit atomic qua Redis, log che key và không ghi message/IP khách.
 
 ## Phát triển và kiểm tra
 
 ### Backend
 
-Chạy các lệnh sau từ `backend/`:
+Chạy từ `backend/`:
 
 ```powershell
 cd backend
@@ -253,17 +219,16 @@ $env:PROVIDER_MASTER_KEY = 'raghub-ci-provider-key-not-for-production'
 ..\.venv\Scripts\python.exe -m ruff check . ../raghub-core
 ```
 
-Core có bộ kiểm thử riêng, không cần backend hay Docker. Chạy từ root repository:
+Core có bộ kiểm thử riêng, không cần backend hay Docker. Chạy từ `raghub-core/`:
 
 ```powershell
-Push-Location raghub-core
-../.venv/Scripts/python.exe -m pytest -p no:cacheprovider
-Pop-Location
+cd raghub-core
+..\.venv\Scripts\python.exe -m pytest -p no:cacheprovider
 ```
 
 ### Frontend
 
-Chạy các lệnh sau từ `apps/admin-web/`:
+Chạy từ `apps/admin-web/`:
 
 ```powershell
 cd apps/admin-web
@@ -273,45 +238,43 @@ npm test
 npm run build
 ```
 
-`npm start` dùng `proxy.json` để chuyển yêu cầu API đến backend. Các bài kiểm thử backend được đánh dấu `integration` cần hạ tầng Docker. Để kiểm tra luồng chat RAG với provider thật hoặc cục bộ, xem [hướng dẫn smoke test](docs/rag-chat-integration.md) và script [`rag-chat-smoke.ps1`](scripts/rag-chat-smoke.ps1).
+`npm start` dùng `proxy.json` để chuyển API về backend. Test có đánh dấu `integration` cần hạ tầng Docker. Luồng chat RAG dùng [hướng dẫn smoke test](docs/rag-chat-integration.md) và script [`scripts/rag-chat-smoke.ps1`](scripts/rag-chat-smoke.ps1).
 
-CI có job **Widget checks** chạy loader test với Node 24.12.0 và compile TypeScript 5.9.3. Job integration chạy smoke HTTP qua Nginx tới SSE và test atomic rate/concurrent trên Redis thật. Smoke widget sử dụng workspace trống và embedding local, không gọi AI trả phí; kiểm tra câu trả lời có citation từ tài liệu dùng smoke RAG riêng.
+CI có job **Widget checks** (loader test Node 24, compile TypeScript 5.9) và smoke HTTP qua Nginx tới SSE cùng test atomic rate/concurrent trên Redis thật.
 
 ## Cấu trúc dự án
 
 ```text
-apps/admin-web/       Ứng dụng quản trị Angular
+apps/admin-web/       Ứng dụng quản trị Angular (console, /setup, /system/ai/)
 apps/chat-widget/     Widget Web Component và website demo
-raghub-core/          Package engine độc lập, không import app
-  src/raghub_core/
-    domain/           Domain, thuật toán, policy và AI contracts
-    application/      Upload, ingestion/rebuild, retrieval, chatbot và RAG use cases
-    ports/            Hợp đồng storage, search, queue, provider và persistence
-    api.py            Facade public cho các host
-  tests/              Core contracts và fake ports, không cần hạ tầng
-backend/app/          API, control plane, adapter hạ tầng và worker
-  composition/        Ghép use cases với adapter của từng runtime
+raghub-core/          Engine độc lập (domain, application, ports, api.py)
+backend/app/          API, control plane, adapter hạ tầng, worker
+  composition/        Ghép use case với adapter từng runtime
   delivery/           Upload/SSE HTTP adapter và worker bootstrap
+  modules/            auth, organizations, workspaces, documents, chatbots, ...
 backend/alembic/      Migration cơ sở dữ liệu
 backend/tests/        Kiểm thử backend
-infrastructure/       Docker Compose và cấu hình Nginx
-scripts/              Công cụ hỗ trợ phát triển và smoke test
-docs/                 Tài liệu thiết kế, API và hướng dẫn tích hợp
+infrastructure/       Compose dev/self-host/GHCR/GPU và cấu hình Nginx
+scripts/              Công cụ phát triển và smoke test
+docs/                 Thiết kế, API, vận hành, tích hợp
+postman/              Collection API
 ```
 
-## Xử lý sự cố và tài liệu
+## Tài liệu chi tiết
 
-Self-host: [cài đặt Console và AI local](docs/operations/SELF_HOST.md) ·
-[backup, restore và nâng cấp](docs/operations/SELF_HOST_OPERATIONS.md).
+- [API](docs/api.md) · [AI provider](docs/ai-provider-layer.md) · [RAG chat](docs/rag-chat-integration.md) · [Ingestion](docs/ingestion-qa.md)
+- [Cơ sở dữ liệu](docs/database.md) · [Kiến trúc](docs/architecture.md) · [Tích hợp widget](docs/widget-integration.md)
+- [Self-host](docs/operations/SELF_HOST.md) · [Vận hành self-host](docs/operations/SELF_HOST_OPERATIONS.md) · [GHCR](docs/docker-ghcr.md)
+- [Quy ước đóng góp](CONTRIBUTING.md) · [Tài liệu thiết kế hệ thống](RagHub_KeHoach_TrienKhai_ThietKe_HeThong.md)
 
-- **`502 Bad Gateway` sau khi build lại web:** Nginx có thể vẫn giữ địa chỉ container cũ. Chạy `docker compose -f infrastructure/docker-compose.yml restart nginx` rồi tải lại trang.
-- **Tài liệu không đến trạng thái Sẵn sàng:** xem `docker compose -f infrastructure/docker-compose.yml logs -f worker api`; tra mã lỗi xử lý trong [hướng dẫn ingestion](docs/ingestion-qa.md).
-- **Chat không có câu trả lời dựa trên tài liệu:** kiểm tra provider đã gắn vào workspace, tài liệu đã sẵn sàng và chatbot đã xuất bản. Xem [tích hợp RAG chat](docs/rag-chat-integration.md).
+## Xử lý sự cố
 
-Tài liệu chi tiết: [API](docs/api.md) · [AI provider](docs/ai-provider-layer.md) · [Cơ sở dữ liệu](docs/database.md) · [Quy ước đóng góp](CONTRIBUTING.md).
+- **`502 Bad Gateway` sau khi build lại web:** Nginx có thể giữ địa chỉ container cũ. Chạy `docker compose -f infrastructure/docker-compose.yml restart nginx` rồi tải lại trang.
+- **Tài liệu không READY:** xem `docker compose -f infrastructure/docker-compose.yml logs -f worker api`; tra mã lỗi trong [hướng dẫn ingestion](docs/ingestion-qa.md).
+- **Chat không có câu trả lời từ tài liệu:** kiểm tra provider đã gắn vào workspace, tài liệu đã READY và chatbot đã xuất bản. Xem [tích hợp RAG chat](docs/rag-chat-integration.md).
 
 ## Nhóm phát triển
 
-**DoubleT** — Đồng Văn Tú và Nguyễn Mạnh Thi. Cố vấn: **ThS. Nguyễn Chiến Thắng**. Thông tin sản phẩm và mục tiêu cuộc thi được đối chiếu từ phiếu đăng ký `DoubleT.pdf`; các tính năng và lệnh chạy được đối chiếu với repository hiện tại.
+**DoubleT** — Đồng Văn Tú và Nguyễn Mạnh Thi. Cố vấn: **ThS. Nguyễn Chiến Thắng**. Thông tin sản phẩm và mục tiêu cuộc thi đối chiếu từ phiếu đăng ký `DoubleT.pdf`; tính năng và lệnh chạy đối chiếu với repository hiện tại.
 
 Các badge công nghệ sử dụng [Shields.io](https://shields.io/) và logo từ [Simple Icons](https://simpleicons.org/); cần kết nối Internet để hiển thị ảnh trong Markdown.

@@ -6,11 +6,14 @@ import { LOCALE_ID } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
 import localeVi from '@angular/common/locales/vi';
 import {
+  ApiOutline,
   CloudServerOutline,
   DashboardOutline,
   DatabaseOutline,
+  FileSearchOutline,
   FileTextOutline,
   MessageOutline,
+  RocketOutline,
   SettingOutline,
   TeamOutline,
 } from '@ant-design/icons-angular/icons';
@@ -31,10 +34,13 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([apiAuthInterceptor])),
     provideNzI18n(vi_VN),
     provideNzIcons([
+      ApiOutline,
       DashboardOutline,
       DatabaseOutline,
+      FileSearchOutline,
       FileTextOutline,
       MessageOutline,
+      RocketOutline,
       SettingOutline,
       CloudServerOutline,
       TeamOutline,

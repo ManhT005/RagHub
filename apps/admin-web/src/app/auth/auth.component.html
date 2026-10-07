@@ -1,63 +1,67 @@
-<main class="auth-card">
-  <p class="eyebrow">TÀI KHOẢN RAGHUB</p>
-  @if (mode === "forgot") {
-    <h1>Quên mật khẩu</h1>
-    <p>Nhập email để nhận liên kết đặt lại mật khẩu qua Gmail.</p>
-    <form (ngSubmit)="requestPasswordReset()">
-      <label
-        >Email
-        <input
-          [(ngModel)]="email"
-          name="email"
-          type="email"
-          autocomplete="email"
-          required
-      /></label>
-      @if (message()) {
-        <p class="success">{{ message() }}</p>
-      }
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
-      <raghub-turnstile action="forgot_password" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
-      <button type="submit" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">Gửi liên kết đặt lại</button>
-    </form>
-    <button class="link" type="button" (click)="setMode('login')">
-      Quay lại đăng nhập
-    </button>
-  } @else {
-    <h1>Chào mừng trở lại</h1>
-    <p>Đăng nhập để quản lý không gian làm việc và tài liệu.</p>
-    <form (ngSubmit)="submitCredentials()">
-      <label
-        >Email
-        <input
-          [(ngModel)]="email"
-          name="email"
-          type="email"
-          autocomplete="email"
-          required
-      /></label>
-      <label
-        >Mật khẩu
-        <input
-          [(ngModel)]="password"
-          name="password"
-          type="password"
-          autocomplete="current-password"
-          minlength="8"
-          required
-      /></label>
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
-      <raghub-turnstile action="login" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
-      <button type="submit" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">Đăng nhập</button>
-    </form>
-    <div class="actions">
-      <button class="link" type="button" (click)="setMode('forgot')">
-        Quên mật khẩu?
-      </button>
-    </div>
-  }
+<main class="auth-page">
+  <nz-card class="auth-card" [nzBordered]="true">
+
+
+    @if (mode === "forgot") {
+      <h1>Quên mật khẩu</h1>
+      <p class="description">Nhập email để nhận liên kết đặt lại mật khẩu qua Gmail.</p>
+
+      <form nz-form nzLayout="vertical" (ngSubmit)="requestPasswordReset()">
+        <nz-form-item>
+          <nz-form-label nzRequired nzFor="reset-email">Email</nz-form-label>
+          <nz-form-control>
+            <input nz-input nzSize="large" id="reset-email" [(ngModel)]="email" name="email" type="email" autocomplete="email" required />
+          </nz-form-control>
+        </nz-form-item>
+
+        @if (message()) {
+          <nz-alert nzType="success" nzShowIcon [nzMessage]="message()" />
+        }
+        @if (error()) {
+          <nz-alert nzType="error" nzShowIcon [nzMessage]="error()" />
+        }
+
+        <raghub-turnstile action="forgot_password" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
+
+        <button nz-button nzType="primary" nzSize="large" class="submit-button" type="submit" [nzLoading]="loading()" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">
+          Gửi liên kết đặt lại
+        </button>
+      </form>
+
+      <button nz-button nzType="link" class="mode-link" type="button" (click)="setMode('login')">Quay lại đăng nhập</button>
+    } @else {
+      <h1>Chào mừng trở lại</h1>
+      <p class="description">Đăng nhập để quản lý không gian làm việc và tài liệu.</p>
+
+      <form nz-form nzLayout="vertical" (ngSubmit)="submitCredentials()">
+        <nz-form-item>
+          <nz-form-label nzRequired nzFor="login-email">Email</nz-form-label>
+          <nz-form-control>
+            <input nz-input nzSize="large" id="login-email" [(ngModel)]="email" name="email" type="email" autocomplete="email" required />
+          </nz-form-control>
+        </nz-form-item>
+
+        <nz-form-item>
+          <nz-form-label nzRequired nzFor="login-password">Mật khẩu</nz-form-label>
+          <nz-form-control>
+            <input nz-input nzSize="large" id="login-password" [(ngModel)]="password" name="password" type="password" autocomplete="current-password" minlength="8" required />
+          </nz-form-control>
+        </nz-form-item>
+
+        @if (error()) {
+          <nz-alert nzType="error" nzShowIcon [nzMessage]="error()" />
+        }
+
+        <raghub-turnstile action="login" (tokenChange)="turnstileToken = $event" (availabilityChange)="turnstileRequired.set($event)" />
+
+        <button nz-button nzType="primary" nzSize="large" class="submit-button" type="submit" [nzLoading]="loading()" [disabled]="loading() || (turnstileRequired() && !turnstileToken)">
+          Đăng nhập
+        </button>
+      </form>
+
+      <div class="actions">
+        <button nz-button nzType="link" class="mode-link" type="button" (click)="setMode('forgot')">Quên mật khẩu?</button>
+      </div>
+    }
+  </nz-card>
 </main>

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { Subscription, exhaustMap, finalize, timer } from 'rxjs';
@@ -9,15 +8,17 @@ import { RaghubApiService } from '../../core/raghub-api.service';
 import { consoleOrganization } from '../../core/console-organization';
 import { session } from '../../core/api-auth.interceptor';
 import { apiError } from '../../core/api/api-error';
+import { AiModuleTabsComponent } from '../ai-navigation/ai-module-tabs.component';
 
 @Component({
   selector: 'raghub-local-ai',
-  imports: [RouterLink, NzButtonModule, NzAlertModule],
+  imports: [NzButtonModule, NzAlertModule, AiModuleTabsComponent],
   template: `<main class="selfhost-page">
     <header class="page-heading"><div><p class="eyebrow">AI & Models / System</p><h1>Local AI</h1>
       <p>Xem và tải model embedding về máy chủ RagHub.</p></div>
-      <a nz-button routerLink="/system/ai/providers">AI Providers →</a></header>
-    <p class="muted">Model đã tải chưa tự động được gắn vào workspace. Ollama được quản lý trong AI Providers.</p>
+    </header>
+    <raghub-ai-module-tabs />
+    <p class="muted">Model đã tải chưa tự động được gán vào workspace. Ollama được quản lý trong AI Providers.</p>
     @if (error()) { <nz-alert nzType="error" [nzMessage]="error()" nzShowIcon /> }
     @if (loading()) { <p role="status">Đang tải danh sách model…</p> }
     <div class="provider-grid">
@@ -32,7 +33,7 @@ import { apiError } from '../../core/api/api-error';
             <p>{{ megabytes(model.completed_bytes) }} / {{ megabytes(model.total_bytes) }} MB</p>
           }
           @if (model.error_code) { <p class="muted">{{ model.error_code }}</p> }
-          <div class="card-actions"><a [href]="model.docs_url" target="_blank" rel="noopener noreferrer">Thông tin model ↗</a>
+          <div class="card-actions"><a nz-button [href]="model.docs_url" target="_blank" rel="noopener noreferrer">Thông tin model</a>
             <button nz-button nzType="primary" [nzLoading]="busy() === model.id"
               [disabled]="anyActive() || !!busy() || model.status === 'INSTALLED'" (click)="download(model)">
               {{ model.status === 'INSTALLED' ? 'Đã tải' : model.status === 'FAILED' ? 'Thử tải lại' : 'Tải model' }}

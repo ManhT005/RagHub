@@ -292,6 +292,25 @@
   z-index: 1;
 }
 
+.flow-pulse {
+  animation: streamFlow 2.8s linear infinite;
+}
+.stream-1 { animation-delay: 0s; }
+.stream-2 { animation-delay: 0.4s; }
+.stream-3 { animation-delay: 0.8s; }
+.stream-4 { animation-delay: 1.2s; }
+.stream-5 { animation-delay: 1.6s; }
+.stream-6 { animation-delay: 2.0s; }
+
+@keyframes streamFlow {
+  from {
+    stroke-dashoffset: 56;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .file-card {
   position: absolute;
   z-index: 3;
