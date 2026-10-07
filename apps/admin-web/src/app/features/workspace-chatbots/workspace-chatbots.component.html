@@ -1,0 +1,93 @@
+<header class="page-heading">
+  <div>
+    <h1>Chatbot</h1>
+    <p>Quản lý chatbot thuộc workspace này và mã nhúng cho từng chatbot.</p>
+  </div>
+  @if (context.can("workspace.edit")) {
+    <a nz-button nzType="primary" routerLink="../chat">+ Tạo chatbot</a>
+  }
+</header>
+
+@if (error()) {
+  <nz-alert nzType="error" nzShowIcon [nzMessage]="error()" />
+}
+
+<div class="toolbar chatbot-filters">
+  <input
+    nz-input
+    placeholder="Tìm kiếm chatbot…"
+    aria-label="Tìm kiếm chatbot"
+    [ngModel]="search()"
+    (ngModelChange)="search.set($event)"
+  />
+  <select aria-label="Trạng thái chatbot" [ngModel]="status()" (ngModelChange)="status.set($event)">
+    <option value="">Tất cả trạng thái</option>
+    <option value="published">Đã xuất bản</option>
+    <option value="draft">Bản nháp</option>
+  </select>
+  <select aria-label="Sắp xếp chatbot" [ngModel]="sort()" (ngModelChange)="sort.set($event)">
+    <option value="newest">Mới nhất</option>
+    <option value="oldest">Cũ nhất</option>
+    <option value="name">Tên A–Z</option>
+  </select>
+  <button nz-button [nzLoading]="loading()" (click)="load()">Làm mới</button>
+</div>
+
+<nz-table
+  #table
+  [nzData]="filtered()"
+  [nzLoading]="loading()"
+  [nzScroll]="{ x: '920px' }"
+  nzNotFoundContent="Chưa có chatbot phù hợp"
+  class="chatbots-table"
+>
+  <thead>
+    <tr>
+      <th nzWidth="280px">Tên chatbot</th>
+      <th>Trạng thái</th>
+      <th>Website được phép</th>
+      <th>Ngày tạo</th>
+      <th>Cập nhật gần nhất</th>
+      <th nzWidth="100px">Thao tác</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (bot of table.data; track bot.id) {
+      <tr>
+        <td>
+          <strong>{{ bot.name }}</strong>
+          <small class="block prompt" [title]="bot.system_prompt">{{ bot.system_prompt }}</small>
+        </td>
+        <td>
+          <nz-tag [nzColor]="bot.published ? 'green' : 'default'">
+            {{ bot.published ? "Đã xuất bản" : "Bản nháp" }}
+          </nz-tag>
+        </td>
+        <td>
+          @if (bot.allowed_origins.length) {
+            <span class="origin-count">{{ bot.allowed_origins.length }} website</span>
+          } @else {
+            <span class="muted">Chưa cấu hình</span>
+          }
+        </td>
+        <td>{{ bot.created_at | date: "HH:mm:ss dd/MM/yyyy" }}</td>
+        <td>{{ (bot.updated_at || bot.created_at) | date: "HH:mm:ss dd/MM/yyyy" }}</td>
+        <td>
+          <button nz-button nz-dropdown [nzDropdownMenu]="menu" nzTrigger="click" [attr.aria-label]="'Thao tác với ' + bot.name">•••</button>
+          <nz-dropdown-menu #menu="nzDropdownMenu">
+            <ul nz-menu>
+              <li nz-menu-item><a class="menu-action" [routerLink]="['/app/chatbots', bot.id, 'settings']">Cấu hình &amp; widget</a></li>
+              <li nz-menu-item><a class="menu-action" routerLink="../chat">Thử chat</a></li>
+              @if (context.can("workspace.edit")) {
+                <li nz-menu-divider></li>
+                <li nz-menu-item>
+                  <button class="menu-action danger" nz-popconfirm nzPopconfirmTitle="Xóa chatbot này? Mã nhúng hiện tại sẽ ngừng hoạt động." nzOkText="Xóa" nzCancelText="Hủy" [disabled]="deletingId() !== ''" (nzOnConfirm)="delete(bot)">Xóa chatbot</button>
+                </li>
+              }
+            </ul>
+          </nz-dropdown-menu>
+        </td>
+      </tr>
+    }
+  </tbody>
+</nz-table>

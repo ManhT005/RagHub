@@ -16,8 +16,6 @@ import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzModalModule } from "ng-zorro-antd/modal";
-import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
-import { NzTagModule } from "ng-zorro-antd/tag";
 import { Subscription, finalize } from "rxjs";
 import {
   Chatbot,
@@ -41,8 +39,6 @@ interface Message {
     NzInputModule,
     NzAlertModule,
     NzModalModule,
-    NzPopconfirmModule,
-    NzTagModule,
   ],
   templateUrl: "./workspace-chat.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,8 +52,6 @@ export class WorkspaceChatComponent implements OnDestroy {
   protected readonly error = signal("");
   protected readonly messages = signal<Message[]>([]);
   protected readonly editorOpen = signal(false);
-  protected readonly managerOpen = signal(false);
-  protected readonly deletingBotId = signal("");
   protected selected = "";
   protected question = "";
   protected name = "";
@@ -99,27 +93,6 @@ export class WorkspaceChatComponent implements OnDestroy {
   }
   protected selectedBot() {
     return this.bots().find((bot) => bot.id === this.selected);
-  }
-  protected deleteBot(bot: Chatbot) {
-    if (this.deletingBotId() || !this.context.can("workspace.edit")) return;
-    this.deletingBotId.set(bot.id);
-    this.error.set("");
-    this.api
-      .deleteChatbot(bot.id)
-      .pipe(
-        finalize(() => this.deletingBotId.set("")),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => {
-          if (this.selected === bot.id) {
-            this.selected = this.bots().find((item) => item.id !== bot.id)?.id ?? "";
-            this.reset();
-          }
-          this.load();
-        },
-        error: (error) => this.error.set(apiError(error)),
-      });
   }
   protected reset() {
     this.controller?.abort();

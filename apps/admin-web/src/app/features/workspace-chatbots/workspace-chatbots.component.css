@@ -1,0 +1,13 @@
+:host { display: block; }
+
+.chatbot-filters { margin: 0 0 20px; }
+.chatbot-filters input { width: min(320px, 100%); }
+.chatbot-filters select { min-width: 160px; }
+.prompt { max-width: 280px; margin-top: 5px; color: var(--rh-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.origin-count { color: var(--rh-text); }
+
+@media (max-width: 720px) {
+  .chatbot-filters input,
+  .chatbot-filters select,
+  .chatbot-filters button { width: 100%; }
+}
