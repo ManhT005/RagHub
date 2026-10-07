@@ -78,7 +78,7 @@
             <th>Trạng thái</th>
             <th>Vai trò</th>
             <th>Workspace</th>
-            <th aria-label="Thao tác">Thao tác</th>
+            <th class="actions-heading">Thao tác</th>
           </tr>
         </thead>
         <tbody>
@@ -100,35 +100,30 @@
               <td>{{ roleLabel(user.role) }}</td>
               <td><span class="workspace-summary">{{ workspaceSummary(user) }}</span></td>
               <td class="actions">
+                <div class="action-buttons">
+                  <button nz-button nzType="primary" nzSize="small" type="button" (click)="openRename(user)">
+                  Đổi tên
+                </button>
+                <button nz-button nzType="primary" nzSize="small" type="button" (click)="openRole(user)">
+                  Đổi vai trò
+                </button>
                 <button
                   nz-button
-                  nzType="text"
+                  nzType="primary"
+                  nzSize="small"
                   type="button"
-                  nz-dropdown
-                  [nzDropdownMenu]="actionsMenu"
-                  nzTrigger="click"
-                  aria-label="Thao tác với {{ user.email }}"
+                  [nzDanger]="user.status === 'ACTIVE'"
+                  [disabled]="updatingId() === user.id"
+                  nz-popconfirm
+                  [nzPopconfirmTitle]="user.status === 'ACTIVE' ? 'Vô hiệu hóa quyền truy cập trong phạm vi này?' : 'Kích hoạt lại quyền truy cập trong phạm vi này?'"
+                  nzPopconfirmPlacement="topRight"
+                  [nzOkText]="user.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt'"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="toggleStatus(user)"
                 >
-                  •••
-                </button>
-                <nz-dropdown-menu #actionsMenu="nzDropdownMenu">
-                  <ul nz-menu>
-                    <li nz-menu-item (click)="openRename(user)">Đổi tên</li>
-                    <li nz-menu-item (click)="openRole(user)">Đổi vai trò</li>
-                    <li nz-menu-divider></li>
-                    <li
-                      nz-menu-item
-                      nz-popconfirm
-                      [nzPopconfirmTitle]="user.status === 'ACTIVE' ? 'Vô hiệu hóa quyền truy cập trong phạm vi này?' : 'Kích hoạt lại quyền truy cập trong phạm vi này?'"
-                      nzPopconfirmPlacement="topRight"
-                      [nzOkText]="user.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt'"
-                      nzCancelText="Hủy"
-                      (nzOnConfirm)="toggleStatus(user)"
-                    >
-                      {{ user.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt" }}
-                    </li>
-                  </ul>
-                </nz-dropdown-menu>
+                  {{ user.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt" }}
+                  </button>
+                </div>
               </td>
             </tr>
           }

@@ -79,6 +79,7 @@ describe("ConsoleLayoutComponent", () => {
     expect(sidebar.querySelector('.workspace-identity').textContent).toContain('Knowledge');
     expect(sidebar.querySelector('.workspace-identity').textContent).toContain('knowledge');
     expect(sidebar.querySelector('.workspace-back').getAttribute('href')).toBe('/app/workspaces');
+    expect(sidebar.querySelector('.workspace-back nz-icon')).not.toBeNull();
     expect(sidebar.querySelector('li .workspace-back')).toBeNull();
     expect(sidebar.querySelector('a[href="/app/profile"]')).toBeNull();
     expect(sidebar.querySelector('a[href^="/system"]')).toBeNull();

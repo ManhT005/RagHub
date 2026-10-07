@@ -50,10 +50,20 @@
 }
 
 .actions {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.action-buttons {
   display: flex;
   align-items: center;
-  white-space: nowrap;
+  gap: 8px;
 }
+
+.actions-heading {
+  min-width: 260px;
+}
+
 
 .user-cell {
   display: grid;

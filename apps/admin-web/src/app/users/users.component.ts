@@ -11,11 +11,9 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzButtonModule } from "ng-zorro-antd/button";
-import { NzDropDownModule } from "ng-zorro-antd/dropdown";
 import { NzEmptyModule } from "ng-zorro-antd/empty";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzModalModule } from "ng-zorro-antd/modal";
-import { NzMenuModule } from "ng-zorro-antd/menu";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
 import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzSpinModule } from "ng-zorro-antd/spin";
@@ -40,11 +38,9 @@ const PAGE_SIZE = 10;
     FormsModule,
     NzAlertModule,
     NzButtonModule,
-    NzDropDownModule,
     NzEmptyModule,
     NzInputModule,
     NzModalModule,
-    NzMenuModule,
     NzPopconfirmModule,
     NzSelectModule,
     NzSpinModule,

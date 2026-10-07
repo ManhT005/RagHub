@@ -1,12 +1,15 @@
 <nz-layout class="console-shell" [class.sidebar-collapsed]="sidebarCollapsed()">
   <nz-sider nzTheme="light" nzWidth="232">
     @if (context.workspace(); as workspace) {
-    <a class="workspace-back" routerLink="/app/workspaces" aria-label="Tất cả workspace">
-      <span aria-hidden="true">←</span><span>Tất cả workspace</span>
+    <a class="workspace-back" routerLink="/app/workspaces" aria-label="Tất cả workspace" title="Tất cả workspace">
+      <nz-icon nzType="arrow-left" aria-hidden="true" /><span>Tất cả workspace</span>
     </a>
     <div class="workspace-identity">
-      <strong [title]="workspace.name">{{ workspace.name }}</strong>
-      <small [title]="workspace.slug">{{ workspace.slug }}</small>
+      <span class="workspace-avatar" aria-hidden="true">{{ workspace.name.charAt(0).toUpperCase() }}</span>
+      <span class="workspace-copy">
+        <strong [title]="workspace.name">{{ workspace.name }}</strong>
+        <small [title]="workspace.slug"><span>Mã:</span> {{ workspace.slug }}</small>
+      </span>
     </div>
     }
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng Console">

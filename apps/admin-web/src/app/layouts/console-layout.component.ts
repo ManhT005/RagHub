@@ -12,7 +12,10 @@ import {
   RouterLinkActive,
   RouterOutlet,
 } from "@angular/router";
-import { CloudServerOutline } from "@ant-design/icons-angular/icons";
+import {
+  ArrowLeftOutline,
+  CloudServerOutline,
+} from "@ant-design/icons-angular/icons";
 import { provideNzIconsPatch } from "ng-zorro-antd/icon";
 import { NzIconModule } from "ng-zorro-antd/icon";
 import { NzLayoutModule } from "ng-zorro-antd/layout";
@@ -39,7 +42,7 @@ import {
     NzLayoutModule,
     NzMenuModule,
   ],
-  providers: [provideNzIconsPatch([CloudServerOutline])],
+  providers: [provideNzIconsPatch([ArrowLeftOutline, CloudServerOutline])],
   templateUrl: "./console-layout.component.html",
   styleUrl: "./console-layout.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
