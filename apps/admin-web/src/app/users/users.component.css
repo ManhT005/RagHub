@@ -40,6 +40,22 @@
   margin-top: 12px;
 }
 
+.role-select {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 28px 4px 11px;
+  color: var(--rh-text);
+  font: inherit;
+  background: var(--rh-surface-raised);
+  border: 1px solid var(--rh-border);
+  border-radius: 6px;
+}
+
+.role-select:focus-visible {
+  outline: 2px solid var(--rh-primary);
+  outline-offset: 2px;
+}
+
 .modal-hint {
   color: var(--rh-muted);
   margin: 0;
@@ -89,4 +105,28 @@
   text-overflow: ellipsis;
   vertical-align: bottom;
   white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .toolbar nz-input-group {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .toolbar > button {
+    width: 100%;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+    min-width: 250px;
+  }
+
+  .actions-heading {
+    min-width: 250px;
+  }
 }

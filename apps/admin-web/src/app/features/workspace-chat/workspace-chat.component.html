@@ -5,7 +5,10 @@
     <p>Kiểm tra câu trả lời và nguồn trích dẫn từ active index.</p>
   </div>
   @if (context.can("workspace.edit")) {
-    <button nz-button (click)="editorOpen.set(true)">+ Tạo chatbot</button>
+    <div class="header-actions">
+      <button nz-button type="button" (click)="managerOpen.set(true)">Quản lý chatbot</button>
+      <button nz-button type="button" (click)="editorOpen.set(true)">+ Tạo chatbot</button>
+    </div>
   }
 </header>
 @if (error()) {
@@ -90,6 +93,50 @@
     </button>
   </form>
 </section>
+<nz-modal
+  [nzVisible]="managerOpen()"
+  nzTitle="Chatbot trong workspace"
+  nzCancelText="Đóng"
+  [nzOkText]="null"
+  [nzMaskClosable]="false"
+  (nzOnCancel)="managerOpen.set(false)"
+>
+  <ng-container *nzModalContent>
+    <div class="chatbot-manager">
+      @for (bot of bots(); track bot.id) {
+        <section class="chatbot-manager-item">
+          <div>
+            <strong>{{ bot.name }}</strong>
+            <nz-tag [nzColor]="bot.published ? 'green' : 'default'">
+              {{ bot.published ? "Đã xuất bản" : "Bản nháp" }}
+            </nz-tag>
+          </div>
+          <div class="chatbot-manager-actions">
+            <a nz-button [routerLink]="['/app/chatbots', bot.id, 'settings']" (click)="managerOpen.set(false)">
+              Cấu hình & widget
+            </a>
+            <button
+              nz-button
+              nzDanger
+              type="button"
+              nz-popconfirm
+              nzPopconfirmTitle="Xóa chatbot này? Mã nhúng hiện tại sẽ ngừng hoạt động."
+              nzOkText="Xóa"
+              nzCancelText="Hủy"
+              [nzLoading]="deletingBotId() === bot.id"
+              [disabled]="deletingBotId() !== ''"
+              (nzOnConfirm)="deleteBot(bot)"
+            >
+              Xóa
+            </button>
+          </div>
+        </section>
+      } @empty {
+        <p class="muted">Workspace này chưa có chatbot.</p>
+      }
+    </div>
+  </ng-container>
+</nz-modal>
 <nz-modal
   [nzVisible]="editorOpen()"
   nzTitle="Tạo chatbot"
