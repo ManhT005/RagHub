@@ -35,6 +35,8 @@ export class ChatbotSettingsComponent {
   readonly hasEmbedKey = signal(false);
   readonly loading = signal(true);
   readonly busy = signal(false);
+  readonly logoDragging = signal(false);
+  readonly logoError = signal("");
   readonly previewDevice = signal<"desktop" | "mobile">("desktop");
   id = "";
   name = "";
@@ -82,14 +84,23 @@ export class ChatbotSettingsComponent {
   selectLogo(file: File | undefined) {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 1024 * 1024) {
-      this.error.set("Logo phải là ảnh PNG, JPG hoặc WebP, tối đa 1 MB."); return;
+      this.logoError.set("Chỉ dùng ảnh PNG, JPG hoặc WebP có dung lượng tối đa 1 MB."); return;
     }
     const reader = new FileReader();
-    reader.onload = () => { this.logoData = String(reader.result); this.error.set(""); };
+    reader.onload = () => { this.logoData = String(reader.result); this.logoError.set(""); };
     reader.readAsDataURL(file);
   }
-  dropLogo(event: DragEvent) { event.preventDefault(); this.selectLogo(event.dataTransfer?.files[0]); }
-  clearLogo() { this.logoData = null; }
+  dragLogo(event: DragEvent, active: boolean) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    this.logoDragging.set(active);
+  }
+  dropLogo(event: DragEvent) {
+    event.preventDefault();
+    this.logoDragging.set(false);
+    this.selectLogo(event.dataTransfer?.files[0]);
+  }
+  clearLogo() { this.logoData = null; this.logoError.set(""); }
   localPublicUrl() {
     try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(this.publicBaseUrl()).hostname); }
     catch { return false; }

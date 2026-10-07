@@ -38,14 +38,33 @@
           <button nz-button type="button" (click)="primaryColor = '#1463ff'">Mặc định</button>
         </div>
         @if (!colorValid()) { <p class="field-error" id="color-error">Nhập màu hex 6 ký tự, ví dụ #8FAAF6.</p> }
-        <label>Logo chatbot</label>
-        <div class="logo-drop" (dragover)="$event.preventDefault()" (drop)="dropLogo($event)">
-          @if (logoData) { <img [src]="logoData" alt="Xem trước logo"> }
-          <span>Kéo thả ảnh vào đây hoặc</span><label nz-button for="widget-logo">Chọn ảnh</label>
-          <input id="widget-logo" type="file" accept="image/png,image/jpeg,image/webp" (change)="selectLogo($any($event.target).files?.[0])">
-          <small>PNG, JPG hoặc WebP · tối đa 1 MB</small>
-          @if (logoData) { <button nz-button type="button" (click)="clearLogo()">Bỏ logo</button> }
+        <label id="widget-logo-label" for="widget-logo">Logo chatbot</label>
+        <div class="logo-upload" [class.has-logo]="logoData">
+          @if (logoData) {
+            <div class="logo-preview">
+              <img [src]="logoData" alt="Logo chatbot đã chọn">
+              <div><strong>Ảnh đã chọn</strong><small>Logo sẽ xuất hiện ở đầu cửa sổ chat.</small></div>
+              <button nz-button type="button" (click)="clearLogo()">Bỏ ảnh</button>
+            </div>
+          }
+          <label class="logo-drop" for="widget-logo" [class.dragging]="logoDragging()"
+            (dragenter)="dragLogo($event, true)" (dragover)="dragLogo($event, true)"
+            (dragleave)="dragLogo($event, false)" (drop)="dropLogo($event)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+            </svg>
+            <span class="logo-drop-copy">
+              <strong>{{ logoDragging() ? "Thả ảnh để tải lên" : "Kéo thả ảnh vào đây" }}</strong>
+              <span>hoặc <span class="logo-choose">chọn ảnh từ máy</span></span>
+            </span>
+            <small>PNG, JPG hoặc WebP · tối đa 1 MB</small>
+          </label>
+          <input id="widget-logo" class="logo-input" type="file" accept="image/png,image/jpeg,image/webp"
+            aria-labelledby="widget-logo-label" aria-describedby="widget-logo-help widget-logo-error"
+            (change)="selectLogo($any($event.target).files?.[0]); $any($event.target).value = ''">
+          <small id="widget-logo-help" class="sr-only">Có thể kéo thả hoặc chọn ảnh từ máy.</small>
         </div>
+        @if (logoError()) { <p class="field-error" id="widget-logo-error" role="alert">{{ logoError() }}</p> }
         <label for="widget-title">Tiêu đề widget</label><input nz-input id="widget-title" [(ngModel)]="title"
           name="title" required maxlength="120">
         <label for="widget-greeting">Lời chào</label><textarea nz-input id="widget-greeting" [(ngModel)]="greeting"
