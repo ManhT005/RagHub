@@ -26,7 +26,7 @@
 }
 
 .table-panel {
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .toolbar nz-input-group {
@@ -52,6 +52,31 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  white-space: nowrap;
+}
+
+.user-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.user-cell span,
+.workspace-summary {
+  color: var(--rh-muted);
+}
+
+.user-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-summary {
+  display: inline-block;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
   white-space: nowrap;
 }

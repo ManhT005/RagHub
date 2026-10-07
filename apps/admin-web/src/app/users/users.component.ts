@@ -11,9 +11,11 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzButtonModule } from "ng-zorro-antd/button";
+import { NzDropDownModule } from "ng-zorro-antd/dropdown";
 import { NzEmptyModule } from "ng-zorro-antd/empty";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzModalModule } from "ng-zorro-antd/modal";
+import { NzMenuModule } from "ng-zorro-antd/menu";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
 import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzSpinModule } from "ng-zorro-antd/spin";
@@ -33,13 +35,16 @@ const PAGE_SIZE = 10;
 
 @Component({
   selector: "raghub-users",
-  imports: [PasswordToggleDirective,
+  imports: [
+    PasswordToggleDirective,
     FormsModule,
     NzAlertModule,
     NzButtonModule,
+    NzDropDownModule,
     NzEmptyModule,
     NzInputModule,
     NzModalModule,
+    NzMenuModule,
     NzPopconfirmModule,
     NzSelectModule,
     NzSpinModule,
@@ -93,6 +98,12 @@ export class UsersComponent {
 
   protected readonly displayNameOf = (user: AdminUser): string =>
     user.display_name?.trim() ? user.display_name : "—";
+
+  protected readonly workspaceSummary = (user: AdminUser): string => {
+    if (!user.workspaces.length) return "Chưa được gán";
+    if (user.workspaces.length === 1) return user.workspaces[0].name;
+    return `${user.workspaces.length} workspace`;
+  };
 
   private readonly api = inject(RaghubApiService);
   private readonly destroyRef = inject(DestroyRef);
