@@ -8,9 +8,12 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { RouterLink } from "@angular/router";
 import { NzButtonModule } from "ng-zorro-antd/button";
+import { NzCardModule } from "ng-zorro-antd/card";
+import { NzEmptyModule } from "ng-zorro-antd/empty";
 import { NzInputModule } from "ng-zorro-antd/input";
+import { NzSelectModule } from "ng-zorro-antd/select";
+import { NzSpinModule } from "ng-zorro-antd/spin";
 import { NzTagModule } from "ng-zorro-antd/tag";
 import { NzAlertModule } from "ng-zorro-antd/alert";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
@@ -26,21 +29,27 @@ import { consoleOrganization } from "../../core/console-organization";
 import { apiError } from "../../core/api/api-error";
 import { ProviderOnboardingComponent } from "./provider-onboarding.component";
 import { ProviderLogoComponent } from "../../shared/provider-logo/provider-logo.component";
+import { AiModuleTabsComponent } from "../ai-navigation/ai-module-tabs.component";
 
 @Component({
   selector: "raghub-ai-providers",
   imports: [
     FormsModule,
-    RouterLink,
     NzButtonModule,
+    NzCardModule,
+    NzEmptyModule,
+    NzSelectModule,
+    NzSpinModule,
     NzInputModule,
     NzTagModule,
     NzAlertModule,
     NzPopconfirmModule,
+    AiModuleTabsComponent,
     ProviderOnboardingComponent,
     ProviderLogoComponent,
   ],
   templateUrl: "./ai-providers.component.html",
+  styleUrl: "./ai-providers.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AiProvidersComponent {

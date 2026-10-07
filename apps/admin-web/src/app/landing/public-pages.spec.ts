@@ -75,4 +75,19 @@ describe("Public pages", () => {
       "Liên hệ",
     );
   });
+
+  it("exposes a shared light/dark toggle in the public navigation", async () => {
+    const harness = await RouterTestingHarness.create("/");
+    const element = harness.routeNativeElement!;
+    const toggle = element.querySelector(
+      ".theme-toggle",
+    ) as HTMLButtonElement | null;
+    expect(toggle).not.toBeNull();
+
+    const before = document.documentElement.dataset["theme"];
+    toggle?.click();
+    const after = document.documentElement.dataset["theme"];
+    expect(after).toBe(before === "dark" ? "light" : "dark");
+    expect(localStorage.getItem("raghub-theme")).toBe(after);
+  });
 });

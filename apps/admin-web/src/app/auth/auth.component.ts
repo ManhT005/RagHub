@@ -7,6 +7,11 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
+import { NzAlertModule } from "ng-zorro-antd/alert";
+import { NzButtonModule } from "ng-zorro-antd/button";
+import { NzCardModule } from "ng-zorro-antd/card";
+import { NzFormModule } from "ng-zorro-antd/form";
+import { NzInputModule } from "ng-zorro-antd/input";
 
 import { RaghubApiService } from "../core/raghub-api.service";
 import { AuthSessionService } from "../core/auth-session.service";
@@ -17,7 +22,16 @@ type AuthMode = "login" | "forgot";
 
 @Component({
   selector: "raghub-auth",
-  imports: [FormsModule, PasswordToggleDirective, TurnstileComponent],
+  imports: [
+    FormsModule,
+    NzAlertModule,
+    NzButtonModule,
+    NzCardModule,
+    NzFormModule,
+    NzInputModule,
+    PasswordToggleDirective,
+    TurnstileComponent,
+  ],
   templateUrl: "./auth.component.html",
   styleUrl: "./auth.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,

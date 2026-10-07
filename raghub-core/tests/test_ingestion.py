@@ -76,12 +76,37 @@ async def test_pipeline_runs_without_celery_and_preserves_stage_order():
     assert store.closed == 1
 
 
-@pytest.mark.parametrize("status,progress", [("READY", 100), ("FAILED", 0)])
-async def test_terminal_redelivery_does_not_repeat_work(status, progress):
+@pytest.mark.parametrize(
+    "status,progress,reason",
+    [("READY", 100, "TERMINAL_REDELIVERY"), ("FAILED", 20, "ALREADY_FAILED")],
+)
+async def test_terminal_redelivery_does_not_repeat_work(status, progress, reason):
     document, repository, providers, store, use_case = pipeline()
     repository.attempt = IngestionAttempt(None, status, progress)
-    assert not (await use_case.execute(document.version_id)).processed
+    result = await use_case.execute(document.version_id)
+    assert not result.processed
+    assert result.status == status and result.reason == reason
     assert not repository.stages and not providers.scopes and not store.indexes
+
+
+@pytest.mark.parametrize(
+    "reason", ["VERSION_MISSING", "DOCUMENT_MISSING", "DOCUMENT_DELETED", "JOB_MISSING"]
+)
+async def test_repository_skip_reason_does_not_start_pipeline(reason):
+    document, repository, providers, store, use_case = pipeline()
+    repository.attempt = IngestionAttempt(None, "SKIPPED", 0, reason=reason)
+    result = await use_case.execute(document.version_id)
+    assert result.status == "SKIPPED" and not result.processed and result.reason == reason
+    assert not repository.stages and not providers.scopes and not store.indexes
+
+
+async def test_missing_attempt_returns_skipped_with_reason():
+    document, repository, providers, store, use_case = pipeline()
+    repository.attempt = None
+    result = await use_case.execute(document.version_id)
+    assert not result.processed
+    assert result.status == "SKIPPED"
+    assert result.reason == "MISSING_ATTEMPT"
 
 
 async def test_nonterminal_attempt_requires_metadata_before_starting_work():

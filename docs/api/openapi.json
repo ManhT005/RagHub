@@ -25,6 +25,10 @@
             "minLength": 8,
             "title": "Password",
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MembershipRole",
+            "default": "WORKSPACE_ADMIN"
           }
         },
         "required": [
@@ -173,6 +177,16 @@
               }
             ],
             "title": "Display Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MembershipRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "AdminUserUpdateInput",
@@ -1535,6 +1549,18 @@
             ],
             "title": "Queue Position"
           },
+          "retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
           "retryable": {
             "default": false,
             "title": "Retryable",
@@ -1588,6 +1614,28 @@
               }
             ],
             "title": "Updated At"
+          },
+          "waiting_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Reason"
+          },
+          "work_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work State"
           }
         },
         "required": [
@@ -1773,6 +1821,18 @@
             ],
             "title": "Queue Position"
           },
+          "retry_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
+          },
           "retryable": {
             "default": false,
             "title": "Retryable",
@@ -1826,6 +1886,28 @@
               }
             ],
             "title": "Updated At"
+          },
+          "waiting_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Reason"
+          },
+          "work_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work State"
           }
         },
         "required": [
@@ -2089,6 +2171,151 @@
           "completed_at"
         ],
         "title": "EmbeddingReindexJobResponse",
+        "type": "object"
+      },
+      "ExecutionPreference": {
+        "properties": {
+          "batch_max_chunks": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Max Chunks"
+          },
+          "batch_target_tokens": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Target Tokens"
+          },
+          "max_inflight_requests": {
+            "anyOf": [
+              {
+                "maximum": 16.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Inflight Requests"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "enum": [
+                  "conservative",
+                  "balanced",
+                  "fast",
+                  "custom"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "retry_delay_seconds": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Delay Seconds"
+          },
+          "retry_max_attempts": {
+            "anyOf": [
+              {
+                "maximum": 48.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Max Attempts"
+          }
+        },
+        "title": "ExecutionPreference",
+        "type": "object"
+      },
+      "ExecutionRuntimeResponse": {
+        "properties": {
+          "effective_batch_chunks": {
+            "title": "Effective Batch Chunks",
+            "type": "integer"
+          },
+          "effective_batch_tokens": {
+            "title": "Effective Batch Tokens",
+            "type": "integer"
+          },
+          "effective_max_inflight": {
+            "title": "Effective Max Inflight",
+            "type": "integer"
+          },
+          "limited_by": {
+            "title": "Limited By",
+            "type": "string"
+          },
+          "local": {
+            "title": "Local",
+            "type": "boolean"
+          },
+          "max_allowed_batch_chunks": {
+            "title": "Max Allowed Batch Chunks",
+            "type": "integer"
+          },
+          "max_allowed_batch_tokens": {
+            "title": "Max Allowed Batch Tokens",
+            "type": "integer"
+          },
+          "max_allowed_inflight": {
+            "title": "Max Allowed Inflight",
+            "type": "integer"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/ExecutionPreference"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile",
+          "preference",
+          "effective_max_inflight",
+          "effective_batch_chunks",
+          "effective_batch_tokens",
+          "limited_by",
+          "local",
+          "max_allowed_inflight",
+          "max_allowed_batch_chunks",
+          "max_allowed_batch_tokens"
+        ],
+        "title": "ExecutionRuntimeResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -7973,6 +8200,130 @@
         "summary": "Get Embedding Reindex Job",
         "tags": [
           "AI providers"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/embedding-runtime": {
+      "get": {
+        "operationId": "embedding_runtime_api_v1_workspaces__workspace_id__embedding_runtime_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionRuntimeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Embedding Runtime",
+        "tags": [
+          "workspace AI"
+        ]
+      },
+      "patch": {
+        "operationId": "change_embedding_runtime_api_v1_workspaces__workspace_id__embedding_runtime_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionPreference"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionRuntimeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change Embedding Runtime",
+        "tags": [
+          "workspace AI"
         ]
       }
     },

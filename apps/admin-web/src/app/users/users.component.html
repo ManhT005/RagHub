@@ -67,7 +67,6 @@
         [nzPageIndex]="page()"
         [nzPageSize]="pageSize"
         [nzTotal]="total()"
-        [nzScroll]="{ x: '1280px' }"
         [nzShowSizeChanger]="false"
         (nzPageIndexChange)="changePage($event)"
         nzSize="middle"
@@ -75,23 +74,22 @@
       >
         <thead>
           <tr>
-            <th>Tên</th>
-            <th>Email</th>
+            <th>Người dùng</th>
             <th>Trạng thái</th>
-            <th>Lần đăng nhập gần nhất</th>
-            <th>Ngày tạo</th>
             <th>Vai trò</th>
-            <th>Workspace đang quản lý</th>
-            <th aria-label="Thao tác">Thao tác</th>
+            <th>Workspace</th>
+            <th class="actions-heading">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           @for (user of userTable.data; track user.id) {
             <tr>
               <td>
-                <strong>{{ displayNameOf(user) }}</strong>
+                <div class="user-cell">
+                  <strong>{{ displayNameOf(user) }}</strong>
+                  <span>{{ user.email }}</span>
+                </div>
               </td>
-              <td>{{ user.email }}</td>
               <td>
                 @if (user.status === "ACTIVE") {
                   <nz-tag nzColor="green">Đang hoạt động</nz-tag>
@@ -99,59 +97,33 @@
                   <nz-tag nzColor="red">Đã vô hiệu hóa</nz-tag>
                 }
               </td>
-              <td>{{ formatDate(user.last_login_at) }}</td>
-              <td>{{ formatDate(user.created_at) }}</td>
               <td>{{ roleLabel(user.role) }}</td>
-              <td>
-                @if (user.workspaces.length) {
-                  @for (workspace of user.workspaces; track workspace.id) {
-                    <nz-tag>{{ workspace.name }}</nz-tag>
-                  }
-                } @else {
-                  <span class="muted">Chưa được gán</span>
-                }
-              </td>
+              <td><span class="workspace-summary">{{ workspaceSummary(user) }}</span></td>
               <td class="actions">
+                <div class="action-buttons">
+                  <button nz-button nzType="primary" nzSize="small" type="button" (click)="openRename(user)">
+                  Đổi tên
+                </button>
+                <button nz-button nzType="primary" nzSize="small" type="button" (click)="openRole(user)">
+                  Đổi vai trò
+                </button>
                 <button
                   nz-button
                   nzType="primary"
+                  nzSize="small"
                   type="button"
-                  (click)="openRename(user)"
+                  [nzDanger]="user.status === 'ACTIVE'"
+                  [disabled]="updatingId() === user.id"
+                  nz-popconfirm
+                  [nzPopconfirmTitle]="user.status === 'ACTIVE' ? 'Vô hiệu hóa quyền truy cập trong phạm vi này?' : 'Kích hoạt lại quyền truy cập trong phạm vi này?'"
+                  nzPopconfirmPlacement="topRight"
+                  [nzOkText]="user.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt'"
+                  nzCancelText="Hủy"
+                  (nzOnConfirm)="toggleStatus(user)"
                 >
-                  Đổi tên
-                </button>
-                @if (user.status === "ACTIVE") {
-                  <button
-                    nz-button
-                    nzType="primary"
-                    nzDanger
-                    type="button"
-                    nz-popconfirm
-                    nzPopconfirmTitle="Vô hiệu hóa quyền truy cập trong phạm vi này?"
-                    nzPopconfirmPlacement="topRight"
-                    nzOkText="Vô hiệu hóa"
-                    nzCancelText="Hủy"
-                    [nzLoading]="updatingId() === user.id"
-                    (nzOnConfirm)="toggleStatus(user)"
-                  >
-                    Vô hiệu hóa
+                  {{ user.status === "ACTIVE" ? "Vô hiệu hóa" : "Kích hoạt" }}
                   </button>
-                } @else {
-                  <button
-                    nz-button
-                    nzType="primary"
-                    type="button"
-                    nz-popconfirm
-                    nzPopconfirmTitle="Kích hoạt lại quyền truy cập trong phạm vi này?"
-                    nzPopconfirmPlacement="topRight"
-                    nzOkText="Kích hoạt"
-                    nzCancelText="Hủy"
-                    [nzLoading]="updatingId() === user.id"
-                    (nzOnConfirm)="toggleStatus(user)"
-                  >
-                    Kích hoạt
-                  </button>
-                }
+                </div>
               </td>
             </tr>
           }
@@ -174,8 +146,8 @@
   >
     <ng-container *nzModalContent>
       <p class="modal-hint">
-        Tài khoản mới thuộc cài đặt này, vai trò mặc định là Workspace admin và
-        chưa có workspace.
+        Chọn Admin để cấp toàn quyền trong tổ chức, hoặc Workspace admin để
+        giới hạn quyền theo từng workspace.
       </p>
       <label class="modal-field">
         <span>Email</span>
@@ -209,6 +181,46 @@
           type="password"
           autocomplete="new-password"
         />
+      </label>
+      <label class="modal-field">
+        <span>Vai trò</span>
+        <select
+          class="role-select"
+          [ngModel]="newRole()"
+          (ngModelChange)="newRole.set($event)"
+          aria-label="Vai trò tài khoản mới"
+        >
+          <option value="WORKSPACE_ADMIN">Workspace admin</option>
+          <option value="ADMIN">Admin</option>
+        </select>
+      </label>
+      @if (actionError()) {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />
+      }
+    </ng-container>
+  </nz-modal>
+
+  <nz-modal
+    [nzVisible]="roleOpen()"
+    nzTitle="Đổi vai trò"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzOkLoading]="changingRole()"
+    (nzOnOk)="changeRole()"
+    (nzOnCancel)="closeRole()"
+  >
+    <ng-container *nzModalContent>
+      <label class="modal-field">
+        <span>Vai trò</span>
+        <select
+          class="role-select"
+          [ngModel]="roleValue()"
+          (ngModelChange)="roleValue.set($event)"
+          aria-label="Vai trò người dùng"
+        >
+          <option value="WORKSPACE_ADMIN">Workspace admin</option>
+          <option value="ADMIN">Admin</option>
+        </select>
       </label>
       @if (actionError()) {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />

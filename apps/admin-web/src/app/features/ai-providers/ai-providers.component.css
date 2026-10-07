@@ -1,0 +1,16 @@
+.ai-providers-page { display: grid; gap: 20px; }
+.provider-filters { width: 100%; }
+.filter-row { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto; gap: 12px; align-items: center; }
+.provider-search, .status-filter { width: 100%; }
+.provider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.provider-card { min-width: 0; }
+.card-heading { display: flex; align-items: center; gap: 10px; }
+.card-heading h2 { min-width: 0; margin: 0 auto 0 0; }
+.capabilities { min-height: 28px; margin-top: 16px; }
+.endpoint { min-height: 44px; overflow-wrap: anywhere; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.empty-state { grid-column: 1 / -1; }
+.empty-actions { display: flex; justify-content: center; margin-top: 12px; }
+@media (max-width: 720px) {
+  .filter-row, .provider-grid { grid-template-columns: 1fr; }
+}

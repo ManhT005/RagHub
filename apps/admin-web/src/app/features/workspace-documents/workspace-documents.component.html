@@ -78,7 +78,7 @@
       <th>Loại</th>
       <th>Kích thước</th>
       <th>Trạng thái</th>
-      <th nzWidth="160px">Tiến độ</th>
+      <th nzWidth="260px">Tiến độ / Chi tiết xử lý</th>
       <th>Chunks</th>
       <th>Ngày tạo</th>
       <th nzWidth="100px">Thao tác</th>
@@ -114,7 +114,7 @@
         <td>{{ size(doc.size_bytes) }}</td>
         <td>
           <nz-tag [nzColor]="statusColor(doc.status)">{{
-            statusLabel(doc.status)
+            processingLabel(doc)
           }}</nz-tag>
         </td>
         <td>
@@ -131,6 +131,12 @@
             </div>
           } @else {
             —
+          }
+          @if (doc.total_chunks !== null && doc.total_chunks !== undefined) {
+            <small class="block chunk-progress">{{ doc.embedded_chunks ?? 0 }} / {{ doc.total_chunks }} chunks{{ doc.stage === 'INDEXING' ? ' hoàn tất' : '' }}</small>
+          }
+          @if (waitMessage(doc); as message) {
+            <small class="block processing-wait">{{ message }}</small>
           }
         </td>
         <td>{{ doc.chunk_count ?? "—" }}</td>
@@ -357,7 +363,7 @@
               <dt>Trạng thái</dt>
               <dd>
                 <nz-tag [nzColor]="statusColor(doc.status)">{{
-                  statusLabel(doc.status)
+                  processingLabel(doc)
                 }}</nz-tag>
               </dd>
               <dt>Embedding model</dt>
@@ -401,6 +407,8 @@
               </dd>
               <dt>Ngày tạo</dt>
               <dd>{{ doc.created_at | date: "HH:mm:ss dd/MM/yyyy" }}</dd>
+              <dt>Chi tiết xử lý</dt>
+              <dd>{{ doc.embedded_chunks ?? 0 }} / {{ doc.total_chunks ?? '—' }} chunks<p>{{ waitMessage(doc) }}</p></dd>
               <dt>Tiến độ</dt>
               <dd>{{ doc.progress === null ? "—" : doc.progress + "%" }}</dd>
             </dl>

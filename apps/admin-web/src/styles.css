@@ -326,3 +326,97 @@ body,
     transition: none;
   }
 }
+
+/* Shared responsive baseline for console pages. Individual screens may add denser
+   layouts, but these rules keep data, dialogs and forms usable on touch devices. */
+@media (max-width: 720px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  .page-heading {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .page-heading h1,
+  .selfhost-page h1 {
+    font-size: clamp(22px, 7vw, 28px);
+  }
+
+  .surface {
+    padding: 16px;
+  }
+
+  .toolbar,
+  .card-actions,
+  .provider-actions,
+  .form-actions {
+    align-items: stretch;
+  }
+
+  .toolbar > .ant-btn,
+  .card-actions > .ant-btn,
+  .provider-actions > .ant-btn,
+  .form-actions > .ant-btn {
+    flex: 1 1 140px;
+  }
+
+  .ant-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-table {
+    min-width: 640px;
+  }
+
+  .ant-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin: 12px auto;
+  }
+
+  .ant-modal-body {
+    max-height: calc(100dvh - 180px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-modal-footer {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ant-modal-footer .ant-btn {
+    flex: 1 1 0;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .console-shell nz-content {
+    padding-inline: 12px;
+  }
+
+  .surface {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .toolbar > input,
+  .toolbar > nz-input-group,
+  .toolbar > nz-select,
+  .toolbar > select,
+  .toolbar > textarea {
+    width: 100%;
+    max-width: none;
+  }
+
+  .chat-transcript .user-message {
+    margin-left: 0;
+  }
+}

@@ -44,31 +44,53 @@ starting configurations, not throughput or quality guarantees:
 | `standard_cpu` | 1 | 25 | 20 / 6 | 1 |
 | `gpu` | 2 | 40 | 40 / 8 | 2 |
 
-Use a supplied overlay so Compose's explicit defaults do not mask preset values:
+Use the selected hardware profile from `.env.self-host`:
 
-```text
-docker compose --env-file .env --env-file .env.rag-lite-cpu.example -f infrastructure/docker-compose.yml up -d
+```sh
+docker compose \
+  --env-file .env.self-host \
+  -f infrastructure/docker-compose.self-host.yml \
+  --profile local-ai \
+  up -d
 ```
 
-Alternatives are `.env.rag-standard-cpu.example` and `.env.rag-gpu.example`.
-`python scripts/print_rag_profile.py lite_cpu` prints the preset environment.
-Explicit configuration overrides preset defaults. No preset downloads models or
-enables OCR. `RAG_WORKER_CONCURRENCY` controls the regular worker; the OCR worker
-stays at concurrency one. Local inference capacity is bounded per process/model;
-multiple worker processes can still increase aggregate RAM/VRAM consumption.
+Presets: `RAG_HARDWARE_PROFILE=lite_cpu` (default), `standard_cpu`, or `gpu`.
+Explicit configuration in the env file overrides preset defaults. Empty values
+fall back to the selected preset.
 
-Work priorities are query, upload, retry/recovery, reindex, then maintenance.
-Within a class, scheduling interleaves workspaces. Shared provider quota reserves
-query capacity. When the pending limit exceeds one, reindex admission leaves one
-slot for uploads. Workspace/work-item locks protect claims, and eligible queued
-higher-priority work in the same workspace takes precedence.
-
-The regular worker consumes `celery`, `rag-ingestion`, `rag-reindex` and
-`rag-embedding`. Redis priority buckets include legacy 6/9 buckets so older queued
-messages remain drainable. With `RAG_OCR_ENABLED=true`, ingestion/reindex route to
-`rag-ocr`; start the Compose `ocr` profile too. API and worker settings must agree.
+Workload isolation separates user-facing ingestion from long-running model operations:
+- The RAG worker (`worker`) consumes `rag-ingestion`, `rag-embedding` and `rag-reindex`.
+  Its concurrency defaults to the hardware preset (1 on CPU, 2 on GPU).
+- The dedicated provider worker (`worker-provider`) consumes `rag-provider` and `celery`
+  at concurrency 1, handling downloads, Ollama pulls and fail-fast health probes without
+  starving document uploads.
+- With `RAG_OCR_ENABLED=true`, ingestion/reindex route to `rag-ocr` on the `worker-ocr`
+  service (start with `--profile ocr`).
 Queue caps use `PROVIDER_POOL_MAX_ACTIVE_JOBS_PER_WORKSPACE` and
 `PROVIDER_POOL_MAX_PENDING_JOBS_PER_WORKSPACE`.
+
+The provider worker's `celery` subscription is temporary migration compatibility
+for provider messages queued before the split. TODO(provider-queue-migration):
+remove it after all supported installations have upgraded and drained the legacy
+backlog; new provider tasks route exclusively to `rag-provider`.
+
+OCR routing remains a coarse host-level switch and defaults to disabled.
+TODO(ocr-routing): escalate only documents requiring OCR after parsing to
+`rag-ocr`, instead of routing every ingestion/reindex when OCR is enabled.
+
+Run the model-free starvation regression from `backend/` against disposable
+PostgreSQL and Redis services (set `RAGHUB_TEST_DATABASE_URL` and
+`RAGHUB_TEST_REDIS_URL`):
+
+```sh
+python -m pytest -p no:cacheprovider tests/test_rag_worker_starvation.py
+```
+
+The test starts two real Celery consumers with the production routes and a busy
+provider task, then requires `documents.ingest_version` to finish within five
+seconds before releasing the provider. It exercises the ingestion lock and DB
+transitions with a test pipeline; it does not download models or validate real
+embedding/indexing. Queues are namespaced and DB entities use an isolated schema.
 
 Native local inference retains its capacity slot until the underlying thread
 finishes, even if the caller cancels. Document token limits are checked before
@@ -76,8 +98,11 @@ full chunk allocation/provider resolution, and chunk count is bounded.
 
 ## Upgrade, durable resume and publication
 
+See [embedding execution](embedding-execution.md) for speed profiles, hard caps,
+batch retry isolation and document progress/wait states.
+
 Back up deployed databases, retained indices and object storage before upgrading.
-`python -m alembic upgrade head` reaches revision `0030`. The migration graph
+`python -m alembic upgrade head` reaches revision `0032`. The migration graph
 reconciles develop's `0021/0022` and legacy RAG `0026` histories. Empty, develop and
 legacy RAG database upgrades were tested; do not rename deployed revisions.
 

@@ -30,6 +30,7 @@ class IngestionAttempt:
     document: IngestionDocument | None
     status: str
     progress: int
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,3 +38,4 @@ class IngestionResult:
     version_id: UUID
     status: str
     processed: bool
+    reason: str | None = None

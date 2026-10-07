@@ -35,7 +35,7 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r backend/requirements.lock
       - name: Start services
-        run: docker compose -f infrastructure/docker-compose.yml up -d --build --wait api worker nginx
+        run: docker compose -f infrastructure/docker-compose.yml up -d --build --wait api worker worker-provider nginx
       - name: Apply migrations
         working-directory: backend
         run: python -m alembic upgrade head

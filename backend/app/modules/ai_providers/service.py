@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.infrastructure.embedding_execution import semantic_options
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.task_queue.queue import CeleryTaskQueue
 from app.modules.ai_providers.crypto import ProviderSecretCipher
@@ -55,7 +56,7 @@ def embedding_fingerprint(config: ProviderConfig) -> str:
             config.base_url or "",
             config.model,
             str(config.dimension),
-            json.dumps(config.config_json or {}, sort_keys=True, separators=(",", ":")),
+            json.dumps(semantic_options(config.config_json), sort_keys=True, separators=(",", ":")),
         )
     )
     return hashlib.sha256(identity.encode()).hexdigest()
@@ -73,7 +74,7 @@ def config_fingerprint_v2(config: ProviderConfig) -> str:
         model=config.model,
         dimension=config.dimension,
         task_type=options.get("task_type"),
-        embedding_options=options,
+        embedding_options=semantic_options(options),
     )
 
 
@@ -221,7 +222,7 @@ class ProviderConfigService:
                 model=config.model,
                 dimension=config.dimension,
                 task_type=options.get("task_type"),
-                embedding_options=options,
+                embedding_options=semantic_options(options),
                 quota_scope=config_quota_scope(config),
                 fingerprint_v2=config_fingerprint_v2(config),
             )

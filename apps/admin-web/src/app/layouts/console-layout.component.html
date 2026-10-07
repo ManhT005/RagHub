@@ -1,12 +1,15 @@
 <nz-layout class="console-shell" [class.sidebar-collapsed]="sidebarCollapsed()">
   <nz-sider nzTheme="light" nzWidth="232">
     @if (context.workspace(); as workspace) {
-    <a class="workspace-back" routerLink="/app/workspaces" aria-label="Tất cả workspace">
-      <span aria-hidden="true">←</span><span>Tất cả workspace</span>
+    <a class="workspace-back" routerLink="/app/workspaces" aria-label="Tất cả workspace" title="Tất cả workspace">
+      <nz-icon nzType="arrow-left" aria-hidden="true" /><span>Tất cả workspace</span>
     </a>
     <div class="workspace-identity">
-      <strong [title]="workspace.name">{{ workspace.name }}</strong>
-      <small [title]="workspace.slug">{{ workspace.slug }}</small>
+      <span class="workspace-avatar" aria-hidden="true">{{ workspace.name.charAt(0).toUpperCase() }}</span>
+      <span class="workspace-copy">
+        <strong [title]="workspace.name">{{ workspace.name }}</strong>
+        <small [title]="workspace.slug"><span>Mã:</span> {{ workspace.slug }}</small>
+      </span>
     </div>
     }
     <ul nz-menu nzTheme="light" nzMode="inline" aria-label="Điều hướng Console">
@@ -57,20 +60,12 @@
       </li>
       @if (isAdmin()) {
       <li nz-menu-item>
-        <a routerLink="/system/ai/providers" routerLinkActive="active" aria-label="AI Providers"><nz-icon
-            nzType="cloud-server" /><span>AI Providers</span></a>
-      </li>
-      <li nz-menu-item>
-        <a routerLink="/system/ai/models" routerLinkActive="active" aria-label="Model Registry"><nz-icon
-            nzType="setting" /><span>Model Registry</span></a>
-      </li>
-      <li nz-menu-item>
-        <a routerLink="/system/ai/local" routerLinkActive="active" aria-label="Local AI"><nz-icon
-            nzType="database" /><span>Local AI</span></a>
+        <a routerLink="/system/ai/providers" routerLinkActive="active" aria-label="AI & Models"><nz-icon
+            nzType="cloud-server" /><span>AI &amp; Models</span></a>
       </li>
       }
       <li nz-menu-item>
-        <a routerLink="/system" routerLinkActive="active" aria-label="Hệ thống"><nz-icon nzType="team" /><span>Hệ
+        <a routerLink="/system" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" aria-label="Hệ thống"><nz-icon nzType="team" /><span>Hệ
             thống</span></a>
       </li>
       <li nz-menu-item>
@@ -91,9 +86,9 @@
 
   <nz-layout class="console-main">
     <header class="topbar">
-      <a class="topbar-brand" routerLink="/app/overview" aria-label="RagHub Console">
-        <span class="brand-mark"><img src="assets/logo.png" alt="" /></span>
-        <span><strong>RAGHub</strong><small>RagHub Console</small></span>
+      <a class="topbar-brand" routerLink="/app/overview" aria-label="RAGHub">
+        <span class="brand-mark"><img src="assets/logo-icon.png" alt="" /></span>
+        <span class="brand-text"><strong>RAGHub</strong></span>
       </a>
       <div class="topbar-actions">
         <button type="button" class="theme-toggle" [attr.aria-label]="

@@ -226,9 +226,7 @@ class WorkspaceProviderBinding(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     capability: Mapped[str] = mapped_column(String(32))
-    pool_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("provider_pools.id", ondelete="RESTRICT")
-    )
+    pool_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("provider_pools.id", ondelete="RESTRICT"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -259,6 +257,7 @@ class EmbeddingWorkItem(Base):
     total_chunks: Mapped[int] = mapped_column(Integer, default=0)
     embedded_chunks: Mapped[int] = mapped_column(Integer, default=0)
     manifest_key: Mapped[str | None] = mapped_column(String(1024))
+    execution_config: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     error_code: Mapped[str | None] = mapped_column(String(100))
@@ -274,9 +273,7 @@ class EmbeddingBatchCheckpoint(Base):
 
     __tablename__ = "embedding_batch_checkpoints"
     __table_args__ = (
-        UniqueConstraint(
-            "work_item_id", "batch_index", name="uq_batch_checkpoints_item_batch"
-        ),
+        UniqueConstraint("work_item_id", "batch_index", name="uq_batch_checkpoints_item_batch"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

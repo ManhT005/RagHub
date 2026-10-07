@@ -5,7 +5,7 @@
     <p>Kiểm tra câu trả lời và nguồn trích dẫn từ active index.</p>
   </div>
   @if (context.can("workspace.edit")) {
-    <button nz-button (click)="editorOpen.set(true)">+ Tạo chatbot</button>
+    <button nz-button type="button" (click)="editorOpen.set(true)">+ Tạo chatbot</button>
   }
 </header>
 @if (error()) {
@@ -30,6 +30,7 @@
       <a nz-button [routerLink]="['/app/chatbots', selected, 'settings']"
         >Cấu hình & widget</a
       >
+      <a nz-button [routerLink]="['/app/workspaces', context.workspace()?.id, 'chatbots']">Chatbot</a>
     }
   </div>
   @if (!loading() && !bots().length) {

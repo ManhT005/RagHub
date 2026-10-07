@@ -8,6 +8,12 @@ from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.tokenizer import ENCODING
 
 from app.infrastructure.embedding_cache import EmbeddingCache
+from app.infrastructure.embedding_execution import (
+    EmbeddingDeferred,
+    configure_batch_provider,
+    policy_for_workspace,
+    resolve_policy,
+)
 from app.modules.ai_providers.models import EmbeddingWorkItem
 from app.modules.ai_providers.work_items import (
     WorkItemProcessor,
@@ -80,11 +86,14 @@ def chunk_manifest(chunks):
 
 
 class ResumableEmbedding:
-    def __init__(self, session, storage, settings, quota=None, telemetry=None):
+    def __init__(
+        self, session, storage, settings, quota=None, telemetry=None, *, defer_uploads=False
+    ):
         self.session, self.storage = session, DurableEmbeddingStorage(storage)
         self.settings, self.quota = settings, quota
         self.telemetry = telemetry
         self.repository = WorkItemRepository(session, settings)
+        self.defer_uploads = defer_uploads
 
     @staticmethod
     def identity(document, runtime):
@@ -97,6 +106,18 @@ class ResumableEmbedding:
         item = await self.session.get(EmbeddingWorkItem, item_id)
         manifest = chunk_manifest(chunks)
         if item is None:
+            # Persist the layout once; changing speed cannot reinterpret old checkpoints.
+            from sqlalchemy.ext.asyncio import AsyncSession
+
+            if isinstance(self.session, AsyncSession):
+                policy = await policy_for_workspace(
+                    self.session,
+                    self.settings,
+                    document.scope.workspace_id,
+                    index_name=runtime.index_name,
+                )
+            else:
+                policy = resolve_policy(self.settings, "unknown")
             key = manifest_key(document.scope.organization_id, document.scope.workspace_id, item_id)
             await self.storage.put(key, encode_manifest(manifest), "application/gzip")
             try:
@@ -116,6 +137,7 @@ class ResumableEmbedding:
             item.id = item_id
             item.embedding_fingerprint = runtime.fingerprint
             item.index_name, item.dimension = runtime.index_name, runtime.dimension
+            item.execution_config = policy.snapshot()
             await self.session.commit()
         else:
             if (item.embedding_fingerprint, item.index_name, item.dimension) != (
@@ -137,6 +159,22 @@ class ResumableEmbedding:
                 "Embedding work item requires an explicit document retry.",
                 retryable=False,
             )
+        if self.defer_uploads and document.kind == "upload":
+            from app.workers.embedding_tasks import process_work_item_batch
+
+            try:
+                process_work_item_batch.delay(str(item.id))
+            except Exception as exc:
+                raise IngestionError(
+                    "QUEUE_UNAVAILABLE", "Embedding dispatch failed.", retryable=True
+                ) from exc
+            raise EmbeddingDeferred()
+        policy = getattr(item, "execution_config", None) or {
+            "batch_max_chunks": 24,
+            "batch_target_tokens": 10000,
+            "max_inflight_requests": 1,
+        }
+        configure_batch_provider(runtime.provider)
         collected = []
 
         async def finalize(_item_id, vectors):
@@ -174,9 +212,16 @@ class ResumableEmbedding:
             embed_texts=embed,
             finalize=finalize,
             dimension=runtime.dimension,
-            max_chunks=self.settings.rag_embedding_batch_max_chunks,
-            target_tokens=self.settings.rag_embedding_batch_target_tokens,
+            max_chunks=policy["batch_max_chunks"],
+            target_tokens=policy["batch_target_tokens"],
+            max_inflight=min(
+                policy["max_inflight_requests"], self.settings.rag_embedding_max_inflight_hard_cap
+            ),
             complete_on_finalize=False,
+            batch_hard_caps=(
+                self.settings.rag_embedding_max_batch_chunks_hard_cap,
+                self.settings.rag_embedding_max_batch_tokens_hard_cap,
+            ),
             telemetry=self.telemetry,
         )
         if item.state in {"EMBEDDED", "COMPLETED"}:

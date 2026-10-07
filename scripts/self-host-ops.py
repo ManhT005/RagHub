@@ -104,7 +104,7 @@ def backup(args):
         .splitlines()
     )
     try:
-        for name in ("nginx", "api", "worker"):
+        for name in ("nginx", "api", "worker", "worker-provider"):
             if name in active:
                 compose(args, "stop", "-t", "90", name)
         print("Capture consistent database and offline data volumes", flush=True)
@@ -262,6 +262,7 @@ def restore(args):
         "240",
         "api",
         "worker",
+        "worker-provider",
         "nginx",
         "ollama",
     )
@@ -304,7 +305,7 @@ def main():
             )
             env_file.chmod(0o600)
             compose(args, "pull")
-            compose(args, "stop", "-t", "90", "nginx", "api", "worker")
+            compose(args, "stop", "-t", "90", "nginx", "api", "worker", "worker-provider")
             compose(args, "run", "--rm", "migrate")
             compose(
                 args,
@@ -315,6 +316,7 @@ def main():
                 "240",
                 "api",
                 "worker",
+                "worker-provider",
                 "nginx",
             )
             print(

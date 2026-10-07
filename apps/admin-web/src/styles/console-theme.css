@@ -220,6 +220,12 @@ a:hover {
   border-color: var(--rh-warning);
 }
 
+.ant-badge-status-text {
+  color: var(--rh-muted);
+}
+.ant-badge {
+  color: var(--rh-text);
+}
 .ant-alert-info {
   background: var(--rh-info-bg);
   border-color: var(--rh-indigo);

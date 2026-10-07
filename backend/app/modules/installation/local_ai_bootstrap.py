@@ -108,19 +108,53 @@ class LocalAiBootstrapService:
         return models
 
     async def health_check(self, organization_id, model_ids):
+        from app.modules.ai_providers.local_models import LocalModelDownload
+        from app.modules.ai_providers.models import OllamaModelPull
+
         for model_id in model_ids:
             service = ProviderConfigService(self.session)
             config = await service.get(organization_id, model_id)
+            if hasattr(self.session, "scalar"):
+                if getattr(config, "provider_type", None) == "OLLAMA":
+                    active_pull = await self.session.scalar(
+                        select(OllamaModelPull).where(
+                            OllamaModelPull.connection_id == config.connection_id,
+                            OllamaModelPull.status.in_(("QUEUED", "PULLING", "VERIFYING")),
+                        )
+                    )
+                    if active_pull:
+                        logger.info(
+                            "Skipping health probe for Ollama model %s while pull is in progress",
+                            config.model,
+                        )
+                        continue
+                elif getattr(config, "provider_type", None) == "LOCAL_SENTENCE_TRANSFORMER":
+                    active_dl = await self.session.scalar(
+                        select(LocalModelDownload).where(
+                            LocalModelDownload.organization_id == organization_id,
+                            LocalModelDownload.status.in_(("QUEUED", "DOWNLOADING", "VERIFYING")),
+                        )
+                    )
+                    if active_dl:
+                        logger.info(
+                            "Skipping health probe for local model %s "
+                            "while download is in progress",
+                            config.model,
+                        )
+                        continue
+
             try:
-                async with asyncio.timeout(120):
+                # Fail-fast timeout: 20 seconds max per provider probe instead of 120s
+                async with asyncio.timeout(20):
                     await service.test(organization_id, model_id)
-            except (AppError, CoreError, TimeoutError) as exc:
+            except (AppError, CoreError, TimeoutError, Exception) as exc:
                 config.availability_status = "UNAVAILABLE"
                 config.last_health_check_at = datetime.now(UTC)
-                config.connection.status = "DEGRADED"
-                config.connection.last_error_code = (
-                    health_error(exc) if isinstance(exc, CoreError) else "PROVIDER_UNREACHABLE"
-                )
+                if hasattr(config, "connection") and config.connection:
+                    config.connection.status = "DEGRADED"
+                    config.connection.last_error_code = (
+                        health_error(exc) if isinstance(exc, CoreError) else "PROVIDER_UNREACHABLE"
+                    )
                 await self.session.commit()
 
 

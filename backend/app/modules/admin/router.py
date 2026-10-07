@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import OrganizationContext, get_organization_context, require_role
@@ -50,10 +50,12 @@ class AdminUserCreateInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=200)
+    role: MembershipRole = MembershipRole.WORKSPACE_ADMIN
 
 
 class AdminUserUpdateInput(BaseModel):
     display_name: str | None = Field(default=None, max_length=200)
+    role: MembershipRole | None = None
 
 
 class AdminUserStatusInput(BaseModel):
@@ -185,7 +187,7 @@ async def create_admin_user(
     membership = Membership(
         user_id=user.id,
         organization_id=context.organization_id,
-        role=MembershipRole.WORKSPACE_ADMIN,
+        role=payload.role,
     )
     session.add(membership)
     await session.commit()
@@ -207,7 +209,21 @@ async def update_admin_user(
     user = await session.get(User, user_id)
     if user is None:
         raise AppError("USER_NOT_FOUND", "User was not found.", status_code=404)
-    user.display_name = (payload.display_name or "").strip() or None
+    if "display_name" in payload.model_fields_set:
+        user.display_name = (payload.display_name or "").strip() or None
+    if payload.role is not None and payload.role != membership.role:
+        membership.role = payload.role
+        if payload.role == MembershipRole.ADMIN:
+            await session.execute(
+                delete(WorkspaceMembership).where(
+                    WorkspaceMembership.user_id == user_id,
+                    WorkspaceMembership.workspace_id.in_(
+                        select(Workspace.id).where(
+                            Workspace.organization_id == context.organization_id
+                        )
+                    ),
+                )
+            )
     await session.commit()
     await session.refresh(user)
     workspace_map = await _workspace_map(session, [user.id], context.organization_id)

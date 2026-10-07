@@ -26,7 +26,7 @@
 }
 
 .table-panel {
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .toolbar nz-input-group {
@@ -40,6 +40,22 @@
   margin-top: 12px;
 }
 
+.role-select {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 28px 4px 11px;
+  color: var(--rh-text);
+  font: inherit;
+  background: var(--rh-surface-raised);
+  border: 1px solid var(--rh-border);
+  border-radius: 6px;
+}
+
+.role-select:focus-visible {
+  outline: 2px solid var(--rh-primary);
+  outline-offset: 2px;
+}
+
 .modal-hint {
   color: var(--rh-muted);
   margin: 0;
@@ -50,8 +66,67 @@
 }
 
 .actions {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.action-buttons {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.actions-heading {
+  min-width: 260px;
+}
+
+
+.user-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.user-cell span,
+.workspace-summary {
+  color: var(--rh-muted);
+}
+
+.user-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-summary {
+  display: inline-block;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .toolbar nz-input-group {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .toolbar > button {
+    width: 100%;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+    min-width: 250px;
+  }
+
+  .actions-heading {
+    min-width: 250px;
+  }
 }

@@ -59,6 +59,7 @@ class DocumentRetryRepositoryAdapter(UploadRepositoryAdapter):
     async def reset(self, version_id) -> UploadReceipt:
         document, version, job = self.rows
         document.status = version.status = job.stage = "QUEUED"
+        previous_progress = job.progress
         job.progress = job.attempts = 0
         job.error_code = job.error_message = job.error_details = None
         active_index = (
@@ -89,4 +90,27 @@ class DocumentRetryRepositoryAdapter(UploadRepositoryAdapter):
                 error_message=None,
             )
         )
+        resumed = await self.session.scalar(
+            select(EmbeddingWorkItem)
+            .where(
+                EmbeddingWorkItem.document_version_id == version_id,
+                EmbeddingWorkItem.organization_id == self.scope.organization_id,
+                EmbeddingWorkItem.workspace_id == self.scope.workspace_id,
+                EmbeddingWorkItem.index_name == active_index,
+                EmbeddingWorkItem.kind == "recovery",
+                EmbeddingWorkItem.state == "QUEUED",
+            )
+            .order_by(EmbeddingWorkItem.created_at.desc())
+            .limit(1)
+        )
+        if resumed is not None:
+            document.status = version.status = job.stage = "EMBEDDING"
+            job.progress = max(previous_progress, 65)
+            job.embedded_chunks = resumed.embedded_chunks
+            job.total_chunks = resumed.total_chunks
+            resumed.execution_config = {
+                k: v
+                for k, v in (resumed.execution_config or {}).items()
+                if k not in {"retry_count", "quota_wait_count", "batch_retry_counts"}
+            }
         return UploadReceipt(document.id, version.id, job.id, version.status, version.created_at)
