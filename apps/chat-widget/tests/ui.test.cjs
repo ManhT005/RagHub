@@ -42,7 +42,7 @@ function ask(root, window) {
   input.dispatchEvent(new window.Event('input'));
   input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 }
-test('SSE text, page contract and collapsed sources stay scoped to each answer', async () => {
+test('SSE text is rendered without exposing source details in the public widget', async () => {
   const citations = Array.from({ length: 7 }, (_, i) => ({
     citation_id: `C${i + 1}`, document_name: '<img src=x onerror=alert(1)> Tài liệu rất dài',
     page: i + 1, excerpt: 'Trích đoạn an toàn', score: 0.8, chunk_id: 'private-uuid',
@@ -54,14 +54,9 @@ test('SSE text, page contract and collapsed sources stay scoped to each answer',
   ask(root, window);
   await tick(); await tick();
   assert.equal(root.querySelectorAll('.typing').length, 0);
-  const sources = root.querySelector('details');
-  assert.equal(sources.open, false);
-  assert.match(sources.querySelector('summary').textContent, /· 5/);
-  assert.equal(sources.querySelectorAll('.citation').length, 5);
-  assert.match(sources.textContent, /Trang 1/);
-  assert.equal(sources.querySelector('img'), null);
-  assert.doesNotMatch(sources.textContent, /private-uuid|0\.8/);
   assert.match(root.textContent, /Câu trả lời tiếng Việt/);
+  assert.equal(root.querySelector('details'), null);
+  assert.doesNotMatch(root.textContent, /Tài liệu rất dài|Trang 1|private-uuid|0\.8/);
   assert.equal(requests[1].url, 'http://192.168.1.50:8080/api/v1/public/chatbots/rgh_test/chat');
   root.querySelector('.reset').click();
   assert.equal(root.querySelectorAll('.message').length, 1);

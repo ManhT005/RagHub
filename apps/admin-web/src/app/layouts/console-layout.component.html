@@ -29,10 +29,6 @@
         <a [routerLink]="['/app/workspaces', workspace.id, 'chat']" aria-label="Chat" routerLinkActive="active"><nz-icon
             nzType="message" /><span>Chat</span></a>
       </li>
-      <li nz-menu-item>
-        <a [routerLink]="['/app/workspaces', workspace.id, 'chatbots']" aria-label="Chatbot" routerLinkActive="active"><nz-icon
-            nzType="robot" /><span>Chatbot</span></a>
-      </li>
       }
       @if (
       context.can("member.view") ||
