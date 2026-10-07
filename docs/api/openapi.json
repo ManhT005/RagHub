@@ -25,6 +25,10 @@
             "minLength": 8,
             "title": "Password",
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/MembershipRole",
+            "default": "WORKSPACE_ADMIN"
           }
         },
         "required": [
@@ -173,6 +177,16 @@
               }
             ],
             "title": "Display Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MembershipRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "AdminUserUpdateInput",

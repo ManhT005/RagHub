@@ -66,11 +66,16 @@ export class UsersComponent {
   protected readonly newEmail = signal("");
   protected readonly newPassword = signal("");
   protected readonly newDisplayName = signal("");
+  protected readonly newRole = signal<AdminUser["role"]>("WORKSPACE_ADMIN");
   protected readonly updatingId = signal<string | null>(null);
   protected readonly renameOpen = signal(false);
   protected readonly renaming = signal(false);
   protected readonly renameId = signal<string | null>(null);
   protected readonly renameValue = signal("");
+  protected readonly roleOpen = signal(false);
+  protected readonly changingRole = signal(false);
+  protected readonly roleUser = signal<AdminUser | null>(null);
+  protected readonly roleValue = signal<AdminUser["role"]>("WORKSPACE_ADMIN");
 
   protected selectedOrganization = session.organizationId ?? "";
 
@@ -152,6 +157,7 @@ export class UsersComponent {
     this.newEmail.set("");
     this.newPassword.set("");
     this.newDisplayName.set("");
+    this.newRole.set("WORKSPACE_ADMIN");
     this.actionError.set("");
     this.success.set("");
     this.modalOpen.set(true);
@@ -176,20 +182,22 @@ export class UsersComponent {
       return;
     }
     this.creating.set(true);
-    this.api.createAdminUser(email, password, this.newDisplayName()).subscribe({
-      next: () => {
-        this.creating.set(false);
-        this.modalOpen.set(false);
-        this.success.set("Đã tạo tài khoản mới.");
-        this.loadUsers(true);
-      },
-      error: (err) => {
-        this.creating.set(false);
-        this.actionError.set(
-          this.describeError(err, "Không thể tạo tài khoản. Hãy thử lại."),
-        );
-      },
-    });
+    this.api
+      .createAdminUser(email, password, this.newDisplayName(), this.newRole())
+      .subscribe({
+        next: () => {
+          this.creating.set(false);
+          this.modalOpen.set(false);
+          this.success.set("Đã tạo tài khoản mới.");
+          this.loadUsers(true);
+        },
+        error: (err) => {
+          this.creating.set(false);
+          this.actionError.set(
+            this.describeError(err, "Không thể tạo tài khoản. Hãy thử lại."),
+          );
+        },
+      });
   }
 
   protected openRename(user: AdminUser): void {
@@ -203,6 +211,45 @@ export class UsersComponent {
   protected closeRename(): void {
     if (this.renaming()) return;
     this.renameOpen.set(false);
+  }
+
+  protected openRole(user: AdminUser): void {
+    this.roleUser.set(user);
+    this.roleValue.set(user.role);
+    this.actionError.set("");
+    this.success.set("");
+    this.roleOpen.set(true);
+  }
+
+  protected closeRole(): void {
+    if (!this.changingRole()) this.roleOpen.set(false);
+  }
+
+  protected changeRole(): void {
+    const user = this.roleUser();
+    if (!user || this.roleValue() === user.role) {
+      this.roleOpen.set(false);
+      return;
+    }
+    this.changingRole.set(true);
+    this.actionError.set("");
+    this.success.set("");
+    this.api.updateAdminUserRole(user.id, this.roleValue()).subscribe({
+      next: (updated) => {
+        this.changingRole.set(false);
+        this.roleOpen.set(false);
+        this.users.update((items) =>
+          items.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        this.success.set("Đã cập nhật vai trò.");
+      },
+      error: (err) => {
+        this.changingRole.set(false);
+        this.actionError.set(
+          this.describeError(err, "Không thể cập nhật vai trò. Hãy thử lại."),
+        );
+      },
+    });
   }
 
   protected rename(): void {

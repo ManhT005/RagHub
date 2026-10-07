@@ -120,6 +120,14 @@
                 >
                   Đổi tên
                 </button>
+                <button
+                  nz-button
+                  nzType="default"
+                  type="button"
+                  (click)="openRole(user)"
+                >
+                  Đổi vai trò
+                </button>
                 @if (user.status === "ACTIVE") {
                   <button
                     nz-button
@@ -174,8 +182,8 @@
   >
     <ng-container *nzModalContent>
       <p class="modal-hint">
-        Tài khoản mới thuộc cài đặt này, vai trò mặc định là Workspace admin và
-        chưa có workspace.
+        Chọn Admin để cấp toàn quyền trong tổ chức, hoặc Workspace admin để
+        giới hạn quyền theo từng workspace.
       </p>
       <label class="modal-field">
         <span>Email</span>
@@ -209,6 +217,44 @@
           type="password"
           autocomplete="new-password"
         />
+      </label>
+      <label class="modal-field">
+        <span>Vai trò</span>
+        <nz-select
+          [ngModel]="newRole()"
+          (ngModelChange)="newRole.set($event)"
+          aria-label="Vai trò tài khoản mới"
+        >
+          <nz-option nzValue="WORKSPACE_ADMIN" nzLabel="Workspace admin" />
+          <nz-option nzValue="ADMIN" nzLabel="Admin" />
+        </nz-select>
+      </label>
+      @if (actionError()) {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />
+      }
+    </ng-container>
+  </nz-modal>
+
+  <nz-modal
+    [nzVisible]="roleOpen()"
+    nzTitle="Đổi vai trò"
+    nzOkText="Lưu"
+    nzCancelText="Hủy"
+    [nzOkLoading]="changingRole()"
+    (nzOnOk)="changeRole()"
+    (nzOnCancel)="closeRole()"
+  >
+    <ng-container *nzModalContent>
+      <label class="modal-field">
+        <span>Vai trò</span>
+        <nz-select
+          [ngModel]="roleValue()"
+          (ngModelChange)="roleValue.set($event)"
+          aria-label="Vai trò người dùng"
+        >
+          <nz-option nzValue="WORKSPACE_ADMIN" nzLabel="Workspace admin" />
+          <nz-option nzValue="ADMIN" nzLabel="Admin" />
+        </nz-select>
       </label>
       @if (actionError()) {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />

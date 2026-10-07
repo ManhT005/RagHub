@@ -283,16 +283,27 @@ export class RaghubApiService {
       params: { q, page: String(page), page_size: String(pageSize) },
     });
   }
-  createAdminUser(email: string, password: string, displayName?: string) {
+  createAdminUser(
+    email: string,
+    password: string,
+    displayName?: string,
+    role: AdminUser["role"] = "WORKSPACE_ADMIN",
+  ) {
     return this.http.post<AdminUser>(`${this.base}/admin/users`, {
       email,
       password,
       display_name: displayName?.trim() ? displayName.trim() : null,
+      role,
     });
   }
   updateAdminUser(userId: string, displayName: string | null) {
     return this.http.patch<AdminUser>(`${this.base}/admin/users/${userId}`, {
       display_name: displayName?.trim() ? displayName.trim() : null,
+    });
+  }
+  updateAdminUserRole(userId: string, role: AdminUser["role"]) {
+    return this.http.patch<AdminUser>(`${this.base}/admin/users/${userId}`, {
+      role,
     });
   }
   updateAdminUserStatus(userId: string, status: "ACTIVE" | "DISABLED") {

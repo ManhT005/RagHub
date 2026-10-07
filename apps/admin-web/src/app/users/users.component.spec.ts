@@ -39,6 +39,9 @@ class ApiStub {
   updateAdminUserStatus = vi.fn(() =>
     of({ ...page.items[0], status: "DISABLED" }),
   );
+  updateAdminUserRole = vi.fn((id: string, role: "ADMIN" | "WORKSPACE_ADMIN") =>
+    of({ ...page.items[0], id, role }),
+  );
 }
 
 describe("UsersComponent", () => {
@@ -70,6 +73,7 @@ describe("UsersComponent", () => {
     expect(text).toContain("Tuyển sinh");
     expect(text).toContain("Tạo tài khoản");
     expect(text).toContain("Đổi tên");
+    expect(text).toContain("Đổi vai trò");
     expect(text).toContain("Vô hiệu hóa");
     expect(text).not.toMatch(/[一-鿿]/);
   });
@@ -77,10 +81,11 @@ describe("UsersComponent", () => {
   it("renders user actions as solid primary and danger buttons", () => {
     const buttons = fixture.nativeElement.querySelectorAll(".actions button");
 
-    expect(buttons.length).toBe(2);
+    expect(buttons.length).toBe(3);
     expect(buttons[0].classList.contains("ant-btn-primary")).toBe(true);
-    expect(buttons[1].classList.contains("ant-btn-primary")).toBe(true);
-    expect(buttons[1].classList.contains("ant-btn-dangerous")).toBe(true);
+    expect(buttons[1].classList.contains("ant-btn-primary")).toBe(false);
+    expect(buttons[2].classList.contains("ant-btn-primary")).toBe(true);
+    expect(buttons[2].classList.contains("ant-btn-dangerous")).toBe(true);
   });
 
   it("uses debounced search without a submit button and keeps create action large", () => {
@@ -152,6 +157,41 @@ describe("UsersComponent", () => {
     expect(fixture.nativeElement.textContent).toContain(
       "Đã cập nhật tên hiển thị.",
     );
+  });
+
+  it("creates an administrator when that role is selected", async () => {
+    const component = fixture.componentInstance as unknown as {
+      newEmail: { set(v: string): void };
+      newPassword: { set(v: string): void };
+      newRole: { set(v: "ADMIN" | "WORKSPACE_ADMIN"): void };
+      create(): void;
+    };
+    component.newEmail.set("admin2@example.com");
+    component.newPassword.set("mat-khau-123");
+    component.newRole.set("ADMIN");
+    component.create();
+    await fixture.whenStable();
+
+    expect(api.createAdminUser).toHaveBeenCalledWith(
+      "admin2@example.com",
+      "mat-khau-123",
+      "",
+      "ADMIN",
+    );
+  });
+
+  it("updates a user's organization role", async () => {
+    const component = fixture.componentInstance as unknown as {
+      openRole(u: unknown): void;
+      roleValue: { set(v: "ADMIN" | "WORKSPACE_ADMIN"): void };
+      changeRole(): void;
+    };
+    component.openRole(page.items[0]);
+    component.roleValue.set("ADMIN");
+    component.changeRole();
+    await fixture.whenStable();
+
+    expect(api.updateAdminUserRole).toHaveBeenCalledWith("user-1", "ADMIN");
   });
 
   it("keeps table data and shows Vietnamese message when status change fails", async () => {
