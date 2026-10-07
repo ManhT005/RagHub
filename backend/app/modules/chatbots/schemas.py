@@ -71,7 +71,12 @@ class EmbedPublishInput(BaseModel):
     def validate_logo_data(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        if not value.startswith(("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")):
+        supported_prefixes = (
+            "data:image/png;base64,",
+            "data:image/jpeg;base64,",
+            "data:image/webp;base64,",
+        )
+        if not value.startswith(supported_prefixes):
             raise ValueError("Logo must be a PNG, JPEG or WebP image.")
         return value
 
