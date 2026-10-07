@@ -11,8 +11,14 @@ from app.core.auth import (
     get_organization_context,
     require_workspace_permission,
 )
+from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.exceptions import AppError
+from app.infrastructure.embedding_execution import (
+    ExecutionPreference,
+    ExecutionRuntimeResponse,
+    policy_for_workspace,
+)
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
@@ -30,6 +36,68 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 class ModelSelection(BaseModel):
     model_id: UUID
+
+
+@router.get("/embedding-runtime", response_model=ExecutionRuntimeResponse)
+async def embedding_runtime(workspace_id: UUID, context: Context, session: Session):
+    await require_workspace_permission(context, workspace_id, "workspace.view", session)
+    item = await workspace(session, context.organization_id, workspace_id)
+    policy = await policy_for_workspace(session, get_settings(), item.id)
+    maximum = await policy_for_workspace(
+        session,
+        get_settings(),
+        item.id,
+        preference_override={
+            "profile": "custom",
+            "max_inflight_requests": 16,
+            "batch_max_chunks": 100,
+            "batch_target_tokens": 100000,
+        },
+    )
+    return {
+        "profile": policy.profile,
+        "preference": item.embedding_execution_config or {},
+        "effective_max_inflight": policy.max_inflight_requests,
+        "effective_batch_chunks": policy.batch_max_chunks,
+        "effective_batch_tokens": policy.batch_target_tokens,
+        "limited_by": policy.limited_by,
+        "local": policy.provider_type
+        in {"LOCAL_SENTENCE_TRANSFORMER", "OLLAMA", "LOCAL_TOKEN_HASH"},
+        "max_allowed_inflight": maximum.max_inflight_requests,
+        "max_allowed_batch_chunks": maximum.batch_max_chunks,
+        "max_allowed_batch_tokens": maximum.batch_target_tokens,
+    }
+
+
+@router.patch("/embedding-runtime", response_model=ExecutionRuntimeResponse)
+async def change_embedding_runtime(
+    workspace_id: UUID, payload: ExecutionPreference, context: Context, session: Session
+):
+    await require_workspace_permission(context, workspace_id, "ai.change_embedding", session)
+    item = await workspace(session, context.organization_id, workspace_id)
+    if payload.profile == "custom":
+        maximum = await policy_for_workspace(
+            session,
+            get_settings(),
+            item.id,
+            preference_override={
+                "profile": "custom",
+                "max_inflight_requests": 16,
+                "batch_max_chunks": 100,
+                "batch_target_tokens": 100000,
+            },
+        )
+        for field in ("max_inflight_requests", "batch_max_chunks", "batch_target_tokens"):
+            value = getattr(payload, field)
+            if value is not None and value > getattr(maximum, field):
+                raise AppError(
+                    "EMBEDDING_EXECUTION_LIMIT",
+                    "Custom setting exceeds host/provider cap.",
+                    status_code=422,
+                )
+    item.embedding_execution_config = payload.model_dump(exclude_none=True)
+    await session.commit()
+    return await embedding_runtime(workspace_id, context, session)
 
 
 class RerankSelection(RerankOptions):

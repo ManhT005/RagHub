@@ -20,7 +20,7 @@ def test_tracked_openapi_matches_runtime():
     assert set(tracked["paths"]) == set(live["paths"])
     for path, ops in live["paths"].items():
         assert set(tracked["paths"][path]) == set(ops), path
-    assert len(tracked["paths"]) == 65
+    assert len(tracked["paths"]) == 66
 
 
 def test_postman_collection_matches_openapi_operations():

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.infrastructure.embedding_execution import semantic_options
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.infrastructure.provider_credentials import resolve_provider_secret
 from app.modules.ai_providers.crypto import ProviderSecretCipher
@@ -142,7 +143,7 @@ class ProviderResolver:
             model=descriptor.model,
             dimension=descriptor.dimension,
             task_type=descriptor.options.get("task_type"),
-            embedding_options=descriptor.options,
+            embedding_options=semantic_options(descriptor.options),
         )
         if actual != version.embedding_fingerprint_v2:
             raise FingerprintMismatchError("Immutable index snapshot fingerprint mismatch.")

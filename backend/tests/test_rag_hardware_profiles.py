@@ -31,11 +31,45 @@ def test_custom_defaults_and_unknown_profiles():
         Settings(_env_file=None, rag_hardware_profile="unknown")
 
 
-def test_celery_priority_matches_upload_recovery_reindex_policy():
+def test_empty_string_from_compose_does_not_override_preset():
+    # Compose passes ${VAR:-} which resolves to empty string if unset.
+    # Empty strings must be ignored in favor of the chosen hardware preset.
+    settings = Settings(
+        _env_file=None,
+        rag_hardware_profile="gpu",
+        rag_worker_concurrency="",  # type: ignore[arg-type]
+        rag_retrieval_candidates="",  # type: ignore[arg-type]
+    )
+    assert settings.rag_worker_concurrency == 2
+    assert settings.rag_retrieval_candidates == 40
+    assert settings.provider_pool_max_active_jobs_per_workspace == 2
+
+
+def test_explicit_env_overrides_preset():
+    settings = Settings(
+        _env_file=None,
+        rag_hardware_profile="gpu",
+        rag_worker_concurrency=1,
+        rag_retrieval_candidates=50,
+    )
+    assert settings.rag_worker_concurrency == 1
+    assert settings.rag_retrieval_candidates == 50
+
+
+def test_celery_queue_isolation_and_priorities():
     routes = celery_app.conf.task_routes
+    assert routes["documents.ingest_version"]["queue"] == "rag-ingestion"
+    assert routes["embedding.process_work_item_batch"]["queue"] == "rag-embedding"
+    assert routes["providers.reindex_workspace"]["queue"] == "rag-reindex"
+    # Long-running provider tasks must route to rag-provider, NOT celery or ingestion queues
+    assert routes["providers.bootstrap_health"]["queue"] == "rag-provider"
+    assert routes["providers.local_download"]["queue"] == "rag-provider"
+    assert routes["providers.ollama_pull"]["queue"] == "rag-provider"
+
     assert (
         routes["documents.ingest_version"]["priority"]
         < celery_app.conf.task_default_priority
         < routes["providers.reindex_workspace"]["priority"]
+        <= routes["providers.local_download"]["priority"]
     )
     assert celery_app.conf.broker_transport_options["priority_steps"] == [0, 1, 2, 3, 4, 6, 9]

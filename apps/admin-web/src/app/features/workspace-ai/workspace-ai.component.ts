@@ -23,6 +23,7 @@ import { WorkspaceContextStore } from "../../core/workspace-context/workspace-co
 import { apiError } from "../../core/api/api-error";
 import { EmbeddingProfileComponent } from "./embedding-profile.component";
 import { RerankProfileComponent } from "./rerank-profile.component";
+import { EmbeddingSpeedComponent } from "./embedding-speed.component";
 import { ProviderLogoComponent } from '../../shared/provider-logo/provider-logo.component';
 import { shortModelName } from '../../core/provider-brand/provider-brand.registry';
 @Component({
@@ -34,6 +35,7 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
     NzAlertModule,
     EmbeddingProfileComponent,
     RerankProfileComponent,
+    EmbeddingSpeedComponent,
   ],
   template: `<header class="page-heading">
       <div>
@@ -42,7 +44,7 @@ import { shortModelName } from '../../core/provider-brand/provider-brand.registr
         <p>Chọn model cho tìm kiếm và hội thoại của workspace.</p>
       </div>
     </header>
-    <raghub-embedding-profile />
+    <raghub-embedding-profile /><raghub-embedding-speed />
     <section class="surface" style="margin-top:24px">
       <h2>Chat model</h2>
       @if (chatModel(); as model) {

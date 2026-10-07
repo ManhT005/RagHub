@@ -27,6 +27,9 @@ class Workspace(Base):
         ForeignKey("provider_configs.id", ondelete="SET NULL"), index=True
     )
     rerank_config: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    embedding_execution_config: Mapped[dict] = mapped_column(
+        JSON, default=dict, server_default="{}"
+    )
     active_embedding_index_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("embedding_index_versions.id", ondelete="SET NULL"), index=True
     )

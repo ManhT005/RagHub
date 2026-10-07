@@ -2,6 +2,11 @@ import { HttpClient } from "@angular/common/http";
 import { Injectable, inject } from "@angular/core";
 import { DocumentItem } from "../raghub-api.service";
 export interface DocumentMetadata extends DocumentItem {
+  embedded_chunks?: number | null;
+  total_chunks?: number | null;
+  work_state?: string | null;
+  waiting_reason?: string | null;
+  retry_at?: string | null;
   updated_at: string | null;
   mime_type: string | null;
   size_bytes: number | null;

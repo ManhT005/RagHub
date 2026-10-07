@@ -1,15 +1,23 @@
 # Development/release verification override. Production uses published images.
+# API, both workers and migrate share exactly one backend image built once by `api`.
+# Prefer an immutable tag per build, e.g. LOCAL_IMAGE_TAG=dev-$(git rev-parse --short HEAD),
+# so a stale worker can never run next to a fresh API.
+x-backend-image: &backend-image ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
 services:
   api:
-    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+    image: *backend-image
     build:
       context: ..
       dockerfile: backend/Dockerfile
       target: local-ai
   worker:
-    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+    image: *backend-image
+    pull_policy: never
+  worker-provider:
+    image: *backend-image
+    pull_policy: never
   migrate:
-    image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}
+    image: *backend-image
   worker-ocr:
     image: ${LOCAL_IMAGE_PREFIX:-raghub-selfhost}/backend:${LOCAL_IMAGE_TAG:-local}-ocr
     build:

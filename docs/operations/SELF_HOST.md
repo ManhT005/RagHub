@@ -34,7 +34,7 @@ depend on the model, document sizes and concurrent chats. NVIDIA is optional.
 
 ```sh
 docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai pull
-docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai up -d --wait api worker nginx ollama
+docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai up -d --wait api worker worker-provider nginx ollama
 docker compose --env-file .env.self-host -f infrastructure/docker-compose.self-host.yml --profile local-ai run --rm ollama-init
 ```
 
@@ -122,7 +122,7 @@ For source verification on a disposable machine:
 ```sh
 python scripts/self-host-test-env.py
 docker compose --env-file .env.selfhost-test -p raghub-selfhost-test -f infrastructure/docker-compose.self-host.yml -f infrastructure/docker-compose.self-host.build.yml --profile local-ai build api admin-web chat-widget widget-demo nginx
-docker compose --env-file .env.selfhost-test -p raghub-selfhost-test -f infrastructure/docker-compose.self-host.yml -f infrastructure/docker-compose.self-host.build.yml --profile local-ai up -d --wait api worker nginx ollama
+docker compose --env-file .env.selfhost-test -p raghub-selfhost-test -f infrastructure/docker-compose.self-host.yml -f infrastructure/docker-compose.self-host.build.yml --profile local-ai up -d --wait api worker worker-provider nginx ollama
 python scripts/self-host-smoke.py --env-file .env.selfhost-test --project raghub-selfhost-test --base-url http://localhost:18082 --owner-file .env.selfhost-owner.json --state-file .env.selfhost-state.json --compose-override infrastructure/docker-compose.self-host.build.yml --restart --auth-expiry-seconds 65
 ```
 

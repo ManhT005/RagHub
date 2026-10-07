@@ -40,6 +40,7 @@ services:
       PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
       PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-lite_cpu}
     networks:
       default: {}
       ingress: {}
@@ -54,6 +55,19 @@ services:
       PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
       PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-lite_cpu}
+  worker-provider:
+    extends:
+      file: docker-compose.base.yml
+      service: worker-provider
+    image: ${RAGHUB_IMAGE_PREFIX:-ghcr.io/manht005/raghub}/backend:${RAGHUB_IMAGE_TAG:?Set RAGHUB_IMAGE_TAG}${BACKEND_IMAGE_SUFFIX:--local-ai}
+    environment:
+      APP_ENV: ${APP_ENV:-selfhost}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
+      PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+      PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-lite_cpu}
   worker-ocr:
     extends:
       file: docker-compose.base.yml
@@ -65,6 +79,7 @@ services:
       PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
       PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-lite_cpu}
   admin-web:
     extends:
       file: docker-compose.base.yml
@@ -107,6 +122,7 @@ services:
       PROVIDER_MASTER_KEY: ${PROVIDER_MASTER_KEY:?Set PROVIDER_MASTER_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
       PUBLIC_CHAT_TRUSTED_PROXY_CIDRS: ${PUBLIC_CHAT_TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      RAG_HARDWARE_PROFILE: ${RAG_HARDWARE_PROFILE:-lite_cpu}
 volumes:
   postgres-data: {}
   redis-data: {}

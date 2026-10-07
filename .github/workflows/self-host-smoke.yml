@@ -38,7 +38,7 @@ jobs:
           docker compose --env-file .env.selfhost-test -p raghub-selfhost-test
           -f infrastructure/docker-compose.self-host.yml
           -f infrastructure/docker-compose.self-host.build.yml
-          --profile local-ai up -d --wait --wait-timeout 240 api worker nginx ollama
+          --profile local-ai up -d --wait --wait-timeout 240 api worker worker-provider nginx ollama
       - name: Install browser acceptance tooling
         run: |
           python -m pip install playwright==1.56.0
@@ -87,7 +87,7 @@ jobs:
           docker compose --env-file .env.selfhost-test -p raghub-selfhost-test
           -f infrastructure/docker-compose.self-host.yml
           -f infrastructure/docker-compose.self-host.build.yml
-          --profile local-ai logs --no-color --tail 100 api worker nginx ollama
+          --profile local-ai logs --no-color --tail 100 api worker worker-provider nginx ollama
       - name: Remove disposable installation
         if: always()
         run: >-

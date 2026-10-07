@@ -23,7 +23,6 @@ class PoolEmbeddingProvider:
                 if self.mark_unhealthy is not None:
                     await self.mark_unhealthy(credential)
                 credential.unhealthy = True
-                await self.session.flush()
                 failure = exc
             except ProviderUnavailableError as exc:
                 failure = exc

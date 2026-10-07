@@ -15,19 +15,24 @@ celery_app = Celery(
         "app.workers.embedding_tasks",
     ],
 )
+PROVIDER_QUEUE = "rag-provider"
+INGESTION_QUEUE = "rag-ocr" if settings.rag_ocr_enabled else "rag-ingestion"
+REINDEX_QUEUE = "rag-ocr" if settings.rag_ocr_enabled else "rag-reindex"
+# Queues served by the user-facing RAG worker; provider jobs never share its slots.
+RAG_WORKER_QUEUES = ("rag-ingestion", "rag-embedding", "rag-reindex")
+
 celery_app.conf.update(
     task_routes={
-        "documents.ingest_version": {
-            "queue": "rag-ocr" if settings.rag_ocr_enabled else "rag-ingestion",
-            "priority": 1,
-        },
-        "providers.reindex_workspace": {
-            "queue": "rag-ocr" if settings.rag_ocr_enabled else "rag-reindex",
-            "priority": 3,
-        },
-        "embedding.process_work_item_batch": {"queue": "rag-embedding"},
-        "providers.local_download": {"priority": 4},
+        "documents.ingest_version": {"queue": INGESTION_QUEUE, "priority": 1},
+        "embedding.process_work_item_batch": {"queue": "rag-embedding", "priority": 2},
+        "providers.reindex_workspace": {"queue": REINDEX_QUEUE, "priority": 3},
+        # Long-running model management runs on the dedicated provider worker.
+        "providers.bootstrap_health": {"queue": PROVIDER_QUEUE, "priority": 1},
+        "providers.local_download": {"queue": PROVIDER_QUEUE, "priority": 4},
+        "providers.ollama_pull": {"queue": PROVIDER_QUEUE, "priority": 4},
     },
+    # Used when `--concurrency` is not passed (RAG worker); explicit ENV > preset > default.
+    worker_concurrency=settings.rag_worker_concurrency,
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
