@@ -75,12 +75,16 @@ describe("UsersComponent", () => {
     expect(text).not.toMatch(/[一-鿿]/);
   });
 
-  it("keeps user actions in a compact overflow menu", () => {
+  it("shows user actions directly in the table", () => {
     const buttons = fixture.nativeElement.querySelectorAll(".actions button");
 
-    expect(buttons.length).toBe(1);
-    expect(buttons[0].textContent?.trim()).toBe("•••");
-    expect(buttons[0].getAttribute("aria-label")).toContain("lan@example.com");
+    expect(buttons.length).toBe(3);
+    expect(
+      Array.from(
+        buttons,
+        (button: HTMLButtonElement) => button.textContent?.trim(),
+      ),
+    ).toEqual(["Đổi tên", "Đổi vai trò", "Vô hiệu hóa"]);
   });
 
   it("uses a compact set of table columns without horizontal scrolling", () => {
