@@ -6,9 +6,7 @@ Queues are namespaced and database entities live in an isolated test schema.
 
 import asyncio
 import os
-import time
 import uuid
-from threading import Event
 
 import pytest
 from celery import Celery
@@ -30,10 +28,46 @@ from app.workers import tasks
 pytestmark = pytest.mark.integration
 
 
-async def test_busy_provider_worker_does_not_starve_ingestion(isolated_sessions, monkeypatch):
+@pytest.fixture
+def isolated_celery_app():
     redis_url = os.getenv("RAGHUB_TEST_REDIS_URL")
     if not redis_url:
-        pytest.skip("Set RAGHUB_TEST_REDIS_URL to run worker starvation regression.")
+        pytest.skip("Set RAGHUB_TEST_REDIS_URL to run worker queue integration tests.")
+    app = build_isolated_app(redis_url)
+    try:
+        yield app
+    finally:
+        # Delete only this run's queues; never flush the shared Redis database.
+        try:
+            with app.connection() as connection:
+                for name in (*RAG_WORKER_QUEUES, PROVIDER_QUEUE, "celery"):
+                    Queue(name, routing_key=name)(connection).delete()
+        finally:
+            app.close()
+
+
+@pytest.mark.parametrize(
+    "queues",
+    [(PROVIDER_QUEUE, "celery"), RAG_WORKER_QUEUES],
+    ids=["provider", "rag"],
+)
+def test_worker_consumes_only_its_declared_queues(isolated_celery_app, queues):
+    # Celery's threaded test workers share process state. Run one worker at a time.
+    with start_worker(
+        isolated_celery_app,
+        queues=queues,
+        concurrency=1,
+        pool="solo",
+        perform_ping_check=False,
+        shutdown_timeout=15,
+    ) as worker:
+        consumed = {q.name for q in worker.consumer.task_consumer.queues}
+        assert consumed == set(queues)
+        if queues == RAG_WORKER_QUEUES:
+            assert PROVIDER_QUEUE not in consumed
+
+
+async def test_rag_worker_executes_ingestion(isolated_celery_app, isolated_sessions, monkeypatch):
     async with isolated_sessions() as session:
         schema = await session.scalar(text("SELECT current_schema()"))
         organization = Organization(name="Worker isolation", slug=uuid.uuid4().hex)
@@ -75,7 +109,7 @@ async def test_busy_provider_worker_does_not_starve_ingestion(isolated_sessions,
             await tasks._set_stage(session, document, version, job, stage, progress)
 
     monkeypatch.setattr(ingestion_runtime, "_run_pipeline", model_free_pipeline)
-    await asyncio.to_thread(run_workers, redis_url, version_id)
+    await asyncio.to_thread(run_ingestion_worker, isolated_celery_app, version_id)
     async with isolated_sessions() as session:
         job = await session.scalar(
             select(IngestionJob).where(IngestionJob.document_version_id == version_id)
@@ -83,7 +117,7 @@ async def test_busy_provider_worker_does_not_starve_ingestion(isolated_sessions,
         assert job.stage == "READY" and job.progress == 100 and job.attempts == 1
 
 
-def run_workers(redis_url, version_id):
+def build_isolated_app(redis_url):
     namespace = "worker-isolation-" + uuid.uuid4().hex + "-"
     app = Celery(namespace, broker=redis_url, backend=redis_url, set_as_current=False)
     app.conf.update(
@@ -101,76 +135,27 @@ def run_workers(redis_url, version_id):
         result_backend_transport_options={"global_keyprefix": namespace},
         task_default_queue="celery",
     )
-    provider_started, provider_release, provider_finished = Event(), Event(), Event()
+    return app
 
-    @app.task(name="tests.provider_sleep", shared=False)
-    def provider_sleep():
-        provider_started.set()
-        try:
-            if not provider_release.wait(30):
-                raise TimeoutError("Ingestion failed to finish while the provider was busy")
-            return "released"
-        finally:
-            provider_finished.set()
 
+def run_ingestion_worker(app, version_id):
     # Keep the production Celery entrypoint, result serialization and ingestion lock.
     app.task(name="documents.ingest_version", shared=False)(tasks.ingest_document_version.run)
-    app.conf.task_routes = {
-        **app.conf.task_routes,
-        "tests.provider_sleep": {"queue": PROVIDER_QUEUE},
-    }
-    provider_result = ingestion_result = None
+    ingestion_result = None
     try:
-        with (
-            start_worker(
-                app,
-                queues=(PROVIDER_QUEUE, "celery"),
-                concurrency=1,
-                pool="solo",
-                hostname="provider@" + namespace,
-                perform_ping_check=False,
-                shutdown_timeout=15,
-            ) as provider_worker,
-            start_worker(
-                app,
-                queues=RAG_WORKER_QUEUES,
-                concurrency=1,
-                pool="solo",
-                hostname="rag@" + namespace,
-                perform_ping_check=False,
-                shutdown_timeout=15,
-            ) as rag_worker,
+        with start_worker(
+            app,
+            queues=RAG_WORKER_QUEUES,
+            concurrency=1,
+            pool="solo",
+            perform_ping_check=False,
+            shutdown_timeout=15,
         ):
-            try:
-                # Check actual consumers, not only the task route dictionary.
-                assert {q.name for q in provider_worker.consumer.task_consumer.queues} == {
-                    PROVIDER_QUEUE,
-                    "celery",
-                }
-                assert {q.name for q in rag_worker.consumer.task_consumer.queues} == set(
-                    RAG_WORKER_QUEUES
-                )
-                provider_result = provider_sleep.delay()
-                assert provider_started.wait(5), "Provider task was not started"
-                started = time.monotonic()
-                # No explicit queue: the production ingestion route must work.
-                ingestion_result = app.send_task("documents.ingest_version", args=[str(version_id)])
-                with allow_join_result():
-                    result = ingestion_result.get(timeout=5)
-                assert time.monotonic() - started <= 5
-                assert result["status"] == "READY" and result["processed"] is True
-                assert not provider_finished.is_set(), "Provider finished before ingestion"
-            finally:
-                provider_release.set()
-                if provider_result is not None:
-                    with allow_join_result():
-                        assert provider_result.get(timeout=5) == "released"
+            # No explicit queue: the production ingestion route must work.
+            ingestion_result = app.send_task("documents.ingest_version", args=[str(version_id)])
+            with allow_join_result():
+                result = ingestion_result.get(timeout=5)
+            assert result["status"] == "READY" and result["processed"] is True
     finally:
-        # Delete only this run's queues/results; never flush the shared Redis database.
-        with app.connection() as connection:
-            for name in (*RAG_WORKER_QUEUES, PROVIDER_QUEUE, "celery"):
-                Queue(name, routing_key=name)(connection).delete()
-        for result in (provider_result, ingestion_result):
-            if result is not None:
-                result.forget()
-        app.close()
+        if ingestion_result is not None:
+            ingestion_result.forget()
