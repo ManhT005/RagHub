@@ -30,6 +30,7 @@
       <a nz-button [routerLink]="['/app/chatbots', selected, 'settings']"
         >Cấu hình & widget</a
       >
+      <a nz-button [routerLink]="['/app/workspaces', context.workspace()?.id, 'chatbots']">Chatbot</a>
     }
   </div>
   @if (!loading() && !bots().length) {
