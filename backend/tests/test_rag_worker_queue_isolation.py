@@ -69,6 +69,13 @@ def test_worker_queue_topology_and_isolation():
     assert routes["providers.ollama_pull"]["queue"] == PROVIDER_QUEUE
 
     # Verify RAG queues do not overlap with provider queue
+    assert set(RAG_WORKER_QUEUES) == {"rag-ingestion", "rag-embedding", "rag-reindex"}
+    for task in (
+        "documents.ingest_version",
+        "embedding.process_work_item_batch",
+        "providers.reindex_workspace",
+    ):
+        assert routes[task]["queue"] in RAG_WORKER_QUEUES
     assert PROVIDER_QUEUE not in RAG_WORKER_QUEUES
     assert "celery" not in RAG_WORKER_QUEUES
 
