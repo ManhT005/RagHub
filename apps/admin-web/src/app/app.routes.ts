@@ -110,6 +110,14 @@ export const routes: Routes = [
               ),
             data: { permission: "chat.use" },
           },
+          {
+            path: "chatbots",
+            loadComponent: () =>
+              import("./features/workspace-chatbots/workspace-chatbots.component").then(
+                (m) => m.WorkspaceChatbotsComponent,
+              ),
+            data: { permission: "chat.use" },
+          },
           { path: "", pathMatch: "full", redirectTo: "overview" },
         ],
       },
