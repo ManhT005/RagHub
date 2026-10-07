@@ -12,6 +12,13 @@
   padding: 0 14px;
   color: var(--rh-muted);
   border-radius: 8px;
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+.workspace-back nz-icon {
+  flex: 0 0 auto;
+  font-size: 14px;
 }
 .workspace-back:hover {
   background: var(--rh-hover);
@@ -21,9 +28,28 @@
   outline-offset: 2px;
 }
 .workspace-identity {
-  margin: 0 24px;
-  padding: 4px 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px;
+  padding: 8px 12px 18px;
   border-bottom: 1px solid var(--rh-border);
+}
+.workspace-avatar {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: #dce9ff;
+  font-size: 14px;
+  font-weight: 700;
+  background: #18365f;
+  border: 1px solid #2c4d78;
+  border-radius: 9px;
+}
+.workspace-copy {
+  min-width: 0;
 }
 .workspace-identity strong,
 .workspace-identity small {
@@ -37,6 +63,10 @@
 .workspace-identity small {
   margin-top: 4px;
   color: var(--rh-muted);
+  font-size: 12px;
+}
+.workspace-identity small span {
+  font-weight: 600;
 }
 .console-shell li.workspace-admin-label {
   height: auto !important;
