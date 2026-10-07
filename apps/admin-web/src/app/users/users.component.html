@@ -184,14 +184,15 @@
       </label>
       <label class="modal-field">
         <span>Vai trò</span>
-        <nz-select
+        <select
+          class="role-select"
           [ngModel]="newRole()"
           (ngModelChange)="newRole.set($event)"
           aria-label="Vai trò tài khoản mới"
         >
-          <nz-option nzValue="WORKSPACE_ADMIN" nzLabel="Workspace admin" />
-          <nz-option nzValue="ADMIN" nzLabel="Admin" />
-        </nz-select>
+          <option value="WORKSPACE_ADMIN">Workspace admin</option>
+          <option value="ADMIN">Admin</option>
+        </select>
       </label>
       @if (actionError()) {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />
@@ -211,14 +212,15 @@
     <ng-container *nzModalContent>
       <label class="modal-field">
         <span>Vai trò</span>
-        <nz-select
+        <select
+          class="role-select"
           [ngModel]="roleValue()"
           (ngModelChange)="roleValue.set($event)"
           aria-label="Vai trò người dùng"
         >
-          <nz-option nzValue="WORKSPACE_ADMIN" nzLabel="Workspace admin" />
-          <nz-option nzValue="ADMIN" nzLabel="Admin" />
-        </nz-select>
+          <option value="WORKSPACE_ADMIN">Workspace admin</option>
+          <option value="ADMIN">Admin</option>
+        </select>
       </label>
       @if (actionError()) {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="actionError()" />

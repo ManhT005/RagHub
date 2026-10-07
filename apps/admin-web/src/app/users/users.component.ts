@@ -15,7 +15,6 @@ import { NzEmptyModule } from "ng-zorro-antd/empty";
 import { NzInputModule } from "ng-zorro-antd/input";
 import { NzModalModule } from "ng-zorro-antd/modal";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
-import { NzSelectModule } from "ng-zorro-antd/select";
 import { NzSpinModule } from "ng-zorro-antd/spin";
 import { NzTableModule } from "ng-zorro-antd/table";
 import { NzTagModule } from "ng-zorro-antd/tag";
@@ -42,7 +41,6 @@ const PAGE_SIZE = 10;
     NzInputModule,
     NzModalModule,
     NzPopconfirmModule,
-    NzSelectModule,
     NzSpinModule,
     NzTableModule,
     NzTagModule,
