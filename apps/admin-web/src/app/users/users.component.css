@@ -106,3 +106,27 @@
   vertical-align: bottom;
   white-space: nowrap;
 }
+
+@media (max-width: 720px) {
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .toolbar nz-input-group {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .toolbar > button {
+    width: 100%;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
+    min-width: 250px;
+  }
+
+  .actions-heading {
+    min-width: 250px;
+  }
+}
