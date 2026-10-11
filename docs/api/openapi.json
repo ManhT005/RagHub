@@ -6837,6 +6837,22 @@
               ],
               "title": "Origin"
             }
+          },
+          {
+            "in": "header",
+            "name": "referer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Referer"
+            }
           }
         ],
         "responses": {
@@ -6885,6 +6901,22 @@
                 }
               ],
               "title": "Origin"
+            }
+          },
+          {
+            "in": "header",
+            "name": "referer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Referer"
             }
           }
         ],
@@ -6951,6 +6983,22 @@
                 }
               ],
               "title": "Origin"
+            }
+          },
+          {
+            "in": "header",
+            "name": "referer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Referer"
             }
           }
         ],
