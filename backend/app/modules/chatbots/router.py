@@ -162,9 +162,10 @@ async def embed_code(
 async def public_config(
     embed_key: str,
     origin: Annotated[str | None, Header()] = None,
-    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
+    request: Request = None,
 ) -> JSONResponse:
+    referer = request.headers.get("referer") if request else None
     effective_origin = embed_request_origin(origin, referer)
     config = await PublicChatContainer(session).config(embed_key, effective_origin)
     return JSONResponse(config, headers=public_cors_headers(effective_origin))
@@ -183,9 +184,10 @@ def public_cors_headers(origin: str | None) -> dict[str, str]:
 async def public_chat_options(
     embed_key: str,
     origin: Annotated[str | None, Header()] = None,
-    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
+    request: Request = None,
 ) -> Response:
+    referer = request.headers.get("referer") if request else None
     effective_origin = embed_request_origin(origin, referer)
     await PublicChatContainer(session).resolve(embed_key, effective_origin)
     return Response(
@@ -200,11 +202,10 @@ async def public_chat(
     payload: ChatRequest,
     request: Request,
     origin: Annotated[str | None, Header()] = None,
-    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    effective_origin = embed_request_origin(origin, referer)
+    effective_origin = embed_request_origin(origin, request.headers.get("referer"))
     chatbot = await PublicChatContainer(session).resolve(embed_key, effective_origin)
     request.state.public_origin = effective_origin
     request.state.public_chatbot_id = str(chatbot.id)
@@ -231,7 +232,7 @@ async def public_chat(
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            **public_cors_headers(origin),
+            **public_cors_headers(effective_origin),
         },
     )
 
