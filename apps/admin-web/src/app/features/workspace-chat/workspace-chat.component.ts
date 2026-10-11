@@ -28,7 +28,45 @@ import { chatError } from "../../core/api/chat-error";
 interface Message {
   role: "user" | "assistant";
   text: string;
-  citations?: { document_name?: string; page?: number }[];
+  citations?: Citation[];
+}
+
+interface Citation {
+  chunk_id?: string;
+  document_name?: string;
+  page?: number;
+  chunk_content?: string;
+  excerpt?: string;
+  rank?: number;
+}
+
+/**
+ * Converts the small, safe Markdown subset emitted by the chatbot to HTML.
+ * Escaping is deliberately done before applying Markdown replacements so text
+ * from the model can never inject markup into the Admin console.
+ */
+export function renderChatMarkdown(value: string): string {
+  const inline = (text: string) =>
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+
+  return value
+    .split(/\r?\n/)
+    .map((line) => {
+      const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
+      const ordered = line.match(/^\s*(\d+)\.\s+(.+)$/);
+      if (bullet) return `<span class="chat-markdown-bullet">• ${inline(bullet[1])}</span>`;
+      if (ordered)
+        return `<span class="chat-markdown-bullet">${ordered[1]}. ${inline(ordered[2])}</span>`;
+      return inline(line) || "&nbsp;";
+    })
+    .join("<br>");
 }
 @Component({
   selector: "raghub-workspace-chat",
@@ -41,6 +79,7 @@ interface Message {
     NzModalModule,
   ],
   templateUrl: "./workspace-chat.component.html",
+  styleUrl: "./workspace-chat.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkspaceChatComponent implements OnDestroy {
@@ -62,6 +101,16 @@ export class WorkspaceChatComponent implements OnDestroy {
   private conversationId: string | null = null;
   private controller?: AbortController;
   private loadRequest?: Subscription;
+
+  protected renderMarkdown(text: string): string {
+    return renderChatMarkdown(text);
+  }
+
+  protected citationTitle(citation: Citation, index: number): string {
+    const chunk = citation.rank ?? index + 1;
+    const page = citation.page ? ` · trang ${citation.page}` : "";
+    return `C${chunk} · ${citation.document_name ?? "Tài liệu"}${page}`;
+  }
   constructor() {
     const workspaceId = computed(() => this.context.workspace()?.id);
     effect(() => {

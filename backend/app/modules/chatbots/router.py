@@ -1,4 +1,5 @@
 from typing import Annotated
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
@@ -32,6 +33,18 @@ from app.modules.chatbots.service import ChatbotService
 from app.modules.users.models import User
 
 router = APIRouter(tags=["chatbots"])
+
+
+def embed_request_origin(origin: str | None, referer: str | None) -> str | None:
+    """Use Referer for same-origin embeds when browsers omit the Origin header."""
+    if origin:
+        return origin
+    if not referer:
+        return None
+    parsed = urlsplit(referer)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def response(chatbot: object) -> ChatbotResponse:
@@ -149,10 +162,12 @@ async def embed_code(
 async def public_config(
     embed_key: str,
     origin: Annotated[str | None, Header()] = None,
+    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> JSONResponse:
-    config = await PublicChatContainer(session).config(embed_key, origin)
-    return JSONResponse(config, headers=public_cors_headers(origin))
+    effective_origin = embed_request_origin(origin, referer)
+    config = await PublicChatContainer(session).config(embed_key, effective_origin)
+    return JSONResponse(config, headers=public_cors_headers(effective_origin))
 
 
 def public_cors_headers(origin: str | None) -> dict[str, str]:
@@ -168,10 +183,12 @@ def public_cors_headers(origin: str | None) -> dict[str, str]:
 async def public_chat_options(
     embed_key: str,
     origin: Annotated[str | None, Header()] = None,
+    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
 ) -> Response:
-    await PublicChatContainer(session).resolve(embed_key, origin)
-    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=public_cors_headers(origin))
+    effective_origin = embed_request_origin(origin, referer)
+    await PublicChatContainer(session).resolve(embed_key, effective_origin)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=public_cors_headers(effective_origin))
 
 
 @router.post("/public/chatbots/{embed_key}/chat")
@@ -180,11 +197,13 @@ async def public_chat(
     payload: ChatRequest,
     request: Request,
     origin: Annotated[str | None, Header()] = None,
+    referer: Annotated[str | None, Header()] = None,
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    chatbot = await PublicChatContainer(session).resolve(embed_key, origin)
-    request.state.public_origin = origin
+    effective_origin = embed_request_origin(origin, referer)
+    chatbot = await PublicChatContainer(session).resolve(embed_key, effective_origin)
+    request.state.public_origin = effective_origin
     request.state.public_chatbot_id = str(chatbot.id)
     await limits.check_rate(str(chatbot.id), client_ip(request, limits.settings))
     slot = await limits.acquire(str(chatbot.id))

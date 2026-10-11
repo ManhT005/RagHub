@@ -1,0 +1,7 @@
+{
+  "dataset_revision": "haui-active-v1-draft",
+  "workspace": "HaUI Assistant",
+  "scope": "15 active documents / 1197 indexed chunks as of 2026-10-09",
+  "review_status": "draft_chunk_mapping_required",
+  "questions_file": "questions.json"
+}
