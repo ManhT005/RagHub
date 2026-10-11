@@ -188,7 +188,10 @@ async def public_chat_options(
 ) -> Response:
     effective_origin = embed_request_origin(origin, referer)
     await PublicChatContainer(session).resolve(embed_key, effective_origin)
-    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=public_cors_headers(effective_origin))
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers=public_cors_headers(effective_origin),
+    )
 
 
 @router.post("/public/chatbots/{embed_key}/chat")
