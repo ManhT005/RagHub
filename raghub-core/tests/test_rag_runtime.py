@@ -205,7 +205,7 @@ def test_runtime_preserves_events_trusted_citations_native_usage_and_scope():
     assert events[4].first_token_ms <= events[4].latency_ms
     assert conversations.commits == 2
     prompt = providers.chat.calls[0][0]
-    assert "untrusted document context" in prompt[0].content
+    assert "ngữ cảnh tài liệu không đáng tin cậy" in prompt[0].content
     assert "trusted knowledge" in prompt[0].content
     assert prompt[-1] == ChatMessage("user", command.question)
 
