@@ -47,6 +47,15 @@ def embed_request_origin(origin: str | None, referer: str | None) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def request_referer(request: Request | None) -> str | None:
+    if request is None:
+        return None
+    for name, value in request.scope.get("headers", ()):
+        if name.lower() == b"referer":
+            return value.decode("latin-1")
+    return None
+
+
 def response(chatbot: object) -> ChatbotResponse:
     return ChatbotResponse.model_validate(chatbot, from_attributes=True)
 
@@ -165,8 +174,7 @@ async def public_config(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     request: Request = None,
 ) -> JSONResponse:
-    referer = request.headers.get("referer") if request else None
-    effective_origin = embed_request_origin(origin, referer)
+    effective_origin = embed_request_origin(origin, request_referer(request))
     config = await PublicChatContainer(session).config(embed_key, effective_origin)
     return JSONResponse(config, headers=public_cors_headers(effective_origin))
 
@@ -187,8 +195,7 @@ async def public_chat_options(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     request: Request = None,
 ) -> Response:
-    referer = request.headers.get("referer") if request else None
-    effective_origin = embed_request_origin(origin, referer)
+    effective_origin = embed_request_origin(origin, request_referer(request))
     await PublicChatContainer(session).resolve(embed_key, effective_origin)
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
@@ -205,7 +212,7 @@ async def public_chat(
     session: Annotated[AsyncSession, Depends(get_session)] = None,
     limits: Annotated[PublicChatLimits, Depends(get_public_limits)] = None,
 ) -> StreamingResponse:
-    effective_origin = embed_request_origin(origin, request.headers.get("referer"))
+    effective_origin = embed_request_origin(origin, request_referer(request))
     chatbot = await PublicChatContainer(session).resolve(embed_key, effective_origin)
     request.state.public_origin = effective_origin
     request.state.public_chatbot_id = str(chatbot.id)
