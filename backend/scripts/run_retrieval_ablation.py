@@ -52,7 +52,7 @@ from scripts.run_production_eval import percentile  # noqa: E402
 
 DEFAULT_QA = Path(__file__).resolve().parents[1] / "tests/fixtures/rag_golden/qa.json"
 
-
+# Gridsearch configurations for retrieval ablation
 def grid_configs(candidate_counts=(15, 25, 40), rrf_values=(30, 60, 90), caps=(1, 2, 3)):
     result = []
     for candidates, rrf_k, cap in itertools.product(candidate_counts, rrf_values, caps):

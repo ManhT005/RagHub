@@ -119,6 +119,7 @@ export interface Chatbot {
   embed_primary_color: string;
   embed_title: string;
   embed_greeting: string;
+  embed_logo_data: string | null;
   clarification_mode: "off" | "conservative" | "proactive";
   max_clarifying_turns: number;
   domain_profile: string;
@@ -143,6 +144,7 @@ export interface EmbedPublishInput {
   primary_color: string;
   title: string;
   greeting: string;
+  logo_data?: string | null;
 }
 export interface EmbedCode {
   code: string | null;

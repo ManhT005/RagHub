@@ -15,5 +15,6 @@
 !raghub-core/src/
 !raghub-core/src/**
 **/__pycache__/
+**/.pytest_cache/
 **/*.egg-info/
 **/*.pyc

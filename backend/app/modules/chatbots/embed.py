@@ -52,4 +52,5 @@ def public_config(chatbot: Chatbot) -> dict[str, str]:
         "primary_color": chatbot.embed_primary_color,
         "title": chatbot.embed_title,
         "greeting": chatbot.embed_greeting,
+        "logo_data": chatbot.embed_logo_data,
     }

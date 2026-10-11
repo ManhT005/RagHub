@@ -1,0 +1,48 @@
+.chat-answer {
+  margin: 6px 0 0;
+  line-height: 1.6;
+}
+
+.chat-answer :is(strong, em) {
+  color: inherit;
+}
+
+.chat-answer code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--rh-surface-soft);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.chat-markdown-bullet {
+  display: inline-block;
+  padding-left: 8px;
+}
+
+.citation-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.citation-list li {
+  padding: 10px;
+  border: 1px solid var(--rh-border);
+  border-left: 3px solid var(--rh-primary);
+  border-radius: 6px;
+  background: var(--rh-surface-raised);
+}
+
+.citation-list strong,
+.citation-list small {
+  display: block;
+}
+
+.citation-list small {
+  margin-top: 5px;
+  color: var(--rh-muted);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
