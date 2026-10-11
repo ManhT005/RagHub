@@ -92,6 +92,7 @@ def test_sliced_citations_mirror_sent_slices_only():
     slices = [(0, "first chunk body"), (2, "third chunk")]
     citations = resolve_sliced_citations(hits, slices)
     assert [c.citation_id for c in citations] == ["C1", "C2"]
+    assert citations[1].chunk_content == "third chunk"
     assert citations[1].excerpt == "third chunk"
     bundle = render_sliced_bundle(hits, slices)
     assert "[C1]" in bundle.text and "[C2]" in bundle.text and "[C3]" not in bundle.text

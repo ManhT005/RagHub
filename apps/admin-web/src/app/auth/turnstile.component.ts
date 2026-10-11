@@ -47,7 +47,7 @@ function loadTurnstile(): Promise<void> {
   template: `<div #container class="turnstile-container"></div>`,
   styles: `
     :host { display: block; min-height: 65px; }
-    .turnstile-container { display: flex; justify-content: center; }
+    .turnstile-container { width: 100%; }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -73,6 +73,7 @@ export class TurnstileComponent implements AfterViewInit, OnDestroy {
             action: this.action,
             appearance: "always",
             theme: "light",
+            size: "flexible",
             callback: (token: string) => this.tokenChange.emit(token),
             "expired-callback": () => this.tokenChange.emit(""),
             "error-callback": () => this.tokenChange.emit(""),

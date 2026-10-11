@@ -48,23 +48,22 @@
     @for (message of messages(); track $index) {
       <article [class.user-message]="message.role === 'user'">
         <strong>{{ message.role === "user" ? "Bạn" : "RagHub" }}</strong>
-        <p style="white-space: pre-wrap">
-          {{ message.text || (streaming() ? "Đang tạo câu trả lời…" : "") }}
-        </p>
+        <div
+          class="chat-answer"
+          [innerHTML]="renderMarkdown(message.text || (streaming() ? 'Đang tạo câu trả lời…' : ''))"
+        ></div>
         @if (message.citations?.length) {
-          <small class="muted"
-            >Nguồn:
+          <section aria-label="Các chunk nguồn">
+            <strong>Nguồn và chunk đã truy xuất</strong>
+            <ul class="citation-list">
             @for (citation of message.citations; track $index) {
-              <span
-                >{{ citation.document_name ?? "Tài liệu"
-                }}{{
-                  citation.page
-                    ? " · trang " + citation.page
-                    : ""
-                }};
-              </span>
+              <li>
+                <strong>{{ citationTitle(citation, $index) }}</strong>
+                <small>{{ citation.chunk_content || "Không có nội dung chunk để hiển thị." }}</small>
+              </li>
             }
-          </small>
+            </ul>
+          </section>
         }
       </article>
     }

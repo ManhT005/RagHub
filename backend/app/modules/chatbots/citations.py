@@ -13,6 +13,7 @@ def resolve_citations(hits):
             "document_name": c.document_name,
             "page": c.page,
             "chunk_id": str(c.chunk_id),
+            "chunk_content": c.chunk_content,
             "excerpt": c.excerpt,
             "score": c.score,
         }
