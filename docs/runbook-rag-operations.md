@@ -14,6 +14,10 @@ DB/search/broker/provider settings. Run Docker commands from the repository root
 
 ## Feature flags
 
+For an explicit self-host local-reranking deployment (model preparation, checksum
+pinning, API warmup and rollback), see [Local reranking](operations/LOCAL_RERANKING.md).
+The optional Compose overlay enables the feature; ordinary deployments remain unchanged.
+
 | Flag | Default | Enable after | Rollback |
 |---|---|---|---|
 | `RAG_RELEVANCE_GATE_ENABLED` | `false` | Matching calibration artifact and reviewed refusal behavior | Set `false`; no reindex |

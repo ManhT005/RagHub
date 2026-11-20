@@ -1,0 +1,13 @@
+# Opt-in local reranking. Append after the self-host/build Compose files.
+# API image must include local-ai dependencies and the prepared snapshot.
+services:
+  api:
+    environment:
+      RAG_RERANKER_ENABLED: "true"
+      RAG_ADAPTIVE_RERANK_ENABLED: "false"
+      RAG_RERANK_SOURCE_COUNT: ${RAG_RERANK_SOURCE_COUNT:-12}
+      RAG_RERANK_TOP_N: ${RAG_RERANK_TOP_N:-5}
+      RAG_RERANKER_TIMEOUT_SECONDS: ${RAG_RERANKER_TIMEOUT_SECONDS:-10}
+      RAG_RERANKER_SNAPSHOT_PATH: /app/.cache/huggingface/reranker
+      RAG_RERANKER_EXPECTED_SHA256: ${RAG_RERANKER_EXPECTED_SHA256:?Prepare reranker and pin its checksum first}
+    command: [python, -m, app.infrastructure.ai.rerank_start]
