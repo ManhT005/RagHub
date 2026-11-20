@@ -336,12 +336,15 @@ class ProviderControlService:
         self.session.add(config)
         await self.session.flush()
         # Models become selectable only after an actual embedding/chat runtime request succeeds.
+        is_space = connection_catalog_id(connection) == "huggingface-spaces"
         try:
             await ProviderConfigService(self.session).test(organization_id, config.id)
         except CoreError as exc:
             await self.session.rollback()
             raise AppError(
-                health_error(exc), "Model health probe failed.", status_code=422
+                (exc.code if is_space else health_error(exc)),
+                "Model health probe failed.",
+                status_code=422,
             ) from exc
         await self.session.commit()
         return config
@@ -380,6 +383,10 @@ class ProviderControlService:
 
 async def infer_dimension(connection, model: str, secret: str | None) -> int:
     """Probe outside the engine, then let its regular adapter verify the registration."""
+    if connection_catalog_id(connection) == "huggingface-spaces":
+        raise AppError(
+            "SPACE_DIMENSION_REQUIRED", "Enter a fixed dimension for this Space.", status_code=422
+        )
     if connection.provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"} or (
         connection.provider_type == "GOOGLE_GEMINI" and model == "gemini-embedding-2"
     ):

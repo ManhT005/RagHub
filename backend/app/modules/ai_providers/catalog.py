@@ -49,6 +49,27 @@ class CatalogItem(BaseModel):
 
 CATALOG = [
     CatalogItem(
+        id="huggingface-spaces",
+        name="Hugging Face Spaces",
+        category="Custom",
+        provider_type="OPENAI_COMPATIBLE",
+        capabilities=["CHAT", "EMBEDDING"],
+        supports_model_discovery=True,
+        auth_type="OPTIONAL_API_KEY",
+        request_profile="GRADIO_SPACES",
+        status="BETA",
+        docs_url="https://huggingface.co/docs/hub/spaces-api-endpoints",
+        free_tier_note=(
+            "Space có quota và hàng đợi riêng. "
+            "Cấu hình API input/output trước khi đăng ký model."
+        ),
+        fields=[
+            ConnectionField(key="spaces_chat", label="Chat mapping (JSON)"),
+            ConnectionField(key="spaces_query", label="Embedding query mapping (JSON)"),
+            ConnectionField(key="spaces_document", label="Embedding document mapping (JSON)"),
+        ],
+    ),
+    CatalogItem(
         id="gemini",
         locked_base_url=True,
         name="Google Gemini",

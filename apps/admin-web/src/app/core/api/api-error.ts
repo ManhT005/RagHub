@@ -1,4 +1,7 @@
 const MESSAGES: Record<string, string> = {
+  SPACE_DIMENSION_REQUIRED: 'Nhập dimension cố định cho Space embedding trước khi kiểm tra model.',
+  PROVIDER_INVALID_RESPONSE: 'API trả dữ liệu không đúng định dạng. Với Space, kiểm tra endpoint, mapping input/output và quota.',
+  PROVIDER_NOT_CONFIGURED: 'Chưa cấu hình đủ provider. Kiểm tra mapping API cho chức năng đang đăng ký.',
   PROVIDER_MODEL_NOT_FOUND: 'Provider không phục vụ Model ID này. Tìm model đang khả dụng hoặc kiểm tra ID.',
   PROVIDER_RATE_LIMITED: 'Provider đang giới hạn request hoặc quota. Thử lại sau hoặc kiểm tra tài khoản provider.',
   PROVIDER_IDENTITY_IMMUTABLE: 'Tạo connection mới để chuyển sang provider khác.',

@@ -54,6 +54,10 @@ export interface ConnectionTest {
   status: string; latency_ms: number; capabilities: ProviderCapability[];
   discovery_supported: boolean; error_code: string | null;
 }
+export interface SpaceEndpoint {
+  name: string; parameters: { parameter_name?: string; label?: string; parameter_has_default?: boolean; parameter_default?: unknown }[];
+  returns: { label?: string }[];
+}
 export interface RerankBinding {
   model_id: string | null; candidate_limit: number; top_n: number; timeout_seconds: number;
 }
@@ -72,6 +76,11 @@ export class ProviderApiService {
   private readonly http = inject(HttpClient);
   private readonly base = '/api/v1';
   catalog() { return this.http.get<ProviderCatalogItem[]>(`${this.base}/ai/provider-catalog`); }
+  inspectSpace(base_url: string, secret?: string, connection_id?: string) {
+    return this.http.post<{endpoints: SpaceEndpoint[]}>(`${this.base}/ai/spaces/inspect`, {
+      base_url, ...(secret ? {secret} : {}), ...(connection_id ? {connection_id} : {}),
+    });
+  }
   connections(org: string) { return this.http.get<ProviderConnection[]>(`${this.base}/organizations/${org}/provider-connections`); }
   create(org: string, payload: ConnectionInput) { return this.http.post<ProviderConnection>(`${this.base}/organizations/${org}/provider-connections`, payload); }
   update(id: string, payload: Partial<Omit<ConnectionInput, 'provider_type'>>) { return this.http.patch<ProviderConnection>(`${this.base}/provider-connections/${id}`, payload); }

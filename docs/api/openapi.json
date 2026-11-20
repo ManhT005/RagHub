@@ -3538,6 +3538,89 @@
         "title": "SetupStatusResponse",
         "type": "object"
       },
+      "SpaceEndpoint": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parameters": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Parameters",
+            "type": "array"
+          },
+          "returns": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Returns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SpaceEndpoint",
+        "type": "object"
+      },
+      "SpaceInspectInput": {
+        "properties": {
+          "base_url": {
+            "maxLength": 1024,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          }
+        },
+        "required": [
+          "base_url"
+        ],
+        "title": "SpaceInspectInput",
+        "type": "object"
+      },
+      "SpaceInspection": {
+        "properties": {
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceEndpoint"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "endpoints"
+        ],
+        "title": "SpaceInspection",
+        "type": "object"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -4248,6 +4331,64 @@
           }
         ],
         "summary": "Catalog",
+        "tags": [
+          "provider control plane"
+        ]
+      }
+    },
+    "/api/v1/ai/spaces/inspect": {
+      "post": {
+        "operationId": "inspect_space_api_v1_ai_spaces_inspect_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpaceInspectInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpaceInspection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Inspect Space",
         "tags": [
           "provider control plane"
         ]

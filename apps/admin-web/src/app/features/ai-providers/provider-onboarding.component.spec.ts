@@ -26,6 +26,7 @@ describe("Provider onboarding", () => {
     },
   ];
   const api = {
+    inspectSpace: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     test: vi.fn(),
@@ -64,6 +65,29 @@ describe("Provider onboarding", () => {
     fixture.detectChanges();
     return fixture;
   }
+  it('inspects a Space and prepares explicit input mappings without saving a connection', () => {
+    const view = fixture();
+    const component = view.componentInstance;
+    component['baseUrl'] = 'https://example.hf.space';
+    api.inspectSpace.mockReturnValue(of({endpoints: [{name: 'chat', parameters: [
+      {parameter_name: 'prompt'}, {parameter_name: 'history', parameter_has_default: true, parameter_default: []},
+    ], returns: []}]}));
+    component['inspectSpace']();
+    expect(api.inspectSpace).toHaveBeenCalledWith('https://example.hf.space', '', undefined);
+    component['spaceEndpoint']('spaces_chat', 'chat');
+    expect(JSON.parse(component['configFields']['spaces_chat'])).toEqual({
+      api: 'chat', inputs: ['$prompt', []], output: '0',
+    });
+    expect(api.create).not.toHaveBeenCalled();
+  });
+  it('fills SICT as a preset with distinct query and document mappings', () => {
+    const view = fixture();
+    const component = view.componentInstance;
+    component['sictPreset']();
+    expect(JSON.parse(component['configFields']['spaces_query']).inputs).toEqual(['$texts', 'query', '$dimension']);
+    expect(JSON.parse(component['configFields']['spaces_document']).inputs).toEqual(['$texts', 'document', '$dimension']);
+    expect(api.create).not.toHaveBeenCalled();
+  });
   it('accepts Beta providers and requires catalog credential fields before saving', () => {
     const view = fixture();
     const cloudflare: ProviderCatalogItem = {

@@ -111,6 +111,23 @@ async def discover_models(
         ) from exc
     headers = {"Authorization": f"Bearer {secret}"} if secret else {}
     catalog = supported_catalog_by_id(connection_catalog_id(connection))
+    if catalog.id == "huggingface-spaces":
+        from app.modules.ai_providers.adapters.spaces import SpaceClient
+
+        await SpaceClient(base, secret, transport).inspect()
+        options = connection.config_json or {}
+        return [
+            DiscoveredModel(model=name, capabilities=[capability])
+            for name, capability, ready in (
+                ("space-chat", "CHAT", bool(options.get("spaces_chat"))),
+                (
+                    "space-embedding",
+                    "EMBEDDING",
+                    bool(options.get("spaces_query") and options.get("spaces_document")),
+                ),
+            )
+            if ready
+        ]
     if (
         provider_type in {"VOYAGE", "CLOUDFLARE_WORKERS_AI", "HUGGINGFACE_INFERENCE"}
         or catalog.id == "siliconflow"

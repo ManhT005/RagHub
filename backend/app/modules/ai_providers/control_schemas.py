@@ -62,6 +62,13 @@ class ConnectionInput(BaseModel):
         self.config_json.update(
             endpoint_scope=item.endpoint_scope, request_profile=item.request_profile
         )
+        if item.id == "huggingface-spaces":
+            from app.modules.ai_providers.adapters.spaces import mapping, space_origin
+
+            self.base_url = space_origin(self.base_url)
+            for key in ("spaces_chat", "spaces_query", "spaces_document"):
+                if self.config_json.get(key):
+                    mapping(self.config_json, key)
         return self
 
 
@@ -82,6 +89,22 @@ class ConnectionPatch(BaseModel):
             raise ValueError("Provider catalog identity cannot be cleared")
         supported_catalog_by_id(value)
         return value
+
+
+class SpaceInspectInput(BaseModel):
+    base_url: str = Field(max_length=1024)
+    secret: str | None = Field(default=None, max_length=4096)
+    connection_id: UUID | None = None
+
+
+class SpaceEndpoint(BaseModel):
+    name: str
+    parameters: list[dict[str, Any]] = Field(default_factory=list)
+    returns: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SpaceInspection(BaseModel):
+    endpoints: list[SpaceEndpoint]
 
 
 class ConnectionResponse(BaseModel):

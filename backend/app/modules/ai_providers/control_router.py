@@ -26,6 +26,8 @@ from app.modules.ai_providers.control_schemas import (
     ModelResponse,
     OllamaPullInput,
     OllamaPullResponse,
+    SpaceInspectInput,
+    SpaceInspection,
 )
 from app.modules.ai_providers.control_service import (
     ProviderControlService,
@@ -56,6 +58,30 @@ def admin(context, organization_id=None):
 async def catalog(context: Context):
     admin(context)
     return CATALOG
+
+
+@router.post("/ai/spaces/inspect", response_model=SpaceInspection)
+async def inspect_space(payload: SpaceInspectInput, context: Context, session: Session):
+    admin(context)
+    from app.modules.ai_providers.adapters.spaces import SpaceClient
+
+    secret = payload.secret
+    if payload.connection_id:
+        service = ProviderControlService(session)
+        connection = await service.get(context.organization_id, payload.connection_id)
+        # Never forward a stored credential to a different endpoint.
+        if connection.base_url != payload.base_url or connection.catalog_id != "huggingface-spaces":
+            raise AppError(
+                "PROVIDER_ENDPOINT_REJECTED",
+                "Inspect the saved Space URL or enter a new token.",
+                status_code=422,
+            )
+        secret = secret or service.secret(connection)
+    try:
+        metadata = await SpaceClient(payload.base_url, secret).inspect()
+        return {"endpoints": metadata["endpoints"]}
+    except ValueError as exc:
+        raise AppError("PROVIDER_ENDPOINT_REJECTED", "Invalid Space URL.", status_code=422) from exc
 
 
 @router.get(
