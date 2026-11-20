@@ -42,6 +42,7 @@ Thumbs.db
 *.log
 backend/data/
 .backups/
+.deploy/
 .celerybeat-schedule
 
 # Local refactor plans and packaging artifacts

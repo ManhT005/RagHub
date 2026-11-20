@@ -1,0 +1,72 @@
+name: Deploy develop
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never cancel an in-progress backup/migration/deploy.
+concurrency:
+  group: deploy-develop
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AUTO_DEPLOY_DEVELOP == 'true'
+    environment: develop-deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 1
+      - name: Skip superseded commits
+        id: latest
+        env:
+          DEPLOY_SHA: ${{ inputs.sha }}
+        run: |
+          latest=$(git ls-remote origin refs/heads/develop | cut -f1)
+          if [ "$latest" = "$DEPLOY_SHA" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Skipped: develop has a newer commit.'
+          fi
+      - name: Upload trusted release and deploy
+        if: steps.latest.outputs.deploy == 'true'
+        env:
+          DEPLOY_SHA: ${{ inputs.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_ROOT: ${{ vars.DEPLOY_ROOT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          DEPLOY_PORT=${DEPLOY_PORT:-22}
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          [[ "$DEPLOY_ROOT" =~ ^/[a-zA-Z0-9_/-]+$ && "$DEPLOY_ROOT" != / ]]
+          [[ -n "$DEPLOY_KEY" && -n "$DEPLOY_KNOWN_HOSTS" ]]
+          install -d -m 700 "$RUNNER_TEMP/deploy-ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy-ssh/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/deploy-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/deploy-ssh/"*
+          options=(-i "$RUNNER_TEMP/deploy-ssh/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/deploy-ssh/known_hosts")
+          git archive --format=tar HEAD > "$RUNNER_TEMP/release.tar"
+          remote="$DEPLOY_USER@$DEPLOY_HOST"
+          incoming="$DEPLOY_ROOT/.deploy/incoming/$DEPLOY_SHA.tar"
+          ssh "${options[@]}" -p "$DEPLOY_PORT" "$remote" "umask 077; mkdir -p '$DEPLOY_ROOT/.deploy/incoming'"
+          scp "${options[@]}" -P "$DEPLOY_PORT" "$RUNNER_TEMP/release.tar" "$remote:$incoming"
+          ssh "${options[@]}" -p "$DEPLOY_PORT" "$remote" \
+            "set -o pipefail; tar -xOf '$incoming' scripts/deploy-develop.py | python3 - --root '$DEPLOY_ROOT' --sha '$DEPLOY_SHA' --archive '$incoming'"

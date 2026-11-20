@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A develop run may be migrating/deploying. Never cancel it mid-operation.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
   core-contracts:
@@ -72,6 +73,15 @@ jobs:
     uses: ./.github/workflows/docker-images.yml
     with:
       publish: ${{ github.event_name == 'push' }}
+
+  deploy-develop:
+    name: Deploy develop
+    needs: [docker-images]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.AUTO_DEPLOY_DEVELOP == 'true'
+    uses: ./.github/workflows/deploy-develop.yml
+    with:
+      sha: ${{ github.sha }}
+    secrets: inherit
 
   widget:
     name: Widget checks
