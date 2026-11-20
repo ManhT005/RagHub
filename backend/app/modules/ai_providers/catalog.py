@@ -49,6 +49,20 @@ class CatalogItem(BaseModel):
 
 CATALOG = [
     CatalogItem(
+        id="sict-spaces",
+        name="SICT ZeroGPU Embedding Bridge",
+        category="Custom",
+        provider_type="OPENAI_COMPATIBLE",
+        capabilities=["EMBEDDING"],
+        supports_model_discovery=True,
+        request_profile="SICT_SPACES",
+        status="BETA",
+        docs_url="https://huggingface.co/spaces/quyendzvaio/sict",
+        presets=[
+            CatalogModel(model="jinaai/jina-clip-v2", capabilities=["EMBEDDING"], dimension=1024)
+        ],
+    ),
+    CatalogItem(
         id="gemini",
         locked_base_url=True,
         name="Google Gemini",

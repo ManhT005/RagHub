@@ -53,6 +53,7 @@ class ProviderOptions(BaseModel):
         Literal[
             "OPENAI_STANDARD",
             "NVIDIA_NIM",
+            "SICT_SPACES",
             "OLLAMA",
             "GEMINI",
             "SENTENCE_TRANSFORMER",

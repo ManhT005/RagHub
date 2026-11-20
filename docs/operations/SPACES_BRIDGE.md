@@ -1,5 +1,33 @@
 # Hugging Face Spaces / ZeroGPU bridge
 
+## SICT embedding (tùy chọn)
+
+Bridge hỗ trợ thêm `/v1/embeddings` cho Gradio endpoint `embed_batch_text` của
+`quyendzvaio/sict`. Chạy instance riêng với:
+
+```env
+SPACE_URL=https://quyendzvaio-sict.hf.space
+SPACE_MODEL=jinaai/jina-clip-v2
+SPACE_EMBEDDING_DIMENSION=1024
+SPACE_OUTPUT_INDEX=0
+```
+
+Thêm `HF_TOKEN` trong secrets của tiến trình bridge và `SPACES_BRIDGE_KEY` riêng.
+Trong RagHub chọn **SICT ZeroGPU Embedding Bridge**, Base URL là HTTPS URL
+bridge của bạn cộng `/v1`, API key là bridge key. Không điền URL Space trực tiếp.
+Đăng ký model `jinaai/jina-clip-v2`, EMBEDDING, dimension khớp cấu hình bridge.
+Profile `SICT_SPACES` tự gửi `input_type=query/passage`; dùng OpenAI-standard
+không có trường này sẽ bị từ chối, tránh trả vector sai ngữ nghĩa retrieval.
+Mỗi batch tối đa 32 texts, mỗi text tối đa 8192 ký tự; xác thực số lượng,
+dimension và giá trị hữu hạn trước khi trả vector. Không retry ngầm khi lỗi quota.
+
+Chỉ kiểm thử trên workspace mới: đổi model embedding đòi hỏi lập lại index,
+kể cả khi dimension giống model cũ. Workspace/index đang dùng không bị tự đổi.
+Space của bên thứ ba có quota, hàng đợi và có thể đổi API/model; nội dung gửi
+embedding được chuyển ra Space. Model/Space công bố giới hạn phi thương mại;
+kiểm tra điều kiện sử dụng tại nguồn trước khi dùng ngoài thử nghiệm.
+Chưa xác nhận live GPU inference; các test tích hợp giao thức dùng mock.
+
 Bridge tùy chọn cho Space Gradio có queue API hiện đại. Không phải Hugging Face
 Inference Router; không dùng endpoint `router.huggingface.co`. Không cần migration
 database và không thay đổi embedding/index đang có.

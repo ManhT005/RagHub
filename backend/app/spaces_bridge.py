@@ -3,6 +3,7 @@
 import asyncio
 import hmac
 import json
+import math
 import os
 import re
 import time
@@ -40,7 +41,7 @@ async def models(request: Request):
         "object": "list",
         "data": [
             {
-                "id": os.environ.get("SPACE_MODEL", "space-chat"),
+                "id": bridge_model(),
                 "object": "model",
                 "owned_by": "spaces",
             }
@@ -48,9 +49,13 @@ async def models(request: Request):
     }
 
 
-async def generate(prompt):
+def bridge_model():
+    return os.environ.get("SPACE_MODEL", "space-chat")
+
+
+async def generate(prompt, *, api=None, data=None, structured=False):
     base = os.environ.get("SPACE_URL", "").rstrip("/")
-    api = os.environ.get("SPACE_API_NAME", "predict")
+    api = api or os.environ.get("SPACE_API_NAME", "predict")
     if not re.fullmatch(r"https://[a-zA-Z0-9-]+\.hf\.space", base):
         raise HTTPException(503, "SPACE_URL must be an HTTPS hf.space origin.")
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", api):
@@ -68,7 +73,7 @@ async def generate(prompt):
         response = await client.post(
             f"{base}/gradio_api/call/{api}",
             headers=headers,
-            json={"data": render(template, prompt)},
+            json={"data": data if data is not None else render(template, prompt)},
         )
         if response.status_code != 200:
             raise HTTPException(502, f"Space submission failed (HTTP {response.status_code}).")
@@ -93,12 +98,75 @@ async def generate(prompt):
                 elif line.startswith("data:") and event == "complete":
                     try:
                         output = json.loads(line[5:])[output_index]
-                        if not isinstance(output, str):
+                        if not structured and not isinstance(output, str):
                             raise ValueError
                         return output
                     except (ValueError, IndexError, KeyError, TypeError) as exc:
                         raise HTTPException(502, "Expected a text Space output.") from exc
     raise HTTPException(502, "Space queue ended without a result.")
+
+
+@app.post("/v1/embeddings")
+async def embeddings(request: Request):
+    authorize(request)
+    payload = await request.json()
+    if not isinstance(payload, dict) or payload.get("model") != bridge_model():
+        raise HTTPException(404, "Unknown bridge model.")
+    texts = payload.get("input")
+    texts = [texts] if isinstance(texts, str) else texts
+    if (
+        not isinstance(texts, list)
+        or not 1 <= len(texts) <= 32
+        or any(not isinstance(text, str) or not text.strip() or len(text) > 8192 for text in texts)
+    ):
+        raise HTTPException(
+            422, "Expected 1–32 nonempty text strings, at most 8192 characters each."
+        )
+    task = payload.get("input_type")
+    if task not in {"query", "passage", "document"}:
+        raise HTTPException(
+            422, "input_type=query or passage is required to preserve retrieval semantics."
+        )
+    try:
+        dimension = int(os.environ.get("SPACE_EMBEDDING_DIMENSION", "1024"))
+    except ValueError as exc:
+        raise HTTPException(503, "Invalid configured embedding dimension.") from exc
+    if dimension not in {32, 64, 128, 256, 512, 768, 1024}:
+        raise HTTPException(503, "Unsupported SICT dimension.")
+    if payload.get("dimensions", dimension) != dimension:
+        raise HTTPException(422, "Requested dimension differs from registered bridge dimension.")
+    if payload.get("encoding_format", "float") != "float":
+        raise HTTPException(422, "Only float vectors are supported.")
+    try:
+        async with asyncio.timeout(180):
+            result = await generate(
+                "",
+                api="embed_batch_text",
+                data=[texts, "query" if task == "query" else "document", dimension],
+                structured=True,
+            )
+        if not isinstance(result, dict) or result.get("status") != "success":
+            raise ValueError("Space returned an error.")
+        from app.modules.ai_providers.adapters.http import validate_vectors
+
+        vectors = validate_vectors(result.get("embeddings"), len(texts), dimension)
+        if any(not math.isfinite(value) for vector in vectors for value in vector):
+            raise ValueError("Nonfinite vector.")
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        raise HTTPException(504, "Embedding Space timed out.") from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Space returned invalid embeddings or is unavailable.") from exc
+    return {
+        "object": "list",
+        "model": bridge_model(),
+        "data": [
+            {"object": "embedding", "index": index, "embedding": vector}
+            for index, vector in enumerate(vectors)
+        ],
+        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+    }
 
 
 @app.post("/v1/chat/completions")

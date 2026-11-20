@@ -12,6 +12,6 @@ def vendor_headers(profile, options):
 
 
 def embedding_batch_limit(profile, options):
-    defaults = {"SILICONFLOW": 32, "NVIDIA_NIM": 32, "VOYAGE": 128}
+    defaults = {"SILICONFLOW": 32, "NVIDIA_NIM": 32, "SICT_SPACES": 32, "VOYAGE": 128}
     vendor_limit = defaults.get(profile, 64)
     return max(1, min(int(options.get("embedding_batch_limit", vendor_limit)), vendor_limit))
