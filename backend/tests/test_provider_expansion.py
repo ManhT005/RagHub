@@ -239,7 +239,17 @@ def test_cloudflare_builds_endpoint_from_account_and_never_accepts_header_inject
         ProviderOptions(app_url="javascript:alert(1)")
 
 
-async def test_hf_discovery_lists_only_live_served_embedding_models():
+@pytest.mark.parametrize("mapping_format", ["object", "list"])
+async def test_hf_discovery_lists_only_live_served_embedding_models(mapping_format):
+    def mapping(status):
+        entry = {"status": status, "task": "feature-extraction"}
+        if mapping_format == "list":
+            return [
+                {"provider": "other", "status": "live", "task": "feature-extraction"},
+                {"provider": "hf-inference", **entry},
+            ]
+        return {"hf-inference": entry}
+
     def handle(request):
         assert request.headers["authorization"] == "Bearer personal-token"
         if request.url.path == "/api/whoami-v2":
@@ -251,15 +261,11 @@ async def test_hf_discovery_lists_only_live_served_embedding_models():
             json=[
                 {
                     "id": "org/live",
-                    "inferenceProviderMapping": {
-                        "hf-inference": {"status": "live", "task": "feature-extraction"}
-                    },
+                    "inferenceProviderMapping": mapping("live"),
                 },
                 {
                     "id": "org/staging",
-                    "inferenceProviderMapping": {
-                        "hf-inference": {"status": "staging", "task": "feature-extraction"}
-                    },
+                    "inferenceProviderMapping": mapping("staging"),
                 },
                 {"id": "org/unavailable"},
             ],

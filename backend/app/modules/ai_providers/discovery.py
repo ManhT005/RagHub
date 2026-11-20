@@ -71,7 +71,19 @@ async def discover_native(connection, secret, base, transport):
             },
         )
         for row in embeddings:
-            mapping = (row.get("inferenceProviderMapping") or {}).get("hf-inference", {})
+            provider_mapping = row.get("inferenceProviderMapping") or {}
+            # Expanded Hub catalogs return a list; older responses use provider keys.
+            if isinstance(provider_mapping, list):
+                mapping = next(
+                    (
+                        entry
+                        for entry in provider_mapping
+                        if entry.get("provider") == "hf-inference"
+                    ),
+                    {},
+                )
+            else:
+                mapping = provider_mapping.get("hf-inference", {})
             if mapping.get("status") == "live" and mapping.get("task") == "feature-extraction":
                 name = row.get("id")
                 if isinstance(name, str) and 0 < len(name) <= 255:
