@@ -315,6 +315,17 @@ class RerankOptions(BaseModel):
         return self
 
 
+class WorkspaceRerankOptions(RerankOptions):
+    # None preserves old provider/global configuration until explicitly changed.
+    mode: Literal["off", "local", "provider"] | None = None
+
+
+def workspace_rerank_mode(config, model_id, settings):
+    return config.get("mode") or (
+        "provider" if model_id else "local" if settings.rag_reranker_enabled else "off"
+    )
+
+
 class WorkspaceProviderBindingResponse(BaseModel):
     workspace_id: UUID
     embedding_provider_id: UUID | None

@@ -1,5 +1,35 @@
 # Bật reranking local
 
+## Bật từ giao diện (khuyến nghị)
+
+Vào **Workspace → AI & Models → Reranking**:
+
+1. Admin tổ chức bấm **Tải model local** nếu model chưa được tải. Tác vụ chạy
+   trên provider worker; giao diện tự cập nhật trạng thái tải và xác minh.
+2. Khi trạng thái **Sẵn sàng**, chọn **Reranking local trên VPS** rồi **Lưu rerank**.
+   Mặc định lấy 12 kết quả, giữ 5, timeout 10 giây.
+3. Chọn **Tắt reranking** và lưu để tắt riêng workspace. Có thể chọn model provider
+   đã đăng ký thay cho local.
+
+Không cần sửa `.env`, restart API hoặc reindex để bật/tắt trên UI. Thay đổi dùng
+`rerank_config` đã có, không cần migration dữ liệu. Model tải riêng theo tổ chức,
+revision được pin, chỉ lấy file trong allowlist và kiểm tra checksum trước khi
+load weights. Không cần API key HF cho model công khai này. Cũng có thể tải model
+từ **System → Local AI**; tải xong chưa tự bật cho workspace.
+
+API và provider worker cần image có `local-ai`, cùng mount volume cache. Nếu thiếu
+thư viện, UI báo chưa hỗ trợ; nếu `LOCAL_AI_DOWNLOAD_ENABLED=false`, admin cần mở
+lại chính sách tải của host. `AI_RERANK_ENABLED=false` là công tắc tắt reranking
+cấp host. Workspace admin có quyền sửa workspace được chọn chế độ; chỉ admin tổ
+chức được tạo tác vụ tải model. Model được nạp lười khi truy vấn đầu tiên; nếu
+vượt timeout hoặc bận, truy vấn giữ thứ tự retrieval gốc và lần sau có thể dùng
+model đã nạp. Bật reranking chưa phải cam kết cải thiện benchmark hay độ trễ.
+
+Các cấu hình overlay cũ dưới đây vẫn được hỗ trợ cho deployment cần warm model
+trước khi mở API. Workspace lưu `mode=off` vẫn tắt được mặc định cấp host.
+
+## Cấu hình bằng Compose (tùy chọn)
+
 Overlay `infrastructure/docker-compose.reranking.yml` bật cross-encoder đã có
 trong RagHub: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, revision pin trong
 `app.infrastructure.ai.local_reranker`. Đây là cấu hình thử nghiệm, chưa phải

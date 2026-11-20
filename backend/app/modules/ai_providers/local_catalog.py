@@ -3,6 +3,9 @@
 from dataclasses import dataclass
 
 from app.core.exceptions import AppError
+from app.infrastructure.ai.local_reranker import MODEL_ID, MODEL_REVISION
+
+LOCAL_RERANK_ID = "mmarco-minilm-reranker"
 
 
 @dataclass(frozen=True)
@@ -14,6 +17,7 @@ class LocalModelSpec:
     languages: str
     approximate_bytes: int
     max_bytes: int = 1_000_000_000
+    capability: str = "EMBEDDING"
 
 
 LOCAL_MODELS = (
@@ -40,6 +44,15 @@ LOCAL_MODELS = (
         384,
         "Multilingual",
         471_000_000,
+    ),
+    LocalModelSpec(
+        LOCAL_RERANK_ID,
+        MODEL_ID,
+        MODEL_REVISION,
+        0,
+        "Multilingual (có tiếng Việt)",
+        471_000_000,
+        capability="RERANK",
     ),
 )
 ALLOWED_FILES = frozenset(

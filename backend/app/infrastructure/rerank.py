@@ -6,9 +6,15 @@ from raghub_core.ports.rerank import RerankRuntime
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.infrastructure.ai.local_reranker import LocalRerankProvider, local_reranker
+from app.infrastructure.ai.workspace_reranker import local_installation
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
 from app.modules.ai_providers.models import ProviderConfig
-from app.modules.ai_providers.schemas import RerankOptions, validate_connection_endpoint
+from app.modules.ai_providers.schemas import (
+    WorkspaceRerankOptions,
+    validate_connection_endpoint,
+    workspace_rerank_mode,
+)
 from app.modules.ai_providers.workspace_ai_router import available
 from app.modules.workspaces.models import Workspace
 
@@ -28,24 +34,54 @@ class WorkspaceRerankResolver:
     async def resolve_rerank(self, scope):
         if not get_settings().ai_rerank_enabled:
             return None
-        row = (
-            await self.session.execute(
-                select(Workspace, ProviderConfig)
-                .join(ProviderConfig, ProviderConfig.id == Workspace.rerank_provider_id)
-                .where(
-                    Workspace.id == scope.workspace_id,
-                    Workspace.organization_id == scope.organization_id,
-                    Workspace.deleted_at.is_(None),
-                    ProviderConfig.organization_id == scope.organization_id,
-                )
+        workspace = await self.session.scalar(
+            select(Workspace).where(
+                Workspace.id == scope.workspace_id,
+                Workspace.organization_id == scope.organization_id,
+                Workspace.deleted_at.is_(None),
             )
-        ).one_or_none()
-        if row is None:
+        )
+        if workspace is None:
             return None
-        workspace, config = row
+        settings = get_settings()
+        mode = workspace_rerank_mode(
+            workspace.rerank_config or {}, workspace.rerank_provider_id, settings
+        )
+        if mode == "off":
+            return None
+        options = WorkspaceRerankOptions.model_validate(workspace.rerank_config or {})
+        if mode == "local":
+            local, paths = await local_installation(self.session, scope.organization_id)
+            if not local["ready"] or paths is None:
+                raise RuntimeError("Local reranker is not ready")
+            # Legacy global deployments keep their original tuning.
+            if not workspace.rerank_config:
+                options = WorkspaceRerankOptions(
+                    candidate_limit=settings.rag_rerank_source_count,
+                    top_n=settings.rag_rerank_top_n,
+                    timeout_seconds=settings.rag_reranker_timeout_seconds,
+                )
+            adapter = local_reranker(
+                snapshot_path=paths[0],
+                expected_sha256=paths[1],
+                timeout_seconds=options.timeout_seconds,
+            )
+            return RerankRuntime(
+                LocalRerankProvider(adapter),
+                options.candidate_limit,
+                options.top_n,
+                options.timeout_seconds,
+            )
+        config = await self.session.scalar(
+            select(ProviderConfig).where(
+                ProviderConfig.id == workspace.rerank_provider_id,
+                ProviderConfig.organization_id == scope.organization_id,
+            )
+        )
+        if config is None:
+            raise RuntimeError("Workspace rerank provider is unavailable")
         available(config, "RERANK")
         validate_connection_endpoint(config.connection)
-        options = RerankOptions.model_validate(workspace.rerank_config or {})
         descriptor = provider_descriptor(config)
         descriptor = replace(
             descriptor,

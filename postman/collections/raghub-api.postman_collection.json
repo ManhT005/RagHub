@@ -3676,6 +3676,45 @@
       ]
     },
     {
+      "name": "POST /api/v1/workspaces/{workspace_id}/rerank-model/prepare-local",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          },
+          {
+            "key": "X-Organization-ID",
+            "value": "{{organization_id}}"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/workspaces/{{workspace_id}}/rerank-model/prepare-local",
+          "host": [
+            "{{base_url}}"
+          ],
+          "query": []
+        },
+        "body": {}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('responds', () => pm.expect(pm.response.code).to.be.below(500));"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "GET /api/v1/workspaces/{workspace_id}/search",
       "request": {
         "method": "GET",

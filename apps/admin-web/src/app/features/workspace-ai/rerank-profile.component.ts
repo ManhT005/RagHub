@@ -3,8 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
-import { Subscription, finalize, forkJoin } from 'rxjs';
-import { ProviderApiService, RegistryModel, selectableModel } from '../../core/api/provider-api.service';
+import { Subscription, exhaustMap, finalize, forkJoin, timer } from 'rxjs';
+import { LocalRerankStatus, ProviderApiService, RegistryModel, selectableModel } from '../../core/api/provider-api.service';
 import { WorkspaceContextStore } from '../../core/workspace-context/workspace-context.store';
 import { apiError } from '../../core/api/api-error';
 
@@ -12,15 +12,27 @@ import { apiError } from '../../core/api/api-error';
   selector: 'raghub-rerank-profile',
   imports: [FormsModule, NzButtonModule, NzAlertModule],
   template: `<section class="surface" style="margin-top:24px">
-    <h2>Rerank model <small class="muted">Tùy chọn</small></h2>
+    <h2>Reranking <small class="muted">Tùy chọn</small></h2>
     <p>Sắp xếp lại các kết quả tìm kiếm trước khi tạo câu trả lời. Nếu model gặp lỗi,
       hệ thống sử dụng thứ tự tìm kiếm ban đầu.</p>
     @if (loading()) { <p role="status">Đang tải cấu hình rerank…</p> }
+    @if (local(); as runtime) {
+      <p role="status"><strong>Reranking local trên VPS:</strong> {{ localStatus() }}</p>
+      <p class="muted">{{ runtime.model }} · CPU · Không cần API key hay lập chỉ mục lại.</p>
+      @if (!runtime.ready && runtime.can_prepare && context.can('workspace.edit')) {
+        <button nz-button [nzLoading]="preparing() || downloading()"
+          [disabled]="preparing() || downloading() || !runtime.download_enabled"
+          (click)="prepareLocal()">{{ runtime.status === 'FAILED' ? 'Thử tải lại model local' : 'Tải model local' }}</button>
+      } @else if (!runtime.ready && !runtime.can_prepare) {
+        <p>Nhờ quản trị viên tải model local để sử dụng.</p>
+      }
+    }
     @if (context.can('workspace.edit')) {
       <fieldset [disabled]="busy() || loading()">
-        <label>Model<select [(ngModel)]="selected">
-          <option value="">Tắt rerank</option>
-          @if (unavailable()) { <option [value]="selected" disabled>Model đã gắn hiện không khả dụng</option> }
+        <label>Chế độ reranking<select [(ngModel)]="selected" (ngModelChange)="selectionChanged()">
+          <option value="">Tắt reranking</option>
+          <option value="__local__" [disabled]="!local()?.ready">Reranking local trên VPS</option>
+          @if (selected !== '__local__' && unavailable()) { <option [value]="selected" disabled>Model đã gắn hiện không khả dụng</option> }
           @for (model of models(); track model.id) {
             <option [value]="model.id">{{ model.display_name || model.model }} · {{ model.provider_name }}</option>
           }
@@ -41,6 +53,8 @@ import { apiError } from '../../core/api/api-error';
 export class RerankProfileComponent {
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly models = signal<RegistryModel[]>([]);
+  protected readonly local = signal<LocalRerankStatus | null>(null);
+  protected readonly preparing = signal(false);
   protected readonly busy = signal(false);
   protected readonly loading = signal(false);
   protected readonly error = signal('');
@@ -52,11 +66,14 @@ export class RerankProfileComponent {
   private readonly api = inject(ProviderApiService);
   private readonly destroyRef = inject(DestroyRef);
   private request?: Subscription;
+  private polling?: Subscription;
   constructor() {
     const workspaceId = computed(() => this.context.workspace()?.id);
     effect(() => {
       const id = workspaceId();
       this.request?.unsubscribe();
+      this.polling?.unsubscribe();
+      this.local.set(null);
       this.models.set([]);
       this.selected = '';
       this.error.set('');
@@ -70,13 +87,47 @@ export class RerankProfileComponent {
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: ({ models, binding }) => {
         this.models.set(models.filter(selectableModel));
-        this.selected = binding.model_id ?? '';
+        this.local.set(binding.local ?? null);
+        this.selected = binding.mode === 'local' ? '__local__' : binding.mode === 'off' ? '' : binding.model_id ?? '';
         this.candidateLimit = binding.candidate_limit;
         this.topN = binding.top_n;
         this.timeoutSeconds = binding.timeout_seconds;
+        if (this.downloading()) this.poll(id);
       }, error: error => this.error.set(apiError(error)) });
   }
-  protected unavailable() { return !!this.selected && !this.models().some(model => model.id === this.selected); }
+  protected downloading() { return ['QUEUED', 'DOWNLOADING', 'VERIFYING'].includes(this.local()?.status ?? ''); }
+  protected localStatus() {
+    return ({ AVAILABLE: 'Chưa tải model', QUEUED: 'Đang chờ tải', DOWNLOADING: 'Đang tải model…',
+      VERIFYING: 'Đang xác minh model…', INSTALLED: 'Sẵn sàng', FAILED: 'Tải hoặc xác minh model thất bại',
+      UNSUPPORTED: 'Máy chủ chưa có thư viện Local AI', DISABLED: 'Quản trị viên đã tắt reranking trên máy chủ',
+    } as Record<string, string>)[this.local()?.status ?? ''] ?? 'Chưa sẵn sàng';
+  }
+  protected selectionChanged() {
+    this.notice.set('');
+    if (this.selected === '__local__') {
+      this.candidateLimit = 12; this.topN = 5; this.timeoutSeconds = 10;
+    }
+  }
+  protected prepareLocal() {
+    const id = this.context.workspace()?.id;
+    if (!id || !this.context.can('workspace.edit') || !this.local()?.can_prepare
+      || !this.local()?.download_enabled || this.preparing() || this.downloading()) return;
+    this.preparing.set(true); this.error.set('');
+    this.api.prepareLocalRerank(id).pipe(finalize(() => this.preparing.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: () => { if (id === this.context.workspace()?.id) this.poll(id); }, error: error => this.error.set(apiError(error)) });
+  }
+  private poll(id: string) {
+    this.polling?.unsubscribe();
+    this.polling = timer(0, 2000).pipe(exhaustMap(() => this.api.rerankBinding(id)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: binding => {
+        this.local.set(binding.local ?? null);
+        if (!this.downloading()) this.polling?.unsubscribe();
+      }, error: error => { this.error.set(apiError(error)); this.polling?.unsubscribe(); } });
+  }
+  protected unavailable() {
+    if (this.selected === '__local__') return !this.local()?.ready;
+    return !!this.selected && !this.models().some(model => model.id === this.selected);
+  }
   protected valid() {
     return Number.isInteger(this.candidateLimit) && this.candidateLimit >= 1 && this.candidateLimit <= 200
       && Number.isInteger(this.topN) && this.topN >= 1 && this.topN <= Math.min(100, this.candidateLimit)
@@ -88,7 +139,8 @@ export class RerankProfileComponent {
     this.busy.set(true);
     this.error.set('');
     this.notice.set('');
-    this.api.bindRerank(id, { model_id: this.selected || null, candidate_limit: this.candidateLimit,
+    const mode = this.selected === '__local__' ? 'local' : this.selected ? 'provider' : 'off';
+    this.api.bindRerank(id, { mode, model_id: mode === 'provider' ? this.selected : null, candidate_limit: this.candidateLimit,
       top_n: this.topN, timeout_seconds: this.timeoutSeconds })
       .pipe(finalize(() => this.busy.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: () => this.notice.set('Đã cập nhật rerank.'), error: error => this.error.set(apiError(error)) });

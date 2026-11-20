@@ -1,6 +1,5 @@
 """Compose retrieval hooks from feature flags (all default off)."""
 
-from functools import lru_cache
 from pathlib import Path
 
 from raghub_core.api import RetrieveContextUseCase
@@ -10,7 +9,9 @@ from raghub_core.domain.retrieval.relevance import FEATURE_SCHEMA, decide
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.infrastructure.ai.local_reranker import LocalCrossEncoderReranker
+from app.infrastructure.ai.local_reranker import (
+    local_reranker,  # noqa: F401 (startup uses this cache)
+)
 from app.infrastructure.elasticsearch.chunks import ChunkSearch
 from app.infrastructure.elasticsearch.neighbors import NeighborExpansion
 from app.infrastructure.elasticsearch.vector_store import ElasticsearchVectorSearch
@@ -25,15 +26,6 @@ from app.modules.search.relevance import (
     load_relevance_artifact,
     retrieval_config_hash,
 )
-
-
-@lru_cache(maxsize=8)
-def local_reranker(snapshot_path, expected_sha256, timeout_seconds):
-    return LocalCrossEncoderReranker(
-        snapshot_path=snapshot_path,
-        expected_sha256=expected_sha256,
-        timeout_seconds=timeout_seconds,
-    )
 
 
 def _artifact_path() -> Path:
@@ -52,18 +44,6 @@ def _artifact_path() -> Path:
 
 def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
     settings = get_settings()
-    rerank = None
-    if settings.rag_reranker_enabled:
-        adapter = local_reranker(
-            snapshot_path=settings.rag_reranker_snapshot_path,
-            expected_sha256=settings.rag_reranker_expected_sha256,
-            timeout_seconds=settings.rag_reranker_timeout_seconds,
-        )
-        top_n = settings.rag_rerank_top_n
-
-        async def rerank(query: str, candidates: list, top_n: int = top_n):  # type: ignore[no-redef]
-            return await adapter.rerank(query=query, candidates=candidates, top_n=top_n)
-
     relevance_factory = None
     if settings.rag_relevance_gate_enabled:
         artifact = load_relevance_artifact(
@@ -109,7 +89,6 @@ def retrieval_use_case(session: AsyncSession) -> RetrieveContextUseCase:
         ),
         rerank_resolver=WorkspaceRerankResolver(session, providers),
         on_rerank_status=record_rerank_status,
-        rerank=rerank,
         relevance_factory=relevance_factory,
         rerank_top_n=settings.rag_rerank_top_n,
         adaptive_rerank=settings.rag_adaptive_rerank_enabled,
