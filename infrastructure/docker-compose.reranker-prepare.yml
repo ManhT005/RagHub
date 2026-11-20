@@ -1,0 +1,11 @@
+# Run once with the SAME project name as the existing installation.
+services:
+  reranker-prepare:
+    image: ${RAGHUB_RERANKER_IMAGE:-ghcr.io/manht005/raghub/backend:develop-local-ai}
+    command: [python, /app/scripts/prepare_reranker.py, --directory, /app/.cache/huggingface/reranker]
+    volumes:
+      - huggingface-cache:/app/.cache/huggingface
+      - ../backend/scripts/prepare_reranker.py:/app/scripts/prepare_reranker.py:ro
+    restart: "no"
+volumes:
+  huggingface-cache: {}
