@@ -61,7 +61,7 @@ CATALOG = [
         docs_url="https://huggingface.co/docs/hub/spaces-api-endpoints",
         free_tier_note=(
             "Space có quota và hàng đợi riêng. "
-            "Cấu hình API input/output trước khi đăng ký model."
+            "Dán link để kết nối; SICT được cấu hình tự động."
         ),
         fields=[
             ConnectionField(key="spaces_chat", label="Chat mapping (JSON)"),

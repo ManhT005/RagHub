@@ -76,6 +76,7 @@ export class ProviderOnboardingComponent {
   protected category = "";
   protected accessTier = "";
   protected configFields: Record<string, string> = {};
+  protected spaceAdvanced = false;
   protected readonly spaceEndpoints = signal<{name: string; parameters: Record<string, unknown>[]; returns: Record<string, unknown>[]}[]>([]);
   protected readonly spaceSlots = [
     {key: 'spaces_chat', label: 'Chat'},
@@ -140,6 +141,7 @@ export class ProviderOnboardingComponent {
     );
   }
   protected choose(item: ProviderCatalogItem) {
+    this.spaceAdvanced = false;
     this.spaceEndpoints.set([]);
     if (!['SUPPORTED', 'BETA'].includes(item.status) || this.busy()) return;
     this.selected.set(item);
@@ -162,8 +164,12 @@ export class ProviderOnboardingComponent {
       return;
     }
     if (item.id === 'huggingface-spaces' && !Object.values(this.configFields).some(value => value.trim())) {
-      this.error.set('Đọc API Space và cấu hình ít nhất Chat hoặc cả hai mapping embedding.');
-      return;
+      const url = this.baseUrl.trim().replace(/\/$/, '');
+      if (!['https://huggingface.co/spaces/quyendzvaio/sict', 'https://quyendzvaio-sict.hf.space'].includes(url)) {
+        this.spaceAdvanced = true;
+        this.error.set('Space này chưa có preset tự động. Mở Cấu hình nâng cao để chọn API.');
+        return;
+      }
     }
     this.busy.set(true);
     this.error.set("");
@@ -204,7 +210,7 @@ export class ProviderOnboardingComponent {
           }
           this.notice.set(
             result.status === "CONNECTED"
-              ? `Kết nối thành công · ${result.latency_ms} ms`
+              ? (item.id === 'huggingface-spaces' ? 'Đã đọc API Space. Bấm Kiểm tra & đăng ký để xác nhận model hoạt động.' : `Kết nối thành công · ${result.latency_ms} ms`)
               : "Nhập Model ID thủ công để kiểm tra và đăng ký model.",
           );
           this.step.set(2);

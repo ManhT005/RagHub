@@ -116,8 +116,14 @@ async def discover_models(
 
         await SpaceClient(base, secret, transport).inspect()
         options = connection.config_json or {}
+        from app.modules.ai_providers.space_presets import is_sict
+
         return [
-            DiscoveredModel(model=name, capabilities=[capability])
+            DiscoveredModel(
+                model=name,
+                capabilities=[capability],
+                dimension=1024 if capability == "EMBEDDING" and is_sict(base) else None,
+            )
             for name, capability, ready in (
                 ("space-chat", "CHAT", bool(options.get("spaces_chat"))),
                 (

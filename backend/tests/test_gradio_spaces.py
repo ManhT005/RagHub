@@ -25,6 +25,43 @@ from app.modules.ai_providers.registry import ProviderRegistry
 
 
 @pytest.mark.parametrize(
+    "url", ["https://huggingface.co/spaces/quyendzvaio/sict", "https://quyendzvaio-sict.hf.space/"]
+)
+async def test_sict_url_only_autoconfigures_and_discovers_dimension(url):
+    connection = ConnectionInput(
+        name="SICT",
+        provider_type="OPENAI_COMPATIBLE",
+        catalog_id="huggingface-spaces",
+        base_url=url,
+    )
+    assert json.loads(connection.config_json["spaces_query"])["inputs"][1] == "query"
+    assert json.loads(connection.config_json["spaces_document"])["inputs"][1] == "document"
+
+    def handler(request):
+        if request.url.host == "huggingface.co":
+            return httpx.Response(200, json={"host": "https://quyendzvaio-sict.hf.space"})
+        return httpx.Response(200, json={"named_endpoints": {"/embed_batch_text": {}}})
+
+    models = await discover_models(
+        SimpleNamespace(**connection.model_dump()), None, transport=httpx.MockTransport(handler)
+    )
+    assert models[0].dimension == 1024
+    from app.modules.ai_providers.control_service import infer_dimension
+
+    assert (
+        await infer_dimension(SimpleNamespace(**connection.model_dump()), "space-embedding", None)
+        == 1024
+    )
+
+
+def test_sict_preserves_explicit_mapping():
+    from app.modules.ai_providers.space_presets import sict_defaults
+
+    custom = {"spaces_query": json.dumps({"api": "custom", "inputs": ["$text"]})}
+    assert sict_defaults("https://quyendzvaio-sict.hf.space", custom) == custom
+
+
+@pytest.mark.parametrize(
     "url",
     [
         "http://localhost",
