@@ -3396,6 +3396,22 @@
             "title": "Candidate Limit",
             "type": "integer"
           },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "local",
+                  "provider"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
           "model_id": {
             "anyOf": [
               {
@@ -9131,6 +9147,62 @@
           }
         ],
         "summary": "Change Rerank",
+        "tags": [
+          "workspace AI"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/rerank-model/prepare-local": {
+      "post": {
+        "operationId": "prepare_local_rerank_api_v1_workspaces__workspace_id__rerank_model_prepare_local_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "X-Organization-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Prepare Local Rerank",
         "tags": [
           "workspace AI"
         ]

@@ -2,31 +2,40 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
     OrganizationContext,
     get_organization_context,
+    require_role,
     require_workspace_permission,
 )
 from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.exceptions import AppError
+from app.infrastructure.ai.workspace_reranker import local_installation
 from app.infrastructure.embedding_execution import (
     ExecutionPreference,
     ExecutionRuntimeResponse,
     policy_for_workspace,
 )
+from app.modules.ai_providers.local_catalog import LOCAL_RERANK_ID
+from app.modules.ai_providers.local_manager import LocalModelManager
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
     EmbeddingReindexJob,
     ProviderConfig,
 )
-from app.modules.ai_providers.schemas import RerankOptions, WorkspaceProviderBindingResponse
+from app.modules.ai_providers.schemas import (
+    WorkspaceProviderBindingResponse,
+    WorkspaceRerankOptions,
+    workspace_rerank_mode,
+)
 from app.modules.ai_providers.service import ProviderConfigService
 from app.modules.documents.models import Document
+from app.modules.memberships.models import MembershipRole
 from app.modules.workspaces.models import Workspace
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["workspace AI"])
@@ -100,18 +109,38 @@ async def change_embedding_runtime(
     return await embedding_runtime(workspace_id, context, session)
 
 
-class RerankSelection(RerankOptions):
+class RerankSelection(WorkspaceRerankOptions):
     model_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_mode(self):
+        self.mode = self.mode or ("provider" if self.model_id else "off")
+        if (self.mode == "provider") != bool(self.model_id):
+            raise ValueError("Only provider mode requires a model_id")
+        return self
 
 
 @router.get("/rerank-model")
 async def get_rerank(workspace_id: UUID, context: Context, session: Session):
     await require_workspace_permission(context, workspace_id, "workspace.view", session)
     item = await workspace(session, context.organization_id, workspace_id)
+    local, _ = await local_installation(session, context.organization_id)
     return {
         "model_id": item.rerank_provider_id,
-        **RerankOptions.model_validate(item.rerank_config or {}).model_dump(),
+        **WorkspaceRerankOptions.model_validate(item.rerank_config or {}).model_dump(),
+        "mode": workspace_rerank_mode(
+            item.rerank_config or {}, item.rerank_provider_id, get_settings()
+        ),
+        "local": {**local, "can_prepare": context.membership.role == MembershipRole.ADMIN},
     }
+
+
+@router.post("/rerank-model/prepare-local", status_code=202)
+async def prepare_local_rerank(workspace_id: UUID, context: Context, session: Session):
+    await require_workspace_permission(context, workspace_id, "workspace.edit", session)
+    await workspace(session, context.organization_id, workspace_id)
+    require_role(context, MembershipRole.ADMIN)
+    return await LocalModelManager(session).start(context.organization_id, LOCAL_RERANK_ID)
 
 
 @router.put("/rerank-model")
@@ -120,6 +149,12 @@ async def change_rerank(
 ):
     await require_workspace_permission(context, workspace_id, "workspace.edit", session)
     item = await workspace(session, context.organization_id, workspace_id)
+    if payload.mode == "local":
+        local, _ = await local_installation(session, context.organization_id)
+        if not local["ready"]:
+            raise AppError(
+                "LOCAL_RERANK_NOT_READY", "Prepare the local reranker first.", status_code=409
+            )
     if payload.model_id:
         service = ProviderConfigService(session)
         available(await service.get(context.organization_id, payload.model_id), "RERANK")

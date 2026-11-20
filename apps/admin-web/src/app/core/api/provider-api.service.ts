@@ -60,8 +60,15 @@ export interface SpaceEndpoint {
 }
 export interface RerankBinding {
   model_id: string | null; candidate_limit: number; top_n: number; timeout_seconds: number;
+  mode?: 'off' | 'local' | 'provider';
+  local?: LocalRerankStatus;
+}
+export interface LocalRerankStatus {
+  catalog_id: string; model: string; status: string; ready: boolean;
+  download_enabled: boolean; can_prepare: boolean; error_code: string | null;
 }
 export interface LocalAiModel {
+  capability?: 'EMBEDDING' | 'RERANK';
   id: string; repo: string; revision: string; dimension: number; languages: string;
   approximate_bytes: number; docs_url: string;
   status: 'AVAILABLE' | 'QUEUED' | 'DOWNLOADING' | 'VERIFYING' | 'INSTALLED' | 'FAILED';
@@ -99,6 +106,7 @@ export class ProviderApiService {
   removeModel(id: string) { return this.http.delete(`${this.base}/models/${id}`); }
   rerankBinding(id: string) { return this.http.get<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`); }
   bindRerank(id: string, payload: RerankBinding) { return this.http.put<RerankBinding>(`${this.base}/workspaces/${id}/rerank-model`, payload); }
+  prepareLocalRerank(id: string) { return this.http.post<{status: string}>(`${this.base}/workspaces/${id}/rerank-model/prepare-local`, {}); }
   localModels(org: string) { return this.http.get<LocalAiModel[]>(`${this.base}/organizations/${org}/local-ai/models`); }
   downloadLocal(org: string, id: string) { return this.http.post<{status: string}>(`${this.base}/organizations/${org}/local-ai/models/${id}/download`, {}); }
 }

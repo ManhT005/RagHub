@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.infrastructure.ai.local_reranker import snapshot_sha256
 from app.modules.ai_providers.local_catalog import ALLOWED_FILES, LOCAL_MODELS, local_spec
 from app.modules.ai_providers.local_models import LocalModelDownload
 from app.modules.organizations.models import Organization
@@ -81,6 +82,15 @@ def installed_snapshot(final, spec):
         return False
 
 
+def pin_reranker_snapshot(final, spec):
+    if spec.capability == "RERANK":
+        checksum = snapshot_sha256(final)
+        target = final.with_suffix(".sha256")
+        temporary = target.with_suffix(".tmp")
+        temporary.write_text(checksum, encoding="ascii")
+        temporary.replace(target)
+
+
 class LocalModelManager:
     def __init__(self, session):
         self.session = session
@@ -138,7 +148,17 @@ class LocalModelManager:
             )
         )
         if row and row.status == "INSTALLED":
-            return {"status": "INSTALLED"}
+            final = (
+                Path(get_settings().local_ai_model_dir).resolve()
+                / str(organization_id)
+                / spec.id
+                / spec.revision
+            )
+            if spec.capability != "RERANK" or (
+                final.with_suffix(".sha256").is_file()
+                and await asyncio.to_thread(installed_snapshot, final, spec)
+            ):
+                return {"status": "INSTALLED"}
         if row is None:
             row = LocalModelDownload(
                 organization_id=organization_id, catalog_id=spec.id, revision=spec.revision
@@ -192,12 +212,19 @@ class LocalModelManager:
                 )
             if final.exists():
                 if await asyncio.to_thread(installed_snapshot, final, spec):
+                    await asyncio.to_thread(pin_reranker_snapshot, final, spec)
                     row.status, row.error_code = "INSTALLED", None
                     await self.session.commit()
                     return
-                raise AppError(
-                    "LOCAL_MODEL_VERIFY_FAILED", "Snapshot verification failed.", status_code=409
-                )
+                if spec.capability != "RERANK":
+                    raise AppError(
+                        "LOCAL_MODEL_VERIFY_FAILED",
+                        "Snapshot verification failed.",
+                        status_code=409,
+                    )
+                # Retry may repair this curated installation, never an arbitrary path.
+                await asyncio.to_thread(shutil.rmtree, final)
+                final.with_suffix(".sha256").unlink(missing_ok=True)
             files = await asyncio.to_thread(download_manifest, spec)
             row.total_bytes = sum(size for _, size in files)
             if shutil.disk_usage(parent).free < row.total_bytes + 50_000_000:
@@ -211,6 +238,7 @@ class LocalModelManager:
             row.status = "VERIFYING"
             await self.session.commit()
             await asyncio.to_thread(finish_snapshot, staging, final, spec, files)
+            await asyncio.to_thread(pin_reranker_snapshot, final, spec)
             row.status, row.error_code = "INSTALLED", None
         except Exception as exc:
             row.status = "FAILED"

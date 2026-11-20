@@ -12,6 +12,7 @@ import hashlib
 import math
 import re
 import threading
+from functools import lru_cache
 from pathlib import Path
 
 from raghub_core.domain.retrieval.models import RetrievedChunk
@@ -82,7 +83,14 @@ class LocalCrossEncoderReranker:
     ) -> list[RetrievedChunk]:
         if not candidates or top_n <= 0:
             return []
-        pairs = [(query, hit.content) for hit in candidates]
+        scores = await self.scores(query, [hit.content for hit in candidates])
+        ranked = sorted(
+            zip(candidates, scores, strict=False), key=lambda pair: float(pair[1]), reverse=True
+        )
+        return [hit for hit, _ in ranked[:top_n]]
+
+    async def scores(self, query: str, documents: list[str]):
+        pairs = [(query, text) for text in documents]
 
         def predict():
             if not self._slot.acquire(blocking=False):
@@ -99,9 +107,34 @@ class LocalCrossEncoderReranker:
             )
         except TimeoutError as exc:
             raise RerankerTimeoutError("Reranker timed out; caller falls back to fusion.") from exc
-        if len(scores) != len(candidates) or not all(math.isfinite(float(x)) for x in scores):
+        if len(scores) != len(documents) or not all(math.isfinite(float(x)) for x in scores):
             raise RuntimeError("Reranker returned invalid scores; use fusion fallback.")
-        ranked = sorted(
-            zip(candidates, scores, strict=False), key=lambda pair: float(pair[1]), reverse=True
+        return scores
+
+
+@lru_cache(maxsize=8)
+def local_reranker(snapshot_path, expected_sha256, timeout_seconds):
+    return LocalCrossEncoderReranker(
+        snapshot_path=snapshot_path,
+        expected_sha256=expected_sha256,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+class LocalRerankProvider:
+    provider_name = "local-cross-encoder"
+    model = MODEL_ID
+
+    def __init__(self, adapter):
+        self.adapter = adapter
+
+    async def rerank(self, *, query, documents, top_n):
+        from raghub_core.domain.providers.contracts import RerankItem, RerankResult
+
+        scores = await self.adapter.scores(query, documents)
+        indices = sorted(range(len(scores)), key=lambda i: float(scores[i]), reverse=True)
+        return RerankResult(
+            [RerankItem(i, float(scores[i])) for i in indices[:top_n]],
+            self.model,
+            self.provider_name,
         )
-        return [hit for hit, _ in ranked[:top_n]]

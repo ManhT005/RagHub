@@ -15,7 +15,7 @@ import { AiModuleTabsComponent } from '../ai-navigation/ai-module-tabs.component
   imports: [NzButtonModule, NzAlertModule, AiModuleTabsComponent],
   template: `<main class="selfhost-page">
     <header class="page-heading"><div><p class="eyebrow">AI & Models / System</p><h1>Local AI</h1>
-      <p>Xem và tải model embedding về máy chủ RagHub.</p></div>
+      <p>Xem và tải model embedding, reranking về máy chủ RagHub.</p></div>
     </header>
     <raghub-ai-module-tabs />
     <p class="muted">Model đã tải chưa tự động được gán vào workspace. Ollama được quản lý trong AI Providers.</p>
@@ -25,7 +25,7 @@ import { AiModuleTabsComponent } from '../ai-navigation/ai-module-tabs.component
       @for (model of models(); track model.id) {
         <article class="surface provider-card">
           <h2>{{ model.repo.split('/').pop() }}</h2>
-          <p>{{ model.languages }} · {{ model.dimension }} dimensions · ~{{ megabytes(model.approximate_bytes) }} MB</p>
+          <p>{{ model.languages }} · {{ model.capability === 'RERANK' ? 'Reranking' : model.dimension + ' dimensions' }} · ~{{ megabytes(model.approximate_bytes) }} MB</p>
           <p role="status">{{ statusLabel(model.status) }}</p>
           @if (active(model)) {
             <progress [value]="model.completed_bytes" [max]="model.total_bytes || 1"

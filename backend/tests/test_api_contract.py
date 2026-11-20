@@ -20,7 +20,9 @@ def test_tracked_openapi_matches_runtime():
     assert set(tracked["paths"]) == set(live["paths"])
     for path, ops in live["paths"].items():
         assert set(tracked["paths"][path]) == set(ops), path
-    assert len(tracked["paths"]) == 67
+    assert len(tracked["paths"]) == 68
+    prepare = tracked["paths"]["/api/v1/workspaces/{workspace_id}/rerank-model/prepare-local"]
+    assert "202" in prepare["post"]["responses"]
 
 
 def test_postman_collection_matches_openapi_operations():

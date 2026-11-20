@@ -1,4 +1,7 @@
 const MESSAGES: Record<string, string> = {
+  LOCAL_RERANK_NOT_READY: 'Model reranking local chưa sẵn sàng. Nhờ admin tải model trước khi bật.',
+  LOCAL_DOWNLOAD_DISABLED: 'Quản trị viên đã tắt tải model local trên máy chủ.',
+  LOCAL_DOWNLOAD_IN_PROGRESS: 'Đang có model được tải. Chờ hoàn tất rồi thử lại.',
   SPACE_DIMENSION_REQUIRED: 'Nhập dimension cố định cho Space embedding trước khi kiểm tra model.',
   PROVIDER_INVALID_RESPONSE: 'API trả dữ liệu không đúng định dạng. Với Space, kiểm tra endpoint, mapping input/output và quota.',
   PROVIDER_NOT_CONFIGURED: 'Chưa cấu hình đủ provider. Kiểm tra mapping API cho chức năng đang đăng ký.',
