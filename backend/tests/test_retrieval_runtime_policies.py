@@ -21,6 +21,25 @@ async def test_query_reserves_interactive_capacity_before_embedding():
     provider.embed_query.assert_not_awaited()
 
 
+def test_reranker_checksum_accepts_snapshot_under_cache_and_ignores_only_internal_cache(tmp_path):
+    from app.infrastructure.ai.local_reranker import snapshot_sha256
+
+    deployed = tmp_path / ".cache" / "huggingface" / "reranker"
+    reference = tmp_path / "reference"
+    for directory in (deployed, reference):
+        directory.mkdir(parents=True)
+        (directory / "model.safetensors").write_bytes(b"fixture weights")
+    internal = deployed / ".cache" / "huggingface"
+    internal.mkdir(parents=True)
+    (internal / "download.metadata").write_text("temporary download state")
+    expected = snapshot_sha256(reference)
+    assert snapshot_sha256(deployed) == expected
+    (internal / "download.metadata").write_text("different download state")
+    assert snapshot_sha256(deployed) == expected
+    (deployed / "model.safetensors").write_bytes(b"modified weights")
+    assert snapshot_sha256(deployed) != expected
+
+
 def test_reranker_verifies_snapshot_before_loading_weights(tmp_path, monkeypatch):
     import sys
 
