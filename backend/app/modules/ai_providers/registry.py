@@ -162,6 +162,16 @@ class ProviderRegistry:
 
     @classmethod
     def _openai_embedding(cls, config: ProviderDescriptor, secret: str | None) -> EmbeddingProvider:
+        if (config.options or {}).get("request_profile") == "GRADIO_SPACES":
+            from app.modules.ai_providers.adapters.spaces import SpacesEmbeddingProvider
+
+            return SpacesEmbeddingProvider(
+                base_url=config.base_url,
+                secret=secret,
+                model=config.model,
+                dimension=config.dimension or 0,
+                options=config.options,
+            )
         return OpenAICompatibleEmbeddingProvider(
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,
@@ -178,6 +188,15 @@ class ProviderRegistry:
 
     @classmethod
     def _openai_chat(cls, config: ProviderDescriptor, secret: str | None) -> ChatProvider:
+        if (config.options or {}).get("request_profile") == "GRADIO_SPACES":
+            from app.modules.ai_providers.adapters.spaces import SpacesChatProvider
+
+            return SpacesChatProvider(
+                base_url=config.base_url,
+                secret=secret,
+                model=config.model,
+                options=config.options,
+            )
         return OpenAICompatibleChatProvider(
             base_url=config.base_url or "https://api.openai.com/v1",
             model=config.model,

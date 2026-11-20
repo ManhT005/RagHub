@@ -52,6 +52,7 @@ class ProviderOptions(BaseModel):
     request_profile: (
         Literal[
             "OPENAI_STANDARD",
+            "GRADIO_SPACES",
             "NVIDIA_NIM",
             "OLLAMA",
             "GEMINI",

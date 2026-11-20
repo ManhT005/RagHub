@@ -18,6 +18,7 @@ export const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
   siliconflow: { id: 'siliconflow', label: 'SiliconFlow', logo: null, fallback: 'SF', genericFallback: true },
   voyage: { id: 'voyage', label: 'Voyage AI', logo: null, fallback: 'V', genericFallback: true },
   huggingface: { id: 'huggingface', label: 'Hugging Face Inference', logo: null, fallback: 'HF', genericFallback: true },
+  'huggingface-spaces': { id: 'huggingface-spaces', label: 'Hugging Face Spaces', logo: null, fallback: 'HF Spaces', genericFallback: true },
   'cloudflare-workers-ai': { id: 'cloudflare-workers-ai', label: 'Cloudflare Workers AI', logo: 'assets/providers/cloud-generic.svg', fallback: 'CF', genericFallback: true },
   'github-models': { id: 'github-models', label: 'GitHub Models (Retired)', logo: null, fallback: 'GH', genericFallback: true },
   cloudflare: { id: 'cloudflare', label: 'Cloudflare', logo: 'assets/providers/cloud-generic.svg', fallback: 'CF', genericFallback: true },

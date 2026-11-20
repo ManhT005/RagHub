@@ -44,10 +44,35 @@
     @if (selected()?.status === 'BETA') { <nz-alert nzType="info" nzMessage="Beta — cần kiểm tra kết nối và model trước khi sử dụng." /> }
     @if (selected()?.free_tier_note) { <p class="muted">{{ selected()?.free_tier_note }}</p> }
     @if (selected()?.pricing_url) { <a [href]="selected()!.pricing_url" target="_blank" rel="noopener noreferrer">Giá và giới hạn sử dụng ↗</a> }
+    @if (selected()?.id === 'huggingface-spaces') {
+      <section aria-label="Cấu hình API Hugging Face Spaces">
+        <p>Dán link Space hoặc origin https://…hf.space vào Base URL. Token HF là tùy chọn, chỉ lưu trong API key.</p>
+        <button nz-button type="button" (click)="inspectSpace()" [disabled]="busy() || !baseUrl.trim()">Đọc API Space</button>
+        <button nz-button type="button" (click)="sictPreset()" [disabled]="busy()">Dùng preset SICT embedding</button>
+        <p>Chọn endpoint rồi sửa JSON theo đúng thứ tự tham số. Không tự động đoán chức năng API.</p>
+        <p>Placeholder: Chat dùng $prompt hoặc $messages. Embedding dùng $text, $texts, $task, $dimension. Output là đường dẫn, ví dụ 0 hoặc 0.embeddings.</p>
+        @for (slot of spaceSlots; track slot.key) {
+          <label>{{ slot.label }} — endpoint
+            <select (change)="spaceEndpoint(slot.key, $any($event.target).value)" [disabled]="busy()">
+              <option value="">Không dùng / nhập mapping thủ công</option>
+              @for (endpoint of spaceEndpoints(); track endpoint.name) { <option [value]="endpoint.name">{{ endpoint.name }}</option> }
+            </select>
+          </label>
+          <label>{{ slot.label }} — mapping JSON
+            <textarea nz-input rows="6" [(ngModel)]="configFields[slot.key]" [disabled]="busy()" spellcheck="false"></textarea>
+          </label>
+        }
+        @for (endpoint of spaceEndpoints(); track endpoint.name) {
+          <details><summary>{{ endpoint.name }} — input/output công bố</summary><pre style="white-space: pre-wrap; overflow-wrap: anywhere">{{ spaceParameters(endpoint) }}</pre></details>
+        }
+        <p>Chat trả kết quả khi Space hoàn tất, chưa stream từng token. Chỉ hỗ trợ text/JSON, không tự tải file hay chạy code Space.</p>
+      </section>
+    } @else {
     @for (field of selected()?.fields || []; track field.key) {
       <label>{{ field.label }} {{ field.required ? '*' : '' }}<input nz-input
         [type]="field.type" [(ngModel)]="configFields[field.key]" [required]="field.required"
         [disabled]="busy()" /></label>
+    }
     }
     @if (selected()?.provider_type !== 'LOCAL_SENTENCE_TRANSFORMER' && selected()?.id !== 'cloudflare-workers-ai') {
     <label>Base URL<input nz-input type="url" [(ngModel)]="baseUrl" [disabled]="busy()" [readOnly]="selected()?.locked_base_url || false" /></label>

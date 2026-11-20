@@ -76,6 +76,12 @@ export class ProviderOnboardingComponent {
   protected category = "";
   protected accessTier = "";
   protected configFields: Record<string, string> = {};
+  protected readonly spaceEndpoints = signal<{name: string; parameters: Record<string, unknown>[]; returns: Record<string, unknown>[]}[]>([]);
+  protected readonly spaceSlots = [
+    {key: 'spaces_chat', label: 'Chat'},
+    {key: 'spaces_query', label: 'Embedding — query'},
+    {key: 'spaces_document', label: 'Embedding — document'},
+  ];
   protected name = "";
   protected baseUrl = "";
   protected secret = "";
@@ -134,6 +140,7 @@ export class ProviderOnboardingComponent {
     );
   }
   protected choose(item: ProviderCatalogItem) {
+    this.spaceEndpoints.set([]);
     if (!['SUPPORTED', 'BETA'].includes(item.status) || this.busy()) return;
     this.selected.set(item);
     this.name = item.name;
@@ -154,6 +161,10 @@ export class ProviderOnboardingComponent {
       this.error.set("Nhập Base URL của provider OpenAI-compatible.");
       return;
     }
+    if (item.id === 'huggingface-spaces' && !Object.values(this.configFields).some(value => value.trim())) {
+      this.error.set('Đọc API Space và cấu hình ít nhất Chat hoặc cả hai mapping embedding.');
+      return;
+    }
     this.busy.set(true);
     this.error.set("");
     this.notice.set("");
@@ -164,7 +175,7 @@ export class ProviderOnboardingComponent {
       ...(this.secret ? { secret: this.secret } : {}),
       ...(item.fields?.length ? { config_json: {
         ...(this.connection()?.config_json ?? {}),
-        ...Object.fromEntries(Object.entries(this.configFields).filter(([, value]) => value.trim()))
+        ...Object.fromEntries(Object.entries(this.configFields).filter(([, value]) => item.id === 'huggingface-spaces' || value.trim()))
       } } : {}),
     };
     const request = this.connectionId
@@ -243,6 +254,39 @@ export class ProviderOnboardingComponent {
     ]);
     this.manualId = "";
     this.manualDimension = null;
+  }
+  protected inspectSpace() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    this.api.inspectSpace(this.baseUrl.trim(), this.secret,
+      this.connectionId && !this.secret ? this.connectionId : undefined)
+      .pipe(finalize(() => this.busy.set(false)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({next: result => {
+        this.spaceEndpoints.set(result.endpoints);
+        this.notice.set(`Đọc được ${result.endpoints.length} API. Chọn endpoint và kiểm tra tham số bên dưới.`);
+      }, error: error => this.error.set(apiError(error))});
+  }
+  protected spaceEndpoint(key: string, name: string) {
+    if (!name) { this.configFields[key] = ''; return; }
+    const endpoint = this.spaceEndpoints().find(item => item.name === name);
+    const inputs = (endpoint?.parameters ?? []).map((parameter, index) =>
+      index === 0 ? (key === 'spaces_chat' ? '$prompt' : '$text') :
+        parameter['parameter_has_default'] ? parameter['parameter_default'] : null);
+    this.configFields[key] = JSON.stringify({api: name, inputs, output: '0'}, null, 2);
+  }
+  protected spaceParameters(endpoint: {parameters: Record<string, unknown>[]; returns: Record<string, unknown>[]}) {
+    return JSON.stringify({inputs: endpoint.parameters, outputs: endpoint.returns}, null, 2);
+  }
+  protected sictPreset() {
+    this.baseUrl = 'https://huggingface.co/spaces/quyendzvaio/sict';
+    this.configFields = {
+      spaces_chat: '',
+      spaces_query: JSON.stringify({api: 'embed_batch_text', inputs: ['$texts', 'query', '$dimension'], output: '0.embeddings'}, null, 2),
+      spaces_document: JSON.stringify({api: 'embed_batch_text', inputs: ['$texts', 'document', '$dimension'], output: '0.embeddings'}, null, 2),
+    };
+    this.spaceEndpoints.set([]);
+    this.notice.set('Đã điền preset SICT. Nhập dimension 1024 khi đăng ký model; vẫn cần kiểm tra API thực.');
   }
   protected save() {
     const selected = this.choices().filter((item) => item.selected && !item.registered);
