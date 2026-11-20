@@ -15,6 +15,7 @@ def test_embed_key_is_hashed_and_never_returned_from_public_config() -> None:
         embed_primary_color="#1463ff",
         embed_title="Hoi RagHub",
         embed_greeting="Xin chao",
+        embed_logo_data=None,
         allowed_origins=["https://example.com"],
     )
     assert raw_key.startswith("rgh_")
@@ -24,6 +25,7 @@ def test_embed_key_is_hashed_and_never_returned_from_public_config() -> None:
         "primary_color": "#1463ff",
         "title": "Hoi RagHub",
         "greeting": "Xin chao",
+        "logo_data": None,
     }
 
 

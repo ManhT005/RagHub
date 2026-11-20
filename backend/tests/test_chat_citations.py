@@ -41,6 +41,7 @@ def test_citation_metadata_comes_from_backend_hit() -> None:
             "document_name": "guide.pdf",
             "page": 3,
             "chunk_id": identifier("trusted"),
+            "chunk_content": "content",
             "excerpt": "content",
             "score": 0.032,
         }

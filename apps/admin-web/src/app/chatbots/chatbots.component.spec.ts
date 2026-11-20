@@ -335,6 +335,7 @@ describe("ChatbotsComponent two-step flow", () => {
       primary_color: "#123456",
       title: "Trợ lý tuyển sinh",
       greeting: "Xin chào",
+      logo_data: null,
     });
     expect(settings.code()).toBe("<script>embed</script>");
     expect(component.selectedBot()?.published).toBe(true);

@@ -13,6 +13,7 @@ def resolve_trusted_citations(hits: Iterable[RetrievedChunk]) -> tuple[TrustedCi
             document_name=hit.source_name,
             page=hit.page_number,
             chunk_id=hit.chunk_id,
+            chunk_content=hit.content,
             excerpt=hit.content[:500],
             score=hit.score,
         )
@@ -38,6 +39,7 @@ def resolve_sliced_citations(
                 document_name=hit.source_name,
                 page=hit.page_number,
                 chunk_id=hit.chunk_id,
+                chunk_content=text,
                 excerpt=text[:500],
                 score=hit.score,
             )

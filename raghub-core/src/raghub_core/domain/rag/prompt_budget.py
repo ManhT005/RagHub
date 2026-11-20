@@ -1,12 +1,3 @@
-"""Global prompt-token budget: system/question first, evidence next, history last.
-
-Priority: system guardrail + current question are never cut (oversize is a
-validation error, never a silent truncation). History keeps at most 25% of
-the input budget as newest-first intact user/assistant pairs, re-emitted in
-chronological order. Retrieved context fills the remainder whole-chunk;
-only the first chunk may be cut when nothing fits, and citations then
-reflect exactly the sent slice.
-"""
 
 from __future__ import annotations
 

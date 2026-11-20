@@ -21,6 +21,9 @@ class TrustedCitation:
     document_name: str
     page: int | None
     chunk_id: UUID
+    # Exact text made available to the model for this citation. This is kept
+    # separate from the short excerpt stored with conversation history.
+    chunk_content: str
     excerpt: str
     score: float
 

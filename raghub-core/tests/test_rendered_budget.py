@@ -51,7 +51,7 @@ def test_budget_counts_final_wrapper_and_preserves_citation_slice(window):
     assert actual == budget.used_tokens <= budget.input_budget
     for slice in budget.context_slices:
         assert slice.text in messages[0].content
-    assert "CONTEXT:" in messages[0].content
+    assert "NGỮ CẢNH:" in messages[0].content
 
 
 def test_history_cannot_overrun_remaining_input_budget():

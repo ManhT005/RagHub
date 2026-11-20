@@ -736,6 +736,17 @@
             "title": "Embed Greeting",
             "type": "string"
           },
+          "embed_logo_data": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embed Logo Data"
+          },
           "embed_primary_color": {
             "default": "#1463ff",
             "title": "Embed Primary Color",
@@ -2001,6 +2012,18 @@
             "minLength": 1,
             "title": "Greeting",
             "type": "string"
+          },
+          "logo_data": {
+            "anyOf": [
+              {
+                "maxLength": 1400000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Data"
           },
           "primary_color": {
             "default": "#1463ff",

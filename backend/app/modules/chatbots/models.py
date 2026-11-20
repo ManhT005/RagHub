@@ -34,6 +34,7 @@ class Chatbot(Base):
     embed_greeting: Mapped[str] = mapped_column(
         Text, default="Xin chao! Toi co the giup gi cho ban?"
     )
+    embed_logo_data: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
