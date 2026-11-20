@@ -57,7 +57,7 @@ async def test_migrations_reconcile_branch_histories(isolated_engine, tmp_path, 
         config.set_main_option("script_location", str(BACKEND / "alembic"))
         await connection.run_sync(upgrade, config)
         head = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-        assert head == "20261007_0033"
+        assert head == "20261009_0034"
         assert (
             await connection.scalar(
                 text(
@@ -70,6 +70,18 @@ async def test_migrations_reconcile_branch_histories(isolated_engine, tmp_path, 
         )
         for table in ("provider_pools", "embedding_work_items", "local_ai_models"):
             assert await connection.scalar(text(f"SELECT to_regclass('{table}')")) is not None
+        for column in ("embed_logo_shape", "embed_logo_fit"):
+            assert (
+                await connection.scalar(
+                    text(
+                        "SELECT count(*) FROM information_schema.columns "
+                        "WHERE table_schema = current_schema() AND table_name = 'chatbots' "
+                        "AND column_name = :column"
+                    ),
+                    {"column": column},
+                )
+                == 1
+            )
         if baseline != "clean":
             assert (
                 await connection.scalar(
