@@ -25,7 +25,11 @@ EXPECTED_SNAPSHOT_SHA256 = ""  # filled at calibration time; empty refuses to lo
 
 def snapshot_sha256(directory: Path) -> str:
     digest = hashlib.sha256()
-    files = sorted(p for p in directory.rglob("*") if p.is_file() and ".cache" not in p.parts)
+    files = sorted(
+        p
+        for p in directory.rglob("*")
+        if p.is_file() and ".cache" not in p.relative_to(directory).parts
+    )
     if not files:
         raise RuntimeError("Reranker snapshot is empty.")
     for path in files:
