@@ -85,7 +85,11 @@
     @if (selected()?.auth_type === 'API_KEY' || selected()?.auth_type === 'OPTIONAL_API_KEY') { <label>API key<input nz-input type="password"
         autocomplete="new-password" [(ngModel)]="secret" [disabled]="busy()"
         [placeholder]="connection()?.has_secret ? 'Để trống để giữ key hiện tại' : 'Nhập API key'" /></label>
-    <p class="muted">Key được mã hóa và lưu ở cấp hệ thống.</p> }
+    <p class="muted">Key được mã hóa và lưu ở cấp hệ thống.</p>
+    @if (selected()?.id === 'huggingface-spaces') {
+      <p class="muted">Nhập HF token mới để thay token đã lưu. Token của cùng tài khoản dùng chung quota ZeroGPU.</p>
+    }
+    }
     <div class="footer"><button nz-button type="button" (click)="close()" [disabled]="busy()">Hủy</button><button
         nz-button nzType="primary" type="button" (click)="test()" [nzLoading]="busy()" [disabled]="!name.trim()">Kiểm
         tra kết nối & tìm model</button></div>

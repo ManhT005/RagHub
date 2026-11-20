@@ -3,7 +3,7 @@ const MESSAGES: Record<string, string> = {
   PROVIDER_INVALID_RESPONSE: 'API trả dữ liệu không đúng định dạng. Với Space, kiểm tra endpoint, mapping input/output và quota.',
   PROVIDER_NOT_CONFIGURED: 'Chưa cấu hình đủ provider. Kiểm tra mapping API cho chức năng đang đăng ký.',
   PROVIDER_MODEL_NOT_FOUND: 'Provider không phục vụ Model ID này. Tìm model đang khả dụng hoặc kiểm tra ID.',
-  PROVIDER_RATE_LIMITED: 'Provider đang giới hạn request hoặc quota. Thử lại sau hoặc kiểm tra tài khoản provider.',
+  PROVIDER_RATE_LIMITED: 'Provider hết quota hoặc đang giới hạn lượt gọi. Với ZeroGPU, nhập HF token của tài khoản còn quota hoặc chờ quota cấp lại; token mới cùng tài khoản không tăng quota.',
   PROVIDER_IDENTITY_IMMUTABLE: 'Tạo connection mới để chuyển sang provider khác.',
   DEPRECATED_PROVIDER_API: 'Quản lý thông qua AI Providers và Model Registry.',
   LOCAL_MODEL_DISK_FULL: 'Máy chủ không đủ dung lượng để tải model.',

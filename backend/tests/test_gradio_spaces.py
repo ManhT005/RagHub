@@ -24,6 +24,67 @@ from app.modules.ai_providers.discovery import discover_models
 from app.modules.ai_providers.registry import ProviderRegistry
 
 
+@pytest.mark.parametrize("event", ["complete", "error"])
+async def test_sict_quota_is_not_misreported_as_output_mapping(event):
+    from raghub_core.domain.providers.errors import ProviderRateLimitError
+
+    private = "hf_secret_never_echo"
+    body = {
+        "status": "error",
+        "error_code": "INFERENCE_FAILED",
+        "message": "You have exceeded your ZeroGPU runs limit " + private,
+    }
+
+    def handle(request):
+        assert request.headers["Authorization"] == "Bearer " + private
+        if request.method == "POST":
+            return httpx.Response(200, json={"event_id": "abc"})
+        data = [body] if event == "complete" else body
+        return httpx.Response(200, text=f"event: {event}\ndata: {json.dumps(data)}\n\n")
+
+    client = SpaceClient("https://test.hf.space", private, httpx.MockTransport(handle))
+    with pytest.raises(ProviderRateLimitError) as exc:
+        await client.call({"api": "embed_batch_text", "inputs": [], "output": "0.embeddings"}, {})
+    assert private not in str(exc.value)
+
+
+async def test_sict_real_success_shape_yields_1024_vectors_for_query_and_document():
+    provider = SpacesEmbeddingProvider(
+        base_url="https://quyendzvaio-sict.hf.space",
+        secret="new-token",
+        model="space-embedding",
+        dimension=1024,
+        options={
+            key: {
+                "api": "embed_batch_text",
+                "inputs": ["$texts", task, "$dimension"],
+                "output": "0.embeddings",
+            }
+            for key, task in [("spaces_query", "query"), ("spaces_document", "document")]
+        },
+    )
+    tasks = []
+
+    def handle(request):
+        assert request.headers["Authorization"] == "Bearer new-token"
+        if request.method == "POST":
+            texts, task, dim = json.loads(request.content)["data"]
+            assert len(texts) == 1 and dim == 1024
+            tasks.append(task)
+            return httpx.Response(200, json={"event_id": "abc"})
+        return httpx.Response(
+            200,
+            text="event: complete\ndata: "
+            + json.dumps([{"status": "success", "embeddings": [[0.1] * 1024]}])
+            + "\n\n",
+        )
+
+    provider.client.transport = httpx.MockTransport(handle)
+    assert len(await provider.embed_query("question")) == 1024
+    assert len((await provider.embed_documents(["document"]))[0]) == 1024
+    assert tasks == ["query", "document"]
+
+
 @pytest.mark.parametrize(
     "url", ["https://huggingface.co/spaces/quyendzvaio/sict", "https://quyendzvaio-sict.hf.space/"]
 )

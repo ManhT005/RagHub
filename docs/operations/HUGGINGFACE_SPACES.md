@@ -31,6 +31,17 @@ không có retry tự động và chưa tối ưu batching.
 
 ## Preset SICT
 
+HF token được nhập/thay trong ô **API key** của connection; để trống khi chỉnh sửa
+thì giữ token đã lưu, không hardcode token vào preset. Token mới cùng tài khoản
+không tăng quota. Khi có token tài khoản còn quota, đăng ký/test model trước rồi
+mới retry các tài liệu đã thất bại; bản sửa không tự retry hoặc reindex dữ liệu cũ.
+
+SICT có thể trả HTTP 200 và event `complete` nhưng payload `status=error`.
+Adapter kiểm tra phản hồi lỗi trước khi đọc `embeddings`; lỗi quota được phân loại
+`PROVIDER_RATE_LIMITED`, lỗi xác thực là `PROVIDER_AUTH_FAILED`. Nội dung lỗi gốc
+không được chuyển nguyên văn ra UI để tránh lộ thông tin. Test 1024 chiều dùng
+mock cả query/document; chưa xác nhận inference thật khi tài khoản hết quota.
+
 Nút preset chỉ điền URL và hai mapping, không tự lưu hoặc gọi GPU:
 
 ```json

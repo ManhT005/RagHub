@@ -7,8 +7,10 @@ import re
 import httpx
 from raghub_core.domain.providers.contracts import ChatStreamDelta, EmbeddingMetadata
 from raghub_core.domain.providers.errors import (
+    ProviderAuthenticationError,
     ProviderConfigurationError,
     ProviderInvalidResponseError,
+    ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
@@ -62,6 +64,27 @@ def extract(value, path):
         raise ProviderInvalidResponseError(
             "Space output does not match the configured path."
         ) from exc
+
+
+def check_space_result(value):
+    """Gradio can return HTTP 200/complete containing an application error."""
+    if isinstance(value, list):
+        for item in value:
+            check_space_result(item)
+    elif isinstance(value, dict) and (value.get("status") == "error" or value.get("error_code")):
+        message = str(value.get("message", "")).lower()
+        code = str(value.get("error_code", "")).upper()
+        if any(word in message for word in ("quota", "runs limit", "gpu limit", "rate limit")):
+            raise ProviderRateLimitError(
+                "Space GPU quota exhausted. Check the HF account quota/token."
+            )
+        if code in {"UNAUTHORIZED", "AUTH_FAILED", "INVALID_TOKEN"} or any(
+            word in message for word in ("invalid token", "unauthorized", "authentication failed")
+        ):
+            raise ProviderAuthenticationError()
+        raise ProviderInvalidResponseError(
+            "Space inference failed; no embedding vector was returned."
+        )
 
 
 class SpaceClient:
@@ -147,11 +170,17 @@ class SpaceClient:
                             event = line[6:].strip()
                         elif line.startswith("data:"):
                             if event == "error":
+                                payload = json.loads(line[5:])
+                                check_space_result(payload)
+                                if isinstance(payload, str):
+                                    check_space_result({"status": "error", "message": payload})
                                 raise ProviderInvalidResponseError(
                                     "Space failed; check quota or endpoint mapping."
                                 )
                             if event == "complete":
-                                return extract(json.loads(line[5:]), spec.get("output", "0"))
+                                payload = json.loads(line[5:])
+                                check_space_result(payload)
+                                return extract(payload, spec.get("output", "0"))
                 raise ValueError
         except (TimeoutError, httpx.TimeoutException) as exc:
             raise ProviderTimeoutError() from exc
