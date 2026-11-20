@@ -88,6 +88,17 @@ describe("Provider onboarding", () => {
     expect(JSON.parse(component['configFields']['spaces_document']).inputs).toEqual(['$texts', 'document', '$dimension']);
     expect(api.create).not.toHaveBeenCalled();
   });
+  it('connects SICT by URL alone and explains that model verification is still pending', () => {
+    const view = fixture();
+    const component = view.componentInstance;
+    component['choose']({...catalog[0], id: 'huggingface-spaces', provider_type: 'OPENAI_COMPATIBLE',
+      capabilities: ['CHAT', 'EMBEDDING'], fields: [{key: 'spaces_query', label: 'Query', required: false, type: 'text'}]});
+    component['baseUrl'] = 'https://huggingface.co/spaces/quyendzvaio/sict';
+    component['test']();
+    expect(api.create).toHaveBeenCalled();
+    expect(component['spaceAdvanced']).toBe(false);
+    expect(component['notice']()).toContain('Đã đọc API Space');
+  });
   it('accepts Beta providers and requires catalog credential fields before saving', () => {
     const view = fixture();
     const cloudflare: ProviderCatalogItem = {

@@ -384,6 +384,10 @@ class ProviderControlService:
 async def infer_dimension(connection, model: str, secret: str | None) -> int:
     """Probe outside the engine, then let its regular adapter verify the registration."""
     if connection_catalog_id(connection) == "huggingface-spaces":
+        from app.modules.ai_providers.space_presets import is_sict
+
+        if is_sict(connection.base_url):
+            return 1024
         raise AppError(
             "SPACE_DIMENSION_REQUIRED", "Enter a fixed dimension for this Space.", status_code=422
         )

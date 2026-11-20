@@ -46,7 +46,9 @@
     @if (selected()?.pricing_url) { <a [href]="selected()!.pricing_url" target="_blank" rel="noopener noreferrer">Giá và giới hạn sử dụng ↗</a> }
     @if (selected()?.id === 'huggingface-spaces') {
       <section aria-label="Cấu hình API Hugging Face Spaces">
-        <p>Dán link Space hoặc origin https://…hf.space vào Base URL. Token HF là tùy chọn, chỉ lưu trong API key.</p>
+        <p>Nhập link Space bên dưới rồi bấm tiếp tục. SICT tự điền cấu hình và dimension 1024. Token HF chỉ cần khi Space yêu cầu.</p>
+        <label class="choice"><input type="checkbox" [(ngModel)]="spaceAdvanced" />Cấu hình nâng cao</label>
+        @if (spaceAdvanced) {
         <button nz-button type="button" (click)="inspectSpace()" [disabled]="busy() || !baseUrl.trim()">Đọc API Space</button>
         <button nz-button type="button" (click)="sictPreset()" [disabled]="busy()">Dùng preset SICT embedding</button>
         <p>Chọn endpoint rồi sửa JSON theo đúng thứ tự tham số. Không tự động đoán chức năng API.</p>
@@ -66,6 +68,7 @@
           <details><summary>{{ endpoint.name }} — input/output công bố</summary><pre style="white-space: pre-wrap; overflow-wrap: anywhere">{{ spaceParameters(endpoint) }}</pre></details>
         }
         <p>Chat trả kết quả khi Space hoàn tất, chưa stream từng token. Chỉ hỗ trợ text/JSON, không tự tải file hay chạy code Space.</p>
+        }
       </section>
     } @else {
     @for (field of selected()?.fields || []; track field.key) {
@@ -166,15 +169,16 @@
               [value]="cap">{{ cap }}</option> }
           </select>
           }
-          @if (item.capability === 'EMBEDDING') { <input nz-input type="number" min="1" max="65536"
+          @if (item.capability === 'EMBEDDING' && (selected()?.id !== 'huggingface-spaces' || spaceAdvanced || !item.dimension)) { <input nz-input type="number" min="1" max="65536"
             [attr.aria-label]="'Dimension của ' + item.model" [(ngModel)]="item.dimension"
             placeholder="Tự phát hiện dims" [disabled]="busy() || item.registered" /> }
+          @if (item.capability === 'EMBEDDING' && selected()?.id === 'huggingface-spaces' && !spaceAdvanced && item.dimension) { <small>Dimension: {{ item.dimension }} (preset)</small> }
         </div>
       </article>
       } @empty { <p>Không có model phù hợp. Thử tìm kiếm khác hoặc nhập Model ID thủ công.</p> }
     </div>
     }
-    @if (selected()?.provider_type !== 'OLLAMA' || modelTab === 'manual') {
+    @if ((selected()?.provider_type !== 'OLLAMA' || modelTab === 'manual') && (selected()?.id !== 'huggingface-spaces' || spaceAdvanced)) {
     <fieldset [disabled]="busy()">
       <legend>Nhập Model ID thủ công</legend><label>Model ID<input nz-input [(ngModel)]="manualId"
           maxlength="255" /></label><label>Chức năng<select [(ngModel)]="manualCapability">

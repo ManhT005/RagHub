@@ -5,11 +5,14 @@ Gradio, không dùng Inference Router hoặc bridge server riêng.
 
 1. Nhập URL `https://huggingface.co/spaces/owner/name` hoặc origin `https://…hf.space`.
 2. Nhập HF token nếu cần vào **API key** (mã hóa theo cơ chế credentials hiện có).
-3. Bấm **Đọc API Space** để xem named endpoints, thứ tự input và output.
-4. Chọn endpoint Chat hoặc cả hai endpoint embedding query/document. Điều chỉnh
+3. Với SICT, chỉ nhập link rồi bấm **Kiểm tra kết nối & tìm model**: backend tự
+   cấu hình endpoint query/document, danh sách model tự điền dimension 1024.
+   Vẫn phải bấm **Kiểm tra & đăng ký model** để xác nhận inference thực thành công.
+4. Space chưa có preset: mở **Cấu hình nâng cao**, bấm **Đọc API Space** để xem API.
+5. Chọn endpoint Chat hoặc cả hai endpoint embedding query/document. Điều chỉnh
    mapping JSON; không có cách suy luận an toàn chức năng của mọi endpoint.
-5. Kiểm tra kết nối, chọn `space-chat` hoặc `space-embedding`. Với embedding,
-   nhập dimension cố định trước khi đăng ký. Runtime kiểm tra vector thực.
+6. Kiểm tra kết nối, chọn `space-chat` hoặc `space-embedding`. Với Space embedding
+   không có preset, nhập dimension cố định trong nâng cao. Runtime kiểm tra vector thực.
 
 Mapping gồm `api`, `inputs` (array theo đúng thứ tự tham số), `output` (đường dẫn
 trong array kết quả Gradio; mặc định `0`). Ví dụ:

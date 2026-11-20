@@ -58,6 +58,10 @@ class ConnectionInput(BaseModel):
             raise ValueError("Custom provider requires base URL")
         if item.auth_type == "NONE" and self.secret:
             raise ValueError("Local providers do not accept credentials")
+        if item.id == "huggingface-spaces":
+            from app.modules.ai_providers.space_presets import sict_defaults
+
+            self.config_json = sict_defaults(self.base_url, self.config_json)
         self.config_json = _validate_provider_options(_validate_safe_config(self.config_json))
         self.config_json.update(
             endpoint_scope=item.endpoint_scope, request_profile=item.request_profile
