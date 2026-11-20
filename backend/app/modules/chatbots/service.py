@@ -74,8 +74,6 @@ class ChatbotService:
         chatbot.embed_title = payload.title.strip()
         chatbot.embed_greeting = payload.greeting.strip()
         chatbot.embed_logo_data = payload.logo_data
-        chatbot.embed_logo_shape = payload.logo_shape
-        chatbot.embed_logo_fit = payload.logo_fit
         await self.session.commit()
         await self.session.refresh(chatbot)
         return chatbot, raw_key

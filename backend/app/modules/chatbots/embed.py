@@ -53,6 +53,4 @@ def public_config(chatbot: Chatbot) -> dict[str, str]:
         "title": chatbot.embed_title,
         "greeting": chatbot.embed_greeting,
         "logo_data": chatbot.embed_logo_data,
-        "logo_shape": chatbot.embed_logo_shape,
-        "logo_fit": chatbot.embed_logo_fit,
     }
