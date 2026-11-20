@@ -14,8 +14,14 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("chatbots", sa.Column("embed_logo_shape", sa.String(16), nullable=False, server_default="rounded"))
-    op.add_column("chatbots", sa.Column("embed_logo_fit", sa.String(16), nullable=False, server_default="contain"))
+    op.add_column(
+        "chatbots",
+        sa.Column("embed_logo_shape", sa.String(16), nullable=False, server_default="rounded"),
+    )
+    op.add_column(
+        "chatbots",
+        sa.Column("embed_logo_fit", sa.String(16), nullable=False, server_default="contain"),
+    )
 
 
 def downgrade():

@@ -47,6 +47,8 @@ class ChatbotResponse(BaseModel):
     embed_title: str = "RagHub Assistant"
     embed_greeting: str = "Xin chao! Toi co the giup gi cho ban?"
     embed_logo_data: str | None = None
+    embed_logo_shape: str = "rounded"
+    embed_logo_fit: str = "contain"
     created_at: datetime
     updated_at: datetime | None
 
@@ -65,6 +67,8 @@ class EmbedPublishInput(BaseModel):
         default="Xin chao! Toi co the giup gi cho ban?", min_length=1, max_length=1000
     )
     logo_data: str | None = Field(default=None, max_length=1_400_000)
+    logo_shape: Literal["rounded", "circle"] = "rounded"
+    logo_fit: Literal["contain", "cover"] = "contain"
 
     @field_validator("logo_data")
     @classmethod
