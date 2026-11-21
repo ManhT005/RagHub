@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 
+from raghub_core.domain.retrieval.context import CONTEXT_VERSION
 from raghub_core.domain.retrieval.relevance import FEATURE_SCHEMA, RelevanceArtifact
 
 
@@ -24,6 +25,7 @@ def retrieval_config_hash(
         "mapping_version": mapping_version,
         "max_per_document": max_per_document,
         "feature_window": 5,
+        "context_version": CONTEXT_VERSION,
         "feature_schema": FEATURE_SCHEMA,
     }
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16]
