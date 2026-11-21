@@ -197,7 +197,7 @@ def main():
         }),
         (selfhost_path, selfhost_env, DEPLOY_ENV),
     ):
-        for profile, concurrency, candidates in (("lite_cpu", 1, 15), ("gpu", 2, 40)):
+        for profile, concurrency, candidates in (("lite_cpu", 1, 30), ("gpu", 2, 40)):
             model = resolve(entrypoint, env_file, {
                 **overrides, "RAG_HARDWARE_PROFILE": profile,
             })
