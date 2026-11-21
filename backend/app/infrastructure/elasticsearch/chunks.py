@@ -6,6 +6,7 @@ from typing import Any
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, helpers
 from raghub_core.domain.ingestion.chunker import TextChunk
+from raghub_core.domain.retrieval.context import folded, search_context, years
 from raghub_core.domain.retrieval.hybrid import (
     MAPPING_VERSION,
     RETRIEVAL_CANDIDATES,
@@ -58,6 +59,16 @@ def chunk_index_mapping(
                 "previous_chunk_id": {"type": "keyword"},
                 "next_chunk_id": {"type": "keyword"},
                 "metadata": {"type": "object", "enabled": False},
+                "context_schema_version": {"type": "keyword"},
+                "source_title": {"type": "text", "analyzer": "vi_folded"},
+                "section_title": {"type": "text", "analyzer": "vi_folded"},
+                "table_title": {"type": "text", "analyzer": "vi_folded"},
+                "table_headers": {"type": "text", "analyzer": "vi_folded"},
+                "fact_years": {"type": "integer"},
+                "document_years": {"type": "integer"},
+                "entity_codes": {"type": "keyword"},
+                "context_conflicts": {"type": "keyword"},
+                "year_evidence": {"type": "keyword"},
                 "token_count": {"type": "integer"},
                 "heading": {"type": "keyword", "fields": {"text": {"type": "text"}}},
                 "embedding": {
@@ -94,10 +105,15 @@ def bm25_query(query: str, organization_id: uuid.UUID, workspace_id: uuid.UUID) 
                             f"content.folded^{BOOST_FOLDED}",
                             f"heading.text^{BOOST_HEADING}",
                             f"source_name.text^{BOOST_SOURCE_NAME}",
+                            "source_title^0.6",
+                            "section_title^2.0",
+                            "table_title^2.5",
+                            "table_headers^1.5",
                         ],
                     }
                 }
             ],
+            "should": context_preferences(query),
             "filter": [
                 {"term": {"organization_id": str(organization_id)}},
                 {"term": {"workspace_id": str(workspace_id)}},
@@ -105,6 +121,49 @@ def bm25_query(query: str, organization_id: uuid.UUID, workspace_id: uuid.UUID) 
             ],
         }
     }
+
+
+def context_preferences(query):
+    """Soft preferences only: dates/codes never relax tenant or readiness filters."""
+    import re
+
+    preferences = []
+    # Reward coverage across body + section/table fields, rather than repeated
+    # entity words in an unrelated table. This is a bonus, never a recall gate.
+    topic = re.sub(r"\b(?:nam\s+)?(?:19|20|21)\d{2}\b", " ", folded(query))
+    topic = re.sub(
+        r"\b(?:cho toi biet|vui long|la bao nhieu|bao nhieu|what is|how much|how many|la gi)\b",
+        " ",
+        topic,
+    )
+    terms = re.findall(r"[^\W_]+", topic)
+    if 2 <= len(terms) <= 32:
+        preferences.append(
+            {
+                "multi_match": {
+                    "query": " ".join(terms),
+                    "type": "cross_fields",
+                    "operator": "and",
+                    "fields": ["content.folded", "section_title", "table_title", "table_headers"],
+                    "boost": 2.0,
+                }
+            }
+        )
+    for year in years(query):
+        preferences.append({"term": {"fact_years": {"value": year, "boost": 3.0}}})
+        # Filename dates are weak hints only when body context has no explicit year.
+        preferences.append(
+            {
+                "bool": {
+                    "must_not": [{"exists": {"field": "fact_years"}}],
+                    "should": [{"term": {"document_years": {"value": year, "boost": 0.25}}}],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
+    for code in sorted(set(re.findall(r"\b(?:[A-Za-z]+[-/]?)?\d{5,}(?:[A-Za-z]+)?\b", query)))[:16]:
+        preferences.append({"term": {"entity_codes": {"value": code.upper(), "boost": 4.0}}})
+    return preferences
 
 
 def knn_query(
@@ -211,6 +270,7 @@ class ChunkIndexer:
                     else None,
                     "next_chunk_id": str(chunk.next_chunk_id) if chunk.next_chunk_id else None,
                     "metadata": dict(chunk.metadata),
+                    **search_context(chunk),
                     "source_name": chunk.source_name,
                     "page_number": chunk.page_number,
                     "heading": chunk.heading,

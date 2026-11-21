@@ -7,6 +7,7 @@ from raghub_core.domain.errors import CoreError
 from raghub_core.domain.providers.errors import ProviderRateLimitError, ProviderUnavailableError
 from raghub_core.domain.providers.rerank import validated_rerank_indices
 from raghub_core.domain.retrieval.confidence import ConfidenceBand, confidence_band
+from raghub_core.domain.retrieval.context import rerank_text
 from raghub_core.domain.retrieval.hybrid import (
     RERANK_SOURCE_COUNT,
     RERANK_TOP_N,
@@ -190,7 +191,7 @@ class RetrieveContextUseCase:
                     result = await asyncio.wait_for(
                         rerank_runtime.provider.rerank(
                             query=normalized,
-                            documents=[c.content for c in selected],
+                            documents=[rerank_text(c, normalized) for c in selected],
                             top_n=selected_count,
                         ),
                         min(30, max(0.1, rerank_runtime.timeout_seconds)),

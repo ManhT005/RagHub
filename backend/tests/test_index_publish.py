@@ -105,3 +105,33 @@ def test_raw_citation_round_trip_preserves_normalized_search_and_metadata():
     assert chunk.content == "Normalized  fact."
     assert chunk.normalized_content == "Normalized fact."
     assert chunk_from_hit(chunk_to_hit(chunk)) == chunk
+
+
+def test_index_writer_publishes_searchable_context_without_changing_raw_content(monkeypatch):
+    indexer = object.__new__(ChunkIndexer)
+    indexer.index_name, indexer.dimension = "test", 1
+    indexer.ensure_index = Mock()
+    indexer.set_version_retrievable = Mock()
+    indexer.client = SimpleNamespace(delete_by_query=Mock(), count=Mock(return_value={"count": 1}))
+    content = "| Mã ngành | Điểm |\n| --- | --- |\n| 7480201 | 23,09 |"
+    chunk = TextChunk(uuid4(), 0, content, 40, "wrong_2026.md", 2, "Điểm chuẩn 2025", "hash")
+    actions = []
+    monkeypatch.setattr(
+        "app.infrastructure.elasticsearch.chunks.helpers.bulk",
+        lambda _, batch, **kwargs: actions.extend(batch),
+    )
+    indexer.replace_document_version(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        document_id=uuid4(),
+        document_version_id=uuid4(),
+        source_name=chunk.source_name,
+        chunks=[chunk],
+        embeddings={str(chunk.chunk_id): [1.0]},
+    )
+    stored = actions[0]["_source"]
+    assert stored["raw_content"] == content
+    assert stored["source_title"] == "wrong 2026"
+    assert stored["fact_years"] == [2025]
+    assert stored["entity_codes"] == ["7480201"]
+    assert stored["context_conflicts"] == ["source_context_year_mismatch"]

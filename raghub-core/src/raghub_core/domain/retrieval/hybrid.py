@@ -171,6 +171,11 @@ def build_context_bundle(
         citation += f"\nchunk_id: {hit.chunk_id}"
         if hit.heading:
             citation += f"\nheading: {hit.heading}"
+        # A local table caption can disagree with the filename/parent heading.
+        # Preserve that evidence for generation as well as retrieval/reranking.
+        table_title = hit.metadata.get("table_title")
+        if table_title:
+            citation += f"\ntable_title: {str(table_title)[:1000]}"
         candidate = f"{citation}\ncontent:\n{hit.content}"
         proposed = "\n\n".join([*parts, candidate])
         tokens = ENCODING.encode(proposed)

@@ -15,6 +15,7 @@ import threading
 from functools import lru_cache
 from pathlib import Path
 
+from raghub_core.domain.retrieval.context import rerank_text
 from raghub_core.domain.retrieval.models import RetrievedChunk
 from raghub_core.ports.reranker import RerankerTimeoutError
 
@@ -87,7 +88,7 @@ class LocalCrossEncoderReranker:
     ) -> list[RetrievedChunk]:
         if not candidates or top_n <= 0:
             return []
-        scores = await self.scores(query, [hit.content for hit in candidates])
+        scores = await self.scores(query, [rerank_text(hit, query) for hit in candidates])
         ranked = sorted(
             zip(candidates, scores, strict=False), key=lambda pair: float(pair[1]), reverse=True
         )

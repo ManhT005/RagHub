@@ -14,6 +14,7 @@ from raghub_core.domain.ingestion.parser import (
     _decode,
 )
 from raghub_core.domain.ingestion.tokenizer import ENCODING
+from raghub_core.domain.retrieval.context import search_context
 
 VERSION = "markdown-v2"
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -212,7 +213,31 @@ def _pack(units, budget, prefix="", suffix=""):
 
 def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450, pipeline=VERSION):
     merged = []
+    previous = None
+    enriched = []
     for block in blocks:
+        # A short caption immediately before a table is local evidence. Never
+        # borrow prose across a page/section, or use a filename as a caption.
+        if (
+            block.type == "table"
+            and previous is not None
+            and previous.type in {"paragraph", "list"}
+            and previous.source_name == block.source_name
+            and previous.page_number == block.page_number
+            and previous.heading_path == block.heading_path
+            and len(previous.content) <= 240
+            and len(previous.content.splitlines()) <= 2
+            and (
+                previous.content.rstrip().endswith(":")
+                or re.match(r"^\s*\d+[.)]\s+", previous.content)
+            )
+        ):
+            block = replace(
+                block, metadata={**block.metadata, "table_title": previous.content.strip()}
+            )
+        enriched.append(block)
+        previous = block
+    for block in enriched:
         if (
             merged
             and block.type == merged[-1].type
@@ -329,6 +354,7 @@ def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450, pip
     return [
         replace(
             c,
+            metadata={**c.metadata, "search_context": search_context(c)},
             previous_chunk_id=result[i - 1].chunk_id if i else None,
             next_chunk_id=result[i + 1].chunk_id if i + 1 < len(result) else None,
         )

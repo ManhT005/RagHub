@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 
 from raghub_core.api import CoreError, RetrievalScope, RetrieveContextUseCase, RetrievedChunk
+from raghub_core.domain.retrieval.context import rerank_text
 
 from .fakes import FakeProviderResolver, FakeVectorStore
 
@@ -134,7 +135,11 @@ async def test_optional_rerank_preserves_scope_readiness_sources_and_fallback(fa
     assert context.hits == ([second, first] if failure is None else [first, second])
     assert scopes == readiness.calls == providers.scopes == [scope]
     assert calls == [
-        {"query": "question", "documents": [first.content, second.content], "top_n": 2}
+        {
+            "query": "question",
+            "documents": [rerank_text(first, "question"), rerank_text(second, "question")],
+            "top_n": 2,
+        }
     ]
     assert store.searches[0][-1] == 40 and store.closed == 1
     assert statuses == ["OK" if failure is None else "DEGRADED_REQUEST"]
