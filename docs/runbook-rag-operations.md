@@ -44,9 +44,18 @@ starting configurations, not throughput or quality guarantees:
 
 | Profile | Worker concurrency | Candidates | Rerank source/top count | Active jobs/workspace |
 |---|---:|---:|---:|---:|
-| `lite_cpu` | 1 | 15 | 12 / 5 | 1 |
+| `lite_cpu` | 1 | 30 | 30 / 5 | 1 |
 | `standard_cpu` | 1 | 25 | 20 / 6 | 1 |
 | `gpu` | 2 | 40 | 40 / 8 | 2 |
+
+The `lite_cpu` preset uses a 20-second local reranker timeout. Each search leg
+(vector and BM25) requests 30 candidates; fusion can deduplicate these results.
+The local reranking selection in the UI starts with 30 candidates and keeps 5.
+Existing saved workspace settings are preserved: set candidate limit to 30, top N
+to 5 and timeout to 20 seconds in Workspace → AI & Models → Reranking.
+Explicit environment overrides also remain authoritative; update an existing
+`RAG_RETRIEVAL_CANDIDATES=15` to `30` and any rerank source cap to `30`.
+This change requires no reindexing or data migration.
 
 Use the selected hardware profile from `.env.self-host`:
 

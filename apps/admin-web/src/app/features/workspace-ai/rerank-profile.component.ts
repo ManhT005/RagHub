@@ -105,7 +105,7 @@ export class RerankProfileComponent {
   protected selectionChanged() {
     this.notice.set('');
     if (this.selected === '__local__') {
-      this.candidateLimit = 12; this.topN = 5; this.timeoutSeconds = 10;
+      this.candidateLimit = 30; this.topN = 5; this.timeoutSeconds = 20;
     }
   }
   protected prepareLocal() {
