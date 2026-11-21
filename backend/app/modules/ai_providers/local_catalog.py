@@ -6,6 +6,7 @@ from app.core.exceptions import AppError
 from app.infrastructure.ai.local_reranker import MODEL_ID, MODEL_REVISION
 
 LOCAL_RERANK_ID = "mmarco-minilm-reranker"
+QWEN_RERANK_ID = "qwen3-reranker-06b"
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,16 @@ LOCAL_MODELS = (
         471_000_000,
         capability="RERANK",
     ),
+    LocalModelSpec(
+        QWEN_RERANK_ID,
+        "Qwen/Qwen3-Reranker-0.6B",
+        "e61197ed45024b0ed8a2d74b80b4d909f1255473",
+        0,
+        "Multilingual (có tiếng Việt)",
+        1_210_000_000,
+        max_bytes=1_500_000_000,
+        capability="RERANK",
+    ),
 )
 ALLOWED_FILES = frozenset(
     {
@@ -65,6 +76,9 @@ ALLOWED_FILES = frozenset(
         "tokenizer_config.json",
         "special_tokens_map.json",
         "vocab.txt",
+        "vocab.json",
+        "merges.txt",
+        "generation_config.json",
         "sentencepiece.bpe.model",
         "model.safetensors",
         "1_Pooling/config.json",

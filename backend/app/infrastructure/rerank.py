@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.infrastructure.ai.local_reranker import LocalRerankProvider, local_reranker
 from app.infrastructure.ai.workspace_reranker import local_installation
 from app.infrastructure.persistence.provider_descriptors import provider_descriptor
+from app.modules.ai_providers.local_catalog import LOCAL_RERANK_ID, QWEN_RERANK_ID
 from app.modules.ai_providers.models import ProviderConfig
 from app.modules.ai_providers.schemas import (
     WorkspaceRerankOptions,
@@ -51,7 +52,11 @@ class WorkspaceRerankResolver:
             return None
         options = WorkspaceRerankOptions.model_validate(workspace.rerank_config or {})
         if mode == "local":
-            local, paths = await local_installation(self.session, scope.organization_id)
+            local, paths = await local_installation(
+                self.session,
+                scope.organization_id,
+                *([options.local_model_id] if options.local_model_id != LOCAL_RERANK_ID else []),
+            )
             if not local["ready"] or paths is None:
                 raise RuntimeError("Local reranker is not ready")
             # Legacy global deployments keep their original tuning.
@@ -61,13 +66,18 @@ class WorkspaceRerankResolver:
                     top_n=settings.rag_rerank_top_n,
                     timeout_seconds=settings.rag_reranker_timeout_seconds,
                 )
-            adapter = local_reranker(
+            factory = local_reranker
+            if options.local_model_id == QWEN_RERANK_ID:
+                from app.infrastructure.ai.qwen_reranker import qwen_reranker
+
+                factory = qwen_reranker
+            adapter = factory(
                 snapshot_path=paths[0],
                 expected_sha256=paths[1],
                 timeout_seconds=options.timeout_seconds,
             )
             return RerankRuntime(
-                LocalRerankProvider(adapter),
+                LocalRerankProvider(adapter, model=local.get("model")),
                 options.candidate_limit,
                 options.top_n,
                 options.timeout_seconds,

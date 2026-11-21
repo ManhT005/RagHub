@@ -3396,6 +3396,15 @@
             "title": "Candidate Limit",
             "type": "integer"
           },
+          "local_model_id": {
+            "default": "mmarco-minilm-reranker",
+            "enum": [
+              "mmarco-minilm-reranker",
+              "qwen3-reranker-06b"
+            ],
+            "title": "Local Model Id",
+            "type": "string"
+          },
           "mode": {
             "anyOf": [
               {
@@ -9163,6 +9172,20 @@
             "schema": {
               "format": "uuid",
               "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "catalog_id",
+            "required": false,
+            "schema": {
+              "default": "mmarco-minilm-reranker",
+              "enum": [
+                "mmarco-minilm-reranker",
+                "qwen3-reranker-06b"
+              ],
+              "title": "Catalog Id",
               "type": "string"
             }
           },

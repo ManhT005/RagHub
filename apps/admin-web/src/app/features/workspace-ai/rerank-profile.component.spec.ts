@@ -70,7 +70,7 @@ describe('Optional workspace rerank', () => {
     view.detectChanges();
     view.componentInstance['save']();
     expect(api.bindRerank).toHaveBeenLastCalledWith('workspace-1', {
-      mode: 'local', model_id: null, candidate_limit: 30, top_n: 5, timeout_seconds: 20,
+      mode: 'local', local_model_id: 'mmarco-minilm-reranker', model_id: null, candidate_limit: 30, top_n: 5, timeout_seconds: 20,
     });
     view.componentInstance['selected'] = '';
     view.componentInstance['save']();
@@ -108,4 +108,37 @@ describe('Optional workspace rerank', () => {
     expect(api.bindRerank).not.toHaveBeenCalled();
     view.destroy();
   });
+  it('selects Qwen independently from MiniLM and saves the local model id', () => {
+    api.rerankBinding.mockReturnValue(of({ mode: 'off', model_id: null,
+      candidate_limit: 30, top_n: 5, timeout_seconds: 20,
+      local_models: [
+        { catalog_id: 'mmarco-minilm-reranker', model: 'MiniLM', ready: false },
+        { catalog_id: 'qwen3-reranker-06b', model: 'Qwen/Qwen3-Reranker-0.6B', ready: true },
+      ] }));
+    const view = TestBed.createComponent(RerankProfileComponent);
+    view.detectChanges();
+    const component = view.componentInstance;
+    component['localModelId'] = 'qwen3-reranker-06b';
+    component['selected'] = '__local__';
+    component['save']();
+    expect(api.bindRerank).toHaveBeenLastCalledWith('workspace-1', expect.objectContaining({
+      mode: 'local', local_model_id: 'qwen3-reranker-06b', model_id: null,
+    }));
+    component['localModelId'] = 'mmarco-minilm-reranker';
+    expect(component['unavailable']()).toBe(true);
+  });
+  it('downloads the selected Qwen catalog item without changing the saved binding', () => {
+    api.rerankBinding.mockReturnValue(of({ mode: 'off', model_id: null,
+      candidate_limit: 30, top_n: 5, timeout_seconds: 20,
+      local_models: [{ catalog_id: 'qwen3-reranker-06b', model: 'Qwen', ready: false,
+        status: 'AVAILABLE', can_prepare: true, download_enabled: true }] }));
+    api.prepareLocalRerank.mockReturnValue(of({ status: 'QUEUED' }));
+    const view = TestBed.createComponent(RerankProfileComponent);
+    view.detectChanges();
+    view.componentInstance['localModelId'] = 'qwen3-reranker-06b';
+    view.componentInstance['prepareLocal']();
+    expect(api.prepareLocalRerank).toHaveBeenCalledWith('workspace-1', 'qwen3-reranker-06b');
+    expect(api.bindRerank).not.toHaveBeenCalled();
+  });
+
 });

@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,7 @@ from app.infrastructure.embedding_execution import (
     ExecutionRuntimeResponse,
     policy_for_workspace,
 )
-from app.modules.ai_providers.local_catalog import LOCAL_RERANK_ID
+from app.modules.ai_providers.local_catalog import LOCAL_RERANK_ID, QWEN_RERANK_ID
 from app.modules.ai_providers.local_manager import LocalModelManager
 from app.modules.ai_providers.models import (
     EmbeddingIndexVersion,
@@ -124,8 +124,14 @@ class RerankSelection(WorkspaceRerankOptions):
 async def get_rerank(workspace_id: UUID, context: Context, session: Session):
     await require_workspace_permission(context, workspace_id, "workspace.view", session)
     item = await workspace(session, context.organization_id, workspace_id)
-    local, _ = await local_installation(session, context.organization_id)
+    options = WorkspaceRerankOptions.model_validate(item.rerank_config or {})
+    local, _ = await local_installation(session, context.organization_id, options.local_model_id)
+    models = []
+    for catalog_id in (LOCAL_RERANK_ID, QWEN_RERANK_ID):
+        state, _ = await local_installation(session, context.organization_id, catalog_id)
+        models.append({**state, "can_prepare": context.membership.role == MembershipRole.ADMIN})
     return {
+        "local_models": models,
         "model_id": item.rerank_provider_id,
         **WorkspaceRerankOptions.model_validate(item.rerank_config or {}).model_dump(),
         "mode": workspace_rerank_mode(
@@ -136,21 +142,34 @@ async def get_rerank(workspace_id: UUID, context: Context, session: Session):
 
 
 @router.post("/rerank-model/prepare-local", status_code=202)
-async def prepare_local_rerank(workspace_id: UUID, context: Context, session: Session):
+async def prepare_local_rerank(
+    workspace_id: UUID,
+    context: Context,
+    session: Session,
+    catalog_id: Literal["mmarco-minilm-reranker", "qwen3-reranker-06b"] = LOCAL_RERANK_ID,
+):
     await require_workspace_permission(context, workspace_id, "workspace.edit", session)
     await workspace(session, context.organization_id, workspace_id)
     require_role(context, MembershipRole.ADMIN)
-    return await LocalModelManager(session).start(context.organization_id, LOCAL_RERANK_ID)
+    return await LocalModelManager(session).start(context.organization_id, catalog_id)
 
 
 @router.put("/rerank-model")
 async def change_rerank(
-    workspace_id: UUID, payload: RerankSelection, context: Context, session: Session
+    workspace_id: UUID,
+    payload: RerankSelection,
+    context: Context,
+    session: Session,
+    background_tasks: BackgroundTasks = None,
 ):
     await require_workspace_permission(context, workspace_id, "workspace.edit", session)
     item = await workspace(session, context.organization_id, workspace_id)
     if payload.mode == "local":
-        local, _ = await local_installation(session, context.organization_id)
+        local, paths = await local_installation(
+            session,
+            context.organization_id,
+            *([payload.local_model_id] if payload.local_model_id != LOCAL_RERANK_ID else []),
+        )
         if not local["ready"]:
             raise AppError(
                 "LOCAL_RERANK_NOT_READY", "Prepare the local reranker first.", status_code=409
@@ -161,6 +180,19 @@ async def change_rerank(
     item.rerank_provider_id = payload.model_id
     item.rerank_config = payload.model_dump(exclude={"model_id"})
     await session.commit()
+    if (
+        payload.mode == "local"
+        and payload.local_model_id == QWEN_RERANK_ID
+        and background_tasks is not None
+    ):
+        from app.infrastructure.ai.qwen_reranker import qwen_reranker
+
+        adapter = qwen_reranker(
+            snapshot_path=paths[0],
+            expected_sha256=paths[1],
+            timeout_seconds=payload.timeout_seconds,
+        )
+        background_tasks.add_task(adapter.warmup)
     return payload
 
 
