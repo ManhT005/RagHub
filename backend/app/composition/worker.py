@@ -56,6 +56,7 @@ class WorkerContainer:
                 chunker=chunk_sections,
                 quota=self.quota,
                 embedding_executor=embeddings.execute,
+                structured_parser=DocumentParser(telemetry=telemetry).parse_v2,
             ),
             self.session,
             embeddings=embeddings,

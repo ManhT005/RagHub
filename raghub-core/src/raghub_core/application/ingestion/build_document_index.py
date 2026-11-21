@@ -7,6 +7,7 @@ from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections, embe
 from raghub_core.domain.ingestion.embedding_text import DOCUMENT_PIPELINES, build_embedding_text
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.limits import MAX_CHUNKS, MAX_EXTRACTED_TOKENS
+from raghub_core.domain.ingestion.markdown_v2 import chunk_markdown_blocks, parse_markdown_blocks
 from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
 from raghub_core.domain.ingestion.normalization import normalize_sections
 from raghub_core.domain.ingestion.parser import (
@@ -23,6 +24,7 @@ from raghub_core.domain.ingestion.parser import (
     UnsupportedFileTypeError,
     UnsupportedOcrError,
 )
+from raghub_core.domain.ingestion.text_v2 import parse_text_blocks
 from raghub_core.domain.ingestion.tokenizer import ENCODING
 from raghub_core.domain.providers.errors import (
     ProviderRateLimitError,
@@ -55,12 +57,14 @@ class BuildDocumentIndexUseCase:
         chunker: Callable[..., list[TextChunk]] = chunk_sections,
         quota: EmbeddingQuotaPort | None = None,
         embedding_executor: Callable[..., Awaitable[list[list[float]]]] | None = None,
+        structured_parser: Callable[[bytes, str], list[ParsedSection]] | None = None,
     ) -> None:
         self.storage = storage
         self.parser = parser
         self.chunker = chunker
         self.quota = quota
         self.embedding_executor = embedding_executor
+        self.structured_parser = structured_parser
 
     async def execute(
         self,
@@ -88,8 +92,25 @@ class BuildDocumentIndexUseCase:
             content = await self.storage.get(document.storage_key)
         except Exception as exc:
             raise IngestionError("STORAGE_UNAVAILABLE", str(exc), retryable=True) from exc
+        runtime = None
+        # Hosts with versioned adapters resolve metadata before parsing, so OCR
+        # and decompression never run twice. This does not call embed_documents.
+        if self.structured_parser is not None:
+            try:
+                runtime = await resolve_embedding()
+            except ProviderRateLimitError as exc:
+                raise IngestionError("EMBEDDING_QUOTA_WAIT", str(exc), retryable=True) from exc
+            except (ProviderTimeoutError, ProviderUnavailableError) as exc:
+                raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=True) from exc
+            except Exception as exc:
+                raise IngestionError("EMBEDDING_FAILED", str(exc), retryable=False) from exc
         try:
-            sections = self.parser(content, document.source_name)
+            parser = (
+                self.structured_parser
+                if runtime and runtime.document_pipeline == "document-v2"
+                else self.parser
+            )
+            sections = parser(content, document.source_name)
         except (
             InvalidPdfError,
             UnsupportedOcrError,
@@ -130,7 +151,11 @@ class BuildDocumentIndexUseCase:
                     extracted += len(ENCODING.encode(section.content[offset : offset + 8192]))
                     if extracted > MAX_EXTRACTED_TOKENS:
                         raise DocumentLimitError(f"Document exceeds {MAX_EXTRACTED_TOKENS} tokens.")
-            chunks = self.chunker(sections, document.version_id)
+            chunks = (
+                chunk_markdown_blocks(sections, document.version_id, pipeline="document-v2")
+                if runtime and runtime.document_pipeline == "document-v2"
+                else self.chunker(sections, document.version_id)
+            )
             if not chunks:
                 raise EmptyExtractedTextError("No chunks were extracted.")
             if len(chunks) > MAX_CHUNKS:
@@ -145,7 +170,7 @@ class BuildDocumentIndexUseCase:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
         observe("chunk_preflight")
         try:
-            runtime = await resolve_embedding()
+            runtime = runtime or await resolve_embedding()
         except ProviderRateLimitError as exc:
             raise IngestionError("EMBEDDING_QUOTA_WAIT", str(exc), retryable=True) from exc
         except (ProviderTimeoutError, ProviderUnavailableError) as exc:
@@ -158,11 +183,32 @@ class BuildDocumentIndexUseCase:
                 "EMBEDDING_FAILED", "Unsupported document pipeline.", retryable=False
             )
         try:
-            if runtime.document_pipeline != "legacy":
+            markdown_v2 = (
+                runtime.document_pipeline == "markdown-v2"
+                and document.source_name.lower().endswith(".md")
+            )
+            document_v2 = runtime.document_pipeline == "document-v2"
+            if document_v2 and self.structured_parser is not None:
+                pass  # Selected before preflight; never repeat OCR/decompression.
+            elif document_v2 and document.source_name.lower().endswith(".txt"):
+                sections = parse_text_blocks(content, document.source_name)
+            elif markdown_v2 or (document_v2 and document.source_name.lower().endswith(".md")):
+                sections = parse_markdown_blocks(content, document.source_name)
+            elif document_v2:
+                raise IngestionError(
+                    "PARSE_FAILED", "A structural parser adapter is required.", retryable=False
+                )
+            elif runtime.document_pipeline != "legacy":
                 sections = normalize_sections(sections)
             observe("normalize")
             if runtime.document_pipeline != "legacy":
-                chunks = self.chunker(sections, document.version_id)
+                chunks = (
+                    chunk_markdown_blocks(
+                        sections, document.version_id, pipeline=runtime.document_pipeline
+                    )
+                    if markdown_v2 or document_v2
+                    else self.chunker(sections, document.version_id)
+                )
                 chunks = [
                     replace(
                         c,
@@ -189,6 +235,12 @@ class BuildDocumentIndexUseCase:
                     )
         except IngestionError:
             raise
+        except TextDecodeError as exc:
+            raise IngestionError("TEXT_DECODE_FAILED", str(exc), retryable=False) from exc
+        except EmptyExtractedTextError as exc:
+            raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
+        except DocumentLimitError as exc:
+            raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
         observe("chunk")

@@ -79,4 +79,10 @@ def test_document_pipeline_changes_semantic_fingerprint_and_requires_new_index()
     enriched = embedding_fingerprint_v2(
         **profile, embedding_options={"document_pipeline": "context-v1"}
     )
-    assert len({legacy, normalized, enriched}) == 3
+    markdown = embedding_fingerprint_v2(
+        **profile, embedding_options={"document_pipeline": "markdown-v2"}
+    )
+    structured = embedding_fingerprint_v2(
+        **profile, embedding_options={"document_pipeline": "document-v2"}
+    )
+    assert len({legacy, normalized, enriched, markdown, structured}) == 5

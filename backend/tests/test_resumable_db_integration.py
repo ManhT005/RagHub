@@ -250,7 +250,13 @@ async def test_explicit_document_retry_resets_failed_active_work_item_and_preser
 
 @pytest.mark.parametrize(
     "managed_pool,document_pipeline",
-    [(False, "legacy"), (True, "legacy"), (True, "normalized-v1"), (True, "context-v1")],
+    [
+        (False, "legacy"),
+        (True, "legacy"),
+        (True, "normalized-v1"),
+        (True, "context-v1"),
+        (True, "document-v2"),
+    ],
 )
 async def test_canonical_upload_publishes_real_index_after_durable_batches(
     isolated_sessions, managed_pool, document_pipeline
@@ -297,9 +303,12 @@ async def test_canonical_upload_publishes_real_index_after_durable_batches(
                     "_source"
                 ]
                 assert "useful  guide" in source["raw_content"]
-                if document_pipeline != "legacy":
+                if document_pipeline not in {"legacy", "document-v2"}:
                     assert "useful  guide" not in source["content"]
                     assert source["parent_section_id"]
+                if document_pipeline == "document-v2":
+                    assert source["metadata"]["document_pipeline"] == "document-v2"
+                    assert source["metadata"]["block_type"] == "paragraph"
                 if document_pipeline == "normalized-v1":
                     from raghub_core.domain.retrieval.models import RetrievalScope
 
