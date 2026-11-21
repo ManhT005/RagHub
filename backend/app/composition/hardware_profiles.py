@@ -13,9 +13,10 @@ therefore means "not set" and must never shadow the preset.
 PROFILES = {
     "lite_cpu": {
         "rag_worker_concurrency": 1,
-        "rag_retrieval_candidates": 15,
-        "rag_rerank_source_count": 12,
+        "rag_retrieval_candidates": 30,
+        "rag_rerank_source_count": 30,
         "rag_rerank_top_n": 5,
+        "rag_reranker_timeout_seconds": 20,
         "rag_reranker_enabled": False,
         "provider_pool_max_active_jobs_per_workspace": 1,
     },

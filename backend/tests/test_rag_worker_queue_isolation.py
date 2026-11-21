@@ -21,8 +21,8 @@ def test_rag_hardware_profile_precedence_and_empty_env():
     # 1. Preset defaults apply when no overrides are given
     lite = Settings(_env_file=None, rag_hardware_profile="lite_cpu")
     assert lite.rag_worker_concurrency == 1
-    assert lite.rag_retrieval_candidates == 15
-    assert lite.rag_rerank_source_count == 12
+    assert lite.rag_retrieval_candidates == 30
+    assert lite.rag_rerank_source_count == 30
     assert lite.rag_rerank_top_n == 5
 
     gpu = Settings(_env_file=None, rag_hardware_profile="gpu")

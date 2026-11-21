@@ -70,7 +70,7 @@ describe('Optional workspace rerank', () => {
     view.detectChanges();
     view.componentInstance['save']();
     expect(api.bindRerank).toHaveBeenLastCalledWith('workspace-1', {
-      mode: 'local', model_id: null, candidate_limit: 12, top_n: 5, timeout_seconds: 10,
+      mode: 'local', model_id: null, candidate_limit: 30, top_n: 5, timeout_seconds: 20,
     });
     view.componentInstance['selected'] = '';
     view.componentInstance['save']();

@@ -7,12 +7,14 @@ from app.infrastructure.task_queue.celery_app import celery_app
 
 @pytest.mark.parametrize(
     "profile,candidates,source,top",
-    [("lite_cpu", 15, 12, 5), ("standard_cpu", 25, 20, 6), ("gpu", 40, 40, 8)],
+    [("lite_cpu", 30, 30, 5), ("standard_cpu", 25, 20, 6), ("gpu", 40, 40, 8)],
 )
 def test_profiles_are_opt_in_host_defaults_and_allow_explicit_overrides(
     profile, candidates, source, top
 ):
     settings = Settings(_env_file=None, rag_hardware_profile=profile)
+    if profile == "lite_cpu":
+        assert settings.rag_reranker_timeout_seconds == 20
     assert settings.rag_retrieval_candidates == candidates
     assert settings.rag_worker_concurrency == (2 if profile == "gpu" else 1)
     assert settings.rag_rerank_source_count == source and settings.rag_rerank_top_n == top
