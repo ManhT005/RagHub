@@ -318,6 +318,9 @@ class RerankOptions(BaseModel):
 
 
 class WorkspaceRerankOptions(RerankOptions):
+    local_model_id: Literal["mmarco-minilm-reranker", "qwen3-reranker-06b"] = (
+        "mmarco-minilm-reranker"
+    )
     # None preserves old provider/global configuration until explicitly changed.
     mode: Literal["off", "local", "provider"] | None = None
 

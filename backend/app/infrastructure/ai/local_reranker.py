@@ -130,8 +130,9 @@ class LocalRerankProvider:
     provider_name = "local-cross-encoder"
     model = MODEL_ID
 
-    def __init__(self, adapter):
+    def __init__(self, adapter, model=None):
         self.adapter = adapter
+        self.model = model or MODEL_ID
 
     async def rerank(self, *, query, documents, top_n):
         from raghub_core.domain.providers.contracts import RerankItem, RerankResult

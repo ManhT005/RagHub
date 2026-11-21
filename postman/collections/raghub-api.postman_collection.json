@@ -3698,7 +3698,12 @@
           "host": [
             "{{base_url}}"
           ],
-          "query": []
+          "query": [
+            {
+              "key": "catalog_id",
+              "value": "{{catalog_id}}"
+            }
+          ]
         },
         "body": {}
       },

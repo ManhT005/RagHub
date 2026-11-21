@@ -16,7 +16,17 @@ import { apiError } from '../../core/api/api-error';
     <p>Sắp xếp lại các kết quả tìm kiếm trước khi tạo câu trả lời. Nếu model gặp lỗi,
       hệ thống sử dụng thứ tự tìm kiếm ban đầu.</p>
     @if (loading()) { <p role="status">Đang tải cấu hình rerank…</p> }
-    @if (local(); as runtime) {
+    @if (localModels().length > 1) {
+      <label>Model reranking local<select [(ngModel)]="localModelId" (ngModelChange)="localModelChanged()" [disabled]="busy() || loading()">
+        @for (model of localModels(); track model.catalog_id) {
+          <option [value]="model.catalog_id">{{ model.model }}</option>
+        }
+      </select></label>
+      @if (localModelId === 'qwen3-reranker-06b') {
+        <p class="muted">Qwen3 tải khoảng 1,2 GB. Trên CPU nên bắt đầu với 5 ứng viên, thời gian chờ 30 giây. Lần nạp model đầu tiên có thể lâu hơn.</p>
+      }
+    }
+    @if (activeLocal(); as runtime) {
       <p role="status"><strong>Reranking local trên VPS:</strong> {{ localStatus() }}</p>
       <p class="muted">{{ runtime.model }} · CPU · Không cần API key hay lập chỉ mục lại.</p>
       @if (!runtime.ready && runtime.can_prepare && context.can('workspace.edit')) {
@@ -31,7 +41,7 @@ import { apiError } from '../../core/api/api-error';
       <fieldset [disabled]="busy() || loading()">
         <label>Chế độ reranking<select [(ngModel)]="selected" (ngModelChange)="selectionChanged()">
           <option value="">Tắt reranking</option>
-          <option value="__local__" [disabled]="!local()?.ready">Reranking local trên VPS</option>
+          <option value="__local__" [disabled]="!activeLocal()?.ready">Reranking local trên VPS</option>
           @if (selected !== '__local__' && unavailable()) { <option [value]="selected" disabled>Model đã gắn hiện không khả dụng</option> }
           @for (model of models(); track model.id) {
             <option [value]="model.id">{{ model.display_name || model.model }} · {{ model.provider_name }}</option>
@@ -54,6 +64,18 @@ export class RerankProfileComponent {
   protected readonly context = inject(WorkspaceContextStore);
   protected readonly models = signal<RegistryModel[]>([]);
   protected readonly local = signal<LocalRerankStatus | null>(null);
+  protected readonly localModels = signal<LocalRerankStatus[]>([]);
+  protected localModelId = 'mmarco-minilm-reranker';
+  protected activeLocal() {
+    return this.localModels().find(model => model.catalog_id === this.localModelId)
+      ?? (this.localModelId === 'mmarco-minilm-reranker' ? this.local() : null);
+  }
+  protected localModelChanged() {
+    this.notice.set(''); this.error.set('');
+    if (this.selected === '__local__' && this.localModelId === 'qwen3-reranker-06b') {
+      this.candidateLimit = 5; this.topN = Math.min(this.topN, 5); this.timeoutSeconds = 30;
+    }
+  }
   protected readonly preparing = signal(false);
   protected readonly busy = signal(false);
   protected readonly loading = signal(false);
@@ -74,6 +96,8 @@ export class RerankProfileComponent {
       this.request?.unsubscribe();
       this.polling?.unsubscribe();
       this.local.set(null);
+      this.localModels.set([]);
+      this.localModelId = 'mmarco-minilm-reranker';
       this.models.set([]);
       this.selected = '';
       this.error.set('');
@@ -88,6 +112,8 @@ export class RerankProfileComponent {
       .subscribe({ next: ({ models, binding }) => {
         this.models.set(models.filter(selectableModel));
         this.local.set(binding.local ?? null);
+        this.localModels.set(binding.local_models ?? []);
+        this.localModelId = binding.local_model_id ?? 'mmarco-minilm-reranker';
         this.selected = binding.mode === 'local' ? '__local__' : binding.mode === 'off' ? '' : binding.model_id ?? '';
         this.candidateLimit = binding.candidate_limit;
         this.topN = binding.top_n;
@@ -95,25 +121,28 @@ export class RerankProfileComponent {
         if (this.downloading()) this.poll(id);
       }, error: error => this.error.set(apiError(error)) });
   }
-  protected downloading() { return ['QUEUED', 'DOWNLOADING', 'VERIFYING'].includes(this.local()?.status ?? ''); }
+  protected downloading() { return ['QUEUED', 'DOWNLOADING', 'VERIFYING'].includes(this.activeLocal()?.status ?? ''); }
   protected localStatus() {
     return ({ AVAILABLE: 'Chưa tải model', QUEUED: 'Đang chờ tải', DOWNLOADING: 'Đang tải model…',
       VERIFYING: 'Đang xác minh model…', INSTALLED: 'Sẵn sàng', FAILED: 'Tải hoặc xác minh model thất bại',
       UNSUPPORTED: 'Máy chủ chưa có thư viện Local AI', DISABLED: 'Quản trị viên đã tắt reranking trên máy chủ',
-    } as Record<string, string>)[this.local()?.status ?? ''] ?? 'Chưa sẵn sàng';
+    } as Record<string, string>)[this.activeLocal()?.status ?? ''] ?? 'Chưa sẵn sàng';
   }
   protected selectionChanged() {
     this.notice.set('');
     if (this.selected === '__local__') {
-      this.candidateLimit = 30; this.topN = 5; this.timeoutSeconds = 20;
+      this.candidateLimit = this.localModelId === 'qwen3-reranker-06b' ? 5 : 30;
+      this.topN = 5; this.timeoutSeconds = this.localModelId === 'qwen3-reranker-06b' ? 30 : 20;
     }
   }
   protected prepareLocal() {
     const id = this.context.workspace()?.id;
-    if (!id || !this.context.can('workspace.edit') || !this.local()?.can_prepare
-      || !this.local()?.download_enabled || this.preparing() || this.downloading()) return;
+    if (!id || !this.context.can('workspace.edit') || !this.activeLocal()?.can_prepare
+      || !this.activeLocal()?.download_enabled || this.preparing() || this.downloading()) return;
     this.preparing.set(true); this.error.set('');
-    this.api.prepareLocalRerank(id).pipe(finalize(() => this.preparing.set(false)), takeUntilDestroyed(this.destroyRef))
+    const download = this.localModelId === 'mmarco-minilm-reranker'
+      ? this.api.prepareLocalRerank(id) : this.api.prepareLocalRerank(id, this.localModelId);
+    download.pipe(finalize(() => this.preparing.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: () => { if (id === this.context.workspace()?.id) this.poll(id); }, error: error => this.error.set(apiError(error)) });
   }
   private poll(id: string) {
@@ -121,11 +150,12 @@ export class RerankProfileComponent {
     this.polling = timer(0, 2000).pipe(exhaustMap(() => this.api.rerankBinding(id)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: binding => {
         this.local.set(binding.local ?? null);
+        this.localModels.set(binding.local_models ?? []);
         if (!this.downloading()) this.polling?.unsubscribe();
       }, error: error => { this.error.set(apiError(error)); this.polling?.unsubscribe(); } });
   }
   protected unavailable() {
-    if (this.selected === '__local__') return !this.local()?.ready;
+    if (this.selected === '__local__') return !this.activeLocal()?.ready;
     return !!this.selected && !this.models().some(model => model.id === this.selected);
   }
   protected valid() {
@@ -140,7 +170,7 @@ export class RerankProfileComponent {
     this.error.set('');
     this.notice.set('');
     const mode = this.selected === '__local__' ? 'local' : this.selected ? 'provider' : 'off';
-    this.api.bindRerank(id, { mode, model_id: mode === 'provider' ? this.selected : null, candidate_limit: this.candidateLimit,
+    this.api.bindRerank(id, { mode, ...(mode === 'local' ? { local_model_id: this.localModelId } : {}), model_id: mode === 'provider' ? this.selected : null, candidate_limit: this.candidateLimit,
       top_n: this.topN, timeout_seconds: this.timeoutSeconds })
       .pipe(finalize(() => this.busy.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: () => this.notice.set('Đã cập nhật rerank.'), error: error => this.error.set(apiError(error)) });
