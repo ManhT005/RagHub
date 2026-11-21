@@ -5,7 +5,9 @@ error and never affects other formats.
 """
 
 from raghub_core.domain.ingestion.limits import check_compressed_size
+from raghub_core.domain.ingestion.markdown_v2 import parse_markdown_blocks
 from raghub_core.domain.ingestion.parser import ParsedSection, parse_document
+from raghub_core.domain.ingestion.text_v2 import parse_text_blocks
 
 from app.core.config import get_settings
 from app.infrastructure.parsing.docx import parse_docx
@@ -30,4 +32,26 @@ class DocumentParser:
             docx_parser=parse_docx,
             html_parser=parse_html,
             xlsx_parser=parse_xlsx,
+        )
+
+    def parse_v2(self, content: bytes, source_name: str) -> list[ParsedSection]:
+        check_compressed_size(len(content))
+        extension = source_name.rsplit(".", 1)[-1].lower()
+        if extension == "md":
+            return parse_markdown_blocks(content, source_name)
+        if extension == "txt":
+            return parse_text_blocks(content, source_name)
+        return parse_document(
+            content,
+            source_name,
+            pdf_parser=lambda data, name: parse_pdf(
+                data,
+                name,
+                ocr_enabled=get_settings().rag_ocr_enabled,
+                telemetry=self.telemetry,
+                structured=True,
+            ),
+            docx_parser=lambda data, name: parse_docx(data, name, structured=True),
+            html_parser=lambda data, name: parse_html(data, name, structured=True),
+            xlsx_parser=lambda data, name: parse_xlsx(data, name, structured=True),
         )

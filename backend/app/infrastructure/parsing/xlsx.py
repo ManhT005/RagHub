@@ -20,10 +20,16 @@ from raghub_core.domain.ingestion.parser import (
 )
 
 
-def parse_xlsx(content: bytes, source_name: str = "document.xlsx") -> list[ParsedSection]:
+def parse_xlsx(
+    content: bytes, source_name: str = "document.xlsx", *, structured=False
+) -> list[ParsedSection]:
     check_compressed_size(len(content))
     check_signature(content, ".xlsx")
     check_zip_container(content, ".xlsx")
+    if structured:
+        from app.infrastructure.parsing.xlsx_v2 import parse_workbook
+
+        return parse_workbook(content, source_name)
     try:
         workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except Exception as exc:

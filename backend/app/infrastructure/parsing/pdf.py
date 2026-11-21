@@ -8,6 +8,7 @@ half-built index.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import threading
@@ -25,6 +26,7 @@ from raghub_core.domain.ingestion.limits import (
 )
 from raghub_core.domain.ingestion.parser import (
     DocumentLimitError,
+    EmptyExtractedTextError,
     InvalidPdfError,
     OcrRequiredError,
     OcrTimeoutError,
@@ -41,16 +43,24 @@ def _useful_chars(text: str) -> int:
     return sum(1 for ch in text if ch.isalnum())
 
 
-def _ocr_page(pixmap: bytes, *, timeout: int = OCR_PAGE_TIMEOUT_SECONDS) -> str:
+def _ocr_page(pixmap: bytes, *, timeout: int = OCR_PAGE_TIMEOUT_SECONDS, auto_rotate=False) -> str:
     tesseract = shutil.which("tesseract")
     if tesseract is None:
         raise OcrRequiredError("OCR requested but the Tesseract binary is missing.")
     try:
         completed = subprocess.run(
-            [tesseract, "stdin", "stdout", "-l", _OCR_LANGUAGES],
+            [
+                tesseract,
+                "stdin",
+                "stdout",
+                "-l",
+                _OCR_LANGUAGES,
+                *(["--psm", "1"] if auto_rotate else []),
+            ],
             input=pixmap,
             capture_output=True,
             timeout=timeout,
+            env={**os.environ, "OMP_THREAD_LIMIT": "1"} if auto_rotate else None,
         )
     except subprocess.TimeoutExpired as exc:
         raise OcrTimeoutError("OCR exceeded the 15s page budget.") from exc
@@ -85,6 +95,7 @@ def parse_pdf(
     ocr_enabled: bool = False,
     ocr_deadline: float | None = None,
     telemetry=None,
+    structured=False,
 ) -> list[ParsedSection]:
     check_compressed_size(len(content))
     check_signature(content, ".pdf")
@@ -112,6 +123,12 @@ def parse_pdf(
                 useful < OCR_USEFUL_CHARS_THRESHOLD
                 or (image_ratio > 0.8 and useful < 80 and len(text_blocks) < 3)
             )
+            if structured:
+                if not text.strip() and not image_area:
+                    continue  # Empty pages are not scans.
+                needs_ocr = (image_ratio > 0.2 and useful < 80) or text.count("\ufffd") > max(
+                    1, len(text) * 0.02
+                )
             if needs_ocr:
                 if not ocr_enabled:
                     raise UnsupportedOcrError(
@@ -123,13 +140,38 @@ def parse_pdf(
                 if time.monotonic() > deadline:
                     raise OcrTimeoutError("OCR exceeded the document time budget.")
                 with _OCR_SLOT:
+                    if structured and time.monotonic() >= deadline:
+                        raise OcrTimeoutError("OCR exceeded the document time budget.")
                     mark = time.perf_counter()
+                    if structured and page.rect.get_area() * (200 / 72) ** 2 > 30_000_000:
+                        raise DocumentLimitError("PDF page exceeds safe OCR raster size.")
                     pixmap = page.get_pixmap(dpi=200)
-                    text = _ocr_page(pixmap.tobytes("png"))
+                    if structured and time.monotonic() >= deadline:
+                        raise OcrTimeoutError("OCR exceeded the document time budget.")
+                    text = (
+                        _ocr_page(
+                            pixmap.tobytes("png"),
+                            timeout=max(
+                                0.1, min(OCR_PAGE_TIMEOUT_SECONDS, deadline - time.monotonic())
+                            ),
+                            auto_rotate=True,
+                        )
+                        if structured
+                        else _ocr_page(pixmap.tobytes("png"))
+                    )
                     kind = "ocr_text"
+                    if structured and not text.strip():
+                        raise EmptyExtractedTextError(
+                            "OCR produced no readable text on a scanned page."
+                        )
                     if telemetry is not None:
                         telemetry.timing("ocr", (time.perf_counter() - mark) * 1000, {})
                         telemetry.counter("ocr_pages", {})
+            if structured and kind != "ocr_text":
+                from app.infrastructure.parsing.pdf_v2 import page_blocks
+
+                sections.extend(page_blocks(page, source_name, len(sections)))
+                continue
             if text:
                 sections.append(
                     ParsedBlock(
@@ -138,10 +180,22 @@ def parse_pdf(
                         len(sections),
                         index + 1,
                         type=kind,
-                        metadata={"format": "pdf"},
+                        metadata={
+                            "format": "pdf",
+                            **(
+                                {
+                                    "ocr": True,
+                                    "quality_warnings": ["OCR_LOW_TEXT"]
+                                    if _useful_chars(text) < 40
+                                    else [],
+                                }
+                                if structured
+                                else {}
+                            ),
+                        },
                     )
                 )
-            for table in tables:
+            for table in [] if structured else tables:
                 sections.append(
                     ParsedBlock(
                         table,
@@ -152,6 +206,12 @@ def parse_pdf(
                         metadata={"format": "pdf"},
                     )
                 )
+        if structured:
+            from app.infrastructure.parsing.pdf_v2 import remove_repeated_margins
+
+            sections = remove_repeated_margins(sections, document.page_count)
+            if not sections:
+                raise EmptyExtractedTextError("PDF contains no readable content after extraction.")
         return sections
     finally:
         document.close()

@@ -210,19 +210,24 @@ def _pack(units, budget, prefix="", suffix=""):
         yield prefix + "\n".join(kept) + suffix, {"unit_start": begin, "unit_end": len(units)}
 
 
-def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450):
+def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450, pipeline=VERSION):
     merged = []
     for block in blocks:
         if (
             merged
-            and block.type == merged[-1].type == "paragraph"
+            and block.type == merged[-1].type
+            and block.type
+            in ({"paragraph", "list"} if pipeline == "document-v2" else {"paragraph"})
             and block.heading_path == merged[-1].heading_path
+            and block.source_name == merged[-1].source_name
+            and block.page_number == merged[-1].page_number
+            and block.metadata.get("section_line") == merged[-1].metadata.get("section_line")
         ):
             previous = merged[-1]
             merged[-1] = replace(
                 previous,
                 content=previous.content + "\n\n" + block.content,
-                metadata={**previous.metadata, "line_end": block.metadata["line_end"]},
+                metadata={**previous.metadata, "line_end": block.metadata.get("line_end")},
             )
         else:
             merged.append(block)
@@ -233,6 +238,8 @@ def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450):
         context = f"Source: {block.source_name}\n"
         if block.heading_path:
             context += "Section: " + " > ".join(block.heading_path) + "\n"
+        if block.page_number is not None:
+            context += f"Page: {block.page_number}\n"
         context += "\n"
         budget = target_tokens - len(ENCODING.encode(context)) - 8
         if budget < 16:
@@ -250,7 +257,7 @@ def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450):
                 if len(lines) > 2
                 else [(block.content, {})]
             )
-        elif block.type == "code":
+        elif block.type == "code" and block.metadata.get("fence"):
             lines = block.content.splitlines()
             body = lines[1:] if block.metadata.get("unclosed_fence") else lines[1:-1]
             pieces = list(
@@ -259,6 +266,8 @@ def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450):
             pieces = [(text, {**meta, "synthetic_fences": True}) for text, meta in pieces]
             if not pieces:
                 pieces = [(block.content, {})]
+        elif block.type == "code":
+            pieces = list(_pack(block.content.splitlines(), budget))
         elif block.type == "list":
             items = []
             base_indent = len(block.content) - len(block.content.lstrip(" "))
@@ -280,24 +289,41 @@ def chunk_markdown_blocks(blocks, document_version_id, *, target_tokens=450):
                 raise DocumentLimitError("Markdown chunk exceeds embedding token budget.")
             digest = hashlib.sha256(text.encode()).hexdigest()
             index = len(result)
+            section_key = block.metadata.get("section_line", block.section_index)
+            if (
+                block.type == "table"
+                and block.metadata.get("row_numbers")
+                and "unit_start" in metadata
+            ):
+                numbers = block.metadata["row_numbers"]
+                metadata = {
+                    **metadata,
+                    "row_start": numbers[metadata["unit_start"] - 1],
+                    "row_end": numbers[metadata["unit_end"] - 1],
+                }
             result.append(
                 TextChunk(
-                    uuid.uuid5(document_version_id, f"{VERSION}:{index}:{digest}"),
+                    uuid.uuid5(document_version_id, f"{pipeline}:{index}:{digest}"),
                     index,
                     text,
                     len(ENCODING.encode(text)),
                     block.source_name,
-                    None,
+                    block.page_number,
                     block.heading,
                     digest,
                     embedding_content=embedded,
                     heading_path=block.heading_path,
                     parent_section_id=uuid.uuid5(
                         document_version_id,
-                        f"heading:{block.metadata['section_line']}:"
+                        f"heading:{block.page_number}:{section_key}:"
                         + " > ".join(block.heading_path),
                     ),
-                    metadata={**block.metadata, "block_type": block.type, **metadata},
+                    metadata={
+                        **block.metadata,
+                        "block_type": block.type,
+                        **metadata,
+                        "document_pipeline": pipeline,
+                    },
                 )
             )
     return [

@@ -1,7 +1,49 @@
-# Xử lý tài liệu v2 — PR đầu tiên: Markdown
+# Xử lý tài liệu v2 — Markdown, TXT, HTML, DOCX, XLSX và PDF/OCR
 
 Trạng thái: thử nghiệm, opt-in. Không bật cho index đang phục vụ và không tự
 reprocess dữ liệu khi deploy.
+
+## Profile chung `document-v2`
+
+PR này hỗ trợ tất cả định dạng hiện có qua profile `document-v2`. Parser được
+chọn từ snapshot của index trước khi chạy trích xuất; chỉ parse/OCR một lần.
+Host có thể resolve metadata model trước parse nhưng không gọi embedding trước
+khi đã qua giới hạn file/chunk/token. Chỉ có index mới chọn profile này mới dùng
+adapter v2; các adapter cũ giữ mặc định `structured=False`.
+
+| Định dạng | Xử lý mới |
+|---|---|
+| Markdown | Heading hierarchy, paragraph/list/table/code blocks, header/fence lặp khi chia |
+| TXT | UTF-8/BOM, CRLF, paragraph/list, dòng nguồn, từ chối NUL và encoding sai |
+| HTML/HTM | Ưu tiên main; bỏ nav/footer/aside và role điều hướng; loại paragraph trùng trong cùng mục; giữ code whitespace và list đánh số |
+| DOCX | Giữ thứ tự paragraph/table; đọc heading outline và list numbering; giảm lặp ô merge, giữ ký tự pipe trong cell |
+| XLSX | Tách bảng bằng hàng trống, nhận diện title, giữ sheet/header/hàng thực; cảnh báo công thức không có cache, chặn grid quá thưa/lớn |
+| PDF text | Thứ tự theo tọa độ/heuristic hai cột, bỏ margin lặp, trích bảng không lặp lại text của bảng, giữ trang/bbox |
+| PDF scan | OCR chọn trang thiếu text hoặc text lỗi; định hướng qua Tesseract; deadline/page cap/raster cap, một luồng Tesseract, cảnh báo OCR ít text |
+
+Chunker dùng chung không gộp khác trang hoặc file. Context embedding bao gồm
+source, heading và page khi có; mọi chunk gồm context đều không quá 450 token.
+Bảng lặp header và giữ row range; khối code giữ indentation. Dữ liệu nhị phân,
+macro, zip bomb, sheet/page/cell limits và quota embedding vẫn được kiểm tra.
+Không chạy công thức, macro, script hoặc fetch tài nguyên được nhúng trong file.
+
+OCR cần image OCR, `RAG_OCR_ENABLED=true` và `vie+eng`/OSD của Tesseract.
+Trang trống được bỏ qua; scan không được trả text thì fail thay vì đánh dấu
+READY với trang thiếu nội dung. Giữ giới hạn 15 giây/trang, 50 trang OCR,
+70 trang PDF, 10 phút/tài liệu; raster mới bị chặn trên 30 triệu pixel.
+
+Cảnh báo chất lượng nằm trong metadata block/chunk, gồm
+`FORMULA_WITHOUT_CACHED_VALUE`, `TABLE_SPANS_REQUIRE_REVIEW`, `OCR_LOW_TEXT`
+và `LOW_TEXT_QUALITY`. PR này chưa bổ sung màn hình preview/warnings riêng.
+Số lượng ô công thức chưa có cache được lưu danh sách tọa độ tối đa 100 ô;
+cần tính lại workbook bằng ứng dụng spreadsheet nếu muốn index các giá trị đó.
+
+Giới hạn: đọc hai cột và margin là heuristic, không phải mô hình hiểu layout.
+HTML rowspan/colspan phức tạp được cảnh báo để review, chưa tái tạo grid đầy đủ.
+DOCX list được chuẩn hóa dấu/numbering, chưa cam kết mọi kiểu multilevel Word.
+XLSX tách theo hàng trống, không tự nhận diện mọi bảng đặt cạnh nhau và header
+được suy đoán từ dữ liệu. OCR không có cam kết độ chính xác và chưa có deskew
+ảnh tùy ý; cần corpus scan thật để đo riêng.
 
 ## Khảo sát baseline
 
@@ -42,15 +84,16 @@ xử lý ngữ nghĩa riêng. Nội dung chưa nhận diện vẫn được gi�
 Một hàng bảng quá lớn bị từ chối rõ ràng thay vì cắt hỏng cột; cần thu gọn/chia
 hàng đó trước khi dùng pipeline này. Front matter không đóng được giữ nguyên.
 
-Với định dạng khác, lựa chọn này dùng normalize/context như `context-v1`;
-không bổ sung thuật toán PDF/OCR/DOCX/XLSX trong PR đầu tiên.
+Profile `markdown-v2` hẹp vẫn dùng normalize/context như `context-v1` cho
+định dạng khác. Chọn `document-v2` để dùng toàn bộ adapter mới nêu trên.
 
 ## Bật thử và bảo toàn dữ liệu
 
-Trong cấu hình **model embedding mới**, đặt:
+Tạo **provider connection thử nghiệm riêng**, đặt trong `config_json` rồi
+đăng ký model embedding trên connection đó:
 
 ```json
-{"document_pipeline": "markdown-v2"}
+{"document_pipeline": "document-v2"}
 ```
 
 Không sửa cấu hình trực tiếp trong database hoặc đổi tên profile của active
@@ -88,7 +131,7 @@ thời gian ingestion, tài nguyên và chi phí với cùng corpus.
 
 ## Các PR tiếp theo
 
-1. Review preview/quality warnings và thực nghiệm retrieval trên index thử.
-2. HTML: main-content extraction và boilerplate; DOCX: thứ tự văn bản/bảng.
-3. XLSX: nhận diện bảng và header; PDF text: layout/margin; OCR: selective OCR.
-4. UI báo chất lượng parse, rollout và runbook cutover theo từng định dạng.
+1. UI preview và warnings để người dùng review trước khi index.
+2. Corpus thật nhiều định dạng và benchmark retrieval/cost trên index thử.
+3. Cải thiện layout/bảng phức tạp theo lỗi đã đo được, không bật heuristic mù.
+4. Rollout theo workspace và runbook cutover sau khi xác minh.
