@@ -7,6 +7,7 @@ from raghub_core.domain.ingestion.chunker import TextChunk, chunk_sections, embe
 from raghub_core.domain.ingestion.embedding_text import DOCUMENT_PIPELINES, build_embedding_text
 from raghub_core.domain.ingestion.errors import IngestionError
 from raghub_core.domain.ingestion.limits import MAX_CHUNKS, MAX_EXTRACTED_TOKENS
+from raghub_core.domain.ingestion.markdown_v2 import chunk_markdown_blocks, parse_markdown_blocks
 from raghub_core.domain.ingestion.models import IngestionDocument, IngestionStage
 from raghub_core.domain.ingestion.normalization import normalize_sections
 from raghub_core.domain.ingestion.parser import (
@@ -158,11 +159,21 @@ class BuildDocumentIndexUseCase:
                 "EMBEDDING_FAILED", "Unsupported document pipeline.", retryable=False
             )
         try:
-            if runtime.document_pipeline != "legacy":
+            markdown_v2 = (
+                runtime.document_pipeline == "markdown-v2"
+                and document.source_name.lower().endswith(".md")
+            )
+            if markdown_v2:
+                sections = parse_markdown_blocks(content, document.source_name)
+            elif runtime.document_pipeline != "legacy":
                 sections = normalize_sections(sections)
             observe("normalize")
             if runtime.document_pipeline != "legacy":
-                chunks = self.chunker(sections, document.version_id)
+                chunks = (
+                    chunk_markdown_blocks(sections, document.version_id)
+                    if markdown_v2
+                    else self.chunker(sections, document.version_id)
+                )
                 chunks = [
                     replace(
                         c,
@@ -189,6 +200,10 @@ class BuildDocumentIndexUseCase:
                     )
         except IngestionError:
             raise
+        except EmptyExtractedTextError as exc:
+            raise IngestionError("EMPTY_EXTRACTED_TEXT", str(exc), retryable=False) from exc
+        except DocumentLimitError as exc:
+            raise IngestionError("DOCUMENT_LIMIT_EXCEEDED", str(exc), retryable=False) from exc
         except Exception as exc:
             raise IngestionError("CHUNKING_FAILED", str(exc), retryable=False) from exc
         observe("chunk")

@@ -2,15 +2,17 @@
 
 from raghub_core.domain.ingestion.chunker import embedding_text
 
-DOCUMENT_PIPELINES = {"legacy", "normalized-v1", "context-v1"}
+DOCUMENT_PIPELINES = {"legacy", "normalized-v1", "context-v1", "markdown-v2"}
 
 
 def build_embedding_text(chunk, *, pipeline="normalized-v1"):
     if pipeline not in DOCUMENT_PIPELINES:
         raise ValueError("Unsupported document embedding pipeline.")
     body = embedding_text(chunk)
-    if pipeline != "context-v1":
+    if pipeline not in {"context-v1", "markdown-v2"}:
         return body
+    if pipeline == "markdown-v2" and chunk.metadata.get("document_pipeline") == "markdown-v2":
+        return body  # Structured Markdown chunks already carry bounded context.
     metadata = [f"Source: {chunk.source_name}"]
     path = " > ".join(chunk.heading_path) or chunk.heading
     if path:
